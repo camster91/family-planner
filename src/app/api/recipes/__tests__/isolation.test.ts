@@ -271,3 +271,17 @@ it.each(['library', 'detail', 'collections', 'curation'])('refuses private %s da
   expect(response.headers.get('cache-control')).toBe('private, no-store');
   expect(db.writes).toHaveLength(0);
 });
+
+// Supplied owner intent is checked before source decoding or domain mutation.
+it('refuses a retired recipe curation owner before parsing or writing', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockResolvedValue(null);
+  const input = req({ as: 'parentA', method: 'PATCH', body: {}, headers: {
+    'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-b', familyId: 'family-B', role: 'parent', generation: 0 }),
+  } });
+  input.json = jest.fn(async () => ({}));
+  const response = await recipeCurationHttp(input, 'recipe-a');
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ error: { code: 'RECIPE_OWNER_CHANGED' } });
+  expect(input.json).not.toHaveBeenCalled(); expect(mockGate).not.toHaveBeenCalled();
+  expect(db.writes).toHaveLength(0);
+});

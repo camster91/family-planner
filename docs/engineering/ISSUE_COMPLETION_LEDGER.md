@@ -54,13 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): private recipe library/detail and
-collection/curation GETs renew original actor/family/role/session and Meals after
-DB reads before disclosure, sharing the existing publisher renewal helper. Changed
-authority refuses with private/no-store response; valid read/write contracts stay.
-Existing collection cap/missing-selection recovery was retained. Source cases
-authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/push/merge/deploy;
-#136/#460 remain open.
+Latest bounded source work (2026-10-25): recipe curation pairs catalog/state
+owner echoes before revealing controls, freezes that context for refresh/writes,
+and masks retired/missing contexts in an EN/ES reload hold. Server checks supplied
+owner before decoding and renews before response; legacy absent headers retain
+API shape. Empty401/403 bypass body decode. Source cases authored UNRUN. No QA/
+checks/build/browser/CI/API/DB/provider/push/merge/deploy; #460/#136 remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

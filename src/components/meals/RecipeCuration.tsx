@@ -7,7 +7,17 @@ import {
   recipeCurationResponse,
 } from "@/lib/recipe-curation-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
-import { requestOwnedJson } from "@/lib/owned-request-http";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
+async function requestOwnedJson(path: string, init: RequestInit, limit: number) {
+  return runOwnedForeground(async signal => {
+    const response = await fetch(path, { ...init, signal, credentials: "same-origin", cache: "no-store" });
+    const body = response.status === 401 || response.status === 403
+      ? null : await readBoundedJsonResponse(response, signal, limit);
+    return { kind: "reply" as const, response, body };
+  }, { signal: init.signal });
+}
 type Current = {
   id: string;
   revision: number;
@@ -39,14 +49,23 @@ export function RecipeCuration({
   const [loading, setLoading] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [message, setMessage] = useState<
-    "readError" | "writeError" | "refreshed" | "saved" | "current" | null
+    "readError" | "writeError" | "refreshed" | "saved" | "current" | "ownerChanged" | null
   >(null);
+  const [ownerHold, setOwnerHold] = useState(false);
+  const owner = useRef<RecipeOwner | null>(null);
+  const ownerHeld = useRef(false);
+  const reloadFocus = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (ownerHold && document.activeElement === document.body) reloadFocus.current?.focus(); }, [ownerHold]);
+  const holdOwner = () => { ownerHeld.current = true; setOwnerHold(true); setNeedsRefresh(true); setMessage("ownerChanged"); };
   const generation = useRef(0);
   const action = useRef(false);
   const mutating = useRef(false);
   usePendingFormNavigationController(busy);
   useEffect(() => {
     generation.current++;
+    owner.current = null;
+    ownerHeld.current = false;
+    setOwnerHold(false);
     action.current = false;
     mutating.current = false;
     setBusy(false);
@@ -59,6 +78,7 @@ export function RecipeCuration({
     };
   }, [id]);
   async function load(preserve: boolean) {
+    if (ownerHeld.current) { setOpen(true); return; }
     if (action.current) return;
     action.current = true;
     const own = ++generation.current;
@@ -66,14 +86,19 @@ export function RecipeCuration({
     setLoading(true);
     setMessage(null);
     try {
+      const init = owner.current ? { headers: { [RECIPE_OWNER_HEADER]: JSON.stringify(owner.current) } } : {};
       const [catalog, state] = await Promise.all([
-        requestOwnedJson("/api/recipes/collections", {}, 128 * 1024),
+        requestOwnedJson("/api/recipes/collections", init, 128 * 1024),
         requestOwnedJson(
           `/api/recipes/${encodeURIComponent(id)}/curation`,
-          {},
+          init,
           32 * 1024,
         ),
       ]);
+      const retired = [catalog, state].some(result => result.kind === "reply" && (
+        result.response.status === 401 || result.response.status === 403 ||
+        (result.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED"));
+      if (retired) { if (own === generation.current) holdOwner(); return; }
       if (
         catalog.kind !== "reply" ||
         state.kind !== "reply" ||
@@ -81,10 +106,17 @@ export function RecipeCuration({
         !state.response.ok
       )
         throw new Error();
+      const catalogOwner = readRecipeOwner(catalog.response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+      const stateOwner = readRecipeOwner(state.response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+      if (!sameRecipeOwner(catalogOwner, stateOwner) || (owner.current && !sameRecipeOwner(owner.current, stateOwner))) {
+        if (own === generation.current) holdOwner();
+        return;
+      }
       const c = collectionResponse.parse(catalog.body);
       const s = recipeCurationResponse.parse(state.body);
       if (s.id !== id) throw new Error();
       if (own !== generation.current) return;
+      owner.current = stateOwner;
       setCollections(c.collections);
       setBase(s);
       setNeedsRefresh(false);
@@ -107,6 +139,7 @@ export function RecipeCuration({
   async function save() {
     if (
       action.current ||
+      ownerHeld.current || !owner.current ||
       !base ||
       needsRefresh ||
       chosen.length > 8 ||
@@ -132,11 +165,16 @@ export function RecipeCuration({
         `/api/recipes/${encodeURIComponent(id)}/curation`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", [RECIPE_OWNER_HEADER]: JSON.stringify(owner.current) },
           body: JSON.stringify(desired),
         },
         32 * 1024,
       );
+      if (response.kind === "reply" && (
+        response.response.status === 401 || response.response.status === 403 ||
+        (response.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+        (response.response.ok && !sameRecipeOwner(owner.current, readRecipeOwner(response.response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))
+      )) { if (own === generation.current) holdOwner(); return; }
       if (response.kind !== "reply" || !response.response.ok) throw new Error();
       const result = recipeCurationResponse.parse(response.body);
       if (
@@ -177,7 +215,7 @@ export function RecipeCuration({
       <Dialog
         open={open}
         title={text.title}
-        description={`${title}. ${text.help}`}
+        description={ownerHold ? text.ownerChanged : `${title}. ${text.help}`}
         variant="form"
         closeLabel={text.close}
         onClose={
@@ -191,7 +229,7 @@ export function RecipeCuration({
                 setOpen(false);
               }
         }
-        footer={
+        footer={ownerHold ? null :
           <button
             type="button"
             className="btn-primary min-h-[44px] w-full"
@@ -209,7 +247,9 @@ export function RecipeCuration({
           </button>
         }
       >
-        <div className="space-y-3">
+        {ownerHold ? <div role="alert" className="space-y-3"><p>{text.ownerChanged}</p>
+          <button ref={reloadFocus} type="button" className="btn-secondary min-h-[44px]" onClick={() => window.location.reload()}>{text.reload}</button>
+        </div> : <div className="space-y-3">
           {loading && <p role="status">{text.loading}</p>}
           {message && (
             <p
@@ -268,7 +308,7 @@ export function RecipeCuration({
           </fieldset>
           {chosen.length > 8 && <p role="alert">{text.limit}</p>}
           {missing.length > 0 && <p role="alert">{text.missingHelp}</p>}
-        </div>
+        </div>}
       </Dialog>
     </>
   );

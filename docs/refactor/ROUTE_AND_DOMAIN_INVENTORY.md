@@ -2699,3 +2699,35 @@ paging engine or silent selection drop was introduced there.
 Four private-route household-retirement cases are authored UNRUN alongside the
 existing publisher role/generation cases. No QA/tests/checks/build/browser/CI/API/
 DB/provider/push/merge/deploy ran. #136/#460 remain open.
+
+## Paired recipe curation read owner and write intent — 2026-10-25
+
+#460/#136 source: collection catalog and recipe curation GETs now echo a bounded
+X-Herewoven-Recipe-Owner header with protocol, original server actor/family/role/
+session generation after existing authority renewal. Response JSON shapes stay
+unchanged. Supplied expected-owner headers are validated before feature/body/
+mutation work; mismatch/malformed markers refuse409 RECIPE_OWNER_CHANGED. Legacy
+callers without the optional request header retain existing API compatibility.
+Mutation responses renew original access before echoing the context; later refusal
+does not prove a prior write rolled back.
+
+RecipeCuration requires matching owner echoes from both parallel reads before
+showing the catalog/current choices or enabling edits. The first accepted pair
+freezes the mounted sheet's owner; refresh and writes carry that exact header.
+Refresh cannot rebind an uncertain draft to another account/household/role/session.
+Mismatched/missing/old-server echoes or explicit access refusal latch a masked
+EN/ES reload hold. The previous draft stays mounted but hidden; no new write or
+legacy fallback is sent. Reload is explicit and44px, and receives focus only if
+removal left focus on body. Close/reopen does not clear the hold; a new route ID
+or page reload creates a new mount context.401/403 are recognized before body
+reading even for empty native responses. Existing bounded deadlines/CAS recovery
+and user-authored recipe/collection text remain otherwise unchanged.
+
+This is intent binding and paired-response admission, not a credential, signed
+snapshot, proof of absent effects or complete SSR-origin owner boundary. The first
+pair begins with current server authority; an original server-rendered owner,
+full app masking/native/process-death/restore acceptance remain separate. Other
+recipe consumers retain their existing contracts. No schema/provider activation.
+Pure marker, mixed/missing pair, frozen uncertain refresh/write-header and server
+pre-decode refusal cases are authored/adapted UNRUN. No QA/tests/checks/build/
+browser/CI/API/DB/provider/push/merge/deploy ran. #460/#136 remain open.
