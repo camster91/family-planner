@@ -54,13 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): opportunistic generic receipt
-cleanup selects at most500 expired IDs in expiry/ID order and rechecks expiry
-when deleting that set. Existing TTL, prune probability, exact-key expiry/replay
-and best-effort failure policy remain. Backlog continues on later selected
-requests; no scheduler or live cleanup ran. Source case authored/unrun; SQL plans,
-concurrency, bounded latency and action-specific recovery acceptance remain
-unverified. No QA, database, build, browser, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): #141 notification gaps are now
+explicitly separated from QA in a source-backed N1–N5 contract: canonical domain
+event/admission identity, independent dedupe evidence, atomic in-app dispatch,
+bounded recovery, honest provider uncertainty and typed authorized destinations.
+Current preferences/quiet-hours/inbox and special summary day claims remain.
+No new delivery code/schema/provider/scheduler or permission activation exists
+from this plan. All implementation/acceptance criteria remain open; no QA,
+database, build, browser, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -121,7 +122,7 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #145 — [Developer Platform] Harden CI/CD, environments, migrations and release automation | Release engineering retained | Codex | Keep actual CI/source/image/recovery identity contracts aligned with the current deployment route. |
 | #144 — [AI Quality] Add evaluation, grounding, cost and safety gates for household AI | AI quality gate retained | Codex | Preserve grounding/evaluation/cost/privacy criteria independently of AI product feature work. |
 | #142 — Localization: Settings, shared-device setup, dates, units and layouts | Localization source; acceptance pending | Codex | Own the transferred Settings and device-pairing locale matrix with original date/unit/native requirements. |
-| #141 — [Notifications] Build useful, restrained reminders, deep links and background delivery | Notification delivery work retained | Codex | Reconcile restrained reminders/deep links/background behavior; do not activate a scheduler here. |
+| #141 — [Notifications] Build useful, restrained reminders, deep links and background delivery | Preferences/inbox source; event identity, delivery recovery and exact destinations unfinished | Codex; Cameron for provider/scheduler/native rollout | Follow notification-delivery-v1 N1–N5; preserve summary day-claim behavior and old-client/privacy rules without activation. |
 | #140 — [Analytics & Growth] Define privacy-safe activation, retention, experimentation and product learning | Schema/prohibited-data policy documented; expansion gated | Codex + Cameron | Use existing opted-in counts only; new collectors, consent, denominators and real learning remain explicit work. |
 | #139 — [QA & Accessibility] Build automated journey, visual, accessibility and device-quality gates | Reusable quality programme retained | Codex | Keep reusable accessibility/visual/device infrastructure distinct from the final-candidate section under #377 (retired duplicate #105). |
 | #138 — Android and fridge app: lifecycle, shared sessions, builds and store readiness | Android release prerequisites retained | Codex; Cameron hardware/signing | Own transferred appliance/session/build requirements; unsigned CI is not hardware/store acceptance. |

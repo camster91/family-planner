@@ -3024,3 +3024,17 @@ An unrun501-expired-row source case checks that one pass leaves a remainder and
 a later pass drains it while retaining live receipts. PostgreSQL renewal/races,
 real query plans, full offline/receipt semantics and all QA remain unverified.
 No database/cleanup invocation, test/build/browser/CI or release ran.
+
+
+### Notification lifecycle gap disposition — 2026-10-25 (#141)
+
+Source inspection confirms generic deliverNotification creates rows without an
+upstream-event dedupe identity; special summary day claims are not a general
+transactional outbox. The destination allowlist currently supports only Today.
+The N1–N5 contract in `docs/plans/notification-delivery-v1.md` records actual
+remaining admission/delivery/recovery/destination/producer work, independent of
+QA. It preserves preference/quiet-hours and current summary semantics, requires
+dedupe evidence to survive visible-row deletion, original-event retry windows,
+actual transition identity, fresh authority and honest provider uncertainty. No
+new engine, schema, producer conversion, provider or scheduler is implemented by
+the document. #141 stays open; no runtime/QA/release action ran.

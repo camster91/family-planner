@@ -1,0 +1,148 @@
+# Notification event identity and delivery follow-through — #141
+
+2026-10-25. Source-backed implementation contract, not implemented event/outbox
+infrastructure or accepted behavior. Existing #141 taxonomy, preferences, privacy,
+quiet-hours/timezone, native/deep-link and telemetry criteria remain authoritative.
+No provider, scheduler, schema, data, permission or release setting changes here.
+
+## Current source and the missing behavior
+
+- `notification-policy.ts` maps every existing in-app type to a category,
+  always-send or opted-in morning summary. Do not replace that policy table.
+- `notification-delivery.ts` takes ordered User then household lifecycle locks
+  for household sends, checks current membership/sender role and preferences,
+  writes an in-app Notification and returns the current quiet-hours result.
+  Quiet hours do not discard the in-app record. The helper does not persist a
+  generic event identity or suppress duplicate ordinary upstream invocations.
+- `notifications-server.ts` catches delivery failure and returns a boolean.
+  Parent manual POST and chore/reward sources use that shared path. There is no
+  general durable delivery/retry/failure state implied by those booleans.
+- `Notification` has user ownership, text/type/read/snooze/action URL/time fields;
+  its current schema has no upstream-event deduplication key. Text/title equality
+  cannot distinguish replay from a second deliberate announcement/completion.
+- `morning-summary-server.ts` claims a person's day before send. Preserve that
+  special existing at-most-one-attempt behavior and #470 authority repair. It is
+  not an atomic general outbox, delivered-mail receipt or proof that a failed
+  recipient can be retried without a separate reviewed contract.
+- `notification-destination.ts` deliberately accepts only `/dashboard/today`.
+  Exact chore/event/list/recipe destinations and native cold-start resolution are
+  unfinished, not completed by a stored arbitrary action URL.
+
+In-app paging, read/snooze/Undo recovery and typed preferences are existing source
+candidates. Their presence does not complete #141's upstream event, provider,
+exact destination or physical-device requirements.
+
+## N1 — canonical occurrence identity and same-transaction admission
+
+Define a versioned internal event envelope, not client-supplied title matching:
+fixed event kind, originating household/account scope, immutable source identity,
+accepted domain-transition identity, recipient User ID, schema version and
+original dispatch deadline. Source references are checked canonical IDs, never
+provider/model-returned IDs or profile selection as an actor. Content is a
+minimal allowed projection, not a generic persisted whole household snapshot.
+
+The domain transaction creates or reuses one accepted event occurrence alongside
+the canonical state change and its receipt. A fresh client key cannot manufacture
+a second event for an already accepted transition. Reopening and legitimately
+completing a chore again may create a new transition/event; hashing chore ID alone
+would lose it. Recurring chores use actual occurrence identity, not title/root
+alone. Two deliberate identical parent announcements remain two commands; an
+exact retry of one command reuses its event. Do not retrofit this identity by
+name, timestamp proximity, current assignee or arbitrary text hashes.
+
+Propose exact additive event/admission schema and its export/departure/erasure
+inventory before coding. Unique admission coordinates must include the immutable
+origin, event occurrence, recipient and channel. Deleting a visible Notification
+must not delete the only dedupe evidence and allow an old event to reappear.
+Retain a minimal terminal decision/tombstone independent of inbox-row deletion.
+A stored deadline plus supported old-operation/rollback window must prevent
+recreating a receipt after its dedupe evidence expires. The concrete retention
+window remains a reviewed rollout input; generic idempotency TTL is not silently
+reused as a complete delivery-retention contract.
+
+Preference suppression is a recorded terminal decision for this occurrence, so
+turning a category on later does not replay old muted events. Quiet hours still
+allow a single in-app row; interruptive channels make their own fresh decision.
+Unsupported/expired event versions hold/refuse rather than falling back to an
+unkeyed legacy send. Keep legacy callers unchanged until explicitly migrated;
+optional adoption alone cannot prove all upstream notifications deduplicated.
+
+## N2 — in-app dispatch and bounded recovery
+
+Dispatch atomically claims/adopts an admitted event and creates at most one
+canonical in-app row, with compact result identity and terminal disposition in
+the same transaction. Recheck current actor where required, recipient membership,
+originating household, role/category/privacy and source validity under the
+existing lifecycle lock order before projection. A departed person must not
+receive newly projected old-household content. Preserve current account-only
+safety mail as its own policy; no invented family association.
+
+Use bounded explicit event-driven dispatch/recovery with a finite claimed set,
+original event ID and deadline, version/CAS and expired-claim handling. Do not
+start a cron, autonomous retry loop or provider campaign. Any later worker needs
+separate scheduler/queue approval. Errors distinguish held, suppressed, pending,
+unknown and confirmed; `delivered: false` alone is insufficient evidence for
+retry or a new event. No partial batch may be reported as complete.
+
+A parent-facing support/recovery view exposes content-minimal failure code,
+channel, attempt state and safe next action under fresh authority. It must not
+expose another recipient's private message or reusable credentials. Canonical
+notification read/snooze/delete/Undo remains the inbox interaction model, not an
+outbox editing UI or a second notification centre.
+
+## N3 — interruptive channels and restrained reminders
+
+Treat provider acceptance, device receipt and person seeing a message as separate
+states. Claiming a local event cannot guarantee exactly-once provider delivery.
+An uncertain provider result retains the same delivery identity; retry requires
+an explicitly supported provider idempotency/reconciliation contract. Otherwise
+hold for safe inspection, never promise retry without duplicates. Record stale
+registration/revocation terminal state without logging tokens or payloads.
+
+Check current opt-in/category/quiet-hours/timezone, membership, role, session or
+device authority and provider readiness immediately before a send. Shared device
+or lock-screen payloads default to neutral app/action-needed copy; no child names,
+event titles, address, message/medical/finance text or private source references.
+Permission denial and provider failure preserve in-app/manual workflows. No new
+push service, paid tier, camera/microphone permission, background listener or
+wake lock is activated by this plan. Existing summary email is not silently
+converted into retrying outbox work.
+
+## N4 — typed destinations and client compatibility
+
+Extend the existing destination resolver only with versioned allowlisted domain
+kind plus canonical target/occurrence identity. Authorization is resolved at open
+time; a notification is not a capability to read its source. Known deleted,
+foreign, disabled or unsupported targets reach a neutral destination-unavailable
+state and a useful permitted fallback without revealing which private condition
+applied. Never execute arbitrary stored schemes, external URLs or model links.
+
+Use existing web router and native universal/app-link contract, retaining a safe
+Today fallback for older clients. Review cold/warm/already-open, sign-in return,
+revoked/paired device, unlinked profile and source-deletion paths. Do not mark
+native delivery complete from a web click or an authored resolver. Keep existing
+snooze/read/Undo behavior and exact request recovery separate from navigation.
+
+## N5 — migration, acceptance and rollback
+
+Migration order: accepted internal contract/schema plus lifecycle inventory →
+canonical source-transition admission → atomic in-app consumer/recovery → migrate
+all ordinary producers with stable identities → typed destination UI → separately
+approved provider/native rollout. Inventory every producer (manual POST, chore
+assignment/verification and reward claims/approvals); inspect actual call sites
+before converting. Existing helper methods that have no production caller do not
+establish coverage. Morning summary remains a separately reviewed producer.
+
+Rollback pauses new admissions/dispatch and keeps original events, dedupe evidence,
+receipts and inbox content readable. Never replay a strict event through legacy
+unkeyed delivery or drop its evidence when hiding the new UI. Old-client support,
+expire/restore behavior, additive DDL and export/erasure need explicit acceptance.
+
+Deferred cases: concurrent duplicate admission/send, same text distinct events,
+recompletion and recurrence, muted→enabled, quiet-hours/DST, deletion then replay,
+late/unknown provider acceptance, expired lease/deadline, old operations/rollback,
+role/family change, direct foreign target requests, revoked registrations,
+shared lock-screen privacy, EN/ES keyboard/Back/focus and named physical devices.
+No case was run; no acceptance criterion is checked by this document. Execution
+stays in #141 with source/compatibility #134/#135/#136/#473, native #138/#465 and
+release #377; no duplicate issue is needed.
