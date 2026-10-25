@@ -71,7 +71,7 @@ is fetched. Explicit Toronto DST and other semantic edge cases remain unsupporte
 
 The manifest deliberately returns `complete: false`. It names unsupported
 profiles/linking, pairing, inventory reviewed receipts/deleted targets, chores/routines, prep/history,
-projects/tasks, notes/wishlist/notifications/audit and receipt/review/provider
+project-calendar linked/deleted targets, notes/wishlist/notifications/audit and receipt/review/provider
 fixtures. Empty arrays do not substitute for these dimensions. Counts are
 construction expectations, not observations from a seeded/reconciled database.
 A declared Toronto zone is metadata, not evidence of database/application zone
@@ -142,3 +142,28 @@ canonical mutation/Undo API. Inventory reviewed receipts/deleted targets, other
 missing dimensions and real lifecycle semantics remain unsupported; manifest is
 still complete:false. Adapted integrity source covers counts, household references,
 insertion order and history-to-final snapshot reconciliation, all unrun.
+
+## Project/task construction — 2026-10-25 (version3, source only)
+
+`herewoven.capacity-rows.v3` now includes type-only canonical Project/ProjectTask
+rows, with the existing reserved identity prefixes. Ordinary/calendar/food profiles
+have six projects and40 tasks in the largest project; history has20 projects and
+2,000 tasks in the largest. Each other nonempty project has five tasks; the last
+project is deliberately empty/archived. Thus expected task totals are60 or2,090,
+not the largest-project count multiplied by every project.
+
+Projects cover active/completed/archived states. All tasks in the completed project
+are completed; active projects mix completion and parent/teen/unassigned subjects.
+Due dates cover absent and past/future UTC-midnight values. Tied task position and
+created timestamps exercise the existing ID tie-breaker; repeated titles are
+intentional. Projects precede their task rows and all references remain local to
+the fabricated household. No calendar link is invented: existing fixture events
+remain standalone. Linked/already-sent/deleted project-calendar scenarios remain
+explicitly unsupported until canonical adapter/receipt semantics are constructed.
+
+Expected counts and parent/locality/empty/largest/status/tie integrity source are
+updated, all unrun. Other missing fixture dimensions, adoption/writer, exact
+server/database/provider binding, canonical workload adapters and observed outcome
+reconciliation remain required. Manifest stays complete:false. No generator,
+writer, seed/reset, DB/API, load test, QA/build/browser/native/provider or release
+was executed; this source does not complete #137 reproducibility or capacity.

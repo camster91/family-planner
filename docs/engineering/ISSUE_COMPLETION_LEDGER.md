@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work extends the dormant capacity dataset with canonical
-inventory stock and adjustment history (#137). Version2 emits the model's active
-stock/adjustment cardinalities plus six finished targets per household. Ingredient/
-actor/item references stay household-local; partial consumption, consumed/discarded
-snapshots, unknown amounts, expiry/location/date kinds and historical Undo entries
-are explicitly constructed with matching final quantities/status/version. Request
-receipts/review/deleted targets remain unsupported, as do other missing dimensions;
-manifest stays incomplete. Counts are expectations only. Source integrity cases
-adapted/authored but unrun; no builder, writer, seed/reset, DB, adapter or capacity
-run occurred. No QA/test/check/build/browser/CI/API/provider/native/push/merge/deploy.
-Guarded adoption, real reconciliation, all adapters and full acceptance remain open.
+Latest bounded source work (2026-10-25) adds canonical project/task rows to the
+dormant capacity builder (#137). Dataset version3 constructs the model's project
+and largest-task counts, five tasks per other nonempty project and one deliberately
+empty archived project per household. Parent/teen/unassigned subjects stay local;
+active/completed/archived project states, fully completed project tasks, missing/
+date-only due dates and tied position/created keys are fabricated. Parent-before-
+dependent order and200-row batches remain. Linked/deleted project-calendar targets,
+other missing fixture dimensions, writer/adapters and actual reconciliation remain
+unfinished; manifest stays incomplete. Integrity source authored/adapted but unrun.
+No builder/seed/reset/DB/API/load/test/check/build/browser/CI/provider/native/push/
+merge/deploy execution occurred. Full reproducibility/capacity acceptance stays open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -8,16 +8,16 @@ import {
 } from "../fixtures/dataset";
 import { CAPACITY_MODEL_VERSION, type CapacityPlan, type CapacityProfile } from "./model";
 
-export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v2";
+export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v3";
 export const CAPACITY_CARDINALITIES = {
-  ordinary: { activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  calendar: { activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  food: { activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
-  history: { activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
+  ordinary: { projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  calendar: { projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  food: { projects: 6, largestProjectTasks: 40, activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
+  history: { projects: 20, largestProjectTasks: 2000, activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
 } as const;
 export const CAPACITY_UNSUPPORTED_DIMENSIONS = [
   "email-free-profiles-and-links", "paired-shared-devices", "inventory-reviewed-receipts-and-deleted-targets",
-  "chore-roots-occurrences-and-routines", "prep-sessions-and-history", "projects-and-tasks",
+  "chore-roots-occurrences-and-routines", "prep-sessions-and-history", "project-calendar-linked-and-deleted-targets",
   "notes-wishlist-notifications-audit", "receipts-review-undo-and-provider-fakes",
   "toronto-dst-and-special-semantic-cases",
 ] as const;
@@ -25,7 +25,9 @@ export const CAPACITY_UNSUPPORTED_DIMENSIONS = [
 export const CAPACITY_FINISHED_STOCK = 6;
 type CapacityInventoryItem = Omit<Prisma.InventoryItemCreateManyInput, "id"> & { id: string };
 type CapacityInventoryAdjustment = Omit<Prisma.InventoryAdjustmentCreateManyInput, "id"> & { id: string };
-type RowMap = { inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
+type CapacityProject = Omit<Prisma.ProjectCreateManyInput, "id"> & { id: string };
+type CapacityProjectTask = Omit<Prisma.ProjectTaskCreateManyInput, "id"> & { id: string };
+type RowMap = { projects: CapacityProject; projectTasks: CapacityProjectTask; inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
   lists: FixtureList; listItems: FixtureListItem; recipes: FixtureRecipe;
   ingredients: FixtureIngredient; recipeIngredients: FixtureRecipeIngredient; familyMeals: FixtureFamilyMeal };
 export type CapacityDatasetRow = { [K in keyof RowMap]: { table: K; row: RowMap[K] } }[keyof RowMap];
@@ -65,6 +67,7 @@ export function capacityDatasetManifest(plan: CapacityPlan, anchor: string) {
         recipes: count.recipes, ingredients: count.recipeLines,
         recipeIngredients: count.recipes * count.recipeLines, familyMeals: count.meals,
         inventoryItems: count.activeStock + CAPACITY_FINISHED_STOCK, inventoryAdjustments: count.adjustments,
+        projects: count.projects, projectTasks: count.largestProjectTasks + (count.projects - 2) * 5,
       }, recurringEvents: count.recurringEvents };
     }),
   };
@@ -89,6 +92,26 @@ function* householdRows(ordinal: number, profile: CapacityProfile, anchor: strin
     yield { table: "users", row: { ...original, id: idFor(ordinal, "user", index), family_id: familyId,
       name: `Capacity ${role} ${ordinal}-${index}`, email: `capacity.${ordinal}.${index}@example.test`,
       xp: 0, level: 1, streak: 0, best_streak: 0 } };
+  }
+  for (let index = 0; index < count.projects; index++) {
+    const projectId = idFor(ordinal, "project", index);
+    const status = index === 1 ? "completed" : index === count.projects - 1 ? "archived" : "active";
+    const created = new Date(time - 60 * DAY + tiedKey(index) * 1000);
+    yield { table: "projects", row: { id: projectId, family_id: familyId, created_by: parentId,
+      name: `Capacity project ${tiedKey(index)} – 家庭`, description: "Fabricated project",
+      status, color: "#3B82F6", created_at: created, updated_at: created } };
+    // The final project is deliberately empty. Other small projects have five tasks.
+    const taskCount = index === 0 ? count.largestProjectTasks : index === count.projects - 1 ? 0 : 5;
+    for (let position = 0; position < taskCount; position++) {
+      const key = tiedKey(position);
+      const at = new Date(time - 30 * DAY + key * 1000);
+      yield { table: "projectTasks", row: { id: idFor(ordinal, `project${index}-task`, position),
+        project_id: projectId, title: `Capacity task ${key} – café`, description: null,
+        completed: status === "completed" || position % 5 === 0,
+        assigned_to: position % 3 === 0 ? null : position % 3 === 1 ? parentId : teenId,
+        due_date: position % 5 === 0 ? null : new Date(dayStart + ((key % 61) - 30) * DAY),
+        position: key, created_at: at, updated_at: at } };
+    }
   }
   const event = fixture.events.find(row => row.id === FIXTURE_IDS.familyA.event)!;
   for (let index = 0; index < count.events; index++) {

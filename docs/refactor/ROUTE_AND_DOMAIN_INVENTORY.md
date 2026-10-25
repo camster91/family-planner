@@ -1724,3 +1724,13 @@ batches/no runtime Prisma/no writer or connection remain. Receipt/review/deleted
 inventory targets and other required fixtures remain unsupported; manifest remains
 incomplete. Counts/integrity source authored/unrun, no dataset or load execution.
 Guarded adoption/adapters/reconciliation and actual capacity acceptance remain open.
+
+### Dormant capacity project/task rows — 2026-10-25 (#137)
+
+Dataset version3 adds canonical project/task shapes with model-sized largest
+projects, small/empty/status variations, household-local assignees and tied task
+keys. Parent-before-dependent order and200-row batches remain. Calendar-linked/
+deleted targets and other missing dimensions remain explicit; incomplete manifest
+and no-runtime/no-writer boundaries remain. Integrity source authored/adapted only;
+no dataset/load/DB/API/test/build/browser/native/provider/release execution. Actual
+adoption/adapters/reconciliation/reproducibility and full acceptance remain open.

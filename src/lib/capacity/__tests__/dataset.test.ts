@@ -41,6 +41,9 @@ it("keeps every canonical reference inside its fabricated household", () => {
       expect(family.get(entry.row.added_by)).toBe(family.get(entry.row.list_id));
       if (entry.row.checked_by) expect(family.get(entry.row.checked_by)).toBe(family.get(entry.row.list_id));
     }
+    if (entry.table === "projects") expect(family.get(entry.row.created_by)).toBe(entry.row.family_id);
+    if (entry.table === "projectTasks" && entry.row.assigned_to)
+      expect(family.get(entry.row.assigned_to)).toBe(family.get(entry.row.project_id));
     if (entry.table === "inventoryItems") {
       expect(family.get(entry.row.ingredient_id!)).toBe(entry.row.family_id);
       expect(family.get(entry.row.added_by!)).toBe(entry.row.family_id);
@@ -123,4 +126,42 @@ it.each(["ordinary", "calendar", "food", "history"] as const)("builds canonical 
     else expect(time(item.finished_at)).toBe(time(item.updated_at));
   }
   expect(undone).toBeGreaterThan(0);
+});
+
+it.each(["ordinary", "calendar", "food", "history"] as const)("constructs %s project workload with bounded parents, largest/empty and tied tasks", profile => {
+  const candidate = capacityPlan({ stage: "reference", profile });
+  const counts = CAPACITY_CARDINALITIES[profile];
+  const projects = new Map<string, { tasks: number; status: string | undefined }>();
+  let familyId: string | null = null;
+  let last: { projectId: string; position: number | undefined; createdAt: string } | null = null;
+  let tied = false;
+  let missingDate = false;
+  outer: for (const batch of capacityDatasetBatches(candidate, anchor)) {
+    expect(batch.length).toBeLessThanOrEqual(200);
+    for (const entry of batch) {
+      if (entry.table === "families") {
+        if (familyId !== null) break outer;
+        familyId = entry.row.id;
+      }
+      if (entry.table === "projects") {
+        expect(entry.row.family_id).toBe(familyId);
+        projects.set(entry.row.id, { tasks: 0, status: entry.row.status });
+      }
+      if (entry.table === "projectTasks") {
+        const project = projects.get(entry.row.project_id)!;
+        expect(project).toBeDefined(); project.tasks++;
+        if (project.status === "completed") expect(entry.row.completed).toBe(true);
+        missingDate ||= entry.row.due_date === null;
+        const createdAt = entry.row.created_at instanceof Date ? entry.row.created_at.toISOString() : String(entry.row.created_at);
+        if (last?.projectId === entry.row.project_id && last.position === entry.row.position && last.createdAt === createdAt) tied = true;
+        last = { projectId: entry.row.project_id, position: entry.row.position, createdAt };
+      }
+    }
+  }
+  expect(projects.size).toBe(counts.projects);
+  expect(Math.max(...[...projects.values()].map(project => project.tasks))).toBe(counts.largestProjectTasks);
+  expect([...projects.values()].filter(project => project.tasks === 0)).toHaveLength(1);
+  expect([...projects.values()].reduce((sum, project) => sum + project.tasks, 0))
+    .toBe(counts.largestProjectTasks + (counts.projects - 2) * 5);
+  expect(tied).toBe(true); expect(missingDate).toBe(true);
 });
