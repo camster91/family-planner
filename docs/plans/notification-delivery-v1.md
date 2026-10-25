@@ -482,3 +482,31 @@ fake does not prove rollback/SQL/FK/concurrency. Real atomic failure, multi-devi
 cycles, profile/credit compatibility, export/erasure, provider/native and all
 original acceptance remain. No QA, migration/generation, app/API/DB execution,
 provider, flag/scheduler change or release ran.
+
+
+## Original check snapshot/CAS foundation — 2026-10-25
+
+Strict command contract/shared builder and `lockOriginalChoreCheckInTx` are now
+authored, not yet connected to an endpoint/client. They bind explicit original
+parent user/family/session-generation preconditions, exact chore ID/decision,
+immutable source generation, material responsibility epoch and completion
+preparation epoch. Existing SQL preparation_epoch counts status/photo/check/
+completion changes even when timestamps repeat; combining it with material epoch
+protects reassignment/points/title/recurrence changes. No new clock/version column
+is inferred, and absent/negative/saturated counters never default to a valid0.
+
+The atomic predicate requires the same household/ID, completed status and all
+three original version coordinates while acquiring FOR UPDATE. A later cycle or
+material edit holds before effects, not just before a separate unguarded query.
+Caller must first renew current authenticated parent and ordered lifecycle/
+actual User locks; the typed owner is only a precondition. Strict schema requires
+explicit approve/reject and rejects unknown fields. There is no receipt/replay
+confirmation, HTTP fallback, lifetime/restore policy or client activation here.
+
+Four source cases cover same-time completion cycles, material/birth changes,
+missing/saturated versions, explicit owner/decision and full SQL predicate; all
+unrun. Next: one shared verify handler plus separate strict endpoint, original
+context/capability projection and retained-review UI behavior without silently
+refreshing an old command's expected version. Legacy endpoint stays compatible.
+All PG/old-client/restore/receipt/role/concurrency acceptance remains unfinished;
+no QA, DB, generation/migration/build/browser or release action ran.

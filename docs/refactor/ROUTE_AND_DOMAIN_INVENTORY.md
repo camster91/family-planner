@@ -3152,3 +3152,14 @@ profile/removed-subject rules remain; strict accepted notices skip legacy send.
 Five route source cases authored/unrun. Existing conditional-state API still
 needs versioned original-command/CAS across intervening completion cycles before
 rollout; wiring is not full dedupe/old-client/PG/QA acceptance. No data/release ran.
+
+
+### Original chore-check version foundation — 2026-10-25
+
+Unconnected strict schema/shared snapshot and FOR UPDATE CAS predicate bind
+source birth, material and completion epochs plus current completed status.
+Existing preparation epoch counts status/photo/check cycles; timestamp/title
+matching and default/saturated versions are refused. Authenticated owner renewal
+remains a caller requirement; no endpoint/UI/receipt/restore guarantee is implied.
+Four source cases unrun. Shared strict endpoint/capability/original-review wiring
+remains next under #141/#135; no QA/data/release action ran.
