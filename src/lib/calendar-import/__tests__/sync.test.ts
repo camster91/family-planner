@@ -29,6 +29,8 @@ import {
 } from "@/__tests__/helpers/two-household";
 import {
   refreshStaleSubscriptions,
+  reconcileOccurrences,
+  importWindow,
   removeSubscription,
   syncSubscription,
 } from "../sync";
@@ -448,4 +450,47 @@ describe("refreshStaleSubscriptions", () => {
       }),
     ).toBe(1);
   });
+});
+
+// Authored/unrun. The fake verifies shapes/equivalence only; it does not model
+// PostgreSQL snapshots, locks or rollback after a later failed batch.
+it("reconciles multiple existing/import batches while preserving valid old history and moved identities", async () => {
+  const original = { ...db.find("event", "event-a")! };
+  const sub = { id: "sub-a", family_id: FAMILY_A, created_by: "parent-a" };
+  const past = new Date("2025-01-01T12:00:00Z");
+  const current = new Date("2026-09-18T12:00:00Z");
+  const imported = (id: string, uid: string, start: Date) => ({ ...original,
+    id, family_id: FAMILY_A, source_subscription_id: "sub-a", source_uid: uid,
+    source_occurrence_start: start, start_time: start, end_time: new Date(start.getTime() + 3600000),
+  });
+  for (let i = 0; i < 405; i++) db.rows("event").push(imported(`stale-${String(i).padStart(3, "0")}`, `stale-${i}`, current));
+  db.rows("event").push(imported("history-a", "history", past), imported("moved-a", "moved", past));
+  const occurrences = Array.from({ length: 205 }, (_, i) => ({
+    uid: `new-${i}`, occurrenceStart: current, start: current,
+    end: new Date(current.getTime() + 3600000), allDay: false,
+    title: "Synthetic new event", description: null, location: null,
+  }));
+  occurrences.push({ ...occurrences[0], uid: "moved", occurrenceStart: past, title: "Moved existing" });
+  const read = jest.spyOn(fakePrisma.event, "findMany");
+  const create = jest.spyOn(fakePrisma.event, "createMany");
+  const transaction = jest.fn((work: (tx: any) => Promise<unknown>, options: unknown) => fakePrisma.$transaction(work, options));
+  try {
+    const counts = await reconcileOccurrences({ $transaction: transaction }, sub, occurrences, importWindow(NOW));
+    expect(counts).toEqual({ created: 205, updated: 1, deleted: 405 });
+    expect(db.find("event", "history-a")).toBeDefined();
+    expect(db.find("event", "moved-a")).toMatchObject({ title: "Moved existing", source_occurrence_start: past, start_time: current });
+    expect(db.find("event", "event-a")).toEqual(original);
+    expect(db.find("event", "event-imported-b")).toBeDefined();
+    expect(read.mock.calls.length).toBeGreaterThanOrEqual(3);
+    for (const [query] of read.mock.calls) {
+      expect(query).toMatchObject({ where: { family_id: FAMILY_A, source_subscription_id: "sub-a" }, orderBy: { id: "asc" }, take: 200 });
+    }
+    expect(read.mock.calls[1][0].where.id.gt).toBeDefined();
+    expect(create.mock.calls.map(([query]) => query.data.length)).toEqual([200, 5]);
+    for (const write of writesTo("event").filter(w => w.op === "deleteMany")) {
+      expect(write.args.where.id.in.length).toBeLessThanOrEqual(200);
+    }
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 30_000, isolationLevel: "RepeatableRead" });
+    expect(await reconcileOccurrences(fakePrisma, sub, occurrences, importWindow(NOW))).toEqual({ created: 0, updated: 0, deleted: 0 });
+  } finally { read.mockRestore(); create.mockRestore(); }
 });

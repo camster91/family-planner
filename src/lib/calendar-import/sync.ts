@@ -14,7 +14,7 @@ import {
   feedUrlHint,
   type FetchLike,
 } from "./fetch";
-import { IcsParseError, parseIcsFeed, type ImportedOccurrence } from "./parse";
+import { IcsParseError, parseIcsFeed, MAX_OCCURRENCES, type ImportedOccurrence } from "./parse";
 import { DEFAULT_FAMILY_TIMEZONE } from "./timezone";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -122,112 +122,93 @@ export async function reconcileOccurrences(
   occurrences: ImportedOccurrence[],
   window: { start: Date; end: Date },
 ): Promise<{ created: number; updated: number; deleted: number }> {
+  if (occurrences.length > MAX_OCCURRENCES) throw new Error("Unbounded calendar import");
+  const incoming = new Map<string, ImportedOccurrence>();
+  for (const occurrence of occurrences) {
+    const key = keyOf(occurrence.uid, occurrence.occurrenceStart);
+    if (incoming.has(key)) throw new Error("Ambiguous calendar occurrence");
+    incoming.set(key, occurrence);
+  }
+  const fieldsOf = (occ: ImportedOccurrence) => ({
+    title: occ.title, description: occ.description, location: occ.location,
+    start_time: occ.start, end_time: occ.end,
+  });
+  const batchSize = 200;
   return db.$transaction(
     async (tx: any) => {
-      const existing: ExistingRow[] = await tx.event.findMany({
-        where: { family_id: sub.family_id, source_subscription_id: sub.id },
-        select: {
-          id: true,
-          source_uid: true,
-          source_occurrence_start: true,
-          title: true,
-          description: true,
-          location: true,
-          start_time: true,
-          end_time: true,
-        },
-      });
-      const byKey = new Map<string, ExistingRow>();
-      for (const row of existing) {
-        if (row.source_uid && row.source_occurrence_start) {
-          byKey.set(
-            keyOf(row.source_uid, new Date(row.source_occurrence_start)),
-            row,
-          );
+      // Keep only the bounded incoming feed plus one existing-row batch in memory.
+      // The immutable ID boundary remains valid after updates or batch deletion.
+      const missing = new Map(incoming);
+      let after: string | null = null;
+      let updated = 0, deleted = 0, created = 0;
+      for (;;) {
+        const rows: ExistingRow[] = await tx.event.findMany({
+          where: {
+            family_id: sub.family_id, source_subscription_id: sub.id,
+            ...(after === null ? {} : { id: { gt: after } }),
+          },
+          select: {
+            id: true, source_uid: true, source_occurrence_start: true,
+            title: true, description: true, location: true,
+            start_time: true, end_time: true,
+          },
+          orderBy: { id: "asc" }, take: batchSize,
+        });
+        if (rows.length > batchSize || (after !== null && rows.some(row => row.id === after)))
+          throw new Error("Invalid calendar import batch");
+        if (!rows.length) break;
+        const staleIds: string[] = [];
+        for (const row of rows) {
+          const key = row.source_uid && row.source_occurrence_start
+            ? keyOf(row.source_uid, new Date(row.source_occurrence_start)) : null;
+          const occurrence = key === null ? undefined : incoming.get(key);
+          if (occurrence) {
+            missing.delete(key!);
+            const fields = fieldsOf(occurrence);
+            if (row.title !== fields.title || (row.description ?? null) !== fields.description ||
+              (row.location ?? null) !== fields.location ||
+              new Date(row.start_time).getTime() !== fields.start_time.getTime() ||
+              new Date(row.end_time).getTime() !== fields.end_time.getTime()) {
+              await tx.event.update({
+                where: { id: row.id, family_id: sub.family_id, source_subscription_id: sub.id },
+                data: fields,
+              });
+              updated++;
+            }
+          } else {
+            const start = new Date(row.start_time).getTime();
+            // Preserve prior invalid-key cleanup and in-window deletion semantics;
+            // valid older history stays unless its exact identity is updated above.
+            if (key === null || (start >= window.start.getTime() && start < window.end.getTime()))
+              staleIds.push(row.id);
+          }
         }
+        if (staleIds.length) {
+          const result = await tx.event.deleteMany({ where: {
+            id: { in: staleIds }, family_id: sub.family_id, source_subscription_id: sub.id,
+          } });
+          deleted += result.count;
+        }
+        after = rows[rows.length - 1].id;
+        if (rows.length < batchSize) break;
       }
-
-      const seen = new Set<string>();
-      const toCreate: Record<string, unknown>[] = [];
-      let updated = 0;
-      for (const occ of occurrences) {
-        const key = keyOf(occ.uid, occ.occurrenceStart);
-        seen.add(key);
-        const fields = {
-          title: occ.title,
-          description: occ.description,
-          location: occ.location,
-          start_time: occ.start,
-          end_time: occ.end,
-        };
-        const row = byKey.get(key);
-        if (!row) {
-          toCreate.push({
-            ...fields,
-            family_id: sub.family_id,
-            event_type: "other",
-            created_by: sub.created_by,
-            source_subscription_id: sub.id,
-            source_uid: occ.uid,
-            source_occurrence_start: occ.occurrenceStart,
-          });
-          continue;
-        }
-        const changed =
-          row.title !== fields.title ||
-          (row.description ?? null) !== fields.description ||
-          (row.location ?? null) !== fields.location ||
-          new Date(row.start_time).getTime() !== fields.start_time.getTime() ||
-          new Date(row.end_time).getTime() !== fields.end_time.getTime();
-        if (changed) {
-          await tx.event.update({
-            where: { id: row.id, source_subscription_id: sub.id },
-            data: fields,
-          });
-          updated++;
-        }
-      }
-
-      let created = 0;
-      if (toCreate.length > 0) {
-        // skipDuplicates: a concurrent refresh that won the race is harmless.
+      const toCreate = [...missing.values()];
+      for (let offset = 0; offset < toCreate.length; offset += batchSize) {
         const result = await tx.event.createMany({
-          data: toCreate,
+          data: toCreate.slice(offset, offset + batchSize).map(occ => ({
+            ...fieldsOf(occ), family_id: sub.family_id, event_type: "other",
+            created_by: sub.created_by, source_subscription_id: sub.id,
+            source_uid: occ.uid, source_occurrence_start: occ.occurrenceStart,
+          })),
           skipDuplicates: true,
         });
-        created = result.count;
-      }
-
-      const staleIds = existing
-        .filter((row) => {
-          if (!row.source_uid || !row.source_occurrence_start) return true;
-          if (
-            seen.has(
-              keyOf(row.source_uid, new Date(row.source_occurrence_start)),
-            )
-          )
-            return false;
-          const start = new Date(row.start_time).getTime();
-          // Only prune inside the sync window; older imported rows stay as history.
-          return (
-            start >= window.start.getTime() && start < window.end.getTime()
-          );
-        })
-        .map((row) => row.id);
-      let deleted = 0;
-      if (staleIds.length > 0) {
-        const result = await tx.event.deleteMany({
-          where: {
-            id: { in: staleIds },
-            family_id: sub.family_id,
-            source_subscription_id: sub.id,
-          },
-        });
-        deleted = result.count;
+        created += result.count;
       }
       return { created, updated, deleted };
     },
-    { timeout: 30_000 },
+    // All batches see one existing-row snapshot. A conflicting concurrent write
+    // may abort the transaction; callers report failure rather than partial success.
+    { timeout: 30_000, isolationLevel: "RepeatableRead" },
   );
 }
 

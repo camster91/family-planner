@@ -53,7 +53,26 @@ An imported occurrence is identified by **(subscription, iCalendar UID, original
 - non-recurring event: DTSTART instant;
 - recurring instance: the instance's RECURRENCE-ID instant (for generated instances, the generated start). An override that moves an instance keeps the identity of the slot it replaces, so moving it updates the same row.
 
-`UNIQUE (source_subscription_id, source_uid, source_occurrence_start)` (Postgres treats `NULL`s as distinct, so local events never collide). Reconcile loads the subscription's rows, creates missing keys with `createMany(skipDuplicates)`, updates rows whose title/description/location/start/end changed, and deletes stale keys. Importing the same feed twice produces the same rows and zero writes the second time. Events without a UID are skipped because they have no stable identity.
+`UNIQUE (source_subscription_id, source_uid, source_occurrence_start)` (Postgres treats `NULL`s as distinct, so local events never collide). Reconcile now reads the subscription's history in immutable-ID batches of at most200, keeping the bounded parsed feed and one history batch in memory. It creates missing keys in200-row `createMany(skipDuplicates)` batches, updates changed title/description/location/start/end and deletes at most200 stale IDs per statement. The single transaction requests RepeatableRead with the prior30s timeout, so history pages share one existing-row snapshot; a conflicting concurrent write may abort and must surface as failure. Total work/lock time is still unbounded in subscription-history size. These recovery-branch changes and additive index SQL are authored/unapplied/unverified; real concurrency/rollback/query evidence remains open. Importing the same feed twice produces the same rows and zero writes the second time. Events without a UID are skipped because they have no stable identity.
+
+### Reconciliation query compatibility — 2026-10-24
+
+Rows remain scoped to subscription plus household, including updates. Matching
+still uses original UID/occurrence identity, even if the stored event start is
+outside the current import window and the source moves it back inside. Valid
+older history is retained; the prior invalid-key cleanup and in-window stale
+rules remain. Missing creates are delayed until history traversal ends; no
+partial commits or silent prefix cap. Incoming duplicate keys/over-cap arrays
+refuse rather than inventing a winner for an unsupported internal call.
+
+`migration-calendar-import-batches.sql` and the schema add an unapplied
+family/subscription/ID index. Page plans, write/index cost, snapshot conflicts,
+transaction rollback, concurrent refresh/removal and the subsequent metadata/
+conditional-validator update remain unverified. RepeatableRead is not an
+external-feed version lock or exact replay receipt. No automatic retry is added.
+A fabricated multi-page read/update/delete/create/repeat case is authored/unrun;
+it does not model real database isolation. No API/database/migration/provider
+or release action is executed by these source changes.
 
 ## Recurrence and window
 

@@ -52,16 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work prevents malformed identified calendar series from
-becoming apparent deletions (#124). Parsing now refuses broken master/exception
-construction or recurrence expansion, missing non-cancelled starts/override
-identity, invalid start/identity, invalid coverage options and concatenated
-calendar roots. Library errors normalize to existing fixed IcsParseError copy.
-Cancellation and no-UID skip behavior remain; complete valid feeds still use the
-canonical reconciliation path. Parser/sync-preservation regression source is
-authored/unrun. No QA/check/build/browser/API/database/native/provider/permission/
-release ran. Full semantic/multi-calendar/provider/concurrency/compatibility,
-historical partial recovery and original #124 acceptance remain open.
+Latest bounded source work batches calendar-import reconciliation (#134/#124).
+At most200 history rows, stale IDs or creates are handled per statement, while
+the bounded parsed feed supplies matching keys. Immutable-ID continuation keeps
+progress after row deletion; updates retain exact household/subscription scope
+and original occurrence identity, including moved older events. All effects
+remain in one transaction, now requesting RepeatableRead with the prior30s
+budget. Additive history-index schema/SQL source is unapplied. A fabricated
+multi-batch/update/history/create/repeat case is authored/unrun. No QA/check/
+build/browser/API/database/migration/native/provider/permission/release ran.
+Total work, snapshot conflicts/rollback, metadata ordering, query/index costs
+and original #124/#134 acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

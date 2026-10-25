@@ -1010,6 +1010,7 @@ model Event {
   @@index([source_connection_id])
   @@index([family_id, project_id, is_task, source_uid])
   @@index([family_id, project_id, is_task, title])
+  @@index([family_id, source_subscription_id, id], map: "Event_family_subscription_id_idx")
 }
 
 model Message {

@@ -1,5 +1,22 @@
 # Route and domain inventory (#148)
 
+### Calendar-import reconciliation batches — 2026-10-24 (#134/#124)
+
+The canonical subscription reconcile now traverses all existing history in
+200-row immutable-ID batches, preserving household/subscription scope. It holds
+only the bounded incoming identity map plus a history batch, updates exact
+matching identities even when their old start was outside the window, preserves
+valid old history and keeps prior invalid-key/in-window stale cleanup. Deletes
+and missing creates are also batched200; no total traversal cap/partial commit.
+The transaction requests RepeatableRead with its original30s timeout. Conflicts
+may abort and remain errors; no automatic retries. This is not an external-feed
+version lock or exact replay/metadata-ordering guarantee. An additive scoped
+history index is authored/unapplied. Multi-batch/query-shape/history/moved-key/
+create/repeat regression source is authored/unrun; fake state does not prove
+PostgreSQL isolation/rollback. Total work, lock/index/query cost, concurrent
+refresh/removal/metadata and original acceptance remain open. No QA/test/check/
+build/browser/API/database/migration/native/provider/permission/release ran.
+
 ### Malformed identified calendar-source refusal — 2026-10-24 (#124)
 
 Calendar parsing no longer skips a known series when master/exception creation
