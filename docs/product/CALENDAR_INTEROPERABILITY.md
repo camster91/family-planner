@@ -6,6 +6,21 @@ Discovery, current-provider configuration/permission, household beta evidence an
 acceptance remain separate. No account/provider call, credential read/change,
 sync, calendar write, migration, scheduler or activation occurred in this pass.
 
+## Unverified feed-format follow-through — 2026-10-24
+
+The existing read-only household ICS export now folds text and long RRULE
+lines by UTF-8 byte count without dividing Unicode code points. Prior conservative
+ASCII widths remain. Bare CR joins CRLF/LF normalization in escaped text, retaining
+literal text rather than creating extra content lines. Token/family resolution,
+UIDs, timestamps, recurrence grammar, date range and cache headers are unchanged.
+Multibyte/emoji, newline-escaping and ASCII-boundary cases are authored/unrun.
+No provider access, sync, QA/build/browser/API/database or release ran.
+
+The export's existing2,000-row cap can still truncate a dense matching feed. It
+has no continuation/overflow contract; correct Unicode formatting does not prove
+complete synchronization or safe deletion semantics. Complete large-feed delivery,
+query/format/parser/native/provider acceptance and all original #124 gates remain.
+
 ## Product modes and actual ownership
 
 | Mode | Current source behavior | Explicit limit |

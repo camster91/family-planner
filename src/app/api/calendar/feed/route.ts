@@ -10,21 +10,29 @@ function escapeIcs(value: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n')
+    .replace(/\r\n|\r|\n/g, '\\n')
 }
 
-// Fold long lines per RFC 5545 (75 octets, continuation starts with a space).
+// Fold by UTF-8 octets, never UTF-16 code units. Retain the prior conservative
+// ASCII widths (74 first-line bytes; 73 plus the continuation space), below 75.
 function fold(line: string): string {
-  if (line.length <= 74) return line
+  if (Buffer.byteLength(line, 'utf8') <= 74) return line
   const parts: string[] = []
-  let rest = line
-  parts.push(rest.slice(0, 74))
-  rest = rest.slice(74)
-  while (rest.length > 73) {
-    parts.push(' ' + rest.slice(0, 73))
-    rest = rest.slice(73)
+  let segment = ''
+  let bytes = 0
+  let width = 74
+  for (const character of line) {
+    const size = Buffer.byteLength(character, 'utf8')
+    if (bytes + size > width) {
+      parts.push(parts.length ? ' ' + segment : segment)
+      segment = ''
+      bytes = 0
+      width = 73
+    }
+    segment += character
+    bytes += size
   }
-  if (rest.length) parts.push(' ' + rest)
+  if (segment) parts.push(parts.length ? ' ' + segment : segment)
   return parts.join('\r\n')
 }
 
@@ -90,7 +98,7 @@ export async function GET(request: NextRequest) {
       if (e.location) lines.push(fold(`LOCATION:${escapeIcs(e.location)}`))
       // Values may arrive with or without the RRULE: prefix — never emit both.
       if (e.recurrence)
-        lines.push(`RRULE:${e.recurrence.replace(/^RRULE:/i, '').toUpperCase()}`)
+        lines.push(fold(`RRULE:${e.recurrence.replace(/^RRULE:/i, '').toUpperCase()}`))
       lines.push('END:VEVENT')
     }
 

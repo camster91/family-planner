@@ -52,17 +52,15 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds dormant routine-unlink reader preparation
-(#557). After caller-owned lifecycle locks/authority, the helper selects every
-non-null household future root without subject/protocol/state filters, orders
-and locks rows, and uses a 1,001-row lookahead. Missing schema or oversized
-inventories hold; database errors propagate. Complete bounded inventories use
-the pure all-or-nothing planner. No existing identity transaction, endpoint/UI,
-account, schema or permission path calls the helper. Root-row locks do not
-replace the household lock protocol or prove a snapshot/owner proof. Scope,
-lookahead, unsupported/foreign/duplicate and failure regression source authored,
-unrun. No QA/check/build/browser/API/database/native/provider/permission/release
-ran. Writer, provenance, credit/Undo and broader member-domain parity remain open.
+Latest bounded source work fixes calendar-feed Unicode folding (#124): UTF-8
+byte-aware lines preserve whole code points, including emoji; long RRULEs now
+fold too. Existing ASCII widths and canonical token/family/UID/time/range/cache
+behavior remain. Escaped text normalizes bare CR as well as CRLF/LF. Regression
+source authored/unrun. CORE_QUERY_PLAN now reflects current chore batching,
+project task/send and Notes paging, and records the unchanged2,000-row ICS cap
+as a truncation risk rather than complete export. No QA/check/build/browser/API/
+database/native/provider/permission/release ran. Query/N+1/large-feed/parser/
+provider/locale/device/compatibility and original #124/#134 acceptance stay open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

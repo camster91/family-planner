@@ -11,7 +11,7 @@ provider, scheduler, index, infrastructure or destructive migration is authorize
 | Flow | Current source / returned-row boundary | Required consolidated evidence |
 | --- | --- | --- |
 | Calendar | events GET range limit+1 and continuation; legacy read takes100 | Count actual relation SQL and inspect range/source overlap plans; prove range/timezone/foreign/cursor behavior |
-| Chores | current query caps, separate50-row history; API optional paging | Inspect subject/rotation/member helper fanout and query plans; do not infer they are bounded from the chore cap |
+| Chores | Recovery source API/SSR/Today/probes read at most200 candidates and scoped metadata per batch until the visible cap; separate50-row history and optional API paging remain | Dense hidden prefixes can require many batches; inspect total statements/subject/rotation/member fanout and query plans |
 | List overview | readListOverview100+1 summaries, at most6 fixed type groups and100 checked-count groups | Same-snapshot counts/auth renewal, no item hydration, stable ties and every type/continued page |
 | List detail | readListDetailPage100+1 rows and page-only section inputs; optional item/version API continuation | Row/ingredient/adder/checker SQL strategy, scoped hash parity, pending operations outside page, Back/offline/old clients |
 | Meal week | meal GET optional limit+1; web requests only explicit page depth | Range/family positions, refresh/Undo loaded-depth, duplicate slots and truthful partial weeks |
@@ -20,7 +20,11 @@ provider, scheduler, index, infrastructure or destructive migration is authorize
 | Projects overview | Recovery source: web24+1 summaries and one grouped task-count query for returned IDs; API paging is opt-in | Current/previous client, cursor/status/family, concurrent changes, first/deep-page SQL plans and rendered recovery; legacy API remains unbounded |
 | Wishlist | Recovery source: opt-in limit+1 with household/requester keyset; web24 per action, one-row mutation inspection and loaded-depth refresh | Old unpaged API remains complete/unbounded; requester filters/ties/concurrent changes, original UI fixture adoption and SQL/rendered acceptance |
 | Notifications | Recovery source: opt-in personal50+1 API pages; inbox explicitly loads older and labels partial coverage | Personal/paired auth, snooze/Undo/load races, exact retry/timeout, old-server fallback and actual SQL/index/rendered evidence |
-| Routine visibility prefilter | Recovery source: known-ID/date-window SQL before visible paging/caps; history-only pages skip open-row policy metadata | PostgreSQL inclusive/exclusive date boundaries, external-window root joins, role/profile rollback and helper/query parity; dense/default unscoped reads remain |
+| Routine visibility prefilter | All current production callers pass canonical candidate IDs; batches run policy before visible caps, history skips open-row metadata | Actual root-join/date plans and helper parity remain unverified; the helper still permits broader scopes and dense prefixes are not a latency bound |
+| Project detail | Recovery source SSR40+1 task keysets, grouped full-project progress and opt-in API continuation | Legacy API remains unbounded; index source unapplied; position/time/ID ties, database plans, rendered/compatibility/concurrency acceptance remain |
+| Project send to calendar | Recovery source 200-task and candidate-match batches inside one locked transaction; modern count-only summary, legacy full event-array response | Total work/lock time and legacy result memory remain unbounded within prior timeout; indexes unapplied; atomicity/authority/rollback acceptance unrun |
+| Pinned Notes | Recovery source web24-note replacement pages; opt-in household timestamp/ID keysets, exact retry and fetch/body deadline | Legacy API remains complete/unbounded; index source unapplied; original compatibility/isolation/permission/SQL/rendered acceptance unrun |
+| Read-only calendar feed | Family token resolves household; complete matching Event rows are loaded only up to the existing2,000 cap | This is a truncation risk without continuation/overflow evidence, not a complete export. Define complete delivery/recovery before changing compatibility; no provider read/write in this pass |
 | Grounded planning | bounded canonical source loaders and explicit incomplete/unknown holds | All-source coverage, locks/versions, allocations/timing, no model-invented identities, exact atomic outcomes/recovery |
 | AI reporting | reservation-before-dispatch, fixed content-free usage fields and bounded reports | Reservation concurrency/cost uncertainty, current authority, opt-out/erasure/export; real provider observations remain separate |
 
@@ -56,23 +60,26 @@ the visible row limit. The recovery source now accepts an internal ID/date scope
   verified history pages skip metadata because this policy never hides history.
 
 The root join remains household-scoped and is not date-filtered: a root outside
-the viewed window can still hide its selected inactive occurrence. Policy still
-runs **before** visible paging/caps and never limits the hidden set. No duplicate
-SQL policy, migration or write path was introduced. The unchanged policy keeps
-started/proof/history exceptions and rejects unsupported metadata as before.
-Raw nullable parameters use explicit timestamp/text-array casts; actual PostgreSQL
-and timezone/fixture acceptance remains unexecuted. Source binding tests and the
-fabricated SQL reader were adapted, not run.
+the viewed window can still hide its selected inactive occurrence. Subsequent
+recovery commits replaced broad window preloads in all current production
+callers with at most200 candidate IDs per policy batch. API/SSR/Today/probes
+continue through hidden prefixes before satisfying the visible cap. Date/ID
+and private creation-time ties preserve the caller's original order. History
+still skips the open-row policy. The helper's optional broader scope remains
+available; do not infer every future caller is safe automatically. Per-batch
+bounds do not bound total dense-prefix traversal, SQL count or request latency.
+Actual PostgreSQL/date/root-join/rotation/profile/permission and fixture acceptance
+remain unexecuted. Authored tests are source, not measurements.
 
 Remaining source exceptions are real work, not a completed performance audit:
 
 | Exception | Why not silently cap it | Next bounded action |
 | --- | --- | --- |
-| Legacy meal/list/item/project/wishlist APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
-| Undated/unfiltered routine visibility reads; dense date windows | A capped hidden-ID set would expose inactive/unsupported rows | Measure statement plans; design cursor/batched prefilter or equivalent safe SQL evaluation without changing policy semantics |
+| Legacy meal/list/item/project/task/wishlist/notification/notes APIs | Older clients expect complete unpaged contracts | Identify supported consumers, migrate continuation and accept forward/rollback before changing defaults |
+| Dense routine-visibility candidate ranges | Every current production caller now uses scoped candidate IDs; limiting total traversal could silently hide valid rows | Measure total batches/rows and root-join plans; helper row bounds do not establish dense-prefix latency |
 | Household account/profile rosters | Attribution, assignee choices and compatibility need complete current membership | Audit consumers/cardinality and design explicit complete/continuing contract before a roster cap |
 | Recurrence foreground / explicit maintenance | Default repeating path starts at first100; gated one-root continuation source now authored; explicit expandAllRecurringChores remains a complete maintenance pass | Accept real cursor/concurrency/budget/rollback behavior and inspect relation/rotation work separately; no foreground completeness claim |
-| Supporting collection screens | Other complete-family readers still need individually scoped continuation | Audit each consumer and preserve role/feature/old-client behavior; Wishlist source now has opt-in web/API continuation, not acceptance |
+| Supporting collection screens | Other complete-family readers still need individually scoped continuation | Audit each consumer and preserve role/feature/old-client behavior; Wishlist and Notes source now have opt-in web/API continuation, not acceptance |
 | Export/deletion/reconciliation | Complete approved ownership/erasure coverage is intentional | Use separately scoped streaming/batching/recovery contracts; do not turn an incomplete collection page into a complete export/deletion claim |
 
 This is a static source refinement. No measured SQL/round-trip, EXPLAIN, load,

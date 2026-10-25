@@ -1,5 +1,19 @@
 # Route and domain inventory (#148)
 
+### Calendar feed Unicode/source-plan follow-through — 2026-10-24 (#124/#134)
+
+ICS text and RRULE folding now counts UTF-8 bytes and iterates complete code
+points; prior ASCII widths remain conservative. Escaped content normalizes bare
+CR/CRLF/LF. Existing token/family scope, UIDs, timestamps, recurrence rule grammar,
+query window and response/cache contract remain unchanged. Multibyte/emoji,
+newline and ASCII-boundary regression source is authored/unrun. The existing
+2,000-row cap can truncate a dense feed; no complete-feed, deletion/sync or
+provider compatibility claim follows from format correctness. CORE_QUERY_PLAN
+now reflects current bounded chore candidate/policy reads, project task/send and
+Notes pages, retaining legacy unbounded paths and total-work/lock/index limits.
+No QA/test/check/build/browser/API/database/native/provider/permission/release
+ran. Complete large-feed delivery and original #124/#134 acceptance remain open.
+
 ### Dormant routine-unlink inventory reader — 2026-10-24 (#557/#480)
 
 `routine-subject-unlink-read.ts` adds transaction-scoped preparation, with no
