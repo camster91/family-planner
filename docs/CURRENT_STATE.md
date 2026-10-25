@@ -37,7 +37,7 @@ No unverified feature is declared completed by source authorship.
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
 | #473 native contract | Per-platform capability/fallback matrix, support-window decision boundary and forward/rollback sequence | Actual supported binaries/old operations/hardware evidence and signing inputs |
-| #557/#480 identity | Existing gated linking source reconciled; standalone unlink/rejoin transaction/domain design prepared | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
+| #557/#480 identity | Existing gated linking reconciled; unlink/rejoin design plus dormant pure future-routine adapter authored | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
 | #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
 | #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
 | #146 support | 20-case runbook, response ownership, communication strategy and support scaling triggers defined | Actual recovery/privacy/dashboard/backup, publishing and staffed operating evidence remain |
@@ -48,17 +48,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work moves Today-board settings to 77 typed EN/ES keys:
-member colours, weather disclosure/search, calm timing, night hours, photos and
-shared-tablet controls. Local notices retain semantic keys/values until render,
-so locale changes update existing statuses without reloading or saving. Known
-person-transport fallbacks translate; custom/server error text remains literal.
-Canonical settings, member/place names, colour keys, selected photos and device-
-audience restrictions remain unchanged; effect/save dependencies remain scoped
-to their existing transport/data. Forty-two owned copy inventory records removed;
-no scanner ran. No new copy-only tests; existing cases remain unrun. No QA/build/
-browser/provider/household write or release action ran. Full settings/shared-
-device localization and rendered/locale-data acceptance remain open.
+Latest bounded source work adds a dormant pure routine unlink adapter (#557).
+Only an exact known account/member alias becomes the same stable profile with
+a new future-definition revision; already-profile definitions invalidate too.
+Ambiguous, conflicting, unsupported and exhausted-revision definitions hold.
+Unrelated/erased subjects remain unchanged. The full future writer must preflight
+every household future definition, honor every hold and renew authority/proof/
+stack revisions atomically with all domain dispositions. No existing caller,
+endpoint, transaction, schema, account or permission is changed. Regression
+source authored/unrun. No QA/tests/check/build/browser, database/migration,
+household write or release action ran. Standalone unlink/provenance/credit and
+wider member-domain implementation remain unfinished; #557 stays open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

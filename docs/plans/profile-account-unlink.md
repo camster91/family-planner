@@ -1,6 +1,6 @@
 # Completed profile/account unlink and rejoin — #557 / #480
 
-2026-10-24 source-backed design. Status: implementation contract proposed;
+2026-10-24 source-backed design. Status: a dormant pure routine adapter is authored; the full implementation contract remains proposed;
 standalone unlink is **not implemented or activated**. No test, browser, migration,
 account mutation, provider call or production action ran. Keep #557 open.
 
@@ -12,7 +12,7 @@ account mutation, provider call or production action ran. Keep #557 open.
 | `attachSubjects` in `profile-account-link.ts` | Creates both AccountLink and LegacyMapping, fills canonical chore aliases, rewrites routine future subjects and increments profile revision | Removing only AccountLink leaves mapping-based identity active; removing both without domain reconciliation loses compatibility |
 | `chore-member-subject.ts` | Resolves both mappings and links; canonical-required callers refuse an unmapped account | Account assignment behavior after unlink must be explicit, including installed clients |
 | `chore-profile-assignee.ts`, `household-profile-http.ts` | Name-only eligibility requires no mapping/link, no archive and no erasure provenance | Setting erasure_user_id as a shortcut would make the supposedly active unlinked profile ineligible |
-| `routine-subject-lifecycle.ts` | Link, invalidate and erase transformations exist; no exact unlink transformation | Invalidate/erase is not unlink. An active future definition must keep its intended stable person |
+| `routine-subject-lifecycle.ts`, `routine-subject-unlink.ts` | Existing link/invalidate/erase transactions remain unchanged; pure unlink preflight adapter now authored, not connected | Exact known account+profile aliases convert to the same stable profile with a new revision; ambiguous/unsupported definitions hold the whole future unlink |
 | `household-member-lifecycle.ts` | Member removal archives profiles; private erasure_user_id identifies detached archived copies for later account deletion | Removal changes household access/archive state. It cannot substitute for standalone unlink while preserving an active household profile |
 | `chore-complete.ts`, `chore-profile-actions.ts` | Account-backed completion/credit and profile completion use distinct paths | Alias cleanup must not duplicate credit, prevent a legitimate reversal, or transfer prior awards to another account |
 
@@ -70,6 +70,35 @@ exposed before the complete data/compatibility contract is implemented.
 - Commit a stable content-minimal receipt and audit event in that transaction.
   Retry returns the exact original outcome only if current authority permits it;
   it never replays effects or resurrects a deleted/archived/erased subject.
+
+## Dormant future-routine adapter source
+
+`src/lib/routine-subject-unlink.ts` now defines a pure preflight result:
+`unchanged`, `rewrite` or `held`. It performs no reads/writes and grants no
+identity or household authority. The future locked writer must pass every stored
+future root definition in the authorized household; it must not filter unknown
+protocols by guessed subject fields or discard a held result as unrelated.
+
+- Exact account+member aliases become the same stable profile subject. An
+  already-profile definition for that member also receives a fresh revision.
+- Active, paused and stopped states preserve schedule, start day, content, points,
+  anchor and stack identity. No occurrence/actor/earned-credit fields are read or
+  changed. A new revision invalidates prior future-definition reviews.
+- Account-only references to the target account are ambiguous; either conflicting
+  half of the association holds. Known unrelated or erased subjects stay unchanged.
+- Unsupported/malformed definitions hold, even if their apparent current identity
+  looks unrelated. Revision exhaustion holds rather than clamping to an old value.
+- The returned previous revision and stack ID are private preparation data. The
+  future writer must re-read under lifecycle locks, renew exact snapshot/owner
+  proof, invalidate affected stack reviews and commit all domain dispositions
+  atomically before removing any link or mapping.
+
+Regression source covers exact/profile/paused/stopped/unrelated/erased subjects,
+conflicting/ambiguous aliases, unknown/malformed protocols, bounded IDs and
+revision exhaustion. It is authored and **unrun**. There is no call from existing
+identity transactions, endpoint, UI, database/schema change, permission change or
+activation. This adapter alone is not a standalone unlink implementation or
+proof of account/member-domain/credit parity.
 
 ## Erasure, credit and compatibility decisions still required
 

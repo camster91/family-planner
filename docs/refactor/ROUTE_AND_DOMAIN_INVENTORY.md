@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Dormant routine unlink adapter source — 2026-10-24 (#557/#480)
+
+`routine-subject-unlink.ts` implements pure future-definition preflight only.
+Exact account/member aliases and already-profile references receive a stable
+profile subject/new revision; known unrelated/erased definitions stay unchanged.
+Account-only, conflicting, unsupported/malformed and revision-exhausted metadata
+holds. The adapter never changes historical assignments, actors, credits or
+occurrences, and does not infer household/owner authority. Future use requires
+all household future roots and atomic locked proof/stack/domain renewal; unknown
+metadata cannot be declared unrelated by a current-protocol identifier query.
+No existing lifecycle writer, HTTP/UI consumer, schema or gate is changed.
+Regression source authored/unrun. No QA, tests/check/build/browser, database,
+provider/permission, household mutation or release action ran. Full standalone
+unlink/provenance/credit/domain parity remains unfinished; retain #557 open.
+
 ### Today-board settings copy source — 2026-10-24 (#142)
 
 `fridge/BoardSettings.tsx` now uses 77 scoped typed EN/ES keys from
