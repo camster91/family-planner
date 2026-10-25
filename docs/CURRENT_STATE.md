@@ -52,18 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds canonical notes, wishlists, personal
-inbox history and household audit rows to the dormant capacity builder (#137).
-Dataset version4 matches each profile's declared row counts, with household-local
-creators/requesters/recipients/audit actors, pinned/unpinned notes, four wishlist
-states, read/future/expired snooze history and tied creation keys. Future snoozes
-are unread. Text is fabricated, external links/prices are absent and only the
-canonical Today action path is present. Notification rows are preload history,
-not delivery events; no fanout/permission/provider behavior is claimed. Shared
-activity history, delivery fanout and other missing dimensions remain unsupported;
-manifest stays incomplete. Integrity source authored/adapted but unrun. No builder,
-writer/seed/reset, DB/API/load/test/check/build/browser/CI/provider/native/push/
-merge/deploy ran. Adoption/adapters/reconciliation and full acceptance stay open.
+Latest bounded source work (2026-10-25) adds opt-in stable activity continuation
+for the legacy all-member endpoint (#134/#135). `paging=keyset-v1` uses bounded
+limit+1 reads, descending timestamp/ascending-ID order and canonical household-
+bound cursors; missing/deleted pivots do not require a lookup. Malformed/duplicate/
+foreign-mode cursors refuse before housekeeping/read queries. Legacy no-mode limit
+clamping, timestamp cursor and activities-only response remain. Existing analytics/
+private-timeline exclusions and marker masking remain, with private/no-store replies.
+No new web/shared-device surface, permission, metadata exposure or schema/index.
+Pure/route regression source authored but unrun; no API/DB/test/check/build/browser/
+CI/provider/native/push/merge/deploy ran. UI adoption, actual SQL/isolation/legacy-
+client and full sync/query acceptance remain open; this is not snapshot paging.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

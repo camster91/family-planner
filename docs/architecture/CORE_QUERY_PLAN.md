@@ -220,3 +220,16 @@ fanout/query plans still need actual PostgreSQL observation; this payload/parame
 bound is not full N+1 or household-isolation acceptance. No schema/index/DB change.
 Authored empty/deduplicated/archived/later-batch/missing/foreign/failure source cases
 are unrun. Original profile/queue/native/permission acceptance remains separate.
+
+## Legacy Activity stable continuation — 2026-10-25 (#134/#135, local source)
+
+The all-member Activity API now offers explicit `paging=keyset-v1`, limit1..100
+(default30), limit+1 lookahead and timestamp-desc/ID-asc positions bound to household.
+Legacy timestamp-only and activities-only replies remain for no-mode clients.
+No current web consumer was identified; client adoption remains separate. Existing
+analytics/private fact exclusions and safe marker projection remain. Candidate
+query-plan work must compare current `(family_id,created_at)` with a possible
+`(family_id,created_at DESC,id ASC)` index under tied rows and exclusion predicates;
+no performance/index or snapshot claim follows from source. No schema/migration,
+query-plan execution or database change. Pure/route cases authored/unrun; full
+N+1/query/isolation/legacy/offline acceptance remains open.

@@ -1296,3 +1296,29 @@ tombstone/Undo/schema or new device permission. Generation/role/household-change
 race cases for both routes authored/unrun. PostgreSQL contention/rollback/isolation,
 installed-device and original full acceptance remain unverified; no execution or
 release occurred.
+
+### Legacy member Activity opt-in continuation — 2026-10-25 (#134/#135, local source)
+
+`GET /api/activity?paging=keyset-v1[&limit=1..100][&cursor=...]` adds explicit stable
+continuation for compatible clients. Default opt-in limit30; response includes
+`activities` and `nextCursor` (null at the observed end). Reads use limit+1 and
+`created_at DESC, id ASC`; opaque base64url cursors carry a fixed version, the
+original household, canonical UTC timestamp and ID. They are positions, not
+credentials; ordinary current member authentication/household filtering still runs.
+No query fetches the pivot row, so deletion does not invalidate its position.
+Duplicate/invalid mode/limit/cursor, noncanonical encoding/date, or different-
+household cursors get400 before read-side housekeeping/database feed queries.
+
+No `paging` keeps installed legacy behavior: limit defaults30/clamps1..100, the
+old timestamp-only cursor and activities-only response. Its same-timestamp skip
+limitation is retained for compatibility; clients must opt in to the new contract.
+Existing all-member projection, legacy analytics/private-timeline type exclusions,
+parent timeline-marker masking and private/no-store successful responses remain.
+No new role/device permission, metadata field, web surface or changed parent inbox.
+No current web caller was found in this source inspection; UI/client adoption is
+not claimed. New inserts/history mutation can change later pages: this is not a
+snapshot or complete-history/retention guarantee. No schema/index migration.
+
+Pure/route source covers round-trip/refusal, ties, deleted pivot, household scope
+and legacy shape; all unrun. Actual PostgreSQL collation/query plans/isolation,
+installed clients, network/lifecycle and #134/#135 original acceptance remain open.

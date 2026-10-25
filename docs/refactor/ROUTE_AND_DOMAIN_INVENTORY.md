@@ -1744,3 +1744,12 @@ fanout. Shared activity/delivery and other required dimensions remain unsupporte
 manifest incomplete. No writer/import-time/DB/provider operation. Integrity source
 authored/adapted only; no generator/test/load/build/browser/native/release run.
 Guarded adoption/adapters/observed reconciliation and full capacity stay open.
+
+### Legacy Activity opt-in keysets — 2026-10-25 (#134/#135)
+
+The existing member Activity endpoint gains explicit stable timestamp/ID paging,
+household-bound canonical cursor and bounded lookahead. Legacy timestamp/no-cursor
+response/clamp behavior remains; no web adoption or new permission. Existing
+analytics/private timeline exclusions/masking retained. Pure/route tie/deleted-pivot/
+foreign/legacy source cases authored/unrun. No SQL/schema/index/API/test/build/
+browser/native/provider/release execution; full acceptance and measured plans open.
