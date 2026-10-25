@@ -2191,3 +2191,18 @@ or deployment ran. This adapter supplies routine writeback only: former-account
 provenance, credit/Undo and all-domain disposition, owner-proof/snapshot/receipt,
 canonical unlink UI/endpoint and old/new-client acceptance remain unfinished.
 
+
+### Former profile association provenance proposal — 2026-10-25
+
+#557's existing unlink plan now specifies the private history tuple, immutable
+operation/revision provenance, required account/household discovery and all
+unlink/relink/move/erase/rollback transitions. Actual source uses current-member
+composite link/mapping FKs and an archive-only erasure_user_id; neither represents
+an independently active profile's former association. The proposed historical
+User FK must be ID-only to survive membership moves and Restrict until canonical
+erasure dispositions it. A prior association is not authority to erase a current
+independent or subsequently linked profile. Field-origin/privacy, multiple-account
+and credit/Undo decisions remain explicitly required; no schema/history writer,
+permission, retention policy or activation is introduced. Association rows alone
+cannot prove complete erasure. All runtime/client/rollback acceptance is open;
+no tests/checks/scanner/browser/API/DB/provider/native/push/merge/deploy ran.

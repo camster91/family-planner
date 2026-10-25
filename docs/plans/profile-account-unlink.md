@@ -175,14 +175,115 @@ or deployment ran. This adapter supplies routine writeback only: former-account
 provenance, credit/Undo and all-domain disposition, owner-proof/snapshot/receipt,
 canonical unlink UI/endpoint and old/new-client acceptance remain unfinished.
 
-## Erasure, credit and compatibility decisions still required
+## Proposed former-association provenance contract — 2026-10-25
 
-The existing single erasure_user_id field represents archived copied-profile
-provenance. It cannot represent an active unlinked profile's former association
-without also affecting eligibility/deletion behavior. Specify the minimum private
-former-association provenance, who owns each retained field, account erasure,
-subsequent verified links, household erasure and privacy-safe export before adding
-schema or a writer. Never add former account IDs to shared/AI/member DTOs.
+This is a concrete storage/lifecycle proposal, not an accepted retention policy,
+Prisma model, migration or activated command. It resolves the minimum private
+shape and required transitions; the field-ownership and earned-credit decisions
+below still gate implementation of the complete unlink transaction.
+
+### Existing source constraints
+
+- `HouseholdMember.erasure_user_id` is immutable archived-profile erasure
+  ownership. `chore-profile-assignee.ts` and profile eligibility reject a profile
+  carrying it; setting it during active unlink would break the requested person.
+- `HouseholdMemberAccountLink` and `HouseholdMemberLegacyMapping` use current
+  `(user_id, family_id)` membership FKs. A former account can leave/rejoin another
+  household. A historic association cannot reuse that composite User FK.
+- `eraseAccountProfilesInTx` selects current mapping/link subjects and archived
+  erasure-owned copies. It does not discover an independently active unlinked
+  profile. Adding a history row without changing erasure discovery is incomplete.
+- `lockAccountProfileHouseholds` currently starts with the deleting account lock
+  and discovers relevant households. If historic erasure requires inspecting a
+  subsequent linked account, its User lock must be discovered before household
+  locks. Acquiring that account lock after a household lock would violate order.
+- A verified link currently has no independent stable link ID: its exact source
+  is the member/account/family tuple plus verified_at and the locked profile
+  revision. Name/email, a deterministic legacy mapping or an old challenge is
+  not a substitute for that current verified association.
+
+### Minimum private history row (proposed)
+
+Use one immutable `HouseholdProfileFormerAssociation` row per committed unlink.
+It is association provenance, not an authentication/erasure-ownership grant.
+
+| Field | Source and purpose | Constraint |
+| --- | --- | --- |
+| `id` | Server-generated opaque event ID | Never derived from name/email or used as owner proof |
+| `family_id` | Exact locked association household | Family FK; household deletion removes this private metadata |
+| `member_id` | Existing stable profile | Composite member/family FK; explicit reviewed member erasure removes its association history |
+| `former_user_id` | Actual verified linked account | User ID-only FK, not current-membership composite; deletion must be Restrict until the canonical erasure transaction dispositions this row |
+| `link_verified_at` | Existing verified link's server timestamp | Immutable; no claim token/password/hash copied |
+| `profile_revision_before` | Exact reviewed/locked profile revision | Int32 bound; exhaustion refuses before effects |
+| `profile_revision_after` | Revision committed by this unlink | Exactly before+1; never a clamped or client-supplied new revision |
+| `unlink_operation_id` | Durable canonical unlink receipt/operation | Unique effect provenance; not an expiring general idempotency row and not a raw retry key |
+| `created_at` | Actual unlink commit event time | Server-owned; timestamps alone cannot identify a repeated link/unlink cycle |
+
+No display name, email, avatar, date of birth, role, medical/finance data,
+credentials, session generation, proof token/hash, message text or AI output
+belongs in the history row. The separate unlink operation needs its own bounded
+proof/receipt contract and account-erasure treatment before storage is added.
+A content-minimal row still contains personal account/profile identifiers and is
+private data. It must be excluded from public/member/shared-device/AI context and
+ordinary household feature exports. Personal privacy export must disposition it
+through the account's authorized private export path without revealing another
+account's identity. No legal retention entitlement is inferred here.
+
+Do not independently TTL-prune this row while the profile survives: doing so
+would lose the only discoverable former association before erasure is resolved.
+Conversely, a row's presence never authorizes deleting the whole profile. The
+accepted erasure disposition, full member erasure or household erasure must
+remove it atomically. Real retention/legal ownership review remains explicit.
+
+### Required transitions and atomicity
+
+| Transition | Required source behavior | Refusal/recovery |
+| --- | --- | --- |
+| Current verified association -> unlink | Under exact owner-proof/review and sorted User then household locks, create history and durable operation, apply every domain disposition, remove exact mapping/link, advance profile revision and invalidate challenges together | Any changed association/proof/domain holds before commit; partial history or alias removal is not a completed unlink |
+| Migration mapping without verified link | Preserve current mapping and profile | Refuse standalone unlink; mapping is not account-owner proof |
+| Fresh verified relink to the same account | Require new explicit proof and revision; retain earlier history until reviewed erasure/retention disposition | Prior history/receipt never reactivates a link or grants authority |
+| Fresh verified link to a different account | Use normal exact owner proof; never silently transfer historical credit/actor provenance | A former association must not be repointed to the new account |
+| Former account moves households | Keep history in the original profile household and preserve exact former account ID | No family update, automatic profile movement or current membership grant |
+| Account owner requests permanent erasure | Discover all former-association households before locking; re-read under locks and disposition every history/profile/operation relationship before User deletion | Missing/unsupported field-ownership disposition or changed participants holds the transaction; no cascade silently erases a current independent/other-account profile |
+| Explicit full profile/household erasure | Apply complete canonical member-domain erasure first; remove private history/operations under their accepted privacy contract in the same transaction | Never let history recreate a deleted subject or transfer earned credit |
+| Older server rollback after first history write | Disable new unlink/link/profile identity writes and incompatible account erasure until a server that understands provenance is restored | Retain history/operation rows; do not drop them or restore erased identities as rollback |
+
+An erasure of account A must never infer current ownership of a profile from a
+historic association alone, especially after a verified link to account B.
+If current and historic associations refer to different accounts, discover all
+participants before sorted account locks, then household locks; re-read the set
+and refuse a changed set. A profile field's current value/revision or a matching
+name does not prove which account originally supplied or currently owns it.
+
+### Unresolved field-ownership and credit decisions (activation blockers)
+
+The history shape above deliberately stores no copied profile fields. It cannot
+alone tell whether name/age/avatar/color came from account copying, a parent's
+independent entry or a later edit. Before a writer or schema can activate:
+
+1. Define field-level provenance or an explicit reviewed privacy disposition for
+   an active unlinked profile, including originally name-only and copied legacy
+   profiles. Specify which identifying values are redacted, retained or separately
+   reviewed on former-account erasure; do not automatically erase the whole active
+   profile or pretend that deleting only this history row completes privacy work.
+2. Define subsequent-account links and multiple unlink cycles: erasing A cannot
+   erase B's personal records, inherit B's identity, or bypass A's required privacy
+   disposition. A generic held conflict is safe recovery, not completed support.
+3. Define earned-credit/Undo ownership for completed account-backed assignments
+   retained on the stable profile. Existing User XP, required assignment account
+   FK and unchanged actor IDs do not establish a reversible credit ledger.
+4. Define the durable operation's private export/erasure policy and original-key
+   recovery after general receipt expiry. Neither raw old keys nor a new operation
+   ID may become proof of a verified association.
+5. Extend erasure participant/household discovery and supported-client rollback
+   contracts before writing the first history row. A schema FK that simply
+   cascades or an older erasure helper that ignores this history is insufficient.
+
+Codex can prepare those source contracts and recovery UI. Cameron reviews the
+actual field/credit product disposition before activation. No original account,
+profile or earned history has been changed by this proposal.
+
+## Remaining domain and compatibility work
 
 The domain inventory remains authoritative for every account/member relationship.
 A chore-only unlink implementation is insufficient for points/rewards, rotation,
