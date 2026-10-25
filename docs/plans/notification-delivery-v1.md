@@ -146,3 +146,29 @@ shared lock-screen privacy, EN/ES keyboard/Back/focus and named physical devices
 No case was run; no acceptance criterion is checked by this document. Execution
 stays in #141 with source/compatibility #134/#135/#136/#473, native #138/#465 and
 release #377; no duplicate issue is needed.
+
+
+## N1 pure envelope/identity foundation — 2026-10-25
+
+`src/lib/notification-event-contract.ts` now supplies an unconnected strict v1
+envelope for household chore/reward/manual-announcement transitions only. Account
+safety mail and special daily summaries are deliberately outside this first
+contract, not silently converted. Fields include exact family/kind/source ID,
+required durable UUID source generation and transition ID, canonical UTC accepted
+instant and original exclusive dispatch deadline. No title/message/payload/role
+or actor-credential fields are accepted. No current caller synthesizes these
+fields and no schema/producer/dispatch entry point was changed.
+
+Occurrence coordinates exclude recipient/content/deadline; separate in-app
+delivery coordinates include the exact recipient User ID and channel. Reusing
+coordinates with changed immutable event fields conflicts; unknown persisted
+versions are unsupported, never absent. Pure window checks hold future/expired/
+invalid clocks and do not choose a retention duration or prove authority.
+Four source cases cover domain/household/generation/transition/recipient
+separation, deadline conflicts, unsupported/privacy fields and time boundaries;
+all are unrun. This is only N1 contract code: durable accepted-transition
+identity, reviewed DDL/admission, terminal evidence, lifecycle/export, original
+retention/compatibility, all producers and N2–N5 remain unfinished. Existing
+reward and chore producers already guard some fresh-mutation notification
+fanout; this contract does not claim those paths previously had no retry guards.
+No QA, DB operation, provider/scheduler activation or release ran.

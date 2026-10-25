@@ -3038,3 +3038,15 @@ dedupe evidence to survive visible-row deletion, original-event retry windows,
 actual transition identity, fresh authority and honest provider uncertainty. No
 new engine, schema, producer conversion, provider or scheduler is implemented by
 the document. #141 stays open; no runtime/QA/release action ran.
+
+
+### Notification N1 strict event contract foundation — 2026-10-25
+
+Unconnected `notification-event-contract.ts` defines strict versioned internal
+metadata, family/domain/source-generation/transition occurrence coordinates,
+separate recipient in-app delivery coordinates, immutable intent comparison and
+exclusive dispatch deadline checks. It cannot authorize or send a notification,
+create durable source generations, infer transitions from text/receipt keys,
+choose retention, replace existing summary claims or bypass fresh domain checks.
+Four source cases authored/unrun. N1 writer/schema/producers and N2–N5 remain
+unfinished in the canonical notification plan/#141; no QA/data/release action.
