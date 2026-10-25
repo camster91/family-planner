@@ -1,6 +1,6 @@
 // Authored UNRUN: proposed pure contract; no dispatcher, storage or provider.
 import {
-  NOTIFICATION_EVENT_PROTOCOL, notificationEventEnvelope,
+  NOTIFICATION_EVENT_PROTOCOL, NOTIFICATION_EVENT_IN_APP_TYPE, notificationEventEnvelope,
   notificationOccurrenceIdentity, notificationInAppDeliveryIdentity,
   compareNotificationOccurrence, notificationDispatchWindowOpen,
 } from "../notification-event-contract";
@@ -35,4 +35,11 @@ it("holds future/expired/invalid clocks with an exclusive dispatch deadline", ()
   for (const now of [new Date("2026-10-25T11:59:59.999Z"), new Date(event.deliverBefore), new Date(NaN)])
     expect(notificationDispatchWindowOpen(event, now)).toBe(false);
   expect(notificationEventEnvelope.safeParse({ ...event, deliverBefore: event.occurredAt }).success).toBe(false);
+});
+
+
+it("preserves existing notification category semantics for accepted chore checks", () => {
+  expect(NOTIFICATION_EVENT_IN_APP_TYPE["chore.verification"]).toBe("reward");
+  expect(NOTIFICATION_EVENT_IN_APP_TYPE["chore.returned"]).toBe("chore");
+  expect(NOTIFICATION_EVENT_IN_APP_TYPE["chore.assignment"]).toBe("chore");
 });

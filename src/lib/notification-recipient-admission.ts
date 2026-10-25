@@ -7,7 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
 import { deliverNotificationInTx, type NotificationInput } from "@/lib/notification-delivery";
 import { notificationEventAdmissionEnabled, type NotificationEventActor } from "@/lib/notification-event-admission";
-import { notificationEventEnvelope, compareNotificationOccurrence, notificationDispatchWindowOpen, type NotificationEventEnvelope } from "@/lib/notification-event-contract";
+import { notificationEventEnvelope, NOTIFICATION_EVENT_IN_APP_TYPE, compareNotificationOccurrence, notificationDispatchWindowOpen, type NotificationEventEnvelope } from "@/lib/notification-event-contract";
 
 type Outcome = { kind: "held" } | { kind: "created" | "suppressed" | "existing"; notificationId: string | null };
 export async function admitNotificationRecipientInTx(
@@ -39,8 +39,7 @@ export async function admitNotificationRecipientInTx(
   });
   const parsed = notificationEventEnvelope.safeParse(current?.envelope);
   if (!parsed.success || parsed.data.familyId !== actor.familyId || !notificationDispatchWindowOpen(parsed.data, clock())) return { kind: "held" };
-  const expectedType = parsed.data.kind.startsWith("chore.") ? "chore"
-    : parsed.data.kind.startsWith("reward.") ? "reward" : "system";
+  const expectedType = NOTIFICATION_EVENT_IN_APP_TYPE[parsed.data.kind];
   if (input.content.type !== expectedType || !await sourceGuard(tx, parsed.data)) return { kind: "held" };
   // Canonical source locks precede the event lock, matching producer admission.
   const locked = await tx.$queryRaw<Array<{ envelope: unknown }>>`

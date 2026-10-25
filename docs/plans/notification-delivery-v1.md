@@ -408,3 +408,39 @@ gap is now source-connected for this supported account case; profile actions,
 full current-resource/version/actor headers, multi-device status convergence,
 other notification domains/native and original rendered/privacy/PG/compatibility
 acceptance remain. No QA, app/API/DB/browser/migration or release execution ran.
+
+
+## Account-check producer adapter and category correction — 2026-10-25
+
+Source inspection confirmed that responsibility_epoch excludes completion/verify
+status: it cannot identify accepted check transitions. The new internal
+`chore-check-notification-event.ts` instead requires the actual Activity ID/time
+created in the successful check/XP transaction, linked to the immutable chore
+birth generation. Same-type/title/date guesses and current edit-counter values
+are not accepted transition evidence. The guard locks/rechecks current family
+feature, chore status/title/notes/subject and active canonical account mapping,
+then the exact same-family activity type/actor/time/chore metadata.
+
+Verification notices historically use `reward` (which central policy maps to
+chores preferences), while returns use `chore`. The strict event-to-type matrix
+now records that explicitly; prefix guessing would incorrectly hold valid
+verification. This is a correction before that producer's activation, not a
+retroactive policy change. For the proposed opted-in check mode only, a real
+level-up may be appended to the verification notice rather than interrupting
+twice. It requires current gamification on and the actual same-transaction award
+result matching the recipient's locked canonical level. XP/streak/credit rules
+and existing default-mode messages are unchanged.
+
+Shared private dispatch-window parsing now serves create and the separate
+`CHORE_CHECK_NOTIFICATION_EVENTS_ENABLED` /
+`CHORE_CHECK_NOTIFICATION_DISPATCH_MS` opt-in. No default/reviewed duration or
+environment value has been chosen or changed. Generic admission acknowledgement
+is still required. The adapter is not yet wired into verify/reject: ordered
+participant/actual row locks, original token generation and simultaneous skip of
+legacy send must be composed in the canonical transaction next. Profile-only
+checks and other reward/manual/summary producers are not adopted by this helper.
+
+Source cases cover exact activity identity/category, approved coalescing and
+gamification-off omission, rejection provenance, changed/erased subject/status
+and mismatched activity/level. All unrun. No migration, DB/API/app import, QA,
+provider, flag/scheduler activation or release ran; #141 stays open.

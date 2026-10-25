@@ -3127,3 +3127,16 @@ need a current read, preserving status and avoiding invented Undo. Existing
 unloaded routine/board ID callers remain permitted. Source/card and four handler
 cases authored/unrun; full original-owner headers, version/convergence, profile,
 PG/role/device/rendered/compatibility acceptance remain. No QA/data/release ran.
+
+
+### Account-check notification transition foundation — 2026-10-25
+
+An unconnected internal adapter uses the newly accepted check Activity ID/time
+and canonical chore generation, locking/rechecking account subject, status, note,
+activity ownership/metadata and actual level-up evidence. Existing responsibility
+epoch does not count status changes and is not used as a transition. Explicit
+event-type matrix preserves verification's reward category; proposed strict-mode
+level-up coalescing honors gamification without changing XP. Shared private policy
+parsing retains separate create/check acknowledgements, none enabled. Canonical
+verify/reject wiring/lock and legacy-sender replacement remain next; profile
+checks and all original runtime/QA/PG/privacy/release acceptance remain open.

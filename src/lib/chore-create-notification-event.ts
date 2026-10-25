@@ -12,7 +12,7 @@ import {
 } from "@/lib/notification-event-admission";
 import { NOTIFICATION_EVENT_PROTOCOL, compareNotificationOccurrence } from "@/lib/notification-event-contract";
 import { admitNotificationRecipientInTx } from "@/lib/notification-recipient-admission";
-import { IDEMPOTENCY_TTL_MS } from "@/lib/idempotency-key";
+import { readPrivateNotificationDispatchWindow } from "@/lib/notification-event-policy";
 
 type CreatedChore = {
   id: string; family_id: string; created_by: string; assigned_to: string | null;
@@ -68,13 +68,7 @@ function choreCreationSourceGuard(
  * Misconfigured opted-in mode fails before creation rather than falling back.
  */
 export function choreCreateNotificationDispatchWindow(): number | null {
-  if (process.env.CHORE_CREATE_NOTIFICATION_EVENTS_ENABLED !== "1") return null;
-  const raw = process.env.CHORE_CREATE_NOTIFICATION_DISPATCH_MS ?? "";
-  const value = Number(raw);
-  if (!notificationEventAdmissionEnabled() || !/^[1-9][0-9]{0,8}$/.test(raw)
-      || !Number.isSafeInteger(value) || value > IDEMPOTENCY_TTL_MS)
-    throw new Error("Chore notification event contract unavailable");
-  return value;
+  return readPrivateNotificationDispatchWindow("CHORE_CREATE_NOTIFICATION_EVENTS_ENABLED", "CHORE_CREATE_NOTIFICATION_DISPATCH_MS");
 }
 
 export async function deliverChoreCreationNotificationEventInTx(
