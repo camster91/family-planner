@@ -384,3 +384,31 @@ physical/native cancellation or bounded initial proposal-write behavior.
 Stalled dispatch/double-click/late success/exact deliberate replay plus required
 receipt confirmation source is authored UNRUN. No QA/tests/checks/build/browser/
 CI/API/DB/provider/push/merge/deploy ran. #125/#135 acceptance remains open.
+
+## Bounded initial capture proposal writes — 2026-10-25
+
+#125/#135 source: initial event/grocery/photo-proposal saves now share the owned
+write lane with explicit recovery retries. A45second foreground deadline covers
+async request hashing/preparation, durable-envelope admission, fetch and256KiB
+response decoding. After hashing, the captured epoch/controller/abort predicate
+is checked before storing recovery or dispatching; a timed-out preparation cannot
+later write storage or send the proposal. Same-origin/no-store and original keys/
+bodies remain. Storage/preparation errors keep their typed recovery meanings.
+
+401/403 bypass body reading and retain access-refusal clearing. Other native
+bodies are decoded once inside bounds; callers receive the existing status/json
+interface backed by that bounded decoded value. A stalled/malformed/oversized
+response cannot be treated as successful or retire a saved recovery entry. Late
+success does not clear recovery or invoke the caller's save outcome. Unknown
+initial writes keep draft/operation/envelope for deliberate canonical recovery;
+no automatic retry/provider call or new key. Existing terminal statuses and
+sequential photo partial-result policies are preserved.
+
+Synchronous serialization/storage/canvas CPU is not preempted; JSON-only native
+bridges still allocate before post-decode size validation. This is transport/
+retirement source, not full replayed-resource existence, process-death/restore
+or original server session contract acceptance. Initial direct success retains
+its existing domain-response contract; full receipt/reuse semantics remain open.
+Stalled initial reply/late success/retained exact operation and declared oversize
+before decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #125/#135 remain open.

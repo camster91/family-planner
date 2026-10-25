@@ -270,7 +270,7 @@ export function LegacyCaptureBox({
     React.useState(false);
   const recoveryMutationReady = React.useRef(false);
   const receiptController = React.useRef<AbortController | null>(null);
-  const recoveryRetryController = React.useRef<AbortController | null>(null);
+  const captureWriteController = React.useRef<AbortController | null>(null);
   const recoveryEpoch = React.useRef(0);
   const recoveryGuardFailure = React.useRef<CaptureMessage>(
     "recoveryAccessUnavailable",
@@ -330,8 +330,8 @@ export function LegacyCaptureBox({
       availabilityController.current?.abort();
       receiptController.current?.abort();
       receiptController.current = null;
-      recoveryRetryController.current?.abort();
-      recoveryRetryController.current = null;
+      captureWriteController.current?.abort();
+      captureWriteController.current = null;
     };
   }, [cancelRead]);
   React.useEffect(
@@ -356,8 +356,8 @@ export function LegacyCaptureBox({
       recoveryEpoch.current++;
       receiptController.current?.abort();
       receiptController.current = null;
-      recoveryRetryController.current?.abort();
-      recoveryRetryController.current = null;
+      captureWriteController.current?.abort();
+      captureWriteController.current = null;
       setRecoveryBusyKey(null);
       setRecoveryMessage(null);
       readController.current?.abort();
@@ -524,12 +524,14 @@ export function LegacyCaptureBox({
     payload: unknown,
     title: string,
     photo: boolean,
+    current: () => boolean,
   ): Promise<string> {
     const body = JSON.stringify(payload);
     if (operation.body && operation.body !== body)
       throw new CaptureClientError("previewChanged");
     operation.body = body;
     const requestHash = await hashCaptureRequest(action, payload);
+    if (!current()) throw new CaptureClientError("recoveryAccessUnavailable");
     if (!requestHash) throw new CaptureClientError("couldNotPrepareRetry");
     const envelope: CaptureRecoveryEnvelope = {
       version: 1,
@@ -552,45 +554,59 @@ export function LegacyCaptureBox({
     payload: unknown,
     title: string,
     photo = false,
-  ) {
+  ): Promise<Pick<Response, "ok" | "status" | "json">> {
     if (!ensureRecoveryMutationReady()) {
       throw new CaptureClientError(recoveryGuardFailure.current);
     }
+    if (receiptController.current || captureWriteController.current)
+      throw new CaptureClientError("uncertainSave");
     const operation = operationFor(proposal);
     const action: CaptureRecoveryAction =
       url === "/api/events" ? "event.create" : "capture.grocery.add";
-    const body = await rememberPayload(
-      action,
-      operation,
-      payload,
-      title,
-      photo,
-    );
-    operationProposals.current.set(operation.key, proposal);
-    if (!ensureRecoveryMutationReady()) {
-      throw new CaptureClientError(recoveryGuardFailure.current);
-    }
+    const controller = new AbortController();
+    const epoch = recoveryEpoch.current;
+    captureWriteController.current = controller;
+    const current = () => captureWriteController.current === controller && recoveryEpoch.current === epoch && recoveryMutationReady.current;
     try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": operation.key,
-        },
-        body,
-      });
+      const result = await runOwnedForeground(async signal => {
+        try {
+          const body = await rememberPayload(action, operation, payload, title, photo,
+            () => current() && !signal.aborted);
+          if (!current() || signal.aborted || !ensureRecoveryMutationReady())
+            throw new CaptureClientError(recoveryGuardFailure.current);
+          operationProposals.current.set(operation.key, proposal);
+          const response = await fetch(url, {
+            method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": operation.key },
+            body, signal, credentials: "same-origin", cache: "no-store",
+          });
+          const data = response.status === 401 || response.status === 403
+            ? null : await readBoundedJsonResponse(response, signal, 256 * 1024);
+          return { kind: "reply" as const, response, data };
+        } catch (error) {
+          if (error instanceof CaptureClientError) return { kind: "refused" as const, error };
+          throw error;
+        }
+      }, { signal: controller.signal, timeoutMs: 45000 });
+      if (result.kind === "refused") throw result.error;
+      if (!current()) throw new CaptureClientError("recoveryAccessUnavailable");
+      if (result.kind !== "reply") throw new CaptureClientError("uncertainSave");
+      const { response, data } = result;
       if (response.status === 401 || response.status === 403) {
         revokeCaptureAccess();
         throw new CaptureClientError("recoveryAccessUnavailable");
       }
-      if (response.ok && recoveryMutationReady.current) {
+      if (response.ok) {
         forgetRecovery(operation.key);
         operationProposals.current.delete(operation.key);
       }
-      return response;
+      // Callers retain their status/error handling, but never read the native
+      // body again outside the deadline/size gate.
+      return { ok: response.ok, status: response.status, json: async () => data ?? {} };
     } catch (error) {
       if (error instanceof CaptureClientError) throw error;
       throw new CaptureClientError("uncertainSave");
+    } finally {
+      if (captureWriteController.current === controller) captureWriteController.current = null;
     }
   }
 
@@ -611,8 +627,8 @@ export function LegacyCaptureBox({
     recoveryEpoch.current++;
     receiptController.current?.abort();
     receiptController.current = null;
-    recoveryRetryController.current?.abort();
-    recoveryRetryController.current = null;
+    captureWriteController.current?.abort();
+    captureWriteController.current = null;
     setRecoveryBusyKey(null);
     setCheckingAvailability(true);
     try {
@@ -811,7 +827,7 @@ export function LegacyCaptureBox({
   ) : null;
 
   async function checkRecovery(row: CaptureRecoveryEnvelope) {
-    if (!ensureRecoveryMutationReady() || receiptController.current || recoveryRetryController.current) return;
+    if (!ensureRecoveryMutationReady() || receiptController.current || captureWriteController.current) return;
     if (!row.requestHash) {
       forgetRecovery(row.key);
       setRecoveryMessage(msg("statusUnavailable"));
@@ -891,7 +907,7 @@ export function LegacyCaptureBox({
   }
 
   async function retryRecovery(row: CaptureRecoveryEnvelope) {
-    if (!ensureRecoveryMutationReady() || receiptController.current || recoveryRetryController.current) return;
+    if (!ensureRecoveryMutationReady() || receiptController.current || captureWriteController.current) return;
     if (Date.now() - row.createdAt >= CAPTURE_RECOVERY_RETENTION_MS) {
       // A request may have started just before the client-side retry window
       // closed. Reconcile the authoritative receipt first so a committed
@@ -902,8 +918,8 @@ export function LegacyCaptureBox({
     }
     const controller = new AbortController();
     const epoch = recoveryEpoch.current;
-    recoveryRetryController.current = controller;
-    const current = () => recoveryRetryController.current === controller && recoveryEpoch.current === epoch && recoveryMutationReady.current;
+    captureWriteController.current = controller;
+    const current = () => captureWriteController.current === controller && recoveryEpoch.current === epoch && recoveryMutationReady.current;
     setRecoveryBusyKey(row.key);
     setRecoveryMessage(null);
     try {
@@ -930,10 +946,10 @@ export function LegacyCaptureBox({
         // committed item may have been deleted since the original attempt.
         // Hand off the one active lane to the bounded receipt read. Its own
         // finally owns busy-state release; an older retry cannot clear it.
-        recoveryRetryController.current = null;
+        captureWriteController.current = null;
         await checkRecovery(row);
         // Storage/authority can refuse the handoff before a check starts.
-        if (!receiptController.current && !recoveryRetryController.current && recoveryEpoch.current === epoch)
+        if (!receiptController.current && !captureWriteController.current && recoveryEpoch.current === epoch)
           setRecoveryBusyKey(null);
       } else if (response.status === 422) {
         forgetRecovery(row.key);
@@ -954,8 +970,8 @@ export function LegacyCaptureBox({
     } catch {
       if (current()) setRecoveryMessage(msg("couldNotSaveCapture"));
     } finally {
-      if (recoveryRetryController.current === controller) {
-        recoveryRetryController.current = null;
+      if (captureWriteController.current === controller) {
+        captureWriteController.current = null;
         setRecoveryBusyKey(null);
       }
     }
