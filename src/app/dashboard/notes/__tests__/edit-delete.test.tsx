@@ -638,3 +638,19 @@ it('clears the visible recovered draft on owner change without erasing its journ
   expect(mockJournal.dismiss).not.toHaveBeenCalled();
   expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(0);
 });
+
+// Authored source coverage only; execution is deferred with the current no-QA scope.
+it.each(['save', 'delete'] as const)('keeps the note sheet after an oversized %s reply without decoding it', async (action) => {
+  const decode = jest.fn(async () => ({ success: true }))
+  mutationReply = async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': '1048576' }), json: decode }) as unknown as Response
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: `notes.${action}` }))
+  await screen.findByRole('alert')
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Wifi code')
+  expect((screen.getByRole('button', { name: `notes.${action}` }) as HTMLButtonElement).disabled).toBe(false)
+  expect(calls.filter(call => call.method === (action === 'save' ? 'PATCH' : 'DELETE'))).toHaveLength(1)
+})

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { noteCreateContext, makeNoteCreateIntent, postNoteCreate, inspectNoteCreateReceipt, NOTE_CREATE_RETRY_MS, type NoteCreateOutcome, type NoteCreateContext, type NoteCreateIntent, type NoteCreateDraft } from '@/lib/note-create-client'
+import { requestOwnedJson } from '@/lib/owned-request-http'
 import Link from 'next/link'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
@@ -68,11 +69,6 @@ function isRecoveryOwnerChange(value: unknown) {
 
 type MutationError = { createRecovery?: boolean; current?: Note; action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
 
-/** The server's `error` text, or null when the body has none. */
-async function serverError(res: Response): Promise<string | null> {
-  const data = await res.json().catch(() => null)
-  return data && typeof data.error === 'string' && data.error ? data.error : null
-}
 
 export default function NotesPage() {
   const enabled = useFeatureEnabled('notes')
@@ -380,7 +376,6 @@ function NotesPageInner() {
     setModalError(null)
     try {
       const payload = { title: formTitle.trim(), body: formBody.trim(), color: formColor }
-      let res: Response
       if (modalState === 'add') {
         if (!pendingCreate.current) {
           if (!writeContext.current) {
@@ -427,23 +422,28 @@ function NotesPageInner() {
 
       } else if (modalState === 'edit' && selectedNote) {
         // Edit and delete live on /api/notes/[id]; /api/notes is GET/POST only.
-        res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
+        const result = await requestOwnedJson(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: selectedNote.id, ...payload, ...(selectedNote.updated_at ? { expected_updated_at: selectedNote.updated_at } : {}) }),
-        })
-      } else {
-        return
-      }
-      if (!res.ok) {
-        if (res.status === 409 && selectedNote) {
-          const conflict = await res.json().catch(() => null)
-          if (conflict?.error?.code === 'NOTE_CHANGED' && isNoteList([conflict.current]) && conflict.current.id === selectedNote.id && conflict.current.updated_at) {
-            setModalError({ action: 'save', current: conflict.current, fallback: 'common.tryAgain' })
-          } else setModalError({ action: 'save', raw: typeof conflict?.error === 'string' ? conflict.error : undefined, fallback: 'common.tryAgain' })
-          return
+        }, 256 * 1024)
+        // A missing reply can follow a committed edit. Keep the draft/version;
+        // an explicit retry still passes through the server's conflict review.
+        if (result.kind === 'unknown') {
+          setModalError({ action: 'save', fallback: 'common.networkError' }); return
         }
-        setModalError({ action: 'save', raw: (await serverError(res)) ?? undefined, fallback: 'common.tryAgain' })
+        const data = result.body && typeof result.body === 'object' ? result.body as { error?: unknown; current?: unknown } : null
+        if (!result.response.ok) {
+          const code = data?.error && typeof data.error === 'object' && 'code' in data.error ? data.error.code : undefined
+          if (result.response.status === 409 && code === 'NOTE_CHANGED' && isNoteList([data?.current])) {
+            const current = data?.current as Note
+            if (current.id === selectedNote.id && current.updated_at) {
+              setModalError({ action: 'save', current, fallback: 'common.tryAgain' }); return
+            }
+          }
+          setModalError({ action: 'save', raw: typeof data?.error === 'string' ? data.error : undefined, fallback: 'common.tryAgain' }); return
+        }
+      } else {
         return
       }
       const refreshed = await fetchNotes()
@@ -478,13 +478,18 @@ function NotesPageInner() {
     setSaving(true)
     setModalError(null)
     try {
-      const res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
+      const result = await requestOwnedJson(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedNote.id }),
-      })
-      if (!res.ok) {
-        setModalError({ action: 'delete', raw: (await serverError(res)) ?? undefined, fallback: 'common.tryAgain' })
+      }, 32 * 1024)
+      if (result.kind === 'unknown') {
+        // Keep confirmation open: timeout does not prove deletion rolled back.
+        setModalError({ action: 'delete', fallback: 'common.networkError' }); return
+      }
+      if (!result.response.ok) {
+        const data = result.body && typeof result.body === 'object' ? result.body as { error?: unknown } : null
+        setModalError({ action: 'delete', raw: typeof data?.error === 'string' ? data.error : undefined, fallback: 'common.tryAgain' })
         return
       }
       const refreshed = await fetchNotes()

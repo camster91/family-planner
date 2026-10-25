@@ -1838,3 +1838,15 @@ stays explicit, no account content/report upload. Legacy/unknown results remain
 unknown, no new support window or permission. Source cases authored/adapted only,
 no API/DB/browser/test/build/native/provider/release run. Distinct #473 real-device/
 old-client/forward-rollback acceptance remains open.
+
+### Note edit/delete foreground bounds — 2026-10-25 (#135)
+
+Notes web source moves note edits/deletes onto the shared
+15-second foreground deadline and bounded JSON decoder (#135). PATCH replies cap
+at256KiB and DELETE replies at32KiB. An absent/malformed/oversized reply retains
+the draft or delete confirmation and releases the sheet's pending latch; it does
+not imply rollback or trigger a retry. Edit version/conflict review remains, and
+404 deletion remains an error. JSON-only older bridges retain post-parse limits.
+Source coverage for oversized replies authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered timeout/conflict/
+permission and complete recovery acceptance remain open.

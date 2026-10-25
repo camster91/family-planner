@@ -1490,3 +1490,15 @@ UI clearing without journal erasure. Client cases cover older read-only proof wi
 no create. All source unrun. Real storage/replicas/reload/process-death, logout/
 retirement/multitab/paused flags, wire/lifecycle/long-text/accessibility/locale/native
 and disaster-restore acceptance remain open. Flags off; no initialization or run.
+
+### Note edit/delete foreground bounds — 2026-10-25 (#135)
+
+Notes web source moves note edits/deletes onto the shared
+15-second foreground deadline and bounded JSON decoder (#135). PATCH replies cap
+at256KiB and DELETE replies at32KiB. An absent/malformed/oversized reply retains
+the draft or delete confirmation and releases the sheet's pending latch; it does
+not imply rollback or trigger a retry. Edit version/conflict review remains, and
+404 deletion remains an error. JSON-only older bridges retain post-parse limits.
+Source coverage for oversized replies authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered timeout/conflict/
+permission and complete recovery acceptance remain open.
