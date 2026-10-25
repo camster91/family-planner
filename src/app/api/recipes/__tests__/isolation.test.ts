@@ -12,6 +12,7 @@ jest.mock('@/lib/feature-gate-server', () => ({
 
 import * as recipes from '../route'
 import * as recipe from '../[id]/route'
+import { recipeCurationHttp } from '@/lib/recipe-curation-http'
 import {
   db,
   req,
@@ -249,4 +250,24 @@ describe('recipe write body budget', () => {
     expect(request.json).not.toHaveBeenCalled();
     expect(db.writes).toHaveLength(0);
   });
+});
+
+// Original-scope renewal cases authored UNRUN. No API/DB/runtime was invoked.
+it.each(['library', 'detail', 'collections', 'curation'])('refuses private %s data after original household access changes', async mode => {
+  db.reset(); mockGate.mockReset();
+  let checks = 0;
+  mockGate.mockImplementation(async () => {
+    if (++checks === 1) db.find('user', 'parent-a')!.family_id = 'family-B';
+    return null;
+  });
+  const input = req({ as: 'parentA', method: 'GET' });
+  const response = mode === 'library' ? await recipes.GET(input)
+    : mode === 'detail' ? await recipe.GET(input, P('recipe-a'))
+    : await recipeCurationHttp(input, mode === 'curation' ? 'recipe-a' : undefined);
+  expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body).toMatchObject({ code: 'RECIPE_SCOPE_CHANGED' });
+  expect(JSON.stringify(body)).not.toContain('Home lasagne');
+  expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(db.writes).toHaveLength(0);
 });

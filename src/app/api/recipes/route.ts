@@ -1,3 +1,4 @@
+import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { REVIEW_SUBMIT_HEADERS } from "@/lib/review-document-submit-contract";
@@ -46,6 +47,8 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
 
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
@@ -97,6 +100,11 @@ export async function GET(request: NextRequest) {
       skip: offset,
       take: limit + 1,
     });
+    const renewal = await renewRecipeReadAuthority(request, original);
+    if (renewal) {
+      renewal.headers.set("Cache-Control", "private, no-store");
+      return renewal;
+    }
     const hasMore = rows.length > limit;
     const recipes = hasMore ? rows.slice(0, limit) : rows;
     return NextResponse.json(

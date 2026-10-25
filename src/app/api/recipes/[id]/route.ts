@@ -1,3 +1,4 @@
+import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { NextRequest, NextResponse } from "next/server";
@@ -38,6 +39,8 @@ export async function GET(request: NextRequest, context: Context) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
 
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
@@ -47,8 +50,13 @@ export async function GET(request: NextRequest, context: Context) {
       where: { id, family_id: auth.user.family_id },
       select: RECIPE_DETAIL_SELECT,
     });
+    const renewal = await renewRecipeReadAuthority(request, original);
+    if (renewal) {
+      renewal.headers.set("Cache-Control", "private, no-store");
+      return renewal;
+    }
     if (!recipe) return notFound();
-    return NextResponse.json({ recipe });
+    return NextResponse.json({ recipe }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     logRouteError("GET /api/recipes/[id]", err, getRequestId(request));
     return NextResponse.json(

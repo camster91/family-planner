@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "@/lib/api-auth";
-import { renewRecipeDiscoveryAuthority } from "@/lib/recipe-discovery-authority";
+import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { fetchFeed } from "@/lib/calendar-import/fetch";
@@ -52,7 +52,7 @@ async function discover(request: NextRequest) {
       { error: "Choose a supported source and enter 2–120 characters." },
       { status: 400 },
     );
-  const beforeFetch = await renewRecipeDiscoveryAuthority(request, original);
+  const beforeFetch = await renewRecipeReadAuthority(request, original);
   if (beforeFetch) return beforeFetch;
   const selected = recipeSources.filter(
     (source) =>
@@ -88,7 +88,7 @@ async function discover(request: NextRequest) {
       }
     }),
   );
-  const afterFetch = await renewRecipeDiscoveryAuthority(request, original);
+  const afterFetch = await renewRecipeReadAuthority(request, original);
   if (afterFetch) return afterFetch;
   // Round-robin avoids filling all 24 places from the first publisher.
   const results: Array<{

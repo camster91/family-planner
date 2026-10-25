@@ -2675,3 +2675,27 @@ backfill or stored data is changed here. No capacity/read-latency claim is made.
 Cross-page Unicode reuse, early stop, full exhaustion before missing-name upsert,
 foreign-family exclusion and duplicate input cases are authored UNRUN. No QA/
 tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #134/#460 open.
+
+## Canonical recipe read authority renewal — 2026-10-25
+
+#136/#460 source: the public discovery renewal helper is now the shared
+recipe-read-authority.ts boundary. Existing publisher routes retain their prior
+behavior. Private recipe library/detail, collection catalog and recipe curation
+GETs now also freeze original server actor/family/role/session generation and
+renew after database reads before returning data. Scope changes refuse409;
+expired/revoked sessions keep authentication refusals, and Meals is checked again.
+These routes never reinterpret an old read as a request for a new household.
+Detail success is explicitly private/no-store; new refusals and existing curation
+wrappers retain that policy. Valid query/response, permitted read roles and write
+contracts remain unchanged. No new data model, endpoint or permission is added.
+
+This is point-in-time renewal, not locked read snapshots or a complete original-
+owner client echo. Concurrent later changes, native masking, restore/erasure,
+SQL/capacity and current/old-client evidence remain separate acceptance. Source
+review also confirmed existing collection writes cap the catalog at100 and the
+curation UI exposes missing chosen collections for deliberate removal; no new
+paging engine or silent selection drop was introduced there.
+
+Four private-route household-retirement cases are authored UNRUN alongside the
+existing publisher role/generation cases. No QA/tests/checks/build/browser/CI/API/
+DB/provider/push/merge/deploy ran. #136/#460 remain open.

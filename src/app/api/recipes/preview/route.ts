@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
-import { renewRecipeDiscoveryAuthority } from "@/lib/recipe-discovery-authority";
+import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { canEditRecipe } from "@/lib/recipes";
@@ -56,7 +56,7 @@ async function preview(request: NextRequest) {
       { error: "Use a public HTTPS recipe link." },
       { status: 400 },
     );
-  const beforeFetch = await renewRecipeDiscoveryAuthority(request, original);
+  const beforeFetch = await renewRecipeReadAuthority(request, original);
   if (beforeFetch) return beforeFetch;
   try {
     // Shared transport pins public DNS addresses, validates each redirect,
@@ -66,7 +66,7 @@ async function preview(request: NextRequest) {
       userAgent: "Herewoven-RecipePreview/1.0",
       maxBytes: 2 * 1024 * 1024,
     });
-    const afterFetch = await renewRecipeDiscoveryAuthority(request, original);
+    const afterFetch = await renewRecipeReadAuthority(request, original);
     if (afterFetch) return afterFetch;
     const recipe = page.notModified
       ? null

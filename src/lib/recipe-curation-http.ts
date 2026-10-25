@@ -1,3 +1,4 @@
+import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
@@ -27,6 +28,8 @@ async function handle(request: NextRequest, recipeId?: string) {
     if (recipeId && !/^[A-Za-z0-9_-]{1,128}$/.test(recipeId))
       return fail(404, "NOT_FOUND");
     if (request.method === "GET") {
+      const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+        role: auth.user.role, generation: auth.payload.tv ?? 0 });
       if (!recipeId) {
         const collections = await prisma!.recipeCollection.findMany({
           where: { family_id: auth.user.family_id },
@@ -34,6 +37,8 @@ async function handle(request: NextRequest, recipeId?: string) {
           take: 100,
           select: { id: true, name: true, revision: true },
         });
+        const renewal = await renewRecipeReadAuthority(request, original);
+        if (renewal) return renewal;
         return NextResponse.json({ collections }, { headers });
       }
       const result = await prisma!.$transaction(async (tx) => {
@@ -52,6 +57,8 @@ async function handle(request: NextRequest, recipeId?: string) {
           collectionIds: entries.map((entry) => entry.collection_id),
         };
       });
+      const renewal = await renewRecipeReadAuthority(request, original);
+      if (renewal) return renewal;
       return result
         ? NextResponse.json(result, { headers })
         : fail(404, "NOT_FOUND");
