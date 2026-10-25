@@ -51,3 +51,26 @@ Stalled initial load/late data, stalled save/late success/exact deliberate retry
 and oversized declared reply before decoding source cases are authored UNRUN.
 No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. Existing
 browser/native/role/idempotency/history and original #450/#135 acceptance remain.
+
+## Routine candidate paging ownership and retained draft — 2026-10-25
+
+#450/#135 source: candidate paging has a synchronous in-flight guard and catalog
+load generation. Date, stack, family or explicit reload replacement retires and
+aborts an old page; unmount does likewise. Old finally callbacks cannot release
+a newer catalog's paging state. A response must match the selected occurrence
+and every returned chore date, contain unique IDs without overlaps with accepted
+choices, and give a consistent hasMore/cursor pair. Returning the requested or a
+previously consumed cursor is refused. Invalid pages never partially append,
+replace roster options or consume the cursor. No automatic paging/retry occurs.
+
+Paging errors now appear inline beside the existing44px Load more chores control,
+using existing typed EN/ES load feedback. They preserve the current draft and
+loaded choices; the previous shared loadError path hid the whole editor behind
+initial-load recovery. Retrying requests exactly the failed cursor. Initial
+load/unsupported-editor recovery remains separate. Stale catalog retirement is
+not a complete server-issued actor/session response-binding protocol; that wider
+owner/native acceptance remains open. No permission or recurring-history change.
+
+Wrong-day, duplicate-ID, looping/inconsistent-cursor retained-draft/exact retry
+and late old-day page retirement cases are authored UNRUN. No QA/tests/checks/
+build/browser/CI/API/DB/provider/push/merge/deploy ran. #450/#135 remain open.

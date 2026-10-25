@@ -180,7 +180,9 @@ const candidatesResponseSchema = z
     hasMore: z.boolean(),
     nextCursor: z.string().nullable(),
   })
-  .strict();
+  .strict()
+  .refine(value => value.hasMore ? Boolean(value.nextCursor) : value.nextCursor === null)
+  .refine(value => new Set(value.candidates.map(candidate => candidate.id)).size === value.candidates.length);
 
 const readStepSchema = z
   .object({
@@ -475,6 +477,11 @@ export default function RoutineStackEditor({
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
+  const [pagingError, setPagingError] = React.useState<string | null>(null);
+  const catalogGeneration = React.useRef(0);
+  const pagingController = React.useRef<AbortController | null>(null);
+  const loadingMoreRef = React.useRef(false);
+  const consumedCursors = React.useRef(new Set<string>());
   const [saving, setSaving] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [scheduleHandoff, setScheduleHandoff] = React.useState(false);
@@ -691,6 +698,13 @@ export default function RoutineStackEditor({
 
   React.useEffect(() => {
     const controller = new AbortController();
+    catalogGeneration.current++;
+    pagingController.current?.abort();
+    pagingController.current = null;
+    loadingMoreRef.current = false;
+    consumedCursors.current.clear();
+    setLoadingMore(false);
+    setPagingError(null);
     let active = true;
     setLoading(true);
     setLoadError(null);
@@ -795,6 +809,8 @@ export default function RoutineStackEditor({
     void load();
     return () => {
       active = false;
+      catalogGeneration.current++;
+      pagingController.current?.abort();
       controller.abort();
     };
     // The locale callback is read through msgRef so a language switch never
@@ -802,6 +818,7 @@ export default function RoutineStackEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     clearDirty,
+    familyId,
     occurrenceDate,
     reloadVersion,
     requestedStackId,
@@ -819,34 +836,52 @@ export default function RoutineStackEditor({
   const loadMore = async () => {
     if (
       !nextCursor ||
-      loadingMore ||
+      loadingMoreRef.current ||
       savingRef.current ||
       submissionRef.current
     )
       return;
+    const generation = catalogGeneration.current;
+    const requestedCursor = nextCursor;
+    const controller = new AbortController();
+    pagingController.current = controller;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    setLoadError(null);
+    setPagingError(null);
     try {
       const url = new URL(
         "/api/chores/stacks/candidates",
         window.location.origin,
       );
       url.searchParams.set("occurrence_date", occurrenceDate);
-      url.searchParams.set("cursor", nextCursor);
+      url.searchParams.set("cursor", requestedCursor);
       const result = await requestJson<ParsedCandidates>(
         url.toString(),
-        { signal: lifetimeController.current?.signal },
+        { signal: controller.signal },
         msg("loadError"),
         (body) => candidatesResponseSchema.parse(body),
       );
+      if (generation !== catalogGeneration.current || controller.signal.aborted) return;
+      const existingIds = new Set(candidates.map(candidate => candidate.id));
+      if (
+        result.occurrence_date !== occurrenceDate ||
+        result.candidates.some(candidate => dateOnly(candidate.due_date) !== occurrenceDate || existingIds.has(candidate.id)) ||
+        (result.nextCursor !== null && (result.nextCursor === requestedCursor || consumedCursors.current.has(result.nextCursor)))
+      ) throw new RoutineEditorRequestError(200, msg("loadError"), "INVALID_RESPONSE");
+      consumedCursors.current.add(requestedCursor);
       setCandidates((current) => [...current, ...result.candidates]);
       setNextCursor(result.nextCursor);
       if (result.assignmentOptions.length)
         setAssignmentOptions(result.assignmentOptions);
     } catch (error) {
-      setLoadError(localizedRequestError(error, msg, "loadError"));
+      if (generation === catalogGeneration.current && !controller.signal.aborted)
+        setPagingError(localizedRequestError(error, msg, "loadError"));
     } finally {
-      setLoadingMore(false);
+      if (generation === catalogGeneration.current && pagingController.current === controller) {
+        pagingController.current = null;
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -1369,6 +1404,7 @@ export default function RoutineStackEditor({
                 {msg("allCandidatesAdded")}
               </p>
             )}
+            {pagingError && <p role="alert" className="text-body text-label-secondary">{pagingError}</p>}
             {nextCursor && (
               <button
                 type="button"

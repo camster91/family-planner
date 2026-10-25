@@ -1006,3 +1006,61 @@ describe('routine editor bounded transport', () => {
     expect(screen.getByRole('button', { name: 'Retry save' })).toBeTruthy();
   });
 });
+
+// Catalog ownership/recovery source cases authored UNRUN.
+it.each(['wrong-day', 'duplicate-id', 'cursor-loop', 'inconsistent-cursor'])('keeps the draft/loaded choices and retries the exact page after %s', async failure => {
+  const requested: string[] = [];
+  const second = { ...candidates.candidates[0], id: 'chore-second', title: 'Vacuum rug' };
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const cursor = new URL(String(input), 'https://family.test').searchParams.get('cursor');
+    if (!cursor) return response({ ...candidates, hasMore: true, nextCursor: 'page-two' });
+    requested.push(cursor);
+    if (requested.length > 1) return response({ ...candidates, candidates: [second] });
+    const invalid = { ...candidates, candidates: [second],
+      ...(failure === 'wrong-day' ? { occurrence_date: '2026-10-12' } : {}),
+      ...(failure === 'duplicate-id' ? { candidates: candidates.candidates } : {}),
+      ...(failure === 'cursor-loop' ? { hasMore: true, nextCursor: 'page-two' } : {}),
+      ...(failure === 'inconsistent-cursor' ? { hasMore: false, nextCursor: 'page-three' } : {}),
+    };
+    return response(invalid);
+  });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.clear(screen.getByLabelText('Routine name'));
+  await user.type(screen.getByLabelText('Routine name'), 'My draft stack');
+  await user.click(screen.getByRole('button', { name: 'Load more chores' }));
+  await screen.findByText("We couldn't load the routine choices. Try again.");
+  expect((screen.getByLabelText('Routine name') as HTMLInputElement).value).toBe('My draft stack');
+  expect(screen.getAllByText('Pack lunches')).toHaveLength(1);
+  expect(screen.queryByText('Vacuum rug')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Load more chores' }));
+  await screen.findByText('Vacuum rug');
+  expect(requested).toEqual(['page-two', 'page-two']);
+  expect(screen.queryByRole('button', { name: 'Load more chores' })).toBeNull();
+});
+it('retires a pending catalog page on a selected-day change without appending late rows', async () => {
+  let late!: (value: unknown) => void;
+  let oldSignal: AbortSignal | undefined;
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), 'https://family.test');
+    if (url.searchParams.get('occurrence_date') === '2026-10-12')
+      return response({ ...candidates, occurrence_date: '2026-10-12', candidates: [{ ...candidates.candidates[0], id: 'next-day', title: 'Next-day choice', due_date: '2026-10-12T00:00:00.000Z' }] });
+    if (url.searchParams.has('cursor')) {
+      oldSignal = init?.signal ?? undefined;
+      return new Promise(resolve => { late = resolve; });
+    }
+    return response({ ...candidates, hasMore: true, nextCursor: 'old-page' });
+  });
+  const user = userEvent.setup();
+  const view = render(<I18nProvider><RoutineStackEditor familyId='family-a' mode='page' /></I18nProvider>);
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Load more chores' }));
+  searchParams = new URLSearchParams('occurrence_date=2026-10-12');
+  view.rerender(<I18nProvider><RoutineStackEditor familyId='family-a' mode='page' /></I18nProvider>);
+  await screen.findByText('Next-day choice');
+  expect(oldSignal?.aborted).toBe(true);
+  await act(async () => { late(await response({ ...candidates, candidates: [{ ...candidates.candidates[0], id: 'late-old', title: 'Late old-day choice' }] })); });
+  expect(screen.queryByText('Late old-day choice')).toBeNull();
+  expect(screen.getByText('Next-day choice')).toBeTruthy();
+});
