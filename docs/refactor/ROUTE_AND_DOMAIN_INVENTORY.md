@@ -1,5 +1,25 @@
 # Route and domain inventory (#148)
 
+### Project detail task paging source — 2026-10-24 (#134)
+
+`project-task-paging.ts` adds versioned keysets scoped to family/project/completed
+filter, ordered position/created_at/id with exact tie continuation. Opt-in API
+limit1–100 reads limit+1; legacy no-limit response/order remains unpaged and
+unbounded. Task reads include a household project relation after the existing
+scoped project check. The SSR detail checks the project household before child
+hydration, reads 40 tasks plus lookahead and obtains whole-project total/completed
+counts in one grouped aggregate, instead of deriving progress from the page.
+`ProjectTaskPageNav` provides draft-aware More/First tasks and truthful EN/ES
+page coverage/invalid/empty recovery. Public child-write routes and stored tasks
+remain canonical; position/status changes between pages can move rows, so a
+fresh first-page read is the recovery, not a snapshot/absence guarantee.
+The additive Prisma/index SQL source supports the composite read; no migration,
+Prisma generation or index execution occurred. Existing server/task-add fixtures
+are adapted; original assertions retained. Cursor scope/ties and full-progress
+versus bounded rendering cases authored/unrun. No QA/check/build/browser/API/
+database/household/release ran. Full audit, legacy API adoption, query-plan/
+concurrency/isolation/installed-client/rendered criteria remain open.
+
 ### Recent changes read recovery source — 2026-10-24 (#134)
 
 `settings/activity/ActivityClient.tsx` now validates canonical 20-entry audit

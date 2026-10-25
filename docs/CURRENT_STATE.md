@@ -44,23 +44,23 @@ No unverified feature is declared completed by source authorship.
 | #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
+| #134 Project detail tasks | SSR40-task keyset pages, whole-project grouped progress, draft-aware EN/ES page controls; opt-in API paging and additive index source | Legacy unpaged API remains unbounded; index unapplied; database/query-plan/concurrency/isolation/rendered acceptance unrun |
 | #134 Recent changes | Canonical 20-entry page validation, bounded transport/body read, generation/abort and exact-cursor recovery source | Runtime/navigation/reconnect/body-timeout/loop and original household/privacy acceptance remain unverified |
 | #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work fixes Recent changes read recovery (#134): malformed
-pages no longer become empty history; entries/cursor/page size are validated,
-fetch/body reads have a 15-second deadline, repeated/visited cursors refuse,
-and synchronous pending/generation/abort guards prevent old older-page reads
-from replacing refreshed state. Older-page failure retains loaded entries and
-the exact retry cursor. Server parent/device authorization, audit retention,
-page size, public response and stored/user-written content remain unchanged.
-Regression cases authored/unrun for malformed envelopes, same-cursor recovery,
-reconnect supersession and stalled JSON bodies. Production hidden-routine
-helper callers now all use ID scopes in source; no broader core-query audit
-completion is implied. No QA/tests/check/build/browser, API/database/household
-mutation or release action ran. #134 remains open at its full original scope.
+Latest bounded source work adds project-task keysets end to end (#134): SSR40
+plus lookahead, whole-project grouped completed/total counts and draft-aware
+EN/ES page/first/recovery controls. Task cursors bind household/project/completed
+filter and position/creation/ID ties; task/count reads retain household relation
+scope. Foreign projects are refused before child hydration. API opt-in limit
+1–100 returns nextCursor; legacy unpaged shape/order remains and is still
+unbounded. Additive composite-index schema/SQL source authored, unapplied.
+Affected fixture source adapted and cursor/full-progress cases authored/unrun;
+no assertions removed. No QA/tests/check/build/browser, Prisma generation,
+migration/database/household mutation or release ran. Full query audit, installed-
+client, query-plan/concurrency/isolation and rendered acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -6,6 +6,14 @@ import type { Locale } from "@/i18n/types";
 
 /** Copy for the project overview, detail, and task interactions. */
 export const projectOverviewEnglish = {
+  taskPages: "Task pages",
+  taskPageHint: "Showing {loaded} tasks on this page; {total} in this project. Open and Done below refer to this page.",
+  nextTasks: "More tasks",
+  firstTasks: "First tasks",
+  invalidTaskPage: "This task page could not be opened. Return to the first tasks.",
+  emptyTaskPage: "No tasks remain on this page. Return to the first tasks to refresh.",
+  taskPageNavigationError: "Could not open this task page. Try again.",
+
   pageTitle: "Projects",
   pageNavigation: "Project pages",
   pageHint: "One page of projects, newest first.",
@@ -81,6 +89,14 @@ export const projectOverviewEnglish = {
 export type ProjectOverviewMessage = keyof typeof projectOverviewEnglish;
 
 export const projectOverviewSpanish: Record<ProjectOverviewMessage, string> = {
+  taskPages: "Páginas de tareas",
+  taskPageHint: "Se muestran {loaded} tareas en esta página; {total} en el proyecto. Pendientes y Hechas se refieren a esta página.",
+  nextTasks: "Más tareas",
+  firstTasks: "Primeras tareas",
+  invalidTaskPage: "No se pudo abrir esta página de tareas. Vuelve a las primeras tareas.",
+  emptyTaskPage: "No quedan tareas en esta página. Vuelve a las primeras tareas para actualizar.",
+  taskPageNavigationError: "No se pudo abrir esta página de tareas. Vuelve a intentarlo.",
+
   pageTitle: "Proyectos",
   pageNavigation: "Páginas de proyectos",
   pageHint: "Una página de proyectos, los más recientes primero.",

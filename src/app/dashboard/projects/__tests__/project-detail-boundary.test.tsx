@@ -13,7 +13,8 @@ import { render, screen } from "@testing-library/react";
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), findMany: jest.fn() },
-  project: { findUnique: jest.fn() },
+  project: { findFirst: jest.fn() },
+  projectTask: { findMany: jest.fn(), groupBy: jest.fn() },
 };
 jest.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 jest.mock("@/lib/supabase/server", () => ({
@@ -88,7 +89,14 @@ beforeEach(() => {
     family: { features: { ...defaultFeatures(), projects: true } },
   });
   mockPrisma.user.findMany.mockResolvedValue([{ id: "u1", name: "Pat" }]);
-  mockPrisma.project.findUnique.mockResolvedValue({
+  mockPrisma.projectTask.findMany.mockResolvedValue([
+    { ...task("t1", "Sweep floor", false), created_at: new Date("2026-10-10T00:00:00Z") },
+    { ...task("t2", "Hang shelves", true), created_at: new Date("2026-10-10T00:00:00Z") },
+  ]);
+  mockPrisma.projectTask.groupBy.mockResolvedValue([
+    { completed: false, _count: { _all: 1 } }, { completed: true, _count: { _all: 1 } },
+  ]);
+  mockPrisma.project.findFirst.mockResolvedValue({
     id: "p1",
     family_id: "fam-a",
     name: "Garage",
@@ -98,6 +106,28 @@ beforeEach(() => {
     creator: { id: "u1", name: "Pat", avatar_url: null },
     tasks: [task("t1", "Sweep floor", false), task("t2", "Hang shelves", true)],
   });
+});
+
+// Authored/unrun: progress is whole-project data, never just the visible page.
+it("bounds task rendering while retaining full-project progress and continuation", async () => {
+  mockPrisma.projectTask.findMany.mockResolvedValue(Array.from({ length: 41 }, (_, i) => ({
+    ...task(`task-${i}`, `Synthetic task ${i}`, false), position: i,
+    created_at: new Date("2026-10-10T00:00:00Z"),
+  })));
+  mockPrisma.projectTask.groupBy.mockResolvedValue([
+    { completed: false, _count: { _all: 60 } }, { completed: true, _count: { _all: 40 } },
+  ]);
+  const elements = elementsIn(await renderDetail("p1"));
+  const progress = elements.find((element) => (element.type as { name?: string }).name === "ProjectProgressSummary");
+  const checklist = elements.find((element) => element.type === ProjectTaskChecklist);
+  const navigation = elements.find((element) => (element.type as { name?: string }).name === "ProjectTaskPageNav");
+  expect(progress?.props).toMatchObject({ total: 100, completed: 40, progress: 40 });
+  expect(checklist?.props.tasks).toHaveLength(40);
+  expect(navigation?.props).toMatchObject({ loaded: 40, total: 100, nextCursor: expect.any(String) });
+  expect(mockPrisma.projectTask.findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where: expect.objectContaining({ project_id: "p1", project: { family_id: "fam-a" } }),
+    take: 41,
+  }));
 });
 
 it("passes no function props anywhere in the server-rendered tree of a project with tasks", async () => {

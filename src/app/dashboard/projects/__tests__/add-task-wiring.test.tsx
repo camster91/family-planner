@@ -8,7 +8,8 @@ import { render, screen } from '@testing-library/react'
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), findMany: jest.fn() },
-  project: { findUnique: jest.fn() },
+  project: { findFirst: jest.fn() },
+  projectTask: { findMany: jest.fn(), groupBy: jest.fn() },
 }
 jest.mock('@/lib/prisma', () => ({ prisma: mockPrisma }))
 jest.mock('@/lib/supabase/server', () => ({
@@ -53,6 +54,8 @@ function project(status: string, familyId = 'fam-a') {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  mockPrisma.projectTask.findMany.mockResolvedValue([])
+  mockPrisma.projectTask.groupBy.mockResolvedValue([])
   mockPrisma.user.findUnique.mockResolvedValue({
     family_id: 'fam-a',
     role: 'teen',
@@ -65,18 +68,18 @@ beforeEach(() => {
 })
 
 it('an active project shows "Add task"', async () => {
-  mockPrisma.project.findUnique.mockResolvedValue(project('active'))
+  mockPrisma.project.findFirst.mockResolvedValue(project('active'))
   render(<ToastProvider>{await renderDetail('p1')}</ToastProvider>)
   expect(screen.getByRole('button', { name: 'Add task' })).toBeTruthy()
 })
 
 it.each(['completed', 'archived'])('a %s project has no "Add task" (the API refuses it)', async (status) => {
-  mockPrisma.project.findUnique.mockResolvedValue(project(status))
+  mockPrisma.project.findFirst.mockResolvedValue(project(status))
   render(<ToastProvider>{await renderDetail('p1')}</ToastProvider>)
   expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
 })
 
 it("another household's project is not found", async () => {
-  mockPrisma.project.findUnique.mockResolvedValue(project('active', 'fam-b'))
+  mockPrisma.project.findFirst.mockResolvedValue(project('active', 'fam-b'))
   await expect(renderDetail('p1')).rejects.toThrow('NEXT_NOT_FOUND')
 })

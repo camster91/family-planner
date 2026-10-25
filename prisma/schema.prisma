@@ -1300,6 +1300,7 @@ model ProjectTask {
 
   @@index([project_id])
   @@index([assigned_to])
+  @@index([project_id, position, created_at, id])
 }
 
 // Postgres-backed rate limiter (auth endpoints, etc.)
