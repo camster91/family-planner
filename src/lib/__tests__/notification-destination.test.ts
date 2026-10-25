@@ -10,3 +10,12 @@ it.each([null, undefined, {}, 7, "", "https://example.test", "//example.test",
 ])("withholds unknown, private or malformed destinations (%s)", value => {
   expect(notificationDestination(value)).toBeNull();
 });
+
+
+// Additional source cases authored UNRUN for the first typed exact destination.
+it("admits only canonical plain-ID chore focus links", () => {
+  expect(notificationDestination("/dashboard/chores?focus=fixture-chore_01")).toBe("/dashboard/chores?focus=fixture-chore_01");
+});
+it.each(["/dashboard/chores?focus=", "/dashboard/chores?focus=fixture&extra=1", "/dashboard/chores?focus=fixture#token", "/dashboard/chores?focus=%66ixture", "/dashboard/chores?focus=a/b", "/dashboard/chores?focus=a?focus=b", "/dashboard/chores?focus=" + "a".repeat(129)])("rejects ambiguous focus destinations (%s)", value => {
+  expect(notificationDestination(value)).toBeNull();
+});

@@ -3103,3 +3103,15 @@ Held evidence aborts the command; completed receipt replay invokes no sender.
 Policy plus three guarded DB source cases authored/unrun, not PG/rollback proof.
 Other producers/rosters, recovery UI, provider/native and exact destinations are
 unfinished; #141 remains open. No QA/migration/DB/provider/release action ran.
+
+
+### Notification exact chore context — 2026-10-25
+
+Strict canonical focus links, original-authority/feature/subject/routine-aware
+one-target SSR reader and compact EN/ES read-only Chores context are now source
+connected to gated chore-birth notices. Neutral unavailable fallback and current
+parent edit link reuse existing canonical destinations; no full history read or
+new mutation authority. Directory adds one embedded source context (16 total),
+retaining dated base page/route counts. Source cases unrun. Child action handoff
+when the row is outside loaded board data, other domains, real privacy/layout/
+keyboard/native/compatibility/PG acceptance remain. No QA/data/release action.

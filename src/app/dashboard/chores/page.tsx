@@ -1,3 +1,4 @@
+import { readChoreNotificationFocus } from "@/lib/chore-notification-focus";
 import { readChoreStreaks } from "@/lib/chore-streak-read";
 import {
   hiddenRoutineOccurrenceIds,
@@ -6,7 +7,7 @@ import {
 import { readVisibleChoreRows } from "@/lib/chore-visible-read";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerUser, getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import ChoresContent from "./ChoresContent";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
@@ -31,7 +32,9 @@ import {
   readChoreSubject,
 } from "@/lib/chore-profile";
 
-export default async function ChoresPage() {
+export default async function ChoresPage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
   const sessionUser = await getServerUser();
 
   if (!sessionUser) {
@@ -232,8 +235,21 @@ export default async function ChoresPage() {
     return gamification ? row : omitChorePoints(row);
   });
 
+  const params = (await searchParams) ?? {};
+  let notificationFocus: { target: Awaited<ReturnType<typeof readChoreNotificationFocus>> } | undefined;
+  if (params.focus !== undefined) {
+    const actor = await getServerActor();
+    const target = actor && actor.id === sessionUser.id && actor.family_id === familyId && actor.role === user?.role && familyId
+      ? await readChoreNotificationFocus(prisma!, {
+          userId: actor.id, familyId, role: actor.role!, tokenVersion: actor.tokenVersion,
+        }, params.focus).catch(() => null)
+      : null;
+    notificationFocus = { target };
+  }
+
   return (
     <ChoresContent
+      notificationFocus={notificationFocus}
       preparationContextEnabled={
         Boolean(user && ["parent", "child", "teen"].includes(user.role)) &&
         eventPreparationReady()

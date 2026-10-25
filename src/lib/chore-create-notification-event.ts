@@ -1,3 +1,4 @@
+import { choreNotificationDestination } from "@/lib/notification-destination";
 /** N1/N2 canonical birth-event adapter for the default-off chore-create cohort.
  * Call only with the actual freshly created row inside createPersonChore's
  * existing transaction, after its ordered User/household locks. No retroactive
@@ -87,12 +88,15 @@ export async function deliverChoreCreationNotificationEventInTx(
   // between the content read and the recipient decision in this transaction.
   const creator = await tx.user.findUnique({ where: { id: actor.userId }, select: { name: true } });
   if (!creator) throw new Error("Chore notification creator unavailable");
+  const actionUrl = choreNotificationDestination(created.id);
+  if (!actionUrl) throw new Error("Chore notification destination unavailable");
   const expected = choreCreationEnvelope(actor, created, deliverBefore);
   const guard = choreCreationSourceGuard(actor, created, { title: created.title, dueDate: created.due_date });
   const outcome = await admitNotificationRecipientInTx(tx, actor, {
     eventId: event.id, slot: 0, userId: created.assigned_to,
     content: {
       title: "New Chore Assigned",
+      actionUrl,
       message: `${creator.name} assigned you "${created.title}" (due ${created.due_date.toLocaleDateString()})`,
       type: "chore",
     },

@@ -6,7 +6,7 @@ browser, rendering, test scanner, provider, CI or release action ran.
 
 [SCREEN_ROUTE_MANIFEST.json](SCREEN_ROUTE_MANIFEST.json) records82 physical
 `src/app/**/page.tsx` sources,71 distinct route patterns, all22 literal feature
-keys/entry destinations from `src/lib/features.ts`, and15 named embedded surfaces.
+keys/entry destinations from `src/lib/features.ts`, and16 named embedded surfaces (the original15 plus the dated chore-focus source addition).
 These are counts of source records, not measured screen/frame/acceptance coverage.
 
 ## How the records relate
@@ -47,4 +47,16 @@ Physical Android/iPhone/tablet/fridge and store acceptance remain separate.
 This file is a dated source handoff, not an app registry or automatic verifier.
 Refresh it from the actual checkout before later design/QA if pages/features have
 changed. Do not close #499 or claim completed UI because all feature keys have a
-source row. No new routes, layout, permissions, dependencies or runtime are added.
+source row. This directory itself adds no runtime. The dated chore-focus implementation is tracked under #141; no new page pattern or rendered acceptance is inferred.
+
+
+## Incremental notification focus context — 2026-10-25
+
+`ChoreNotificationFocus` adds a compact source context on the existing Chores
+route with one canonical focus ID, explicit unavailable state, EN/ES copy,
+progressively disclosed details, focus target and current-parent edit link.
+The existing page/route/feature enumeration is retained as a dated base snapshot;
+this addition raises embedded source entries from15 to16, without a new page
+pattern. The server reader renews original actor/family/feature and canonical
+subject visibility. Child/teen target projection is own-account only. No measured
+frame, visual, Back/focus/native or privacy acceptance is established by the row.

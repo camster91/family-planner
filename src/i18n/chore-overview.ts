@@ -3,6 +3,16 @@ import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 
 export const choreOverviewEnglish = {
+  focusHeading: "From notification",
+  focusDetails: "Details",
+  focusUnavailable: "This chore is unavailable. You can still open your chores.",
+  focusAll: "Open chores",
+  focusDue: "Due {date}",
+  focusPending: "To do",
+  focusInProgress: "In progress",
+  focusCompleted: "Waiting for review",
+  focusVerified: "Done",
+  focusOverdue: "Overdue",
   cadenceWeekly: "Weekly",
   cadenceDaily: "Daily",
   cadenceMonthly: "Monthly",
@@ -73,6 +83,16 @@ export const choreOverviewSpanish: Record<
   keyof typeof choreOverviewEnglish,
   string
 > = {
+  focusHeading: "Desde una notificación",
+  focusDetails: "Detalles",
+  focusUnavailable: "Esta tarea no está disponible. Puedes abrir tus tareas.",
+  focusAll: "Abrir tareas",
+  focusDue: "Para el {date}",
+  focusPending: "Por hacer",
+  focusInProgress: "En curso",
+  focusCompleted: "Pendiente de revisión",
+  focusVerified: "Hecha",
+  focusOverdue: "Atrasada",
   cadenceWeekly: "Semanal",
   cadenceDaily: "Diaria",
   cadenceMonthly: "Mensual",

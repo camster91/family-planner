@@ -1,4 +1,6 @@
 "use client";
+import { ChoreNotificationFocus } from "@/components/chores/ChoreNotificationFocus";
+import type { ChoreNotificationFocus as NotificationFocus } from "@/lib/chore-notification-focus";
 import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
 import { RoutineOriginEntry } from "@/components/chores/RoutineOriginEntry";
 import { useChorePreparationContext } from "@/components/chores/useChorePreparationContext";
@@ -89,6 +91,7 @@ function isActiveRepeatingChore(chore: Chore): boolean {
 }
 
 interface ChoresContentProps {
+  notificationFocus?: { target: NotificationFocus | null };
   preparationBacklinks?: PreparationBacklinks;
   preparationContextEnabled?: boolean;
   chores: (Chore & {
@@ -251,6 +254,7 @@ function ReassignModal({
 
 export default function ChoresContent({
   chores,
+  notificationFocus,
   familyMembers,
   currentUserId,
   userRole,
@@ -1172,6 +1176,8 @@ export default function ChoresContent({
         }
         className="px-4"
       />
+
+      {notificationFocus && <div className="px-4 mb-4"><ChoreNotificationFocus target={notificationFocus.target} canEdit={userRole === "parent"} /></div>}
 
       <div className="px-4 mb-4">
         <ChoreViewControls

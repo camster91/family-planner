@@ -337,3 +337,38 @@ provider, browser or deployment ran. Wider producers, explicit recovery/dispatch
 UX, typed exact destinations, native/provider behavior and all #141 criteria
 remain open. Earlier unconnected notes describe preceding checkpoints; only this
 account-chore-birth producer is now connected in source behind private gates.
+
+
+## First typed exact destination: chore focus — 2026-10-25
+
+New gated chore-birth notifications now store only the strict canonical internal
+`/dashboard/chores?focus=<plain-canonical-ID>` destination. The shared allowlist
+also retains Today; extra query keys, encoded aliases, fragments, separators and
+invalid IDs remain unsupported. An URL is not source permission. Old clients
+that only understand Today withhold the new link; native cold/warm link and
+rollback compatibility acceptance remain open. No external/scheme navigation.
+
+Opening that target uses a narrow server read with original verified session
+generation, role and household. Sorted lifecycle locks and actual User/Family/
+Chore row locks renew current principal, chores feature and same-household target;
+child/teen selection additionally scopes to their own account and reconciles
+canonical subject links. Erased or archived/nonmatching own subjects, inactive/
+unsupported routine occurrences, unknown statuses, foreign/deleted/disabled
+targets and read failure share one neutral unavailable UI. No private routine
+definition, member names, photo, points or actor proof is included in this focus
+DTO. Only the exact one requested row is queried; board/history caps and data
+are unchanged. Total SQL relation/query-plan cost is not a measured claim.
+
+The existing Chores page hosts a compact read-only From notification card with
+EN/ES copy, Gregorian date-only display, default-closed details, focused region,
+current-parent link to the canonical editor and Open chores fallback. It grants
+no new completion/edit permission; canonical action APIs still authorize. This
+is exact read context only: a child action handoff for a target outside loaded
+board rows, complete activity-target families and native/old-client journeys
+remain unfinished. No attempt to reveal a missing target through a new editor
+or to expand the full chores/history collection is made.
+
+Strict-link, scoped reader and localized/focus source cases are authored/unrun.
+The screen directory gains one dated embedded context, not a new page pattern
+or measured visual coverage. No browser/rendered/accessibility/native, DB,
+migration, test/check/build or release execution ran. #141/#499 remain open.
