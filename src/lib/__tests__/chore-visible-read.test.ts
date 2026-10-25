@@ -1,5 +1,5 @@
 /** Authored/unrun. No database or household effects. */
-import { readVisibleChoreRows, CHORE_VISIBILITY_READ_BATCH } from "../chore-visible-read";
+import { readVisibleChoreRows, afterCreatedChoreCursor, CHORE_VISIBILITY_READ_BATCH, type ChoreVisibilityCursor } from "../chore-visible-read";
 import { compareChoreOrder, type ChoreCursor, type ChoreOrder } from "../chore-paging";
 const rows = (count: number) => Array.from({ length: count }, (_, i) => ({
   id: `synthetic-${String(i).padStart(4, "0")}`,
@@ -84,4 +84,31 @@ it("refuses oversized candidate responses and invalid visible caps", async () =>
   await expect(readVisibleChoreRows({
     take: 502, order: "asc", read: async () => [], hidden: async () => [],
   })).rejects.toThrow("Invalid visible chore read size");
+});
+it("preserves Today's creation-time ordering across dense hidden rows sharing a due date", async () => {
+  const source = rows(80).map((row, i) => ({
+    ...row, created_at: new Date(Date.UTC(2026, 9, 20, 0, 0, 80 - i)),
+  })).reverse();
+  const hiddenIds = new Set(source.slice(0, 50).map((row) => row.id));
+  const read = jest.fn(async (after: ChoreVisibilityCursor | null, take: number) =>
+    source.filter((row) => !after || row.created_at > after.createdAt! ||
+      (row.created_at.getTime() === after.createdAt!.getTime() && row.id > after.id))
+      .slice(0, take));
+  expect(await readVisibleChoreRows({
+    take: 2, order: "asc", tieBreakCreatedAt: true, read,
+    hidden: async (ids) => ids.filter((id) => hiddenIds.has(id)),
+  })).toEqual(source.slice(50, 52));
+  expect(read.mock.calls[1][0]).toEqual({
+    id: source[31].id, dueDate: source[31].due_date, createdAt: source[31].created_at,
+  });
+});
+it.each(["asc", "desc"] as const)("uses all three private cursor keys for Today's %s order", (order) => {
+  const dueDate = new Date("2026-10-24T00:00:00Z");
+  const createdAt = new Date("2026-10-20T12:00:00Z");
+  const comparison = order === "asc" ? "gt" : "lt";
+  expect(afterCreatedChoreCursor({ id: "synthetic", dueDate, createdAt }, order)).toEqual({ OR: [
+    { due_date: { [comparison]: dueDate } },
+    { due_date: dueDate, created_at: { [comparison]: createdAt } },
+    { due_date: dueDate, created_at: createdAt, id: { [comparison]: "synthetic" } },
+  ] });
 });

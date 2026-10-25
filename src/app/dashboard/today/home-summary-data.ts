@@ -1,3 +1,4 @@
+import { readVisibleChoreRows, afterCreatedChoreCursor } from "@/lib/chore-visible-read";
 import { hiddenRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
  * Data for the personal home summary on /dashboard/today (#268, #269).
@@ -119,40 +120,51 @@ export async function loadHomeSummary(
 ): Promise<HomeSummaryData> {
   const start = startOfTodayUTC(opts.now ?? new Date())
   const isParent = opts.role === 'parent'
-  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, opts.familyId, {
-    from: addUTCDays(start, -1), through: addUTCDays(start, 1),
-  })
+
   const [chores, profileCompatibilityProbe, members, toCheckCount] = await Promise.all([
     // Due dates are UTC-midnight date-only values: yesterday..tomorrow covers
     // "today" in any zone; the client picks the viewer's local day.
-    db.chore.findMany({
-      where: {
-        family_id: opts.familyId,
-        id: { notIn: hiddenRoutineIds },
-        // Inspect canonical profile ownership even for the account-personal
-        // summary so protocol 1 never silently loses a stored profile row.
-        OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
-        due_date: { gte: addUTCDays(start, -1), lte: addUTCDays(start, 1) },
+    readVisibleChoreRows({
+      take: MAX_CHORES, order: 'asc', tieBreakCreatedAt: true,
+      read: (after, batchSize) => {
+        const where = {
+          family_id: opts.familyId,
+          // Inspect canonical profile ownership even for the account-personal
+          // summary so protocol 1 never silently loses a stored profile row.
+          OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
+          due_date: { gte: addUTCDays(start, -1), lte: addUTCDays(start, 1) },
+        }
+        return db.chore.findMany({
+          where: after ? { AND: [where, afterCreatedChoreCursor(after)] } : where,
+          select: {
+            id: true,
+            created_at: true,
+            title: true,
+            due_date: true,
+            status: true,
+            assigned_to: true,
+            assigned_member_id: true,
+            member_subject_erased: true,
+            assigneeMember: { select: profileCompatibilitySubjectSelect },
+          },
+          orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }], take: batchSize,
+        })
       },
-      select: {
-        id: true,
-        title: true,
-        due_date: true,
-        status: true,
-        assigned_to: true,
-        assigned_member_id: true,
-        member_subject_erased: true,
-        assigneeMember: { select: profileCompatibilitySubjectSelect },
-      },
-      orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: MAX_CHORES,
+      hidden: (ids) => hiddenRoutineOccurrenceIds(db, opts.familyId, { ids }),
     }),
     opts.memberProtocol !== 2
-      ? db.chore.findFirst({
-          where: { ...profileCompatibilityProbeWhere(opts.familyId, addUTCDays(start, -1), addUTCDays(start, 1)), id: { notIn: hiddenRoutineIds } },
-          select: { id: true },
-          orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        })
+      ? readVisibleChoreRows({
+          take: 1, order: 'asc', tieBreakCreatedAt: true,
+          read: (after, batchSize) => {
+            const where = profileCompatibilityProbeWhere(opts.familyId, addUTCDays(start, -1), addUTCDays(start, 1))
+            return db.chore.findMany({
+              where: after ? { AND: [where, afterCreatedChoreCursor(after)] } : where,
+              select: { id: true, due_date: true, created_at: true },
+              orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }], take: batchSize,
+            })
+          },
+          hidden: (ids) => hiddenRoutineOccurrenceIds(db, opts.familyId, { ids }),
+        }).then((rows) => rows[0] ?? null)
       : Promise.resolve(null),
     db.user.findMany({
       where: { family_id: opts.familyId },

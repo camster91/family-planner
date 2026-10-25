@@ -30,7 +30,7 @@ No unverified feature is declared completed by source authorship.
 | --- | --- | --- |
 | #470 summary mail | Original-family binding, User/household locks and bounded transport; daily claim retained | Concurrency/two-household acceptance; scheduler remains disabled |
 | #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
-| #134/#450 routine visibility | API and SSR candidate/metadata batches before visible caps; other readers ID/window-scoped; history skips open policy | Today aggregate/window scans, dense-range latency, PostgreSQL/date/root-join/query plans and original acceptance remain unverified |
+| #134/#450 routine visibility | API/SSR/Today/probe candidate+metadata batches before caps; other reads scoped; history skips open policy | Other callers/counters, dense-range latency, PostgreSQL/date/root-join/query plans and original acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
 | #142 localization | Chore/recipe/Meals/food-plan and board settings, sync/shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
@@ -48,18 +48,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work replaces the chores API/SSR full hidden-ID preload
-with a shared visible-row reader (#134/#450). It reads at most 200 candidates
-and scopes each metadata query to those IDs, continuing past hidden rows until
-the visible cap/lookahead or true candidate exhaustion. Original household,
-status/assignee/date/public-cursor filters stay pinned. API history bypass and
-legacy latest-visible/oldest-first response shapes remain. Private cursor/error
-checks refuse repeated/malformed/oversized reads; database ID collation remains
-in PostgreSQL. Memory/query payloads are bounded, not total dense-range latency.
-Unit source authored/unrun for dense hidden runs, both cursor orders/ties,
-legacy caps, all-hidden ranges and read failure. No QA/tests/check/build/browser,
-database/migration/household mutation or release action ran. Today aggregates/
-window scans and original database/query-plan/role/recurrence acceptance remain.
+Latest bounded source work removes Today board/personal-summary hidden-ID
+preloads and moves their chore/profile-compatibility reads onto bounded visible
+batches (#134/#450). Private creation-time keysets preserve the existing due-
+date/created-at/ID order. Profile probes continue past hidden rows rather than
+accepting a capped absence. The board/personal caps (80/120), date windows,
+profile eligibility/gates/refusal, public DTOs and completed-awaiting-check count
+remain. Creation times stay internal. Existing fixture adapters/expectations
+updated without dropping assertions; creation-order/cursor cases authored/unrun.
+No QA/tests/check/build/browser, database/household mutation or release ran.
+Other helper/counter paths, dense-range latency and original PostgreSQL/query-
+plan/concurrency/isolation/role/recurrence acceptance remain unverified.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

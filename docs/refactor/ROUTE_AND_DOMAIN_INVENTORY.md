@@ -1,5 +1,24 @@
 # Route and domain inventory (#148)
 
+### Today chore and compatibility-probe batching — 2026-10-24 (#134/#450)
+
+Today board and personal-summary chore reads now use `readVisibleChoreRows`;
+their profile-compatibility probes also fill a visible result or reach true
+candidate exhaustion with bounded ID-scoped metadata. No full-window hidden-ID
+preload/notIn list remains in those readers. An optional private creation-time
+cursor preserves the existing `(due_date, created_at, id)` order instead of
+substituting the API's two-part public cursor. All three keys participate in
+continuation; database ID collation stays in PostgreSQL. Creation times remain
+internal to the readers and are not added to public DTOs. Date-only windows,
+80/120 visible caps, member/profile eligibility and rollout/refusal behavior,
+parent completed-awaiting-check count and canonical data remain unchanged.
+Each candidate/metadata batch is at most 200; total dense-hidden-range work is
+not claimed constant. Existing synthetic fixtures now distinguish bounded
+probe reads and provide selected creation times; assertions retained. New
+creation-order/three-part-cursor cases authored/unrun. No QA/tests/check/build/
+browser/database/household/release ran. Other callers/counters and original
+PostgreSQL/query-plan/concurrency/isolation/role/device acceptance remain open.
+
 ### Chore visibility before caps via bounded reads — 2026-10-24 (#134/#450)
 
 `chore-visible-read.ts` now fills visible caps/lookahead by iterating canonical

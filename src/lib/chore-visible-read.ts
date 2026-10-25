@@ -6,7 +6,18 @@ import {
 } from "@/lib/chore-paging";
 
 export const CHORE_VISIBILITY_READ_BATCH = 200;
-type Candidate = { id: string; due_date: Date };
+export type ChoreVisibilityCursor = ChoreCursor & { createdAt?: Date };
+type Candidate = { id: string; due_date: Date; created_at?: Date };
+
+/** Internal Today ordering: due date, creation time, ID; all directions match. */
+export function afterCreatedChoreCursor(cursor: ChoreVisibilityCursor, order: ChoreOrder = "asc") {
+  if (!cursor.createdAt) throw new Error("Missing chore creation cursor");
+  return { OR: [
+    { due_date: order === "asc" ? { gt: cursor.dueDate } : { lt: cursor.dueDate } },
+    { due_date: cursor.dueDate, created_at: order === "asc" ? { gt: cursor.createdAt } : { lt: cursor.createdAt } },
+    { due_date: cursor.dueDate, created_at: cursor.createdAt, id: order === "asc" ? { gt: cursor.id } : { lt: cursor.id } },
+  ] };
+}
 
 /**
  * Caller pins household, status/assignee/date scope and the original public
@@ -22,24 +33,26 @@ export async function readVisibleChoreRows<T extends Candidate>({
   order,
   read,
   hidden,
+  tieBreakCreatedAt = false,
 }: {
   take: number;
   order: ChoreOrder;
-  read: (after: ChoreCursor | null, batchSize: number) => Promise<T[]>;
+  read: (after: ChoreVisibilityCursor | null, batchSize: number) => Promise<T[]>;
+  tieBreakCreatedAt?: boolean;
   hidden: (ids: readonly string[]) => Promise<readonly string[]>;
 }): Promise<T[]> {
   if (!Number.isInteger(take) || take < 1 || take > CHORE_UNPAGED_MAX + 1)
     throw new Error("Invalid visible chore read size");
   const batchSize = Math.min(CHORE_VISIBILITY_READ_BATCH, Math.max(take, 32));
   const visible: T[] = [];
-  let after: ChoreCursor | null = null;
+  let after: ChoreVisibilityCursor | null = null;
   while (visible.length < take) {
     const rows = await read(after, batchSize);
     if (rows.length > batchSize)
       throw new Error("Chore candidate read exceeded its bound");
     if (rows.length === 0) break;
     let previous: Candidate | null = after
-      ? { id: after.id, due_date: after.dueDate }
+      ? { id: after.id, due_date: after.dueDate, created_at: after.createdAt }
       : null;
     const ids = new Set(after ? [after.id] : []);
     for (const row of rows) {
@@ -47,9 +60,14 @@ export async function readVisibleChoreRows<T extends Candidate>({
       ids.add(row.id);
       if (!Number.isFinite(row.due_date.getTime()))
         throw new Error("Invalid chore candidate date");
+      if (tieBreakCreatedAt && (!row.created_at || !Number.isFinite(row.created_at.getTime())))
+        throw new Error("Invalid chore candidate creation date");
       if (previous) {
         // PostgreSQL owns the ID tie order/collation; do not approximate it in JS.
-        const direction = row.due_date.getTime() - previous.due_date.getTime();
+        const dueDirection = row.due_date.getTime() - previous.due_date.getTime();
+        const direction = dueDirection || (tieBreakCreatedAt
+          ? row.created_at!.getTime() - previous.created_at!.getTime()
+          : 0);
         if (order === "asc" ? direction < 0 : direction > 0)
           throw new Error("Chore candidate cursor did not advance");
       }
@@ -62,7 +80,7 @@ export async function readVisibleChoreRows<T extends Candidate>({
     }
     if (rows.length < batchSize) break;
     const last = rows[rows.length - 1];
-    after = { dueDate: last.due_date, id: last.id };
+    after = { dueDate: last.due_date, id: last.id, ...(tieBreakCreatedAt ? { createdAt: last.created_at! } : {}) };
   }
   return visible;
 }
