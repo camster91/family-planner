@@ -54,12 +54,13 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): rotation edits read future pending
-candidates in500-row date/ID batches, retain the complete narrow plan before
-preflight/effects and refuse invalid cursor progression. No prefix truncation or
-turn/history change; total plan memory/SQL/lock duration remains unbounded. Source
-boundary case authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/push/
-merge/deploy; #134/#450 remain open and profile decisions are still pending.
+Latest bounded source work (2026-10-25): clearing a legacy account rotation
+now skips future-candidate reads and replacement-identity resolution, retaining
+the existing household lock and transactional template/index clear. Assignees,
+history and account/profile namespaces are unchanged. Regression source is
+written but unrun; nonempty rotation planning still retains the complete narrow
+plan and has unmeasured total query/write/lock costs. No criterion closes and no
+QA, database, build, browser, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -53,3 +53,15 @@ it('reads the complete future plan across a date/ID page boundary before effects
   expect(writes[501][0]).toMatchObject({ where: { id: rows[500].id }, data: { rotation_index: 0, assigned_to: 'user-b' } });
   expect(resolve).toHaveBeenCalledTimes(2);
 });
+
+
+it('clears a rotation without reading candidates or resolving replacement assignees', async () => {
+  const tx = txFor();
+  expect(await applyRotationEditInTx(tx as any, 'root-a', 'family-a', [], now)).toBe(true);
+  expect(tx.chore.findMany).not.toHaveBeenCalled();
+  expect(resolve).not.toHaveBeenCalled();
+  expect(tx.chore.update).toHaveBeenCalledTimes(1);
+  expect(tx.chore.update).toHaveBeenCalledWith({ where: { id: 'root-a' }, data: { rotation_member_ids: [] } });
+  expect(tx.chore.updateMany).toHaveBeenCalledTimes(1);
+  expect(tx.chore.updateMany).toHaveBeenCalledWith({ where: { family_id: 'family-a', recurrence_id: 'root-a' }, data: { rotation_index: null } });
+});

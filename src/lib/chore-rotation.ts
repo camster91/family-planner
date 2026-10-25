@@ -79,6 +79,17 @@ export async function applyRotationEditInTx(
   if (!template) return false
   if (sameRotation(template.rotation_member_ids, rotation)) return false
 
+  // Clearing never reassigns occurrences, so no candidate plan or identity
+  // resolution is needed. Keep both effects in the caller's locked transaction.
+  if (rotation.length === 0) {
+    await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: [] } })
+    await tx.chore.updateMany({
+      where: { family_id: familyId, recurrence_id: template.id },
+      data: { rotation_index: null },
+    })
+    return true
+  }
+
   // Due dates are stored at UTC midnight (src/lib/recurringChores.ts).
   const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
   // Only copies nobody started take turns. A started or finished copy keeps
@@ -130,7 +141,6 @@ export async function applyRotationEditInTx(
     where: { family_id: familyId, recurrence_id: template.id },
     data: { rotation_index: null },
   })
-  if (rotation.length === 0) return true
   for (let i = 0; i < future.length; i++) {
     const turn = turns[i]
     const assignee = turn.assignee

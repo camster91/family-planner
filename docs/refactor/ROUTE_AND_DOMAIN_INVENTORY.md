@@ -2874,3 +2874,17 @@ date boundary/tail/complete-turn source case is authored UNRUN; existing identit
 preflight/legacy/refusal cases remain. No QA/tests/checks/build/browser/CI/API/DB/
 provider/push/merge/deploy ran. #134/#450 remain open; profile rotation decisions
 and implementation remain separate.
+
+
+### Clearing rotation avoids candidate planning — 2026-10-25
+
+`applyRotationEditInTx` now exits through an empty-roster branch after household
+locking, membership validation, template lookup and the unchanged-list no-op.
+It updates the root roster and clears household-scoped occurrence indices in the
+caller's transaction without querying pending candidates or resolving assignees.
+This preserves the existing clear semantics: no assignee/history rewrite and no
+profile-ID reinterpretation. The bulk index update can still touch many rows;
+this is not a bounded total transaction or measured performance result.
+An unrun regression source case asserts the two intended writes and absence of
+candidate/identity reads. #134 remains open; all runtime/concurrency/rollback
+acceptance is deferred with QA. No schema, API, flag or scheduler change.
