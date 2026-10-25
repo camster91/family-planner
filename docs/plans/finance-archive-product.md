@@ -308,3 +308,61 @@ deadlock detection, rollback, timeout release, role/feature churn or actual quer
 plans. All those acceptance cases remain open. No QA/tests/checks/scanner/build/
 browser/CI/API/DB/native/provider/push/merge/deploy ran, and no gate was enabled.
 This scoped refinement does not claim a full audit of other budget/SSR readers.
+
+## Proposed exact-value bridge primitives — 2026-10-25
+
+`src/lib/finance-values.ts` now supplies pure, unconnected preparation for FIN-0's
+money/date mapping. It changes no schema, existing Float record, importer, API,
+settings, currency denomination or native ledger. The proposed first vocabulary
+contains USD/CAD with two minor digits; that is a finite source-contract proposal,
+not activated household currency support or an approved denomination mapping.
+Missing currency holds; locale, symbol, account name or an unrecognized code
+never supplies it. Unsupported denominations/exponents need a reviewed extension,
+not an assumed two-digit default.
+
+Minor values use canonical bounded decimal integer strings and BigInt arithmetic,
+with symmetric magnitude <=9223372036854775807 for a proposed signed-64-bit store.
+Safe integer numeric source cents may be represented with a numericInput marker;
+unsafe/non-integer/nonfinite numeric input and negative zero hold. Strings retain
+integers above JavaScript's safe-number limit exactly. Leading-zero, whitespace,
+separator, exponent and decimal-minor spellings refuse instead of being coerced.
+Decimal-major input is text only, with exact scale and preserved original
+spelling; excess precision and out-of-range values hold without rounding.
+No raw BigInt crosses the JSON boundary. A parsed `value` is a unit/currency
+primitive, never approved source, authorization, accepted native transaction or
+a permission to promote signed/refund/transfer values.
+
+`inspectLegacyBudgetMoney` explicitly requires current legacy denomination USD,
+known income/expense direction and explicit non-transfer classification. Existing
+USD cannot be relabelled CAD by this bridge. Nonfinite, signed/zero, over-precise,
+unsafe-minor or retained-cent conflict values hold. It inspects the shortest
+JavaScript decimal spelling of the existing Float without multiplication or
+rounding of money. It does NOT reconstruct exact original binary/export bytes.
+Where cents are retained, they must match the parsed minor integer exactly;
+missing cents yield candidate/sourceMinorMatch unavailable, not a zero value or
+reconciled source. Numeric agreement alone proves no original source currency,
+export approval, identity mapping, date or whole-record classification. Output is
+always a read-only `candidate`, not a promotion-ready result. Raw archive/native
+rows and their existing source metadata remain unchanged.
+
+Date-only parsing reuses canonical parseDateOnly and returns the exact input
+calendar day. Invalid dates, locale strings, Date objects and timestamps hold
+for explicit mapping; there is no timestamp slicing, time-zone inference or
+silent day shift. The existing parser's representable-year limitations also
+hold rather than normalizing a surprising date. Existing Transaction DateTime,
+UTC stats and viewer display behavior are unchanged.
+
+These primitives have no production consumer yet: model-specific source schemas,
+explicit reviewed field/currency/date mapping, immutable original source/version,
+whole-record disposition, additive target/storage and mutation/receipt/rollback
+contracts must be connected before promotion. BigInt/native-WebView support is
+part of the future #473 compatibility acceptance; old clients do not receive
+these values or a new schema here. Retained source originals, approved #104
+exports and complete per-model reconciliation are still required.
+
+Source cases cover exact >2^53 strings and Int64 bounds, decimal spelling/scale,
+symbol/locale/exponent/precision/currency holds, retained-cent agreement/conflict,
+unknown/transfer/signed Float values and leap/date/timestamp refusal. They are
+authored UNRUN. No QA/tests/checks/scanner/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. This completes only a bounded parser source step; FIN-0,
+all-domain native finance and original acceptance remain open.

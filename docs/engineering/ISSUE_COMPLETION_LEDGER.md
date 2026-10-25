@@ -54,16 +54,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) renews FIN-0 archive authority on locked
-User and Family rows (#136/#134), after the original User -> household advisory
-locks. Both metadata and exact-record detail readers now hold FOR SHARE rows
-through their existing five-second transaction, covering ordinary role/token/
-feature UPDATEs that bypass advisory locks. Changed owner, missing household or
-disabled Budget refuses before any archive read. Source fixtures/cases are
-adapted/authored UNRUN; actual PostgreSQL wait/deadlock/timeout/rollback/query-plan
-behavior and wider finance/SSR acceptance remain open. No QA/test/check/build/
-scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.39 issues remain
-open; the archive view is still default-off in source and unverified/unreleased.
+Latest bounded source work (2026-10-25) adds pure proposed FIN-0 money/date
+bridge primitives (#134). Minor units are exact bounded strings/BigInt; decimal
+text requires explicit finite currency/scale and refuses rounding/coercion. The
+legacy USD Float bridge returns only review candidates, checks retained cents,
+and holds unknown/transfer/signed/unsafe/conflicting values or CAD relabeling.
+Canonical date-only parsing preserves input days; timestamps/locale dates require
+mapping. No production consumer, schema/import/Float/currency/ledger mutation or
+activation is added. Source cases are authored UNRUN; approved source/mapping,
+whole-record/storage/receipt/client/rollback and all QA acceptance stay open.
+No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/push/merge/deploy
+ran.39 issues remain open; the archive view is still default-off in source.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

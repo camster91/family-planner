@@ -2271,3 +2271,17 @@ scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.39 issues remain
 open; the archive view is still default-off in source and unverified/unreleased.
 
 Exact archive row-lock boundary/limitations: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) adds pure proposed FIN-0 money/date
+bridge primitives (#134). Minor units are exact bounded strings/BigInt; decimal
+text requires explicit finite currency/scale and refuses rounding/coercion. The
+legacy USD Float bridge returns only review candidates, checks retained cents,
+and holds unknown/transfer/signed/unsafe/conflicting values or CAD relabeling.
+Canonical date-only parsing preserves input days; timestamps/locale dates require
+mapping. No production consumer, schema/import/Float/currency/ledger mutation or
+activation is added. Source cases are authored UNRUN; approved source/mapping,
+whole-record/storage/receipt/client/rollback and all QA acceptance stay open.
+No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/push/merge/deploy
+ran.39 issues remain open; the archive view is still default-off in source.
+
+Exact-value limitations and remaining connection: docs/plans/finance-archive-product.md.
