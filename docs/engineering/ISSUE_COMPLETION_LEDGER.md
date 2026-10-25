@@ -52,18 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds a partial pure capacity dataset constructor
-(#137) using existing canonical fixture row factories. Supported household/account,
-event, list/item, recipe/ingredient/line and family-meal rows emit in deterministic
-batches<=200, with dedicated fabricated IDs, declared UTC clock,20% tied sort-key
-cases and two sentinels. The versioned manifest explicitly remains incomplete;
-profile/device, stock ledger, routine/prep history and other dimensions are named
-unsupported rather than fabricated. Counts are construction expectations, not
-seeded observations. No writer/seed/reset/CLI or production path is connected.
-Regression source is authored but unrun. No QA/test/check/build/browser/CI/API/
-database/fixture/load/provider/push/merge/deploy ran. #137 complete adoption,
-canonical adapters, reconciliation/resource sampling and all original acceptance
-remain open.
+Latest bounded source work bounds the dormant routine unlink reader's definition
+payload (#557). It locks/sizes all candidate metadata first, then refuses per-root
+JSON above64KiB or aggregate JSON above4MiB before transferring definitions.
+Invalid ownership/size metadata and a missing/replaced/duplicated second inventory
+hold the whole preparation without partial rewrites. Existing1,000-root cap,
+unknown-definition refusal and caller-owned lifecycle/owner-proof requirements
+remain. This bounds serialized transfer, not PostgreSQL scan/serialization,
+object overhead, lock duration or query plans. No unlink writer/endpoint/UI or
+account activation is connected. Regression source authored/adapted but unrun.
+No QA/test/check/build/browser/CI/API/database/native/provider/push/merge/deploy
+ran. Full unlink/provenance/domain/credit/Undo and original acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

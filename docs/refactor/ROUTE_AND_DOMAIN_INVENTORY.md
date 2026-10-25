@@ -1520,3 +1520,17 @@ Regression source is authored but unrun. No QA/test/check/build/browser/CI/API/
 database/fixture/load/provider/push/merge/deploy ran. #137 complete adoption,
 canonical adapters, reconciliation/resource sampling and all original acceptance
 remain open.
+
+## Dormant unlink definition payload bound — 2026-10-24 (source only)
+
+Latest bounded source work bounds the dormant routine unlink reader's definition
+payload (#557). It locks/sizes all candidate metadata first, then refuses per-root
+JSON above64KiB or aggregate JSON above4MiB before transferring definitions.
+Invalid ownership/size metadata and a missing/replaced/duplicated second inventory
+hold the whole preparation without partial rewrites. Existing1,000-root cap,
+unknown-definition refusal and caller-owned lifecycle/owner-proof requirements
+remain. This bounds serialized transfer, not PostgreSQL scan/serialization,
+object overhead, lock duration or query plans. No unlink writer/endpoint/UI or
+account activation is connected. Regression source authored/adapted but unrun.
+No QA/test/check/build/browser/CI/API/database/native/provider/push/merge/deploy
+ran. Full unlink/provenance/domain/credit/Undo and original acceptance remain open.

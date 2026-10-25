@@ -109,8 +109,12 @@ The planner cannot itself prove coverage, current role, family membership, owner
 proof or absence of subsequent edits; a ready plan is not an unlink receipt.
 `prepareRoutineSubjectUnlinkInTx` in `routine-subject-unlink-read.ts` now
 provides dormant transaction-reader preparation. It validates association bounds
-before reads, holds missing routine storage, and selects every non-null future
-root definition in the household, ordered by ID with limit1,001 and FOR UPDATE.
+before reads, holds missing routine storage, and first selects every non-null future
+root's ID/ownership and serialized UTF-8 byte size, ordered by ID with limit1,001
+and FOR UPDATE. Individual definitions above64KiB or aggregate payload above4MiB
+hold the whole preparation before JSON transfer. Invalid size/ownership metadata
+also holds. The second query loads only the exact locked IDs; missing/replaced or
+duplicated returned roots hold as an inconsistent inventory.
 There are no subject/protocol/state filters that could hide unknown future work.
 Above 1,000 roots it returns a held result with no prefix rewrites. The complete
 bounded inventory delegates to the existing pure planner; storage errors propagate.
@@ -119,15 +123,17 @@ Its caller must already hold participant/household lifecycle locks and renew the
 exact association and owner proof. Row locks alone cannot prevent phantom roots;
 all future-definition writers must honor the household lock. The helper supplies
 no authority, transaction wrapper, mutation or receipt. No production transaction,
-HTTP/UI route or account command invokes it. Row count is bounded; aggregate JSON
-payload/lock-time/query-plan costs remain unmeasured. The full unlink writer,
+HTTP/UI route or account command invokes it. Row count and transferred JSON payload now have explicit bounds. PostgreSQL
+JSON serialization, JS object overhead, total scan/lock time and query-plan costs
+remain unmeasured; byte limits do not establish those resource budgets. The full unlink writer,
 former-association provenance, domain/credit/Undo parity and activation remain open.
 
 Regression source covers exact/profile/paused/stopped/unrelated/erased subjects,
 conflicting/ambiguous aliases, unknown/malformed protocols, bounded IDs and
 revision exhaustion, plus batch completeness/foreign-root/duplicates/bounds/
 ordering/no-partial-result cases. It is authored and **unrun**. The reader's scope, lookahead, absent-schema, unsupported metadata and failure
-cases are also authored/unrun. There is no call from existing identity
+cases are also authored/unrun, including metadata-first size limits, overflow,
+malformed sizes and changed JSON inventory. There is no call from existing identity
 transactions, endpoint, UI, database/schema change, permission change or activation. This adapter alone is not a standalone unlink implementation or
 proof of account/member-domain/credit parity.
 

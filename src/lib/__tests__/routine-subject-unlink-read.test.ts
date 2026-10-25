@@ -1,13 +1,18 @@
 /** Authored/unrun. Dormant reader preparation, no database/account mutation. */
 import type { Prisma } from "@prisma/client";
-import { prepareRoutineSubjectUnlinkInTx } from "../routine-subject-unlink-read";
+import { prepareRoutineSubjectUnlinkInTx, ROUTINE_UNLINK_MAX_DEFINITION_BYTES, ROUTINE_UNLINK_MAX_TOTAL_BYTES } from "../routine-subject-unlink-read";
 import { ROUTINE_UNLINK_MAX_ROOTS } from "../routine-subject-unlink";
 const association = { familyId: "family-a", userId: "account-a", memberId: "profile-a" };
 const root = (id: string, definition: unknown = { protocol: "future-unknown" }) => ({
   id, family_id: association.familyId, recurrence_id: id, routine_series_config: definition,
 });
 function reader(rows: unknown[], present = true) {
-  const read = jest.fn().mockResolvedValueOnce([{ present }]).mockResolvedValueOnce(rows);
+  const sizes = rows.map((raw) => {
+    const row = raw as ReturnType<typeof root>;
+    return { id: row.id, family_id: row.family_id, recurrence_id: row.recurrence_id,
+      definition_bytes: Buffer.byteLength(JSON.stringify(row.routine_series_config) ?? "null", "utf8") };
+  });
+  const read = jest.fn().mockResolvedValueOnce([{ present }]).mockResolvedValueOnce(sizes).mockResolvedValueOnce(rows);
   return { read, tx: { $queryRaw: read } as unknown as Pick<Prisma.TransactionClient, "$queryRaw"> };
 }
 it("refuses invalid scope without reading storage", async () => {
@@ -51,7 +56,7 @@ it("prepares supported roots without rewriting history or executing updates", as
   });
   expect(definition.revision).toBe(4);
   expect(definition.content.subject.kind).toBe("account");
-  expect(read).toHaveBeenCalledTimes(2);
+  expect(read).toHaveBeenCalledTimes(3);
 });
 it("holds an oversized inventory without returning partial rewrites", async () => {
   const { tx } = reader(Array.from({ length: ROUTINE_UNLINK_MAX_ROOTS + 1 }, (_, i) => root(`root-${i}`)));
@@ -78,4 +83,39 @@ it("propagates storage errors so a future transaction cannot mistake them for a 
   const { read, tx } = reader([]);
   read.mockReset().mockResolvedValueOnce([{ present: true }]).mockRejectedValueOnce(failure);
   await expect(prepareRoutineSubjectUnlinkInTx(tx, association)).rejects.toBe(failure);
+});
+
+it("locks and sizes metadata before loading JSON and scopes the second read to exactly those roots", async () => {
+  const { tx, read } = reader([root("root-a")]);
+  await prepareRoutineSubjectUnlinkInTx(tx, association);
+  expect(read.mock.calls[1][0].join("?")).toContain('octet_length("routine_series_config"::text)');
+  expect(read.mock.calls[2][0].join("?")).toContain('"id" = ANY(?::text[])');
+  expect(read.mock.calls[2].slice(1)).toEqual([association.familyId, ["root-a"]]);
+});
+it.each([
+  { sizes: [{ id: "root-a", family_id: association.familyId, recurrence_id: "root-a", definition_bytes: ROUTINE_UNLINK_MAX_DEFINITION_BYTES + 1 }] },
+  { sizes: Array.from({ length: Math.floor(ROUTINE_UNLINK_MAX_TOTAL_BYTES / ROUTINE_UNLINK_MAX_DEFINITION_BYTES) + 1 }, (_, i) => ({
+    id: `root-${i}`, family_id: association.familyId, recurrence_id: `root-${i}`, definition_bytes: ROUTINE_UNLINK_MAX_DEFINITION_BYTES,
+  })) },
+])("holds per-root or aggregate payload overflow before transferring any JSON", async ({ sizes }) => {
+  const { tx, read } = reader([]);
+  read.mockReset().mockResolvedValueOnce([{ present: true }]).mockResolvedValueOnce(sizes);
+  expect(await prepareRoutineSubjectUnlinkInTx(tx, association)).toEqual({ kind: "held", reason: "definition-budget" });
+  expect(read).toHaveBeenCalledTimes(2);
+});
+
+it.each([NaN, -1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1, "1024"])("holds invalid size metadata %p", async (definition_bytes) => {
+  const { tx, read } = reader([]);
+  read.mockReset().mockResolvedValueOnce([{ present: true }]).mockResolvedValueOnce([
+    { id: "root-a", family_id: association.familyId, recurrence_id: "root-a", definition_bytes },
+  ]);
+  expect(await prepareRoutineSubjectUnlinkInTx(tx, association)).toEqual({ kind: "held", reason: "invalid-inventory" });
+  expect(read).toHaveBeenCalledTimes(2);
+});
+it("never adopts a missing/replaced JSON inventory as a complete unlink preparation", async () => {
+  const { tx, read } = reader([root("root-a")]);
+  read.mockReset().mockResolvedValueOnce([{ present: true }]).mockResolvedValueOnce([
+    { id: "root-a", family_id: association.familyId, recurrence_id: "root-a", definition_bytes: 100 },
+  ]).mockResolvedValueOnce([root("root-other")]);
+  expect(await prepareRoutineSubjectUnlinkInTx(tx, association)).toEqual({ kind: "held", reason: "inventory-changed" });
 });
