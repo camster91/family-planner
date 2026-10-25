@@ -1,4 +1,5 @@
 /** Pure fabricated row construction. Never imports Prisma runtime or seeds/resets a DB. */
+import type { Prisma } from "@prisma/client";
 import {
   buildFixtureDataset, FIXTURE_IDS,
   type FixtureFamily, type FixtureUser, type FixtureEvent,
@@ -7,21 +8,24 @@ import {
 } from "../fixtures/dataset";
 import { CAPACITY_MODEL_VERSION, type CapacityPlan, type CapacityProfile } from "./model";
 
-export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v1";
+export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v2";
 export const CAPACITY_CARDINALITIES = {
-  ordinary: { events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  calendar: { events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  food: { events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
-  history: { events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
+  ordinary: { activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  calendar: { activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  food: { activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
+  history: { activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
 } as const;
 export const CAPACITY_UNSUPPORTED_DIMENSIONS = [
-  "email-free-profiles-and-links", "paired-shared-devices", "inventory-and-adjustments",
+  "email-free-profiles-and-links", "paired-shared-devices", "inventory-reviewed-receipts-and-deleted-targets",
   "chore-roots-occurrences-and-routines", "prep-sessions-and-history", "projects-and-tasks",
   "notes-wishlist-notifications-audit", "receipts-review-undo-and-provider-fakes",
   "toronto-dst-and-special-semantic-cases",
 ] as const;
 
-type RowMap = { families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
+export const CAPACITY_FINISHED_STOCK = 6;
+type CapacityInventoryItem = Omit<Prisma.InventoryItemCreateManyInput, "id"> & { id: string };
+type CapacityInventoryAdjustment = Omit<Prisma.InventoryAdjustmentCreateManyInput, "id"> & { id: string };
+type RowMap = { inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
   lists: FixtureList; listItems: FixtureListItem; recipes: FixtureRecipe;
   ingredients: FixtureIngredient; recipeIngredients: FixtureRecipeIngredient; familyMeals: FixtureFamilyMeal };
 export type CapacityDatasetRow = { [K in keyof RowMap]: { table: K; row: RowMap[K] } }[keyof RowMap];
@@ -60,6 +64,7 @@ export function capacityDatasetManifest(plan: CapacityPlan, anchor: string) {
         listItems: count.largestListItems + (count.lists - 1) * 5,
         recipes: count.recipes, ingredients: count.recipeLines,
         recipeIngredients: count.recipes * count.recipeLines, familyMeals: count.meals,
+        inventoryItems: count.activeStock + CAPACITY_FINISHED_STOCK, inventoryAdjustments: count.adjustments,
       }, recurringEvents: count.recurringEvents };
     }),
   };
@@ -129,6 +134,50 @@ function* householdRows(ordinal: number, profile: CapacityProfile, anchor: strin
       yield { table: "recipeIngredients", row: { ...line, id: idFor(ordinal, `line${index}`, position),
         recipe_id: idFor(ordinal, "recipe", index), ingredient_id: idFor(ordinal, "ingredient", position), amount: 1, unit: "pcs" } };
     }
+  }
+  // Manual canonical stock only: no barcode/provider product rows or recognition output.
+  const historyForActive = count.adjustments - CAPACITY_FINISHED_STOCK;
+  let adjustmentIndex = 0;
+  for (let index = 0; index < count.activeStock + CAPACITY_FINISHED_STOCK; index++) {
+    const active = index < count.activeStock;
+    const finishedIndex = index - count.activeStock;
+    const historyCount = active
+      ? Math.floor(historyForActive / count.activeStock) + (index < historyForActive % count.activeStock ? 1 : 0)
+      : 1;
+    const undoLast = active && index % 10 === 0 && historyCount > 0;
+    const itemId = idFor(ordinal, "stock", index);
+    let remaining: number | null = active ? 10 + historyCount - (undoLast ? 1 : 0) : finishedIndex % 3 === 0 ? null : 2;
+    const history: CapacityInventoryAdjustment[] = [];
+    let version = new Date(time - 30 * DAY);
+    for (let step = 0; step < historyCount; step++) {
+      const at = new Date(time - 7 * DAY + adjustmentIndex * 1000);
+      const undone = undoLast && step === historyCount - 1;
+      const statusAfter = active ? "active" : finishedIndex % 2 === 0 ? "consumed" : "discarded";
+      const after = active ? remaining! - 1 : remaining;
+      history.push({ id: idFor(ordinal, "stock-adjustment", adjustmentIndex++), family_id: familyId,
+        item_id: itemId, kind: statusAfter === "discarded" ? "discard" : "consume",
+        amount_delta: active ? -1 : remaining === null ? null : -remaining,
+        amount_before: remaining, amount_after: after, status_before: "active", status_after: statusAfter,
+        actor_id: step % 2 ? teenId : parentId, request_id: null,
+        item_version: at, created_at: at,
+        undone_at: undone ? new Date(at.getTime() + 1) : null, undone_by: undone ? parentId : null });
+      if (!undone) remaining = after;
+      version = undone ? new Date(at.getTime() + 1) : at;
+    }
+    yield { table: "inventoryItems", row: {
+      id: itemId, family_id: familyId, name: `Capacity ingredient ${index % count.recipeLines}`,
+      ingredient_id: idFor(ordinal, "ingredient", index % count.recipeLines),
+      barcode: null, product_brand: null, package_size: null, product_source: null,
+      amount: remaining, unit: remaining === null ? null : "pcs",
+      location: (["fridge", "freezer", "pantry"] as const)[index % 3],
+      expires_on: index % 5 === 0 ? null : new Date(dayStart + ((index % 20) - 5) * DAY),
+      date_kind: index % 3 === 0 ? "use_by" : "best_before", category: "other",
+      purchased_on: new Date(dayStart - 30 * DAY), opened_on: index % 2 ? new Date(dayStart - 7 * DAY) : null,
+      status: active ? "active" : finishedIndex % 2 === 0 ? "consumed" : "discarded",
+      finished_at: active ? null : version, added_by: parentId,
+      created_at: new Date(time - 30 * DAY), updated_at: version,
+    } };
+    for (const row of history) yield { table: "inventoryAdjustments", row };
   }
   const meal = fixture.familyMeals[0];
   for (let index = 0; index < count.meals; index++) {

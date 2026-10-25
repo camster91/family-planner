@@ -1714,3 +1714,13 @@ duplicate result refusal. Missing references remain null; archived history and
 canonical subject/protocol/action checks remain. No new profile authority, identity
 link, mutation, device DTO, flag or schema. Source cases authored/unrun; actual SQL
 fanout/plans, snapshot/isolation and broad profile/runtime acceptance stay open.
+
+### Dormant capacity inventory rows — 2026-10-24 (#137)
+
+Capacity dataset version2 now emits canonical stock/history types with declared
+profile counts, six finished targets, partial consumption/Undo history and matching
+final snapshots, all synthetic household-local references. Existing bounded row
+batches/no runtime Prisma/no writer or connection remain. Receipt/review/deleted
+inventory targets and other required fixtures remain unsupported; manifest remains
+incomplete. Counts/integrity source authored/unrun, no dataset or load execution.
+Guarded adoption/adapters/reconciliation and actual capacity acceptance remain open.

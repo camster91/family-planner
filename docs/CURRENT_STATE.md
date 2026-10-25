@@ -52,18 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work scopes and batches canonical chore profile hydration
-for list and single-item API reads (#134/#480). The shared read helper requests
-only the authenticated household's selected profile IDs in200-ID batches with
-bounded projections and explicit ID/household/duplicate checks. Missing profiles
-remain null for existing downstream refusal policy; no partial result returns on
-a later read failure. Archived history stays readable and current subject/action/
-protocol/erasure checks remain in their canonical paths. No new membership,
-identity linkage, device field, flag, schema or permission. Regression source
-covers empty/account rows, deduplication, archived history, later batches, missing/
-foreign/invalid results and later failure; all unrun. No QA/test/check/build/browser/
-CI/API/database/provider/native/push/merge/deploy ran. Database query plans, actual
-isolation/runtime compatibility and full core-query/profile acceptance remain open.
+Latest bounded source work extends the dormant capacity dataset with canonical
+inventory stock and adjustment history (#137). Version2 emits the model's active
+stock/adjustment cardinalities plus six finished targets per household. Ingredient/
+actor/item references stay household-local; partial consumption, consumed/discarded
+snapshots, unknown amounts, expiry/location/date kinds and historical Undo entries
+are explicitly constructed with matching final quantities/status/version. Request
+receipts/review/deleted targets remain unsupported, as do other missing dimensions;
+manifest stays incomplete. Counts are expectations only. Source integrity cases
+adapted/authored but unrun; no builder, writer, seed/reset, DB, adapter or capacity
+run occurred. No QA/test/check/build/browser/CI/API/provider/native/push/merge/deploy.
+Guarded adoption, real reconciliation, all adapters and full acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

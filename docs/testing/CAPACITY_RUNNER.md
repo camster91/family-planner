@@ -53,7 +53,7 @@ callbacks, including reconciliation/resource checks, have bounded waits.
 
 `src/lib/capacity/dataset.ts` now reuses the existing pure fixture row factories
 for canonical families, account users, events, lists/items, recipes/ingredients/
-lines and family meals. It provides deterministic insertion-order batches of at
+lines and family meals, with type-only schema shapes for stock/adjustment rows. It provides deterministic insertion-order batches of at
 most200 rows, fixed UTC anchor validation, reserved `.test` emails, dedicated
 `fx_capacity_v1_` IDs and a versioned expected-count manifest. There are two
 parents, a teen and a child account per constructed household, with no password
@@ -70,7 +70,7 @@ Unicode titles/content are fabricated; no publisher, real family or provider dat
 is fetched. Explicit Toronto DST and other semantic edge cases remain unsupported.
 
 The manifest deliberately returns `complete: false`. It names unsupported
-profiles/linking, pairing, inventory/adjustment ledger, chores/routines, prep/history,
+profiles/linking, pairing, inventory reviewed receipts/deleted targets, chores/routines, prep/history,
 projects/tasks, notes/wishlist/notifications/audit and receipt/review/provider
 fixtures. Empty arrays do not substitute for these dimensions. Counts are
 construction expectations, not observations from a seeded/reconciled database.
@@ -113,3 +113,32 @@ error rate under reduced closed-loop arrivals is not a throughput proof.
 No command is offered as a working mixed-load test before these pieces exist.
 The existing sequential `perf:baseline` command remains separate. No #137
 runtime/reproducibility/capacity/drill acceptance box is checked by this source.
+
+## Inventory row construction — 2026-10-24 (version2, source only)
+
+`herewoven.capacity-rows.v2` adds canonical InventoryItem/InventoryAdjustment row
+shapes via type-only Prisma imports; the builder still has no runtime Prisma,
+connection, writer, seed/reset, CLI or import-time effect. Dedicated existing
+`fx_capacity_v1_` identity prefixes remain reserved; the manifest version signals
+expanded content. Do not mix manifests in later observed reconciliation.
+
+Ordinary/calendar households have100 active items/300 history rows; food-heavy
+has2,000/10,000, history-heavy500/10,000. Each household also has six finished stock
+targets (three consumed, three discarded), whose six finishing adjustments count
+inside the declared history total. Remaining histories are partial consumption on
+active stock, distributed deterministically; active final quantity is10. Every
+tenth active item has a last partial consumption that was undone, with restored
+quantity/status and a later matching item version. Full completion retains the
+canonical stored amount while its negative delta records consumed/discarded stock;
+unknown quantities remain null. No receipt IDs are invented.
+
+Stock references household-local ingredients, parent/teen history actors, fridge/
+freezer/pantry locations, best-before/use-by and absent/past/future date-only expiry,
+purchase/open dates. Barcode/provider fields remain null. Ingredient/item parents
+are yielded before their dependents, within existing200-row batches. Per-item
+history construction is small for the declared fixed profiles. These expected
+snapshots/versions are fabricated construction, not outcomes observed through the
+canonical mutation/Undo API. Inventory reviewed receipts/deleted targets, other
+missing dimensions and real lifecycle semantics remain unsupported; manifest is
+still complete:false. Adapted integrity source covers counts, household references,
+insertion order and history-to-final snapshot reconciliation, all unrun.
