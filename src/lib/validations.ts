@@ -157,6 +157,7 @@ export const createEmailInviteSchema = z.object({
 
 // Messages
 export const sendMessageSchema = z.object({
+  issued_at: z.string().datetime().optional(),
   content: z.string().trim().min(1).max(5000),
   type: z.enum(['text', 'image', 'voice', 'announcement']).default('text'),
   // Optional family pickup context. The route resolves this to a safe

@@ -288,7 +288,7 @@ describe('pickup links and photos', () => {
       }
       if (method === 'POST') {
         const body = JSON.parse(String(init?.body))
-        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'], expected_user_id: 'u1', expected_family_id: 'family-a', expected_generation: 0 })
+        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'], expected_user_id: 'u1', expected_family_id: 'family-a', expected_generation: 0, issued_at: expect.any(String) })
         return { ok: true, status: 200, json: async () => ({ message: { ...msg(99, 'u1'), content: 'Dinner tonight', pickup: { id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false, assignee: null }, attachments: ['/api/messages/attachments/attachment-1'] } }) } as Response
       }
       return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }) } as Response
@@ -657,4 +657,43 @@ it('never sends after a photo upload finishes in a retired session context', asy
   await act(async () => { finish({ ok: true, status: 201, json: async () => ({ attachment: { id: 'original-draft-photo' } }) } as Response) })
   expect(paths).not.toContain('/api/messages/send')
   expect(screen.queryByLabelText('Message text')).toBeNull()
+})
+
+it('retains original bytes across draft edits and holds an aged retry until explicit review (source only)', async () => {
+  const user = userEvent.setup()
+  let now = Date.parse('2026-10-25T12:00:00.000Z')
+  jest.spyOn(Date, 'now').mockImplementation(() => now)
+  // Constructor and Date.now must agree for the initial intent; capture its actual
+  // serialized time below before advancing only the freshness clock.
+  postReply = async () => { throw new Error('fabricated lost reply') }
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  const input = screen.getByLabelText('Message text')
+  await user.type(input, 'Original draft')
+  // Use the real wall clock until the intent has been serialized.
+  now = new Date().getTime()
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await screen.findByText("Couldn't send your message. Check your connection and try again.")
+  const first = calls.filter(call => call.method === 'POST')[0]
+  now = Date.parse(JSON.parse(first.body!).issued_at) + 1000
+  await user.type(input, ' changed')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(2))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+  await user.clear(input)
+  await user.type(input, 'Original draft')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(3))
+  const retry = calls.filter(call => call.method === 'POST')[2]
+  expect(retry.body).toBe(first.body)
+  expect(retry.headers.get('Idempotency-Key')).toBe(first.headers.get('Idempotency-Key'))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+  now += 2 * 86400000
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const release = await screen.findByRole('button', { name: 'I checked — allow a new send' })
+  expect(input).toHaveValue('Original draft')
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(3)
+  await user.click(release)
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(3) // review never dispatches
+  expect(input).toHaveValue('Original draft')
 })

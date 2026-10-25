@@ -8,7 +8,7 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeMessageActorInTx, createMessageEffect } from '@/lib/message-mutations'
-import { messageExpectedOwnerMatches } from '@/lib/message-owner-contract'
+import { messageExpectedOwnerMatches, messageSendWindowOpen, messageSendWindowRefusal } from '@/lib/message-owner-contract'
 import { boundedRequestText, RequestBodyTooLarge } from '@/lib/bounded-request-text'
 
 // POST - Send a message
@@ -44,6 +44,13 @@ export async function postMessage(request: NextRequest, requireOwner = false) {
 
     if (requireOwner && key === null)
       return NextResponse.json({ error: 'Idempotency-Key is required for this message endpoint', code: 'MESSAGE_KEY_REQUIRED' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+
+    if (requireOwner && parsed.data.issued_at === undefined)
+      return NextResponse.json({ error: 'Original send time is required', code: 'MESSAGE_SEND_TIME_REQUIRED' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+    if (parsed.data.issued_at !== undefined && !messageSendWindowOpen(parsed.data.issued_at)) {
+      const refusal = messageSendWindowRefusal()
+      return NextResponse.json(refusal.body, { status: refusal.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     const response = await withIdempotency(
       prisma!,

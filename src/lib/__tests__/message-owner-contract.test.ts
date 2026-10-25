@@ -1,7 +1,7 @@
 jest.mock('@/lib/household-lock', () => ({ lockUser: jest.fn(async () => undefined), lockHousehold: jest.fn(async () => undefined) }))
 import { authorizeMessageActorInTx } from '../message-authority'
 /** Source cases only; no test execution in this checkpoint. */
-import { parseMessageWriteContext, messageOwnerHeaderMatches, messageExpectedOwnerMatches } from '../message-owner-contract'
+import { parseMessageWriteContext, messageOwnerHeaderMatches, messageExpectedOwnerMatches, messageSendWindowOpen, MESSAGE_SEND_RETRY_MS, MESSAGE_SEND_FUTURE_SKEW_MS } from '../message-owner-contract'
 import { sendMessageSchema } from '../validations'
 const owner = { protocol: 'herewoven.message-owner.v1', userId: 'person-a', familyId: 'family-a', generation: 3 }
 it('refuses foreign/malformed/future upload context without treating it as authority', () => {
@@ -27,4 +27,16 @@ it('renews session generation under locks before reading feature data or permitt
   const tx = { user: { findUnique: jest.fn(async () => ({ family_id: 'family-a', token_version: 4 })) }, family: { findUnique: jest.fn() } }
   expect(await authorizeMessageActorInTx(tx, { id: 'person-a', familyId: 'family-a', generation: 3 })).toMatchObject({ status: 401 })
   expect(tx.family.findUnique).not.toHaveBeenCalled()
+})
+
+it('holds expired, malformed and clock-invalid original sends before receipt retention can expire', () => {
+  const now = Date.parse('2026-10-25T12:00:00.000Z')
+  const at = (offset: number) => new Date(now + offset).toISOString()
+  expect(messageSendWindowOpen(at(0), now)).toBe(true)
+  expect(messageSendWindowOpen(at(-MESSAGE_SEND_RETRY_MS + 1), now)).toBe(true)
+  expect(messageSendWindowOpen(at(-MESSAGE_SEND_RETRY_MS), now)).toBe(false)
+  expect(messageSendWindowOpen(at(MESSAGE_SEND_FUTURE_SKEW_MS), now)).toBe(true)
+  expect(messageSendWindowOpen(at(MESSAGE_SEND_FUTURE_SKEW_MS + 1), now)).toBe(false)
+  expect(messageSendWindowOpen('not-a-date', now)).toBe(false)
+  expect(messageSendWindowOpen(at(0), NaN)).toBe(false)
 })

@@ -2111,3 +2111,28 @@ aging/lifecycle acceptance remains open; no persistent message queue is claimed.
 Modern read writeContext is `{protocol:"herewoven.message-owner.v1",userId,familyId,generation}`. This is private context, not a token or authority. Optional legacy message fields expected_user_id/expected_family_id/expected_generation must be all absent or all present and match the authenticated actor. POST `/api/messages/send` requires them and an Idempotency-Key, stream-bounds JSON at64KiB and delegates to the same message.create receipt/effect. POST `/api/messages/attachments/owned` requires X-Herewoven-Message-Owner with exact strict context and delegates to the same bounded multipart/storage/compensation handler. Existing message/attachment endpoints remain legacy-compatible; supplied owner constraints still enforce. Neither strict endpoint falls back to a legacy write URL.
 
 The client captures context before asynchronous photo work and masks the thread on generation/context change. Missing marker keeps composing local with EN/ES explanation. Request deadlines are15seconds, upload/read-ack JSON caps32KiB and send cap256KiB. Network/parse/timeout and408/409/425/429/5xx send uncertainty retains original key/body. This is mounted recovery only: no new persistent queue, receipt-retention extension, original-send age guarantee or automatic retry. Existing unbound-media pruning/file compensation and wider erase/claim/rollback/lifecycle races still require real acceptance.
+
+### Original chat send time — 2026-10-25 (source only, no QA)
+
+The unreleased strict `/api/messages/send` contract now requires canonical UTC
+`issued_at` alongside the original owner triple and idempotency key. The client
+captures it once per logical draft, keeps it in exact serialized request bytes,
+and restores the whole intent/key/time when editing away and back after an
+unknown reply. Modern retries stop before24h; the pure shared window is capped
+at one quarter of canonical receipt retention (currently7days, unchanged), with
+at most5minutes future skew. Device-clock problems hold rather than renew the
+intent. Server time checks run before receipt acquisition, after actor/household
+locks, and after receipt/media reads before message creation. A supplied legacy
+time enforces the same bound; absent legacy fields retain existing behavior.
+
+EN/ES hold copy retains the draft and directs the person to the conversation and
+device clock. An explicit review acknowledgment retires only that held mounted
+intent; it neither sends nor proves the original message absent. A later Send is
+a deliberate new intent. Ordinary uncertain retries never silently renew age or
+key. This extends the local, unreleased owner-v1 candidate together with its web
+consumer; legacy endpoints are unchanged and the strict URLs have no fallback.
+Timestamp validation adds no stored column/migration or queue. Browser relaunch,
+receipt inspection, durable recovery and upload-retry identity are still outside
+this mounted-send slice. Source time-boundary/API/UI fixtures are authored/adapted
+but unrun. QA, real lock/retention/clock/lifecycle behavior, compatibility and all
+release acceptance remain open. No runtime, database or external activation ran.

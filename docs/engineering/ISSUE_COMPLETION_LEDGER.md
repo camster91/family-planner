@@ -54,21 +54,19 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) binds chat composition to original
-account/household/session (#135/#136). Modern GET advertises a strict writeContext;
-the client freezes it before uploads and includes it in exact send bytes. New
-/send and /attachments/owned routes require those preconditions while sharing
-canonical legacy handlers/effects. Unsupported old servers cannot silently strip
-fields via a legacy fallback. Unknown support keeps drafts local. Fresh user ->
-household locks renew session/feature before message effect/replay, upload row
-creation and post-file publication check. Lost upload authority uses existing
-exact unclaimed-file compensation. Read acknowledgments now renew the same
-locks before appending non-FK read_by IDs. Upload/send/read waits are bounded;
-unknown sends keep original keys and late retired uploads do not trigger sends.
-Legacy endpoints/body formats remain supported. Source contract/API/UI/paired/
-upload-fault cases authored/adapted only. No QA/test/check/build/browser/CI/API/DB/
-native/provider/push/merge/deploy ran. Actual PG/filesystem/race/rollback/native/
-aging/lifecycle acceptance remains open; no persistent message queue is claimed.
+Latest bounded source work (2026-10-25) adds an original-send time window to
+owned chat writes (#135). The mounted client keeps original request bytes,
+issued_at and key together across edits/unknown replies. Retries stop after24h
+(or a shorter fraction of canonical receipt retention), and far-future/invalid
+clock values refuse. The strict send endpoint requires issued_at; legacy bodies
+without it remain supported. Supplied times are checked before idempotency and
+again under live actor/household locks and before creating a message. Seven-day
+receipt retention is unchanged. EN/ES held-draft recovery asks people to check
+the conversation/device clock before explicitly allowing a new send; that control
+never dispatches. Boundary/API/edit-return/aged-retry source cases authored or
+adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran.39 issues remain open; no persistent chat queue, receipt inspection,
+process-death recovery, rendered behavior or runtime acceptance is claimed.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

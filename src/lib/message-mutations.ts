@@ -1,5 +1,5 @@
 import { authorizeMessageActorInTx, messageError, type MessageActor } from '@/lib/message-authority'
-import { messageExpectedOwnerMatches } from '@/lib/message-owner-contract'
+import { messageExpectedOwnerMatches, messageSendWindowOpen, messageSendWindowRefusal } from '@/lib/message-owner-contract'
 import type { EffectResult, IdempotencyDb } from '@/lib/idempotency'
 import { messageAttachmentPath } from '@/lib/message-attachments'
 
@@ -26,6 +26,7 @@ export const MESSAGE_INCLUDE = {
 } as const
 
 export type MessageWriteBody = {
+  issued_at?: string
   content: string
   type: 'text' | 'image' | 'voice' | 'announcement'
   pickup_id?: string | null
@@ -103,6 +104,8 @@ export async function createMessageEffect(
     if (!messageExpectedOwnerMatches(body, { userId: actor.id, familyId: actor.familyId, generation: writeActor.generation ?? 0 }))
       return { status: 409, body: { error: 'Message household changed. Reload before sending.', code: 'MESSAGE_OWNER_CHANGED', retryable: false } }
 
+    if (body.issued_at !== undefined && !messageSendWindowOpen(body.issued_at)) return messageSendWindowRefusal()
+
     if (recordId) {
       const receipt = await lockReceipt(tx, recordId)
       if (!receipt)
@@ -139,6 +142,8 @@ export async function createMessageEffect(
         return messageError(404, 'Message attachment not found')
     }
 
+    // Receipt/media lookups may wait: renew time before creating any message.
+    if (body.issued_at !== undefined && !messageSendWindowOpen(body.issued_at)) return messageSendWindowRefusal()
     const created = await tx.message.create({
       data: {
         family_id: actor.familyId,

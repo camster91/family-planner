@@ -14,7 +14,7 @@ import { useTranslation } from '@/i18n'
 import { useMessagesText } from '@/i18n/messages'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { mergeLatest, prependEarlier } from './thread'
-import { MESSAGE_OWNER_HEADER, parseMessageWriteContext, type MessageWriteContext } from '@/lib/message-owner-contract'
+import { MESSAGE_OWNER_HEADER, messageSendWindowOpen, parseMessageWriteContext, type MessageWriteContext } from '@/lib/message-owner-contract'
 import { requestOwnedJson, runOwnedForeground } from '@/lib/owned-request-http'
 import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 
@@ -61,6 +61,8 @@ interface Member {
 }
 
 interface SendIntent {
+  draft: string
+  issuedAt: string
   payload: string
   key: string
 }
@@ -204,6 +206,7 @@ function MessagesContent() {
   const [loadError, setLoadError] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [blockedIntent, setBlockedIntent] = useState<SendIntent | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [readPending, setReadPending] = useState(false)
   const [readError, setReadError] = useState(false)
@@ -241,7 +244,7 @@ function MessagesContent() {
   // One body/key pair represents one logical send. Ambiguous outcomes stay in
   // this map so editing away and back to a draft still retries the same write.
   const sendIntentRef = useRef<SendIntent | null>(null)
-  const ambiguousSendRef = useRef(new Map<string, string>())
+  const ambiguousSendRef = useRef(new Map<string, SendIntent>())
 
   const retireThread = useCallback(() => {
     retired.current = true
@@ -515,36 +518,52 @@ function MessagesContent() {
       expected_family_id: owner.familyId,
       expected_generation: owner.generation,
     }
-    const payload = JSON.stringify(body)
+    const draft = JSON.stringify(body)
     const current = sendIntentRef.current
-    const key = current?.payload === payload
-      ? current.key
-      : ambiguousSendRef.current.get(payload) ?? newIdempotencyKey()
-    sendIntentRef.current = { payload, key }
+    const issuedAt = new Date().toISOString()
+    const intent = (current?.draft === draft ? current : ambiguousSendRef.current.get(draft)) ?? {
+      draft, issuedAt, payload: JSON.stringify({ ...body, issued_at: issuedAt }), key: newIdempotencyKey(),
+    }
+    const { payload, key } = intent
+    sendIntentRef.current = intent
+    setBlockedIntent(null)
+    if (!messageSendWindowOpen(intent.issuedAt)) {
+      ambiguousSendRef.current.set(draft, intent)
+      setBlockedIntent(intent)
+      setSendError(messageText('sendWindowClosed'))
+      setSending(false)
+      return
+    }
 
     try {
       const result = await requestOwnedJson('/api/messages/send', {
         method: 'POST', headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key }, body: payload,
       }, 256 * 1024)
       if (result.kind === 'unknown') {
-        ambiguousSendRef.current.set(payload, key)
+        ambiguousSendRef.current.set(draft, intent)
         setSendError(messageText('sendNetworkError')); return
       }
       const { response: res, body: data } = result
       if (retired.current || JSON.stringify(writeContext.current) !== JSON.stringify(owner)) return
       if ([401, 403].includes(res.status) || (data && typeof data === 'object' && 'code' in data && data.code === 'MESSAGE_OWNER_CHANGED')) { retireThread(); return }
       if (!res.ok) {
+        if (data && typeof data === 'object' && 'code' in data && data.code === 'MESSAGE_SEND_WINDOW_CLOSED') {
+          ambiguousSendRef.current.set(draft, intent)
+          setBlockedIntent(intent)
+          setSendError(messageText('sendWindowClosed'))
+          return
+        }
         if (res.status >= 400 && res.status < 500 && ![408, 409, 425, 429].includes(res.status)) {
-          ambiguousSendRef.current.delete(payload)
+          ambiguousSendRef.current.delete(draft)
           if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
         } else {
-          ambiguousSendRef.current.set(payload, key)
+          ambiguousSendRef.current.set(draft, intent)
         }
         setSendError(messageText('sendFailed'))
         return
       }
       if (!data || typeof data !== 'object' || !('message' in data) || !isChatMessage(data.message) || data.message.sender_id !== owner.userId) {
-        ambiguousSendRef.current.set(payload, key)
+        ambiguousSendRef.current.set(draft, intent)
         setSendError(messageText('sendUnconfirmed'))
         return
       }
@@ -554,7 +573,7 @@ function MessagesContent() {
       setNewMessage('')
       setSelectedPickupId('')
       setPendingAttachments([])
-      ambiguousSendRef.current.delete(payload)
+      ambiguousSendRef.current.delete(draft)
       if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
     } finally {
       setSending(false)
@@ -822,6 +841,15 @@ function MessagesContent() {
             <p id="message-send-error" role="alert" className="pt-2 text-footnote text-[var(--danger-text)]">
               {sendError}
             </p>
+          )}
+
+          {blockedIntent && (
+            <button type="button" disabled={sending} className="btn-tinted mt-2 min-h-[44px]" onClick={() => {
+              ambiguousSendRef.current.delete(blockedIntent.draft)
+              if (sendIntentRef.current?.key === blockedIntent.key) sendIntentRef.current = null
+              setBlockedIntent(null)
+              setSendError(null)
+            }}>{messageText('startNewAfterReview')}</button>
           )}
 
           <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">

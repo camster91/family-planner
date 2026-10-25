@@ -38,9 +38,9 @@ import { canonicalRequestJson } from '@/lib/idempotency-request-json'
 import { NextResponse } from 'next/server'
 import { logRouteError } from '@/lib/api-error'
 import type { PrismaClient } from '@prisma/client'
-import { IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
+import { IDEMPOTENCY_TTL_MS, IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
 
-export const IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export { IDEMPOTENCY_TTL_MS } from '@/lib/idempotency-key'
 /** An in-progress row older than this is treated as abandoned (the first request died). */
 export const IDEMPOTENCY_LOCK_TIMEOUT_MS = 30 * 1000
 /** Stored response bodies larger than this (serialised) are replaced by `{ success: true }`. */

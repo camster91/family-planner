@@ -141,7 +141,7 @@ describe('owned message send preconditions (source only)', () => {
   beforeEach(() => { db.reset(); db.find('family', 'family-A')!.features = { messages: true } })
   it('refuses missing/changed household/account/session context before a message or receipt effect', async () => {
     const proof = (await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1' } }))).json()).writeContext
-    const body = { content: 'Private original draft', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
+    const body = { issued_at: new Date().toISOString(), content: 'Private original draft', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
     expect((await ownedSend(req({ as: 'childA', body: { content: 'Missing context' } }))).status).toBe(400)
     const noKey = await ownedSend(req({ as: 'childA', body }))
     expect(noKey.status).toBe(400)
@@ -155,11 +155,25 @@ describe('owned message send preconditions (source only)', () => {
   })
   it('replays a matching owned send once through the canonical message effect', async () => {
     const proof = (await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1' } }))).json()).writeContext
-    const body = { content: 'Owned current message', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
+    const body = { issued_at: new Date().toISOString(), content: 'Owned current message', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
     const call = () => ownedSend(req({ as: 'childA', body, headers: { 'Idempotency-Key': 'owned-message-request-00001' } }))
     const first = await call(), replay = await call()
     expect(first.status).toBe(200); expect(replay.status).toBe(200)
     expect((await first.json()).message.id).toBe((await replay.json()).message.id)
     expect(db.rows('message').filter(row => row.content === body.content)).toHaveLength(1)
+  })
+})
+
+describe('original message send time (source only)', () => {
+  beforeEach(() => { db.reset(); db.find('family', 'family-A')!.features = { messages: true } })
+  it('refuses missing, expired and far-future original timestamps without receipt/message writes', async () => {
+    const proof = (await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1' } }))).json()).writeContext
+    const base = { content: 'Held original message', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
+    for (const issued_at of [undefined, new Date(Date.now() - 2 * 86400000).toISOString(), new Date(Date.now() + 3600000).toISOString()]) {
+      const response = await ownedSend(req({ as: 'childA', body: { ...base, issued_at }, headers: { 'Idempotency-Key': 'time-held-message-00001' } }))
+      expect(response.status).toBe(issued_at === undefined ? 400 : 409)
+      expect(await response.json()).toMatchObject({ code: issued_at === undefined ? 'MESSAGE_SEND_TIME_REQUIRED' : 'MESSAGE_SEND_WINDOW_CLOSED' })
+    }
+    expect(db.writes).toHaveLength(0)
   })
 })
