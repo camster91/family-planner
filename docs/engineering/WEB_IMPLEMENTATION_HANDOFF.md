@@ -522,3 +522,26 @@ the active scoped dictionary immediately afterward. Roles, panel lazy loading,
 provider behavior and permissions are unchanged. An existing-suite SSR-English/
 late-client-Spanish regression checks zero recoverable/console errors and final
 Spanish labels. Runtime acceptance still requires the repaired browser journey.
+
+
+### Barcode product/context foreground bounds — 2026-10-25 (#125/#135)
+
+`BarcodeFoodDialog` now races the complete product metadata read, including body
+decode, against the shared foreground owner with10 seconds and64KiB. Same-origin
+credentials/no-store remain explicit. Non-success replies do not await a body;
+current401/403 still request access review. Close/unmount/suspension abort the
+sheet's controller and suppress late metadata, errors and access callbacks even
+when a bridge ignores cancellation. Timeout/oversize/malformed replies retain
+the barcode/draft and existing EN/ES manual-entry feedback; no automatic lookup,
+provider activation or inventory save is added.
+
+`readInventoryIntakeContext` uses the existing15-second/16KiB request helper,
+so a stalled JSON body cannot hold all its callers forever. Barcode context
+callbacks also reject cancelled/suspended reads. The context effect no longer
+uses an outer cancellation-only timer that could mask its timeout feedback.
+Source cases for stalled bodies, oversized context and a late suspended refusal
+are authored, unrun. JSON-only bridge limits are post-parse, not pre-allocation
+protection. Physical cancellation, full original-owner/session authority, saved
+attempts, provider/privacy and native/role/rendered behavior retain their separate
+acceptance. Existing canonical save/recovery and request keys are unchanged.
+No QA/test/build/browser/CI/database operation or release ran; issues stay open.

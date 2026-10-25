@@ -22,6 +22,8 @@ import { createInventorySchema } from "@/lib/inventory";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useFoodBarcodeCamera } from "@/components/inventory/use-food-barcode-camera";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { useInventoryWrites } from "@/components/inventory/InventoryRecovery";
 type Row = {
   id: string;
@@ -83,6 +85,8 @@ export function BarcodeFoodDialog({
   const readingRef = useRef(false);
   const requests = useRef(new Set<AbortController>());
   const live = useRef(true);
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
   const attempts = useRef(
     new Map<string, { intent: IntakeIntent; uncertain: boolean }>(),
   );
@@ -102,17 +106,15 @@ export function BarcodeFoodDialog({
     let active = true;
     const request = new AbortController();
     requests.current.add(request);
-    const timeout = setTimeout(() => request.abort(), 10000);
     void readInventoryIntakeContext(request.signal)
       .then((value) => {
-        if (live.current && active) setContext(value);
+        if (live.current && active && !request.signal.aborted && !suspendedRef.current) setContext(value);
       })
       .catch(() => {
-        if (live.current && active)
+        if (live.current && active && !request.signal.aborted && !suspendedRef.current)
           setMessage(barcodeFeedback("contextFailed"));
       })
       .finally(() => {
-        clearTimeout(timeout);
         requests.current.delete(request);
       });
     return () => {
@@ -164,23 +166,32 @@ export function BarcodeFoodDialog({
     setReading(true);
     const request = new AbortController();
     requests.current.add(request);
-    const timeout = setTimeout(() => request.abort(), 10000);
+    const currentRequest = () => live.current && !suspendedRef.current && !request.signal.aborted;
     try {
-      const response = await fetch(
-        `/api/inventory/products?barcode=${code.gtin}${publicLookup ? "&lookup=1" : ""}`,
-        { cache: "no-store", signal: request.signal },
-      );
-      if (response.status === 401 || response.status === 403)
+      const result = await runOwnedForeground(async (signal) => {
+        const response = await fetch(
+          `/api/inventory/products?barcode=${code.gtin}${publicLookup ? "&lookup=1" : ""}`,
+          { cache: "no-store", credentials: "same-origin", signal },
+        );
+        // Access refusals do not depend on a readable error body.
+        const body = response.ok
+          ? await readBoundedJsonResponse(response, signal, 64 * 1024)
+          : null;
+        return { response, body };
+      }, { signal: request.signal, timeoutMs: 10000 });
+      if (!currentRequest()) return;
+      if ("kind" in result) throw new Error();
+      if (result.response.status === 401 || result.response.status === 403)
         onVerifyAccess?.();
-      if (!response.ok) throw new Error();
-      const data = foodProductReply.parse(await response.json());
+      if (!result.response.ok) throw new Error();
+      const data = foodProductReply.parse(result.body);
       if (
         data.barcode !== code.gtin ||
         data.context.userId !== context.userId ||
         data.context.familyId !== context.familyId
       )
         throw new Error();
-      if (!live.current) return;
+      if (!currentRequest()) return;
       if (publicLookup && data.product) {
         setPublicSuggestion({ rowId, product: data.product });
         setMessage(barcodeFeedback("detailsFound"));
@@ -231,10 +242,9 @@ export function BarcodeFoodDialog({
       if (!data.product)
         setMessage(barcodeFeedback("detailsMissing"));
     } catch {
-      if (live.current)
+      if (currentRequest())
         setMessage(barcodeFeedback("detailsUnavailable"));
     } finally {
-      clearTimeout(timeout);
       requests.current.delete(request);
       readingRef.current = false;
       if (live.current) setReading(false);

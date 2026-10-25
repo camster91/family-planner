@@ -54,13 +54,13 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): member-removal rotation cleanup
-resolves distinct canonical replacement accounts once, in stable order, before
-its own rotation effects. Current removal/deletion callers retain their household
-lifecycle locks and surrounding transaction. Legacy assignments and completed
-canonical history retain their existing policy. Source cases are authored/unrun;
-template reads, total effects/lock duration and database concurrency remain
-unmeasured. No QA, database, build, browser, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): barcode product-detail reads now
+bound fetch/body work to10 seconds and64KiB, skipping refusal bodies and retiring
+callbacks after close/suspension. Shared inventory-intake context reads use the
+existing15-second foreground/16KiB bound. Codes/drafts and canonical save/retry
+paths remain intact. Source cases are authored/unrun; this is not a full scanner
+ownership, native cancellation, provider or rendered acceptance claim. No QA,
+database, build, browser, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
