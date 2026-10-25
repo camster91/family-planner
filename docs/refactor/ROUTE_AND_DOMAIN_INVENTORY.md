@@ -1505,3 +1505,18 @@ request counts/bytes are adapter reports, not transport proof. Regression source
 is authored but unrun. No QA/test/check/build/browser/CI/API/database/load/provider/
 push/merge/deploy ran. #137 clean-environment reproducibility/capacity/drill and
 all original runtime/production acceptance remain open.
+
+## Partial capacity dataset constructor — 2026-10-24 (source only)
+
+Latest bounded source work adds a partial pure capacity dataset constructor
+(#137) using existing canonical fixture row factories. Supported household/account,
+event, list/item, recipe/ingredient/line and family-meal rows emit in deterministic
+batches<=200, with dedicated fabricated IDs, declared UTC clock,20% tied sort-key
+cases and two sentinels. The versioned manifest explicitly remains incomplete;
+profile/device, stock ledger, routine/prep history and other dimensions are named
+unsupported rather than fabricated. Counts are construction expectations, not
+seeded observations. No writer/seed/reset/CLI or production path is connected.
+Regression source is authored but unrun. No QA/test/check/build/browser/CI/API/
+database/fixture/load/provider/push/merge/deploy ran. #137 complete adoption,
+canonical adapters, reconciliation/resource sampling and all original acceptance
+remain open.

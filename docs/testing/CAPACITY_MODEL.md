@@ -26,8 +26,9 @@ negative checks; never count their intentional refusals as successful writes.
 ## Deterministic fabricated datasets
 
 Fixed seed `herewoven.capacity.v1`, a declared UTC clock and America/Toronto
-household zone. No generator exists yet; these counts are construction inputs,
-not assertions about already-seeded fixtures. Each household has 2 parents,
+household zone. A partial pure constructor now exists in `src/lib/capacity/dataset.ts`; see
+`CAPACITY_RUNNER.md` for supported dimensions. These counts remain construction
+inputs, not assertions about already-seeded fixtures. Each household has 2 parents,
 1 teen, 1 child account, 2 email-free profiles and 1 paired shared tablet.
 Profile linking/assignments are constructed only when the exact isolated schema
 and adoption protocol support them; otherwise report that dimension unsupported.
@@ -150,7 +151,8 @@ then propose one reversible optimization and an objective capacity trigger.
 Without a completed run these fields are **unmeasured**, not “no bottleneck”.
 Keep frontend, database, native, provider and production evidence separate.
 
-Still required: guarded deterministic dataset builder, canonical mixed-session
+Still required: completion/adoption of the partial deterministic dataset builder,
+canonical mixed-session
 adapters/adoption around the authored engine (`CAPACITY_RUNNER.md`),
 provider fakes/adoption isolation, outcome reconciler, resource sampling and
 clean-environment instructions bound to an exact candidate; then actual runs and

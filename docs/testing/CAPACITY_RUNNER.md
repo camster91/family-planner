@@ -49,6 +49,38 @@ resource-limit signals, unknown/failed outcomes above1% of the last60 seconds
 ceiling. These are harness stops, not revised production SLOs. All supplied
 callbacks, including reconciliation/resource checks, have bounded waits.
 
+## Partial fabricated dataset constructor
+
+`src/lib/capacity/dataset.ts` now reuses the existing pure fixture row factories
+for canonical families, account users, events, lists/items, recipes/ingredients/
+lines and family meals. It provides deterministic insertion-order batches of at
+most200 rows, fixed UTC anchor validation, reserved `.test` emails, dedicated
+`fx_capacity_v1_` IDs and a versioned expected-count manifest. There are two
+parents, a teen and a child account per constructed household, with no password
+or token. There are two ordinary sentinel households outside traffic selection.
+
+Cardinalities follow the model for these supported dimensions. Recurring event
+roots are included in the event-row count, not added to it. They use bounded
+weekly rules; expanded-instance counts remain reconciliation work. The largest
+list has the model's declared size; each other list has five items. Each recipe
+has the declared number of lines, sharing a household-local ingredient catalogue.
+One tied pair per five sort keys exercises stable ID tie-breakers. Dates span a
+rolling365-day UTC window and family-meal dates retain canonical UTC midnight.
+Unicode titles/content are fabricated; no publisher, real family or provider data
+is fetched. Explicit Toronto DST and other semantic edge cases remain unsupported.
+
+The manifest deliberately returns `complete: false`. It names unsupported
+profiles/linking, pairing, inventory/adjustment ledger, chores/routines, prep/history,
+projects/tasks, notes/wishlist/notifications/audit and receipt/review/provider
+fixtures. Empty arrays do not substitute for these dimensions. Counts are
+construction expectations, not observations from a seeded/reconciled database.
+A declared Toronto zone is metadata, not evidence of database/application zone
+configuration. No `seedFixtures`/reset call, connection, writer, migration or CLI
+is wired to this builder. Later adoption must bind the schema/guards, insert in
+order through a scoped writer, refuse unsupported required dimensions and preserve
+fixture/receipt invariants. Do not pass this partial manifest off as a complete
+mixed-workload fixture or change an acceptance box from it.
+
 ## Report and interpretation
 
 The returned object contains fixed scenario names, exact declared source/model/
@@ -66,8 +98,8 @@ error rate under reduced closed-loop arrivals is not a throughput proof.
 
 ## Missing before a usable end-to-end run
 
-- Guarded deterministic dataset builder using canonical constructors and a
-  versioned row-count/schema manifest, including the two sentinel households.
+- Complete the partial dataset constructor for all remaining canonical dimensions,
+  with a guarded writer/adoption and observed row-count/schema reconciliation.
 - All eight real route/domain adapters with exact household/role/device identity,
   idempotency keys, receipts, continuation, review/Undo and semantic assertions.
 - Provider/delivery fakes and process/database binding adoption, with refusal of
