@@ -1513,3 +1513,14 @@ generation validation, exact retry and create recovery remain. Oversize/revoked-
 authority source cases authored only. No QA/test/check/build/browser/CI/API/DB/
 native/provider/push/merge/deploy ran. Runtime timeout, rendered privacy recovery,
 old-server compatibility and full acceptance remain open.
+
+### Wishlist bounded read decoding — 2026-10-25 (#134)
+
+Wishlist web source caps Wishlist list/target reads at2MiB
+and account-role lookup at32KiB within the existing15-second deadline (#134).
+The shared decoder bounds streaming bytes; JSON-only bridges retain post-parse
+limits.401/403 can enter existing refusal handling without waiting for error
+JSON. Exact-cursor retry, target inspection and mutation behavior remain. Source
+cases for oversize/account refusal authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Rendered recovery, fault/timeout,
+role/privacy, old-server compatibility and full acceptance remain open.

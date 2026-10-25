@@ -1,5 +1,6 @@
 'use client'
 
+import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Heart, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from '@/i18n'
@@ -89,7 +90,9 @@ async function readWishlistResponse(url: string) {
     return await Promise.race([
       (async () => {
         const response = await fetch(url, { cache: 'no-store', signal: controller.signal })
-        const data: unknown = await response.json().catch(() => null)
+        if (response.status === 401 || response.status === 403) return { response, data: null }
+        const limit = url === '/api/auth/me' ? 32 * 1024 : 2 * 1024 * 1024
+        const data = await readBoundedJsonResponse(response, controller.signal, limit)
         return { response, data }
       })(),
       new Promise<never>((_, reject) => {

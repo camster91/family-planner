@@ -1328,3 +1328,25 @@ it('does not treat a deleted target missing from a loaded page as proof of delet
   expect(deletes).toBe(1)
   expect(targetReads).toBe(2)
 })
+
+// Authored source coverage; no test execution in the current no-QA pass.
+it('refuses an oversized collection before decoding instead of exposing a partial wishlist', async () => {
+  const decode = jest.fn(async () => ({ items: [ITEM], nextCursor: null }))
+  global.fetch = jest.fn(async input => String(input) === '/api/auth/me'
+    ? ({ ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) })
+    : ({ ok: true, status: 200, headers: new Headers({ 'content-length': '3145728' }), json: decode })) as unknown as typeof fetch
+  renderPage()
+  await screen.findByText('wishlist.errorLoad')
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.queryByText('Bike')).toBeNull()
+})
+
+it.each([401, 403])('rejects the %s account lookup without decoding an unresponsive body', async status => {
+  const decode = jest.fn(() => new Promise(() => {}))
+  global.fetch = jest.fn(async () => ({ ok: false, status, json: decode })) as unknown as typeof fetch
+  renderPage()
+  await screen.findByText('wishlist.errorLoad')
+  expect(decode).not.toHaveBeenCalled()
+  expect(global.fetch).toHaveBeenCalledTimes(1)
+  expect(screen.queryByText('Bike')).toBeNull()
+})

@@ -54,14 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded follow-through (2026-10-25) reconciles #564/#565 source status
-against current contracts, storage adapters and compatibility documentation.
-#565's candidate/lane inspection and #564's generation/retirement design criteria
-are now checked with explicit evidence in GitHub. Both issues remain open for
-original fault/concurrency/lifecycle/old-client and rendered acceptance. No second
-retry engine was added; readiness flags are unchanged. Original issue bodies
-were backed up and changed bodies read back. No QA/test/check/build/browser/CI/
-API/DB/native/provider/push/merge/deploy ran.
+Latest bounded source work (2026-10-25) caps Wishlist list/target reads at2MiB
+and account-role lookup at32KiB within the existing15-second deadline (#134).
+The shared decoder bounds streaming bytes; JSON-only bridges retain post-parse
+limits.401/403 can enter existing refusal handling without waiting for error
+JSON. Exact-cursor retry, target inspection and mutation behavior remain. Source
+cases for oversize/account refusal authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Rendered recovery, fault/timeout,
+role/privacy, old-server compatibility and full acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
