@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest) {
         action: LIST_ITEM_UPDATE_ACTION,
       },
       parsed.data,
-      () => updateListItemAndNoteTick(prisma!, parsed.data, auth.user, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}) }),
+      ({ recordId }) => updateListItemAndNoteTick(prisma!, parsed.data, auth.user, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}), receipt: { recordId, action: LIST_ITEM_UPDATE_ACTION } }),
       { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null) },
     )
   } catch (error) {

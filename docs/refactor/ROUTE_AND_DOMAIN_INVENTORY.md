@@ -1654,3 +1654,15 @@ operation or activation is claimed. Regression source authored/adapted but unrun
 no PG plan/locking/rollback proof. No QA/test/check/build/browser/CI/API/database/
 provider/native/push/merge/deploy ran. Original isolation/offline/device/release
 acceptance remains open.
+
+### Personal item edit/tick atomic response — 2026-10-24 (#135/#134)
+
+`list-item-update.ts` now accepts server-only receipt context from the two
+personal routes. Current authority precedes receipt and item locks. Compatible
+completed JSON returns before stale-version comparison; successful item/no-op and
+exact JSON response commit together. Missing/malformed receipts hold; completion
+failure propagates to roll back. No-key/device call paths remain. Auxiliary trip
+tracking remains post-commit/best effort, and stored replay does not repeat it.
+Existing action/hash/key/queue-owner/version/body policies remain; no schema or
+activation. Regression/guarded PostgreSQL cases authored/unrun; issue acceptance
+and actual rollback/concurrency/lifecycle/browser/device proof remain open.

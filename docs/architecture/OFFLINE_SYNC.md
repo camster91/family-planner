@@ -524,11 +524,20 @@ continue through the same comparison/write implementation without a personal
 callback; device-session/acting-member authorization stays in its coordinator.
 Their DTO, action namespace, audit and capability/opt-in boundaries are unchanged.
 
-This source does not couple an update and outer idempotency completion into a
-new atomic receipt, introduce whole-item conflict resolution, redesign best-effort
-post-commit section-trip tracking, add queue operations, change schemas or activate
-anything. Those original recovery/rollback/telemetry/device requirements remain.
-Callback denial/version/no-op/device-entry cases and an outer-auth-to-transaction
-session-generation race are authored/unrun. No app/DB/test/check/build/browser/
-provider/native/release execution occurred. Mock transactions establish no actual
-PostgreSQL query plan, row/lifecycle contention, rollback or hardware acceptance.
+The subsequent local source couples successful personal item edits/ticks with
+exact keyed response completion in that same item transaction. Actor/household
+locks precede a scoped receipt lock, which precedes the item lock. A completed
+200 response with this item ID replays stored JSON before version comparison;
+missing or incompatible completed receipts hold without reapplying. Failed receipt
+storage throws, requesting rollback of the item change. Outer coordinator completion
+already preserves receipts completed by canonical transactions. Unkeyed writes and
+device-coordinator behavior are unchanged. No new schema or queue operation.
+
+Best-effort post-commit section-trip tracking is not made transactional; a failure
+or crash can still omit that auxiliary record. Stored replay dates remain strings,
+so recovery does not record another trip. Metadata edit's pre-coordinator target
+lookup still returns existing missing/foreign statuses, including after deletion.
+Regression cases cover authority-before-receipt, missing/malformed holds, original
+JSON replay, no-op completion and propagated receipt failure; guarded PostgreSQL
+source covers stored-result replay after a later edit. All authored/unrun. No
+actual PostgreSQL rollback/locking/plan, lifecycle/device or release proof.

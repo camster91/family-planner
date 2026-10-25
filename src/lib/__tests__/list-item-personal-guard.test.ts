@@ -6,7 +6,7 @@ function setup() {
   const item = { id: "item-a", content: "Fixture", quantity: 1, checked: true,
     checked_by: "account-a", checked_at: new Date("2026-01-01T12:00:00Z"),
     updated_at: new Date("2026-01-01T12:00:00Z"), list: { family_id: "family-a" } };
-  const tx = { $queryRaw: jest.fn().mockResolvedValue([]), listItem: {
+  const tx = { idempotencyRecord: { findFirst: jest.fn().mockResolvedValue({ response_status: null, response_body: null }), update: jest.fn().mockResolvedValue({}) }, $queryRaw: jest.fn().mockResolvedValue([]), listItem: {
     findUnique: jest.fn().mockResolvedValue(item), update: jest.fn().mockResolvedValue(item),
   } };
   const db = { $transaction: async (work: (transaction: typeof tx) => Promise<unknown>) => work(tx) };
@@ -45,4 +45,51 @@ it("leaves the trusted device-shared entry usable without a personal guard", asy
   expect((await updateListItem(db, { itemId: "item-a", checked: true }, user)).status).toBe(200);
   expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
   expect(tx.$queryRaw.mock.calls[0].slice(1)).toEqual(["item-a", user.family_id]);
+});
+
+const receipt = { recordId: "receipt-a", action: "list-item.edit" as const };
+it("holds missing or malformed completed receipts before reading the item", async () => {
+  for (const record of [null, { response_status: 200, response_body: { success: true } }]) {
+    const { tx, db } = setup();
+    tx.idempotencyRecord.findFirst.mockResolvedValue(record as never);
+    const result = await updateListItem(db, { itemId: "item-a", content: "Draft" }, user, undefined, { receipt });
+    expect(result).toMatchObject({ status: 409, body: { error: { code: "IDEMPOTENCY_IN_PROGRESS", retryable: true } } });
+    expect(tx.listItem.findUnique).not.toHaveBeenCalled();
+    expect(tx.listItem.update).not.toHaveBeenCalled();
+  }
+});
+it("returns original JSON before a stale version check and does not track another trip", async () => {
+  const { tx, db } = setup();
+  const body = { success: true, item: { id: "item-a", checked: true, checked_by: user.id,
+    checked_at: "2026-10-24T12:00:00.000Z", content: "Original" } };
+  tx.idempotencyRecord.findFirst.mockResolvedValue({ response_status: 200, response_body: body } as never);
+  const result = await updateListItemAndNoteTick(db,
+    { itemId: "item-a", checked: true, expectedUpdatedAt: "2025-01-01T00:00:00Z" }, user, { receipt });
+  expect(result).toEqual({ status: 200, body });
+  expect(tx.listItem.findUnique).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.update).not.toHaveBeenCalled();
+  expect(recordSectionTick).not.toHaveBeenCalled();
+});
+it("stores exact successful HTTP JSON inside the item transaction, including no-op ticks", async () => {
+  const { tx, db, item } = setup();
+  const result = await updateListItem(db, { itemId: "item-a", checked: true }, user, undefined, { receipt });
+  const { list: _list, ...original } = item;
+  expect(result.status).toBe(200);
+  expect(tx.idempotencyRecord.update).toHaveBeenCalledWith({ where: { id: receipt.recordId }, data: {
+    response_status: 200, response_body: JSON.parse(JSON.stringify({ success: true, item: original })),
+  } });
+});
+it("propagates receipt storage failure so the enclosing transaction must roll back", async () => {
+  const { tx, db } = setup();
+  tx.idempotencyRecord.update.mockRejectedValue(new Error("fixture receipt storage failure"));
+  await expect(updateListItem(db, { itemId: "item-a", content: "Draft" }, user, undefined, { receipt }))
+    .rejects.toThrow("fixture receipt storage failure");
+  expect(tx.listItem.update).toHaveBeenCalledTimes(1);
+});
+it("renews authority before even reading a completed receipt", async () => {
+  const { tx, db } = setup();
+  await updateListItem(db, { itemId: "item-a", checked: true }, user, undefined,
+    { receipt, authorize: async () => ({ status: 403, body: { error: "Forbidden" } }) });
+  expect(tx.idempotencyRecord.findFirst).not.toHaveBeenCalled();
+  expect(tx.$queryRaw).not.toHaveBeenCalled();
 });

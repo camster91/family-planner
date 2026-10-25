@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest) {
         action: "list-item.edit",
       },
       parsed.data,
-      () => updateListItem(prisma!, parsed.data, auth.user, undefined, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}) }),
+      ({ recordId }) => updateListItem(prisma!, parsed.data, auth.user, undefined, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}), receipt: { recordId, action: "list-item.edit" } }),
       { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null) },
     );
   } catch (error) {

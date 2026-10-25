@@ -41,11 +41,13 @@ export const LIST_ITEM_CHANGED = 'LIST_ITEM_CHANGED'
 
 export type ListItemUpdateResult =
   | { status: 200; body: { success: true; item: Record<string, unknown> } }
+  | { status: 409; body: { error: { code: 'IDEMPOTENCY_IN_PROGRESS'; message: string; retryable: true } } }
   | { status: 400 | 401 | 403 | 404; body: { error: string } }
   | { status: 409; body: { error: { code: typeof DUPLICATE_OPEN_ITEM | typeof LIST_ITEM_CHANGED; message: string; retryable: false } } }
 
 /** Supplied only by personal routes; device auth stays in the device write coordinator. */
 export type ListItemUpdateOptions = {
+  receipt?: { recordId: string | null; action: 'list-item.update' | 'list-item.edit' }
   authorize?: (tx: Prisma.TransactionClient) => Promise<PersonListItemAuthorityRefusal | null>
 }
 
@@ -83,6 +85,12 @@ export async function updateListItem(
   }
 }
 
+function receiptUnavailable(): ListItemUpdateResult {
+  return { status: 409, body: { error: {
+    code: 'IDEMPOTENCY_IN_PROGRESS', message: 'Keep this change and retry recovery.', retryable: true,
+  } } }
+}
+
 async function applyListItemUpdate(
   db: Db,
   data: ListItemUpdate,
@@ -95,6 +103,32 @@ async function applyListItemUpdate(
     if (options.authorize) {
       const denied = await options.authorize(tx)
       if (denied) return denied
+    }
+    // Personal receipt ownership comes from the server coordinator, never request JSON.
+    // Lock before the item so takeover recovers a committed result before comparing versions.
+    const receipt = options.receipt
+    if (receipt?.recordId) {
+      await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord"
+        WHERE "id"=${receipt.recordId} AND "family_id"=${user.family_id}
+          AND "user_id"=${user.id} AND "scope"=${`user:${user.id}`}
+          AND "action"=${receipt.action} FOR UPDATE`
+      const record = await tx.idempotencyRecord.findFirst({
+        where: { id: receipt.recordId, family_id: user.family_id, user_id: user.id,
+          scope: `user:${user.id}`, action: receipt.action },
+        select: { response_status: true, response_body: true },
+      })
+      if (!record) return receiptUnavailable()
+      if (record.response_status !== null) {
+        const body = record.response_body
+        // Only this writer's successful shape is replayable here. Unknown completed
+        // receipts hold for recovery; they must never cause a second mutation.
+        if (record.response_status === 200 && body && typeof body === 'object' && !Array.isArray(body)
+          && body.success === true && body.item && typeof body.item === 'object'
+          && !Array.isArray(body.item) && body.item.id === itemId) {
+          return { status: 200, body: body as { success: true; item: Record<string, unknown> } }
+        }
+        return receiptUnavailable()
+      }
     }
     // Serialize only an owned item; a foreign target must not acquire another household's row lock.
     // Existing missing/foreign statuses are decided below without returning its content.
@@ -146,7 +180,15 @@ async function applyListItemUpdate(
       Object.keys(updateData).length === 0
         ? unchanged
         : await tx.listItem.update({ where: { id: itemId }, data: updateData })
-    return { status: 200, body: { success: true, item: updated } }
+    const body = { success: true as const, item: updated }
+    if (receipt?.recordId) {
+      // Failure rolls back the item as well. Keep exact HTTP JSON, including date strings.
+      await tx.idempotencyRecord.update({ where: { id: receipt.recordId }, data: {
+        response_status: 200,
+        response_body: JSON.parse(JSON.stringify(body)) as Prisma.InputJsonObject,
+      } })
+    }
+    return { status: 200, body }
   })
 }
 
