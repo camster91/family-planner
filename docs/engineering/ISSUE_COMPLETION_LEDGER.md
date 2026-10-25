@@ -32,7 +32,7 @@ No unverified feature is declared completed by source authorship.
 | #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
 | #134/#450 routine visibility | Internal ID/window-scoped metadata reads before visible caps; completed/verified history skips open-policy scan | Dense/undated helper work, PostgreSQL/date/root-join/query plans and original role/recurrence acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
-| #142 localization | Chore hints, recipe views, sync/shared controls and household join copy in typed EN/ES; stale code preview guarded; only owned inventory records removed | Rest of localization and rendered/layout acceptance |
+| #142 localization | Chore hints, recipe views, sync/shared controls and household join copy in typed EN/ES; stale code preview and explicit navigation recovery guarded; only owned copy records removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
@@ -46,13 +46,13 @@ No unverified feature is declared completed by source authorship.
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 | #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 
-Latest bounded source work localizes household joining with semantic errors and
-success notices. Locale changes no longer rerun auth/code/token preview reads.
-Lookup generations and exact checked-code identity suppress stale family previews;
-edit/unmount abort reads, and late join completion/navigation are discarded after
-unmount. Existing server authority, lookup privacy, request bodies and navigation
-release remain. Sixteen owned copy records removed. Cases authored/unrun; no
-scanner, QA/test/build/browser, account mutation, import or release ran.
+Latest bounded source work adds explicit household-join navigation recovery.
+When history release refuses/throws, a localized Continue retries only the same
+destination through the existing guard. Successful joining stays latched; no join,
+auth lookup or token acceptance is replayed by that control. Attempt generations
+still discard unmounted results. Source cases are authored/unrun; no scanner,
+QA/test/build/browser, household mutation, CI or release ran. Actual navigation,
+role/token/privacy/client and original localization acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

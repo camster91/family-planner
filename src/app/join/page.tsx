@@ -49,15 +49,33 @@ export default function JoinFamilyPage() {
   // so a second tap cannot send a second join.
   const [leaving, setLeaving] = useState(false)
   const submittingRef = useRef(false)
+  const [nextNavigation, setNextNavigation] = useState<{ href: string; refresh: boolean } | null>(null)
+  const [navigating, setNavigating] = useState(false)
+  const navigatingRef = useRef(false)
   const busy = loading || leaving || !!success
   const router = useRouter()
   const { releaseBeforeNavigation } = usePendingFormNavigationController(busy)
   const navigateAfterRelease = useCallback(
     async (href: string, refresh = false) => {
+      if (navigatingRef.current) return false
       const own = pageGeneration.current
-      if (!(await releaseBeforeNavigation()) || own !== pageGeneration.current) return
-      router.push(href)
-      if (refresh) router.refresh()
+      navigatingRef.current = true
+      setNavigating(true)
+      try {
+        const allowed = await releaseBeforeNavigation()
+        if (own !== pageGeneration.current) return false
+        if (!allowed) { setNextNavigation({ href, refresh }); return false }
+        router.push(href)
+        if (refresh) router.refresh()
+        setNextNavigation(null)
+        return true
+      } catch {
+        if (own === pageGeneration.current) setNextNavigation({ href, refresh })
+        return false
+      } finally {
+        navigatingRef.current = false
+        if (own === pageGeneration.current) setNavigating(false)
+      }
     },
     [releaseBeforeNavigation, router],
   )
@@ -222,6 +240,22 @@ export default function JoinFamilyPage() {
     }
   }
 
+  // Retry only the already-selected destination. Joining and its payload are
+  // never replayed because history release or router navigation was refused.
+  const navigationRecovery = nextNavigation && (
+    <div role="status" className="space-y-3 rounded-lg bg-[var(--accent-tint)] p-4">
+      <p className="text-sm text-foreground">{text('navigationPaused')}</p>
+      <button
+        type="button"
+        disabled={navigating}
+        onClick={() => void navigateAfterRelease(nextNavigation.href, nextNavigation.refresh)}
+        className="btn-secondary min-h-[44px] w-full"
+      >
+        {text(navigating ? 'continuing' : 'continue')}
+      </button>
+    </div>
+  )
+
   if (token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
@@ -246,6 +280,7 @@ export default function JoinFamilyPage() {
                 </div>
               </div>
             )}
+            {navigationRecovery}
             {emailInvite && !success && (
               <>
                 <p className="text-foreground">
@@ -316,6 +351,7 @@ export default function JoinFamilyPage() {
                 </div>
               </div>
             )}
+            {navigationRecovery}
             <div>
               <label htmlFor="code" className="block text-sm font-medium text-foreground mb-2">
                 {text('code')}

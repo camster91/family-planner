@@ -1,5 +1,18 @@
 # Route and domain inventory (#148)
 
+### Join navigation recovery source — 2026-10-24 (#142)
+
+JoinFamilyPage now retains the selected internal destination when history release
+refuses/throws or synchronous router dispatch throws. A localized explicit
+Continue retries only navigation through the same release controller, with a
+synchronous duplicate-navigation guard and page-generation checks. It never
+replays joining/token acceptance/auth reads. Successful join and pending-auth
+states remain latched while recovery is available; destination state is memory-
+only, not logged/persisted. No history ownership bypass, direct location change
+or server API change. Deferred source cases cover joined-dashboard recovery and
+an expired-invite session's registration continuation without POST. Router commit,
+Back/lifecycle/browser and original household/localization acceptance are unrun.
+
 ### Household join copy/preview source — 2026-10-24 (#142)
 
 JoinFamilyPage uses typed scoped EN/ES labels, invitation role/sentence and
