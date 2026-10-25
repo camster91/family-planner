@@ -267,6 +267,30 @@ describe("syncSubscription", () => {
     expect(loggedText()).not.toContain("Synthetic capped");
   });
 
+  // Authored/unrun: a valid prefix plus an unparseable known series must
+  // preserve the last complete snapshot, including other households/local rows.
+  it.each([
+    { label: "missing event start", tail: () => ics("BEGIN:VEVENT", "UID:assembly@school.test", "SUMMARY:SECRETBROKEN", "END:VEVENT") },
+    { label: "broken rule", tail: () => ics("BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260921T153000Z", "RRULE:FREQ=NOTAFREQUENCY", "END:VEVENT") },
+    { label: "second calendar document", tail: () => FEED_V1 + ics() },
+  ])("preserves imported events after $label", async ({ tail }) => {
+    await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(FEED_V1, { etag: '"complete"' }), assertUrl: allowAll, now: NOW,
+    });
+    const before = JSON.stringify(db.rows("event"));
+    const eventWrites = writesTo("event").length;
+    const result = await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(tail(), { etag: '"broken"' }), assertUrl: allowAll,
+      now: new Date(NOW.getTime() + 60_000),
+    });
+    expect(result).toMatchObject({ status: "error", created: 0, updated: 0, deleted: 0, error: "Feed is not a valid calendar" });
+    expect(JSON.stringify(db.rows("event"))).toBe(before);
+    expect(writesTo("event")).toHaveLength(eventWrites);
+    expect(db.find("calendarSubscription", "sub-a")).toMatchObject({ last_status: "error", etag: '"complete"' });
+    expect(loggedText()).not.toContain("SECRETBROKEN");
+    expect(loggedText()).not.toContain(SECRET_URL_A);
+  });
+
   it("stores an error status for fetch failures (HTTP, SSRF) without the URL", async () => {
     const r1 = await syncSubscription("sub-a", FAMILY_A, {
       fetchImpl: async () => new Response("nope", { status: 403 }),

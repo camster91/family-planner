@@ -1,5 +1,21 @@
 # Route and domain inventory (#148)
 
+### Malformed identified calendar-source refusal — 2026-10-24 (#124)
+
+Calendar parsing no longer skips a known series when master/exception creation
+or recurrence expansion throws. Non-cancelled missing starts, incomplete orphan
+overrides and invalid resolved start/occurrence identities also refuse. Multiple
+calendar roots refuse rather than silently accepting the first. Window/cap
+arguments must be finite, ordered and within the existing maximum. The exported
+parser normalizes all library errors to the existing fixed IcsParseError, so the
+sync's existing invalid-feed path preserves event rows and conditional validators.
+Valid cancellations (including orphan cancellations) and no-UID skipping remain.
+Regression source for identified malformed events/series, multiple roots,
+coverage bounds and event/validator preservation is authored/unrun. Broader
+semantic validation, unsupported multi-calendar delivery, historical partial
+recovery and provider/concurrency/native/compatibility acceptance remain open.
+No QA/tests/check/build/browser/API/database/provider/permission/native/release ran.
+
 ### Capped calendar-source integrity — 2026-10-24 (#124)
 
 The export route reads2,001 rows and refuses overflow above its existing2,000

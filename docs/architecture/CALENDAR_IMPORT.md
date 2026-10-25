@@ -13,9 +13,13 @@ provider-specific behavior on HTTP errors is unverified.
 The subscription sync now refuses `parsed.truncated` before reconciliation, for
 both occurrence and per-series iteration caps. It updates only the owned error
 status/attempt time and leaves event rows and last complete conditional validators
-unchanged. Complete parses retain the existing reconcile/delete semantics. A
-malformed series silently skipped by the parser is a separate completeness gap;
-this cap guard does not establish full semantic-feed validation. Historical
+unchanged. Complete parses retain the existing reconcile/delete semantics. Identified malformed events/series now reject the parse instead of being
+silently skipped; missing non-cancelled DTSTART/override identity and invalid
+resolved start/identity are errors. Concatenated calendar roots are refused
+rather than importing only the first. Invalid window/cap options also refuse.
+Parser/library errors are normalized to the existing content-free IcsParseError.
+Cancelled entries and the prior no-UID skip rule remain. This is not complete
+semantic validation or a claim that arbitrary multi-calendar streams are supported. Historical
 already-truncated imports require separate reconciliation/recovery; no live data
 repair or forced refresh is performed. Boundary/overflow and capped-import cases
 are authored/unrun. No QA/test/build/browser/API/database/provider/release ran.

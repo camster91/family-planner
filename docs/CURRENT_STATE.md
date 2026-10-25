@@ -52,16 +52,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work prevents capped calendar data becoming a successful
-partial source (#124). Export reads2,001 rows and returns503/no-store overflow
-instead of emitting a prefix above its original2,000-event capacity. Import
-refuses truncated expansion before reconciliation, preserving event rows and last
-complete ETag/Last-Modified while recording an owned error/attempt time. Existing
-supported feed formats, ownership/window and complete-parse semantics remain.
-Boundary/overflow and occurrence/iteration-cap regression source authored/unrun.
-No QA/check/build/browser/API/database/native/provider/permission/release ran.
-Large complete export, parser-skipped invalid series, historical partial-import
-recovery and full provider/concurrency/compatibility acceptance remain open.
+Latest bounded source work prevents malformed identified calendar series from
+becoming apparent deletions (#124). Parsing now refuses broken master/exception
+construction or recurrence expansion, missing non-cancelled starts/override
+identity, invalid start/identity, invalid coverage options and concatenated
+calendar roots. Library errors normalize to existing fixed IcsParseError copy.
+Cancellation and no-UID skip behavior remain; complete valid feeds still use the
+canonical reconciliation path. Parser/sync-preservation regression source is
+authored/unrun. No QA/check/build/browser/API/database/native/provider/permission/
+release ran. Full semantic/multi-calendar/provider/concurrency/compatibility,
+historical partial recovery and original #124 acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

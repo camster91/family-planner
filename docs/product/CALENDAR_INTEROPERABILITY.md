@@ -21,9 +21,13 @@ capacity. Overflow returns503/no-store with `CALENDAR_FEED_TOO_LARGE` and no par
 ICS; supported feeds retain their successful format/cache contract. Subscription
 imports refuse capped parse results before reconciliation and retain existing
 events plus last-complete ETag/Last-Modified. These changes are authored/unrun.
-Oversized complete export remains unavailable. Parser-skipped invalid series,
-historical partial imports, query/format/native/provider/error behavior and all
-original #124 acceptance still require implementation/recovery or evidence.
+Oversized complete export remains unavailable. Identified malformed series now
+refuse the whole parse before reconciliation; concatenated calendar documents
+also refuse instead of silently reading the first. Existing cancellation/no-UID
+rules remain. The parser normalizes library errors and rejects invalid coverage
+options. These source changes and their regression cases are unrun. Broader
+semantic/format validation, historical partial-import recovery, query/native/
+provider/error behavior and all original #124 acceptance remain open.
 
 ## Product modes and actual ownership
 

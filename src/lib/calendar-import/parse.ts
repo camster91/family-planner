@@ -195,8 +195,13 @@ function parseRoot(text: string): IcalComponent {
   } catch {
     throw new IcsParseError();
   }
-  // Several concatenated VCALENDARs parse to an array of components; use the first.
-  const first = Array.isArray(jcal) && Array.isArray(jcal[0]) ? jcal[0] : jcal;
+  // Silently accepting only the first calendar would make the rest look
+  // deleted during reconciliation. This endpoint accepts one complete source.
+  let first = jcal;
+  if (Array.isArray(jcal) && Array.isArray(jcal[0])) {
+    if (jcal.length !== 1) throw new IcsParseError();
+    first = jcal[0];
+  }
   let root: IcalComponent;
   try {
     root = new ICAL.Component(first as any);
@@ -212,10 +217,22 @@ function parseRoot(text: string): IcalComponent {
  * [windowStart, windowEnd). Throws IcsParseError for malformed input.
  */
 export function parseIcsFeed(text: string, options: ExpandOptions): ParsedFeed {
+  try {
+    return parseCompleteIcsFeed(text, options);
+  } catch {
+    // Parser/library errors can contain feed content; expose only fixed copy.
+    throw new IcsParseError();
+  }
+}
+
+function parseCompleteIcsFeed(text: string, options: ExpandOptions): ParsedFeed {
   const root = parseRoot(text);
   const windowStart = options.windowStart.getTime();
   const windowEnd = options.windowEnd.getTime();
   const maxOccurrences = options.maxOccurrences ?? MAX_OCCURRENCES;
+  if (!Number.isFinite(windowStart) || !Number.isFinite(windowEnd) || windowStart >= windowEnd ||
+    !Number.isInteger(maxOccurrences) || maxOccurrences < 1 || maxOccurrences > MAX_OCCURRENCES)
+    throw new IcsParseError();
   const defaultTimeZone =
     options.defaultTimeZone && isValidTimeZone(options.defaultTimeZone)
       ? options.defaultTimeZone
@@ -264,7 +281,7 @@ export function parseIcsFeed(text: string, options: ExpandOptions): ParsedFeed {
       endTime,
       tzidOf(component, "dtend") ?? tzidOf(component, "dtstart"),
     );
-    if (isNaN(start.getTime())) return;
+    if (isNaN(start.getTime()) || isNaN(identity.getTime())) throw new IcsParseError();
     if (isNaN(end.getTime()) || end < start) end = start;
     // Overlap test; zero-length events count when their start is in the window.
     const overlaps =
@@ -298,12 +315,12 @@ export function parseIcsFeed(text: string, options: ExpandOptions): ParsedFeed {
       for (const override of overrides.get(uid) ?? [])
         event.relateException(override);
     } catch {
-      continue;
+      throw new IcsParseError();
     }
+    if (!event.startDate) throw new IcsParseError();
     const masterTzid = tzidOf(master, "dtstart");
 
     if (!event.isRecurring()) {
-      if (!event.startDate) continue;
       const identity = resolver.toInstant(event.startDate, masterTzid);
       emit(uid, identity, event, event.startDate, event.endDate);
       continue;
@@ -325,8 +342,8 @@ export function parseIcsFeed(text: string, options: ExpandOptions): ParsedFeed {
         if (truncated) break;
       }
     } catch {
-      // A broken rule skips just this series.
-      continue;
+      // A missing series cannot be treated as deletion of its old instances.
+      throw new IcsParseError();
     }
   }
 
@@ -334,19 +351,20 @@ export function parseIcsFeed(text: string, options: ExpandOptions): ParsedFeed {
   for (const [uid, list] of overrides) {
     if (masters.has(uid)) continue;
     for (const component of list) {
+      if (isCancelled(component)) continue;
       try {
         const event = new ICAL.Event(component);
         const recurrenceId = component.getFirstPropertyValue(
           "recurrence-id",
         ) as IcalTime | null;
-        if (!recurrenceId || !event.startDate) continue;
+        if (!recurrenceId || !event.startDate) throw new IcsParseError();
         const identity = resolver.toInstant(
           recurrenceId,
           tzidOf(component, "recurrence-id"),
         );
         emit(uid, identity, event, event.startDate, event.endDate);
       } catch {
-        continue;
+        throw new IcsParseError();
       }
     }
   }

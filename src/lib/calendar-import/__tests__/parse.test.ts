@@ -386,3 +386,23 @@ describe("parseIcsFeed", () => {
     },
   );
 });
+
+// Authored/unrun: known identities that cannot be expanded are not deletions.
+it.each([
+  { label: "identified event without DTSTART", body: cal("BEGIN:VEVENT", "UID:known@fixture.test", "SUMMARY:Private fixture", "END:VEVENT") },
+  { label: "broken recurrence", body: cal("BEGIN:VEVENT", "UID:known@fixture.test", "DTSTART:20260105T170000Z", "RRULE:FREQ=NOTAFREQUENCY", "END:VEVENT") },
+  { label: "incomplete orphan override", body: cal("BEGIN:VEVENT", "UID:known@fixture.test", "RECURRENCE-ID:20260105T170000Z", "SUMMARY:Private fixture", "END:VEVENT") },
+  { label: "concatenated calendars", body: cal("BEGIN:VEVENT", "UID:first@fixture.test", "DTSTART:20260105T170000Z", "END:VEVENT") + cal("BEGIN:VEVENT", "UID:second@fixture.test", "DTSTART:20260106T170000Z", "END:VEVENT") },
+])("refuses $label with a fixed error instead of returning a partial collection", ({ body }) => {
+  expect(() => parseIcsFeed(body, WINDOW)).toThrow(IcsParseError);
+  expect(() => parseIcsFeed(body, WINDOW)).toThrow("Feed is not a valid calendar");
+});
+it("continues to accept a cancelled orphan without a start as an explicit omission", () => {
+  const result = parseIcsFeed(cal("BEGIN:VEVENT", "UID:cancelled@fixture.test",
+    "RECURRENCE-ID:20260105T170000Z", "STATUS:CANCELLED", "END:VEVENT"), WINDOW);
+  expect(result).toEqual({ occurrences: [], truncated: false });
+});
+it("refuses invalid coverage bounds rather than presenting an empty authoritative window", () => {
+  expect(() => parseIcsFeed(cal(), { ...WINDOW, windowStart: new Date("invalid") })).toThrow(IcsParseError);
+  expect(() => parseIcsFeed(cal(), { ...WINDOW, windowEnd: WINDOW.windowStart })).toThrow(IcsParseError);
+});
