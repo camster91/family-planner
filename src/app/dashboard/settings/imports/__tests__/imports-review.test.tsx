@@ -267,3 +267,25 @@ describe('owned file read recovery source (unrun)', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
+
+// Raw JSON ambiguity cases authored only; deferred with the rest of QA.
+it('rejects duplicate export fields locally without requesting a preview', async () => {
+  global.fetch = jest.fn() as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('ambiguous.json', async () => '{"fixture":1,"fixture":2}'));
+  await screen.findByText('The export repeats a JSON field. Review the original export before trying again.');
+  expect(screen.queryByText('ambiguous.json')).toBeNull();
+  expect(screen.queryByRole('checkbox')).toBeNull();
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+it('requires one target per raw identity-map key before dispatch', async () => {
+  global.fetch = jest.fn() as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('unambiguous.json', async () => '{"fixture":true}'));
+  await screen.findByText('unambiguous.json');
+  fireEvent.change(screen.getByLabelText('Identity mapping'), { target: { value: '{"source":"target-a","source":"target-b"}' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByText('The identity map repeats a source ID. Choose one target for each source ID.');
+  expect(screen.queryByRole('checkbox')).toBeNull();
+  expect(global.fetch).not.toHaveBeenCalled();
+});

@@ -2,6 +2,9 @@
 import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 const en = {
+  duplicateJson: "The export repeats a JSON field. Review the original export before trying again.",
+  mappingDuplicateKeys: "The identity map repeats a source ID. Choose one target for each source ID.",
+  jsonTooDeep: "This importer cannot read JSON nested that deeply. Choose a supported export or ask for help.",
   ownerChanged: "Importing is paused because the account, household or sign-in changed. Reload this page and select the file again.",
   reloadImports: "Reload imports",
   duplicateSourceId: "In {collection}, record {row} repeats an earlier source ID. Review the export before trying again.",
@@ -38,6 +41,9 @@ const en = {
   payloadTooLarge: "The import request exceeds 10 MB. Use a smaller export or mapping.",
 };
 const es: Record<keyof typeof en, string> = {
+  duplicateJson: "La exportación repite un campo JSON. Revisa la exportación original antes de volver a intentarlo.",
+  mappingDuplicateKeys: "La correspondencia repite un ID de origen. Elige un solo destino para cada ID de origen.",
+  jsonTooDeep: "Esta importación no admite JSON con tantos niveles. Elige una exportación compatible o pide ayuda.",
   ownerChanged: "La importación está pausada porque cambió la cuenta, el hogar o el inicio de sesión. Recarga esta página y selecciona el archivo de nuevo.",
   reloadImports: "Recargar importaciones",
   duplicateSourceId: "En {collection}, el registro {row} repite un ID de origen anterior. Revisa la exportación antes de volver a intentarlo.",
@@ -73,7 +79,7 @@ const es: Record<keyof typeof en, string> = {
   invalidExport: "El archivo no coincide con el formato de exportación de la app seleccionada.",
   payloadTooLarge: "La solicitud de importación supera los 10 MB. Usa una exportación o correspondencia más pequeña.",
 };
-export type ImportSettingsError = "fileTooLarge" | "fileUnreadable" | "fileRequired" |
+export type ImportSettingsError = "duplicateJson" | "mappingDuplicateKeys" | "jsonTooDeep" | "fileTooLarge" | "fileUnreadable" | "fileRequired" |
   "mappingInvalid" | "mappingObject" | "previewRequired" | "scopeChanged" | "reviewUnsupported" | "failed" |
   "writeUnconfirmed" | "foreignMapping" | "identityChanged" | "sessionChanged" | "invalidExport" | "payloadTooLarge";
 const messages = { en, es };

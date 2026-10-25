@@ -287,3 +287,23 @@ existing late older-file replacement case remains. Actual picker/browser/native
 read/abort/memory/background/process-death and original rendered/role/import
 acceptance are still deferred. No QA/tests/checks/scanner/build/browser/CI/API/DB/
 import/migration/native/provider/push/merge/deploy ran. #104/#135 remain open.
+
+## Raw JSON ambiguity gate — 2026-10-25
+
+A shared iterative scanner now rejects repeated decoded object keys before native
+JSON parsing can silently retain the last value. It covers local export selection,
+identity-map text, server import bodies and supplied original-owner headers. Keys
+are scoped per object; escaped aliases collide, while separate records, case-
+distinct keys and punctuation inside strings remain ordinary JSON data. There is
+no winner selection, deduplication, repair or property-name/source-fragment logging.
+Native JSON.parse remains the final syntax/value authority. A 256-container depth
+limit and 10Mi code-unit limit bound supported input, alongside existing caller
+UTF-8 byte bounds. Duplicate/depth body errors return typed400; text overflow413;
+invalid owner headers retain the generic409 scope refusal. EN/ES local errors
+explain export or mapping review without arming approval or issuing a request.
+
+Pure parser and local-form regression cases are authored UNRUN. This is not
+lossless source-number parsing, original-byte evidence, CPU/allocation preemption,
+a source approval or reconciliation acceptance. Valid nonambiguous requests keep
+the existing owner/preview/write path. No tests/checks/build/browser/CI/DB/import/
+migration/provider/push/merge/deploy ran. #104 remains open.

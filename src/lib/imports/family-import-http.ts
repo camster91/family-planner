@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { parseImportJson, ImportJsonError } from "@/lib/imports/import-json";
 import { IMPORT_OWNER_HEADER, IMPORT_OWNER_PROTOCOL, importOwner, sameImportOwner } from "@/lib/imports/import-owner-contract";
 import { sourceDuplicateDiagnostics } from "@/lib/imports/source-identity-validation";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
@@ -45,7 +46,7 @@ async function handleFamilyImport(
     return NextResponse.json({ error: "Original import account context is required", code: "IMPORT_OWNER_REQUIRED" }, { status: 400 });
   if (rawOwner !== null) {
     try {
-      if (rawOwner.length > 1024 || !sameImportOwner(importOwner.parse(JSON.parse(rawOwner)), originalOwner)) throw new Error();
+      if (rawOwner.length > 1024 || !sameImportOwner(importOwner.parse(parseImportJson(rawOwner)), originalOwner)) throw new Error();
     } catch {
       return NextResponse.json({ error: "The original import account or household changed", code: "IMPORT_SCOPE_CHANGED" }, { status: 409 });
     }
@@ -64,8 +65,12 @@ async function handleFamilyImport(
     // Bounded while reading, so a chunked body without Content-Length
     // cannot be buffered past the limit.
     const raw = await readBoundedText(request, MAX_IMPORT_BYTES);
-    body = JSON.parse(raw);
+    body = parseImportJson(raw);
   } catch (error) {
+    if (error instanceof ImportJsonError) {
+      const code = error.code === 'DUPLICATE_KEY' ? 'IMPORT_DUPLICATE_JSON_KEY' : error.code === 'DEPTH_LIMIT' ? 'IMPORT_JSON_DEPTH' : 'IMPORT_JSON_TOO_LARGE';
+      return NextResponse.json({ error: 'Import JSON requires review', code }, { status: error.code === 'TEXT_LIMIT' ? 413 : 400 });
+    }
     if (error instanceof RequestBodyTooLargeError) {
       return NextResponse.json(
         { error: "Import payload exceeds 10 MB" },

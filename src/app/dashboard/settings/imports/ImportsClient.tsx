@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { parseImportJson, ImportJsonError } from "@/lib/imports/import-json";
 import { IMPORT_OWNER_HEADER, importOwner, sameImportOwner, type ImportOwner } from "@/lib/imports/import-owner-contract";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { abortable, readBoundedJsonResponse } from "@/lib/bounded-json-response";
@@ -46,6 +47,9 @@ const resultSchema = z.object({
 function responseError(body: unknown): ImportSettingsError | null {
   if (!body || typeof body !== "object") return null;
   const value = body as { code?: unknown; error?: unknown };
+  if (value.code === "IMPORT_DUPLICATE_JSON_KEY") return "duplicateJson";
+  if (value.code === "IMPORT_JSON_DEPTH") return "jsonTooDeep";
+  if (value.code === "IMPORT_JSON_TOO_LARGE") return "payloadTooLarge";
   if (value.code === "IMPORT_OWNER_REQUIRED") return "reviewUnsupported";
   if (value.code === "IMPORT_SCOPE_CHANGED") return "scopeChanged";
   if (value.code === "IMPORT_REVIEW_REQUIRED") return "previewRequired";
@@ -165,12 +169,12 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
         if (fileInput.current) fileInput.current.value = "";
         return;
       }
-      const data: unknown = JSON.parse(contents);
+      const data = parseImportJson(contents);
       setFileData(data);
       setFileName(file.name);
-    } catch {
+    } catch (error) {
       if (request === fileRequest.current) {
-        setError("fileUnreadable");
+        setError(error instanceof ImportJsonError ? error.code === "DUPLICATE_KEY" ? "duplicateJson" : error.code === "DEPTH_LIMIT" ? "jsonTooDeep" : "fileTooLarge" : "fileUnreadable");
         if (fileInput.current) fileInput.current.value = "";
       }
     } finally {
@@ -192,8 +196,8 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
     const version = revision.current;
     if (dryRun) {
       let parsedMap: unknown;
-      try { parsedMap = JSON.parse(identityMap); }
-      catch { return setError("mappingInvalid"); }
+      try { parsedMap = parseImportJson(identityMap); }
+      catch (error) { return setError(error instanceof ImportJsonError ? error.code === 'DUPLICATE_KEY' ? 'mappingDuplicateKeys' : error.code === 'DEPTH_LIMIT' ? 'jsonTooDeep' : 'payloadTooLarge' : 'mappingInvalid'); }
       if (!parsedMap || Array.isArray(parsedMap) || typeof parsedMap !== "object" ||
         !Object.values(parsedMap).every(value => typeof value === "string" && value.length > 0))
         return setError("mappingObject");
