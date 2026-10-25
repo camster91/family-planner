@@ -54,16 +54,15 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) bounds foreground notification mark,
-snooze and delayed-delete requests through the shared15-second deadline/32KiB
-JSON decoder (#141). Success requires an explicit success:true acknowledgment;
-snooze also validates its date. Missing/malformed/oversized replies keep read/
-snooze state or restore the locally hidden delete row without claiming server
-rollback. EN/ES copy calls the outcome unconfirmed. Existing Undo delay and page-
-exit keepalive dispatch remain separate/unchanged; no write replay/delivery or
-scheduler added. Source oversize cases authored only. No QA/test/check/build/
-browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual lifecycle, races,
-role/privacy, timeout/Undo and full acceptance remain open.
+Latest bounded source work (2026-10-25) adds a visible44px EN/ES Refresh
+notifications control (#141), completing the explicit action named by uncertain-
+write copy. It reloads canonical first-page state without replaying a write.
+Manual refresh pauses through reads, mark/snooze, queued Undo deletes and actual
+foreground delete waits; immediate refs also guard pre-render clicks. Undo or
+foreground settlement releases delete busy tracking; page-exit dispatch keeps
+its existing best-effort semantics. Source refresh/Undo cases authored only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered
+focus/reflow, read-write races, lifecycle and original acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

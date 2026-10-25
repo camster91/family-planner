@@ -301,3 +301,30 @@ it.each(['mark', 'snooze'] as const)('keeps the notification and releases contro
   expect((screen.getByRole('button', { name: 'Mark "Dishes done" as read' }) as HTMLButtonElement).disabled).toBe(false)
   expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(false)
 })
+
+it('offers an explicit canonical refresh after an unconfirmed mark-read reply', async () => {
+  let reads = 0
+  const calls = mockFetch(method => method === 'PATCH'
+    ? { status: 200, body: {} }
+    : { status: 200, body: { notifications: [{ ...UNREAD, read: ++reads > 1 }], nextCursor: null } })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  await screen.findByText('The change could not be confirmed. Refresh notifications before trying again.')
+  expect(reads).toBe(1)
+  await user.click(screen.getByRole('button', { name: 'Refresh notifications' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull())
+  expect(reads).toBe(2)
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+})
+
+it('holds manual refresh during the delete Undo window and enables it after Undo', async () => {
+  const user = userEvent.setup()
+  mockFetch(list)
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Delete "Dishes done"' }))
+  expect((screen.getByRole('button', { name: 'Refresh notifications' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.click(screen.getByRole('button', { name: 'Undo' }))
+  expect((screen.getByRole('button', { name: 'Refresh notifications' }) as HTMLButtonElement).disabled).toBe(false)
+  expect(screen.getByRole('button', { name: 'Delete "Dishes done"' })).toBeTruthy()
+})

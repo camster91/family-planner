@@ -86,6 +86,8 @@ export default function NotificationsPage() {
   const [now, setNow] = useState(() => Date.now());
   const [snoozePending, setSnoozePending] = useState<string | null>(null);
   const snoozeLock = useRef(false);
+  const deleting = useRef(new Set<string>());
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const loadSequence = useRef(0);
   const activeRead = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -217,6 +219,7 @@ export default function NotificationsPage() {
         sendDelete(id, true).catch(() => undefined);
       });
       waiting.clear();
+      setDeleteBusy(deleting.current.size > 0);
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
@@ -270,6 +273,8 @@ export default function NotificationsPage() {
   const commitDelete = useCallback(
     async (item: NotificationItem) => {
       pending.current.delete(item.id);
+      deleting.current.add(item.id);
+      setDeleteBusy(true);
       try {
         const result = await writeNotification("/api/notifications", {
           method: "DELETE", headers: { "Content-Type": "application/json" },
@@ -282,6 +287,9 @@ export default function NotificationsPage() {
       } catch {
         restore(item);
         await failed(text("deleteFailed"));
+      } finally {
+        deleting.current.delete(item.id);
+        setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
       }
     },
     [failed, restore, text],
@@ -293,6 +301,7 @@ export default function NotificationsPage() {
       setNotifications((prev) => prev.filter((n) => n.id !== item.id));
       const timer = setTimeout(() => void commitDelete(item), DELETE_DELAY_MS);
       pending.current.set(item.id, { timer, item });
+      setDeleteBusy(true);
       showUndo({
         title: text("deleted"),
         onUndo: () => {
@@ -307,6 +316,7 @@ export default function NotificationsPage() {
           }
           clearTimeout(waiting.timer);
           pending.current.delete(item.id);
+          setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
           restore(item);
         },
       });
@@ -400,7 +410,7 @@ export default function NotificationsPage() {
       {/* No decorative bell beside the title: where other pages put their "+"
           button it looked tappable and did nothing. */}
       <div className="px-4 pt-2 pb-3">
-        <div className="flex items-end justify-between">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-large-title text-label-primary">
               {text("notifications")}
@@ -415,6 +425,16 @@ export default function NotificationsPage() {
                     : text(partial ? "loadedNotifications" : "caughtUp")}
             </p>
           </div>
+          <button
+            type="button"
+            className="btn-tinted min-h-[44px]"
+            disabled={loading || loadingOlder || snoozePending !== null || deleteBusy}
+            onClick={() => {
+              // Ref guards also cover a second click before React renders busy state.
+              if (snoozeLock.current || pending.current.size || deleting.current.size || olderLock.current) return;
+              void loadNotifications();
+            }}
+          >{text("refreshNotifications")}</button>
         </div>
       </div>
 

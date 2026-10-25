@@ -5,6 +5,7 @@ import { useTranslation } from "@/i18n";
 
 const en = {
   notifications: "Notifications",
+  refreshNotifications: "Refresh notifications",
   openNotification: "Open",
   openNotificationLabel: 'Open "{title}"',
   unreadShownCount: "{count} unread shown",
@@ -86,6 +87,7 @@ const en = {
 } as const;
 const es: Record<keyof typeof en, string> = {
   notifications: "Notificaciones",
+  refreshNotifications: "Actualizar notificaciones",
   openNotification: "Abrir",
   openNotificationLabel: 'Abrir "{title}"',
   unreadShownCount: "{count} sin leer mostradas",

@@ -1537,3 +1537,15 @@ exit keepalive dispatch remain separate/unchanged; no write replay/delivery or
 scheduler added. Source oversize cases authored only. No QA/test/check/build/
 browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual lifecycle, races,
 role/privacy, timeout/Undo and full acceptance remain open.
+
+### Notification explicit refresh recovery — 2026-10-25 (#141)
+
+Notification web source adds a visible44px EN/ES Refresh
+notifications control (#141), completing the explicit action named by uncertain-
+write copy. It reloads canonical first-page state without replaying a write.
+Manual refresh pauses through reads, mark/snooze, queued Undo deletes and actual
+foreground delete waits; immediate refs also guard pre-render clicks. Undo or
+foreground settlement releases delete busy tracking; page-exit dispatch keeps
+its existing best-effort semantics. Source refresh/Undo cases authored only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered
+focus/reflow, read-write races, lifecycle and original acceptance remain open.
