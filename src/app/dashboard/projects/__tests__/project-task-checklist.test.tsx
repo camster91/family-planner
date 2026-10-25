@@ -224,7 +224,7 @@ describe("SendToCalendarButton", () => {
 
   it("is a 44px target that posts the viewer time zone and reports the count", async () => {
     const user = userEvent.setup();
-    reply = { status: 200, body: { eventsCreated: 2 } };
+    reply = { status: 200, body: { protocol: "herewoven.project-calendar-summary.v1", state: "created", eventsCreated: 2 } };
     const button = renderButton();
     expect(button.className).toMatch(/min-h-\[44px\]/);
     await user.click(button);
@@ -233,6 +233,7 @@ describe("SendToCalendarButton", () => {
     expect(calls[0].method).toBe("POST");
     expect(calls[0].body).toEqual({
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      responseMode: "summary-v1",
     });
     expect(
       await screen.findByText("Added 2 tasks to the calendar"),
@@ -242,9 +243,28 @@ describe("SendToCalendarButton", () => {
 
   it("says when nothing new was added", async () => {
     const user = userEvent.setup();
-    reply = { status: 200, body: { eventsCreated: 0 } };
+    reply = { status: 200, body: { protocol: "herewoven.project-calendar-summary.v1", state: "all-sent", eventsCreated: 0 } };
     await user.click(renderButton());
     expect(await screen.findByText("Nothing new to add")).toBeTruthy();
+  });
+
+  // Authored/unrun: an older server may already have committed the full send.
+  it("does not claim success from an unversioned success body", async () => {
+    const user = userEvent.setup();
+    reply = { status: 200, body: { eventsCreated: 2 } };
+    await user.click(renderButton());
+    expect(await screen.findByText(/The send result could not be confirmed/)).toBeTruthy();
+    expect(screen.queryByText("Added 2 tasks to the calendar")).toBeNull();
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(1);
+  });
+
+  it("distinguishes no eligible dated tasks from tasks already sent", async () => {
+    const user = userEvent.setup();
+    reply = { status: 200, body: { protocol: "herewoven.project-calendar-summary.v1", state: "no-tasks", eventsCreated: 0 } };
+    await user.click(renderButton());
+    expect(await screen.findByText("Only incomplete tasks with due dates can be sent.")).toBeTruthy();
+    expect(screen.queryByText("Dated tasks are already on the calendar.")).toBeNull();
   });
 
   it("shows the API error when the request fails", async () => {

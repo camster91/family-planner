@@ -45,24 +45,24 @@ No unverified feature is declared completed by source authorship.
 | #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 | #134 Project detail tasks | SSR40-task keyset pages, whole-project grouped progress, draft-aware EN/ES page controls; opt-in API paging and additive index source | Legacy unpaged API remains unbounded; index unapplied; database/query-plan/concurrency/isolation/rendered acceptance unrun |
-| #134 Project calendar send | Locked current authority plus 200-task ID traversal and candidate-scoped grouped UID/legacy-title existence reads | Full result size/total work/lock duration remain unbounded within existing timeout; indexes unapplied; real concurrency/rollback/compatibility unrun |
+| #134 Project calendar send | Locked authority, 200-task candidate/match reads and opt-in count-only web summary; legacy event response retained | Legacy full result and all-send total work/lock duration remain unbounded within existing timeout; indexes unapplied; real acceptance unrun |
 | #134 Recent changes | Canonical 20-entry page validation, bounded transport/body read, generation/abort and exact-cursor recovery source | Runtime/navigation/reconnect/body-timeout/loop and original household/privacy acceptance remain unverified |
 | #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work batches Send to Calendar internals (#134). Immutable
-ID keysets read at most 200 eligible tasks; grouped existence queries use only
-those candidate UIDs/legacy titles and return at most 200 distinct matches each.
-The existing effect transaction traverses every batch, including already-sent
-batches, without partial commits/truncation. Locked authority, stable task UIDs,
-legacy-title matching, date/timezone rules and full success response remain.
-Full legacy result memory, total work and 30-second lock/transaction duration
-remain limitations; no consistent source snapshot or latency claim is made.
-Supporting additive index/schema/SQL source is unapplied. Multi-batch/repeat/
-already-sent-prefix and query-scope cases authored/unrun. No QA/tests/check/
-build/browser, Prisma generation/migration/API/database/household/release ran.
-Original PG concurrency/rollback, query-plan/index costs and compatibility stay open.
+Latest bounded source work adds opt-in summary-v1 project-calendar responses
+and connects the web sender (#134). Summary mode retains only a created count,
+not a full event array, and returns a strict versioned created/no-tasks/all-sent
+result. Legacy requests retain complete event-array responses. Unsupported modes
+refuse before effects. Web requests the summary and validates coherent counts;
+legacy/malformed success bodies, network failures and server errors are shown
+as unconfirmed without automatic retry. No-tasks copy is distinct from already-
+sent; generation/pending guards ignore late project results and duplicate taps.
+Protocol/server/UI cases authored/unrun; original assertions adapted/retained.
+No QA/tests/check/build/browser/API/database/household or release ran. Legacy
+result memory, total transaction/lock duration, index application, true replay
+receipts and original concurrency/compatibility/rendered acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

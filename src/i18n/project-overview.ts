@@ -6,6 +6,8 @@ import type { Locale } from "@/i18n/types";
 
 /** Copy for the project overview, detail, and task interactions. */
 export const projectOverviewEnglish = {
+  calendarResultUnknown: "The send result could not be confirmed. It may have finished. Check the calendar before trying again.",
+  calendarNoDatedTasks: "Only incomplete tasks with due dates can be sent.",
   taskPages: "Task pages",
   taskPageHint: "Showing {loaded} tasks on this page; {total} in this project. Open and Done below refer to this page.",
   nextTasks: "More tasks",
@@ -89,6 +91,8 @@ export const projectOverviewEnglish = {
 export type ProjectOverviewMessage = keyof typeof projectOverviewEnglish;
 
 export const projectOverviewSpanish: Record<ProjectOverviewMessage, string> = {
+  calendarResultUnknown: "No se pudo confirmar el resultado. Puede haber terminado. Revisa el calendario antes de intentarlo de nuevo.",
+  calendarNoDatedTasks: "Solo se pueden enviar tareas pendientes con fecha.",
   taskPages: "Páginas de tareas",
   taskPageHint: "Se muestran {loaded} tareas en esta página; {total} en el proyecto. Pendientes y Hechas se refieren a esta página.",
   nextTasks: "Más tareas",

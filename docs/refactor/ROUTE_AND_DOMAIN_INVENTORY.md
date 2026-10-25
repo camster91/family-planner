@@ -1,5 +1,27 @@
 # Route and domain inventory (#148)
 
+### Opt-in project-calendar summary response — 2026-10-24 (#134)
+
+`project-calendar-response.ts` defines summary-v1 with a versioned created/
+no-tasks/all-sent discriminator and coherent safe integer count. Explicit
+`responseMode: summary-v1` makes the full-send transaction retain only that
+count, leaving the legacy event array empty; the response omits event objects.
+Missing mode preserves installed clients' full event-array success shape; an
+unsupported explicit mode refuses before effects. Internal 200-task/matching
+batches and original single transaction/full intent remain unchanged.
+The web button now requests/validates the summary, distinguishes no eligible
+tasks, and treats malformed/old-server 200 bodies, transport failures and 5xx as
+unconfirmed without auto-retry or success. Synchronous pending and project-
+generation guards prevent duplicate taps and late toast/refresh on another
+project/unmount. This is not an exact replay/source snapshot/ownership receipt:
+retries may confirm existing links with zero new events instead of reproducing
+an earlier count. No transport deadline or transaction-duration improvement is
+claimed. Legacy result memory, total work/locks, index application and real
+forward/rollback/concurrency/rendered evidence remain open. Contract, multi-
+batch count-only server and UI recovery cases authored/unrun; existing assertions
+adapted and retained. No QA/test/check/build/browser/API/database/household/
+provider/permission/release action ran.
+
 ### Project calendar full-intent internal batches — 2026-10-24 (#134)
 
 `readProjectCalendarTaskBatch` reads at most 200 dated/incomplete tasks in private

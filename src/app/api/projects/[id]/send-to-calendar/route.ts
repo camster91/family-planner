@@ -1,3 +1,4 @@
+import { PROJECT_CALENDAR_SUMMARY_MODE, PROJECT_CALENDAR_SUMMARY_PROTOCOL } from "@/lib/project-calendar-response";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
 import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,7 +19,8 @@ interface RouteContext {
 // POST — Create calendar events from incomplete project tasks.
 // Each incomplete task with a due_date becomes an all-day event on that
 // calendar day. Optional body: `{ timeZone }` (the caller's IANA zone);
-// otherwise the household default zone is used.
+// otherwise the household default zone is used. responseMode: summary-v1
+// returns a versioned count-only result; missing mode keeps the legacy events array.
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -37,14 +39,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // The body is optional; an unknown or missing zone falls back to the default.
+    let summaryMode = false
+    let unsupportedResponse = false
     let timeZone = DEFAULT_FAMILY_TIMEZONE
     try {
       const body = await request.json()
+      if (body && typeof body === 'object' && 'responseMode' in body) {
+        summaryMode = body.responseMode === PROJECT_CALENDAR_SUMMARY_MODE
+        unsupportedResponse = !summaryMode
+      }
       const requested = body && typeof body === 'object' ? (body as { timeZone?: unknown }).timeZone : undefined
       if (typeof requested === 'string' && isValidTimeZone(requested)) timeZone = requested
     } catch {
       // No or invalid JSON body: keep the default zone.
     }
+
+    if (unsupportedResponse) return NextResponse.json({
+      code: 'PROJECT_CALENDAR_RESPONSE_UNSUPPORTED', error: 'Refresh this app before sending project tasks.',
+    }, { status: 400 })
 
     // Verify the project exists and belongs to the user's family
     const project = await prisma!.project.findUnique({
@@ -108,6 +120,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       // commit a prefix or silently stop after the first candidate page.
       let afterId: string | null = null
       let hadTasks = false
+      let eventsCreated = 0
       const events: Array<{ id: string; title: string; start_time: Date; end_time: Date }> = []
       while (true) {
         const batch = await readProjectCalendarTaskBatch(tx, {
@@ -117,8 +130,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         hadTasks = true
         for (const task of batch.unsent) {
           const { start, end } = allDayRange(task.due_date!, timeZone)
-          events.push(
-            await tx.event.create({
+          const event = await tx.event.create({
               data: {
                 family_id: auth.user.family_id,
                 title: task.title,
@@ -138,7 +150,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 end_time: true,
               },
             })
-          )
+          eventsCreated++
+          if (!summaryMode) events.push(event)
         }
         const last = batch.tasks[batch.tasks.length - 1].id
         if (last === afterId) throw new Error('Project calendar task cursor did not advance')
@@ -146,8 +159,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (batch.tasks.length < PROJECT_CALENDAR_TASK_BATCH) break
       }
       if (!hadTasks) return { kind: 'no-tasks' as const }
-      if (events.length === 0) return { kind: 'all-sent' as const }
-      return { kind: 'created' as const, events }
+      if (eventsCreated === 0) return { kind: 'all-sent' as const }
+      return { kind: 'created' as const, events, eventsCreated }
     // Inserts run one by one inside the lock; allow more than Prisma's 5 s
     // default for a project with many dated tasks.
     }, { timeout: 30_000 })
@@ -155,6 +168,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (outcome.kind === 'refused') {
       return NextResponse.json(outcome.body, { status: outcome.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
+    if (summaryMode) return NextResponse.json({
+      protocol: PROJECT_CALENDAR_SUMMARY_PROTOCOL, state: outcome.kind,
+      eventsCreated: outcome.kind === 'created' ? outcome.eventsCreated : 0,
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
     if (outcome.kind === 'no-tasks') {
       return NextResponse.json({
         message: 'No incomplete tasks with due dates found',
@@ -171,8 +188,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({
-      message: `Created ${outcome.events.length} calendar event(s)`,
-      eventsCreated: outcome.events.length,
+      message: `Created ${outcome.eventsCreated} calendar event(s)`,
+      eventsCreated: outcome.eventsCreated,
       events: outcome.events,
     })
   } catch (error) {

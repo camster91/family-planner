@@ -193,6 +193,24 @@ describe("send-to-calendar", () => {
     expect(eventsOfProjectA()).toHaveLength(206);
   });
 
+  it("returns a count-only summary for the new web request while sending all batches", async () => {
+    for (let i = 0; i < 205; i++) addTask(`summary-${String(i).padStart(4, "0")}`, `Synthetic ${i}`);
+    const body = await bodyOf(await send({ timeZone: "UTC", responseMode: "summary-v1" }));
+    expect(body).toEqual({ protocol: "herewoven.project-calendar-summary.v1", state: "created", eventsCreated: 206 });
+    expect(eventsOfProjectA()).toHaveLength(206);
+    expect(body.events).toBeUndefined();
+    expect(await bodyOf(await send({ responseMode: "summary-v1" }))).toEqual({
+      protocol: "herewoven.project-calendar-summary.v1", state: "all-sent", eventsCreated: 0,
+    });
+  });
+
+  it("refuses an unsupported requested response mode before effects", async () => {
+    const response = await send({ responseMode: "unsupported" });
+    expect(response.status).toBe(400);
+    expect(await bodyOf(response)).toMatchObject({ code: "PROJECT_CALENDAR_RESPONSE_UNSUPPORTED" });
+    expect(writesTo("event")).toHaveLength(0);
+  });
+
   it("continues past a complete already-sent batch to new tasks later in ID order", async () => {
     for (let i = 0; i < 200; i++) {
       const id = `batch-${String(i).padStart(4, "0")}`;
