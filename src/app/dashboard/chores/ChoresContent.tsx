@@ -1,4 +1,5 @@
 "use client";
+import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
 import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { ChoreNotificationFocus } from "@/components/chores/ChoreNotificationFocus";
 import type { ChoreNotificationFocus as NotificationFocus } from "@/lib/chore-notification-focus";
@@ -86,12 +87,18 @@ const DeferredRoutineScheduleEntry = dynamic(
   { ssr: false, loading: () => null },
 );
 
+const DeferredOwnedChoreReview = dynamic(
+  () => import("@/components/chores/OwnedChoreReview").then(module => module.OwnedChoreReview),
+  { ssr: false, loading: () => null },
+);
+
 function isActiveRepeatingChore(chore: Chore): boolean {
   const frequency = chore.recurrence_frequency ?? chore.frequency;
   return Boolean(chore.recurrence_id && frequency && frequency !== "once");
 }
 
 interface ChoresContentProps {
+  ownedCheck?: { owner: ChoreCheckOwner | null };
   notificationFocus?: { target: NotificationFocus | null };
   preparationBacklinks?: PreparationBacklinks;
   preparationContextEnabled?: boolean;
@@ -254,6 +261,7 @@ function ReassignModal({
 }
 
 export default function ChoresContent({
+  ownedCheck,
   chores,
   notificationFocus,
   familyMembers,
@@ -265,6 +273,10 @@ export default function ChoresContent({
   preparationBacklinks: initialPreparationBacklinks = {},
   preparationContextEnabled = false,
 }: ChoresContentProps) {
+  const checkOwner = userRole === "parent" && ownedCheck?.owner?.userId === currentUserId
+    && ownedCheck.owner.familyId === familyId ? ownedCheck.owner : null;
+  const checkOwnerKey = checkOwner ? JSON.stringify(checkOwner) : null;
+  const [ownedReview, setOwnedReview] = React.useState<{ choreId: string; decision: "approve" | "reject"; ownerKey: string } | null>(null);
   const [view, setView] = React.useState<"chores" | "routines">("chores");
   const [inlineRoutinePanelOpen, setInlineRoutinePanelOpen] =
     React.useState(true);
@@ -608,7 +620,7 @@ export default function ChoresContent({
   // state; a failure puts the row back and says why.
   const submitVerification = React.useCallback(
     async (choreId: string, decision: "approve" | "reject", notes?: string) => {
-      if (verificationBusyRef.current.has(choreId)) return;
+      if (ownedCheck !== undefined || verificationBusyRef.current.has(choreId)) return;
       const before = localChores.find((c) => c.id === choreId);
       if (!before) return;
       if (isPausedProfileChore(before)) return;
@@ -717,7 +729,7 @@ export default function ChoresContent({
         });
       }
     },
-    [addToast, localChores, verificationText],
+    [addToast, localChores, verificationText, ownedCheck],
   );
 
   const closeVerificationDialog = React.useCallback(() => {
@@ -737,6 +749,14 @@ export default function ChoresContent({
         return;
       const chore = localChores.find((c) => c.id === choreId);
       if (!chore || isPausedProfileChore(chore)) return;
+      if (ownedCheck !== undefined) {
+        if (!checkOwnerKey || !checkOwner) {
+          addToast({ type: "error", title: verificationText("reviewOwnerChanged") });
+          return;
+        }
+        setOwnedReview({ choreId, decision, ownerKey: checkOwnerKey });
+        return;
+      }
       if (decision === "reject") {
         verificationDialogRef.current = choreId;
         setVerificationDialog({ choreId, notes: "", error: null });
@@ -744,7 +764,7 @@ export default function ChoresContent({
       }
       void submitVerification(choreId, decision);
     },
-    [localChores, submitVerification],
+    [localChores, submitVerification, ownedCheck, checkOwnerKey, checkOwner, addToast, verificationText],
   );
 
   const handleSnoozeChore = React.useCallback(
@@ -1170,6 +1190,16 @@ export default function ChoresContent({
 
   return (
     <div className="pb-20">
+      {ownedCheck !== undefined && checkOwner && ownedReview?.ownerKey === checkOwnerKey && (
+        <DeferredOwnedChoreReview key={`${ownedReview.ownerKey}:${ownedReview.choreId}`}
+          owner={checkOwner} choreId={ownedReview.choreId} initialDecision={ownedReview.decision}
+          onSaved={state => setLocalChores(rows => rows.map(row => row.id === state.id ? {
+            ...row, status: state.status, photo_verified: state.photo_verified,
+            completed_at: state.completed_at ?? undefined, verified_at: state.verified_at ?? undefined,
+            verified_notes: state.verified_notes ?? undefined,
+          } : row))}
+          onClose={() => { setOwnedReview(null); scheduleVerificationFallback(); router.refresh(); }} />
+      )}
       {routineSchedulesEnabled &&
         userRole === "parent" &&
         view === "routines" && <DeferredRoutineScheduleEntry />}
@@ -1627,7 +1657,7 @@ export default function ChoresContent({
         </Dialog>
       )}
 
-      {verificationDialog && (
+      {ownedCheck === undefined && verificationDialog && (
         <Dialog
           open
           onClose={

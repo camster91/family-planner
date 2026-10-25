@@ -48,6 +48,7 @@ export async function sendOwnedChoreCheck(intent: OwnedChoreCheckIntent, signal?
     headers: { "Content-Type": "application/json" }, body: intent.body }, 64 * 1024);
   if (reply.kind !== "reply") return { kind: "unknown" };
   const body = record(reply.body);
+  if ([401, 403].includes(reply.response.status)) return { kind: "held", code: "CHORE_CHECK_OWNER_CHANGED" };
   if (!reply.response.ok) return reply.response.status >= 500 ? { kind: "unknown" }
     : { kind: "held", code: typeof body?.code === "string" ? body.code : "CHORE_CHECK_REFUSED" };
   if (body?.success !== true || (body.choreId !== undefined && body.choreId !== intent.choreId)) return { kind: "unknown" };
@@ -63,9 +64,10 @@ export type OwnedChoreRead = { kind: "current"; chore: OwnedChoreReviewRow | nul
 export async function readOwnedChoreCheck(owner: ChoreCheckOwner, choreId: string, signal?: AbortSignal): Promise<OwnedChoreRead> {
   if (!validId(choreId)) return { kind: "held", code: "CHORE_CHECK_INVALID" };
   const reply = await requestOwnedJson(`/api/chores/verify/owned?choreId=${choreId}`, { method: "GET", signal,
-    headers: { [CHORE_CHECK_OWNER_HEADER]: JSON.stringify(owner) } }, 256 * 1024);
+    headers: { [CHORE_CHECK_OWNER_HEADER]: JSON.stringify(owner), "X-Member-Protocol": "2" } }, 256 * 1024);
   if (reply.kind !== "reply") return { kind: "unknown" };
   const body = record(reply.body);
+  if ([401, 403].includes(reply.response.status)) return { kind: "held", code: "CHORE_CHECK_OWNER_CHANGED" };
   if (!reply.response.ok) return { kind: "held", code: typeof body?.code === "string" ? body.code : "CHORE_CHECK_READ_UNAVAILABLE" };
   if (body?.protocol !== CHORE_CHECK_COMMAND_PROTOCOL || !sameOwner(body.owner, owner)) return { kind: "held", code: "CHORE_CHECK_OWNER_CHANGED" };
   if (body.chore === null) return body.version === null ? { kind: "current", chore: null, version: null } : { kind: "unknown" };

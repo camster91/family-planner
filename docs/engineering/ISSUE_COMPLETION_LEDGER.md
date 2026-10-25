@@ -54,14 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): original-parent chore-check context
-GET and immutable browser transport authored. Canonical single-chore reads are
-shared; original parent/session/family/feature authority is renewed before effects
-and after private reads/responses. Explicit current reads never renew an old
-write snapshot; retries retain exact notes/version and never fall back to legacy.
-Parent capability/review UI, durable receipt/restore/old-client boundaries and all
-acceptance remain unfinished. Authored cases are unrun; gates remain default-off.
-No QA, migration, generation, activation, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): the default-off original-parent chore
+review capability and compact rounded UI are connected to the canonical owned
+endpoint. Initial detail reads capture a review version; first send freezes notes,
+decision and version for exact retries. Explicit current reads do not renew an
+old command; adopting a different completed version requires a separate action.
+Access refusals mask private review data. Deliberate local discard warns that it
+cannot cancel server work; no durable queue/receipt claim. Legacy mode remains
+when the gate is off. EN/ES and regression sources authored, all unrun. Directory
+now records17 embedded sources. All runtime, rollout/restore/old-client and wider
+notification work remain; no QA, activation, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

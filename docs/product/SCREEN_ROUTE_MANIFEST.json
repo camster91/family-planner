@@ -879,7 +879,7 @@
       "screenFamily": "terms"
     }
   ],
-  "incrementalSourceNote": "2026-10-25: typed chore focus component added after parent b6f5097ffb4183242bc9c25dd87473971fbef48c; base page/route/feature snapshot retained, embedded source entries now16; no rendered acceptance.",
+  "incrementalSourceNote": "2026-10-25: chore focus and gated owned parent review added to the original15 embedded surfaces (now17). Focus entry moved from remaining evidence to the embedded surface list. Base page/route/feature snapshot retained; no rendered acceptance.",
   "embeddedSurfaces": [
     {
       "screen": "onboarding",
@@ -1004,20 +1004,28 @@
         "/dashboard/settings"
       ],
       "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
-    }
-  ],
-  "remaining": [
-    "Recover or replace original approved visual assets through explicit design work; no fabricated frame links.",
-    "Map and inspect actual role/device/state/locale frames when QA resumes.",
-    "Direct-link/intercepted/back/draft-recovery and canonical API checks remain required.",
-    "Verify source coverage again if pages/features change; this file is a dated handoff, not a runtime registry.",
+    },
     {
       "screen": "notification-chore-focus",
       "source": "src/components/chores/ChoreNotificationFocus.tsx",
       "reviewEntryRoutes": [
         "/dashboard/chores?focus=<canonical-chore-id>"
       ],
-      "mapping": "2026-10-25 incremental source: exact target with capability-gated canonical completion/Undo handoff, neutral unavailable fallback, own-account child/teen projection and current-parent edit link. No new page pattern; unverified/unrendered."
+      "mapping": "2026-10-25 incremental source: exact target with canonical account completion/Undo and neutral unavailable fallback; no rendered acceptance."
+    },
+    {
+      "screen": "owned-parent-chore-review",
+      "source": "src/components/chores/OwnedChoreReview.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/chores"
+      ],
+      "mapping": "2026-10-25 incremental source: default-off parent capability, rounded review, frozen original retry, explicit changed-version adoption and local discard warning. No rendered or role/device acceptance."
     }
+  ],
+  "remaining": [
+    "Recover or replace original approved visual assets through explicit design work; no fabricated frame links.",
+    "Map and inspect actual role/device/state/locale frames when QA resumes.",
+    "Direct-link/intercepted/back/draft-recovery and canonical API checks remain required.",
+    "Verify source coverage again if pages/features change; this file is a dated handoff, not a runtime registry."
   ]
 }

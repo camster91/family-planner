@@ -573,3 +573,42 @@ version reads, original parent authority and late withdrawal after a private rea
 They are unrun. Parent SSR capability and retained-review UI are still pending,
 as are actual role/session/concurrency/SQL/restore/legacy-client and device QA.
 No gates enabled, DB action, generation, test/build/browser or release ran.
+
+
+## Original-parent review UI connection — 2026-10-25
+
+The Chores SSR now carries its original verified actor generation to negotiate
+only the feature-specific parent check precondition. The full internal actor DTO
+is never serialized. The existing default-off command flag selects owned mode;
+a failed authority renewal produces a held capability, not a legacy fallback.
+The shared-device reader supplies no actor. Current parent/user/family projection
+must match that original actor, and original parent/feature authority renews just
+before capability serialization. This is not a whole-page SSR privacy redesign.
+
+Parent Verify/Send back opens a deferred shared rounded Dialog. It reads current
+canonical chore context first and uses that exact source version; the first send
+freezes original decision/notes/version bytes. All controls retain the uncertain
+intent on failure. Retry uses those exact bytes. Check current chore reads only;
+an unchanged version retains the original request. A distinct completed version
+can be adopted only through Review latest version. Missing/unsupported/noncompleted
+current data never silently produces a new writable snapshot. The explicit v2
+member read header allows supported email-free profile context through the same
+canonical reader; no account identity is fabricated.
+
+Current 401/403 or explicit original-owner refusal masks private source and notes.
+Parent owner/family/role/generation changes unmount the old keyed review, abort
+its foreground request and retire late callbacks. Busy work prevents local close;
+Back and app draft-aware navigation preserve the review. Deliberate local discard
+requires a visible warning that the local notes/request are removed and that a
+sent command may still commit. No cancellation, disk journal, exact-command
+receipt or recovery after process death is claimed. A confirmed check applies
+the canonical returned state; closing refreshes the board and schedules its
+existing stable focus fallback. Legacy controls remain when the flag is absent.
+
+Typed EN/ES UI and authored cases cover uncertain exact retry, deliberate adoption
+of changed completion and access-loss masking. Cases are unrun. Full keyboard/
+focus/Back/long text/light-dark/role/device, original-owner races, real PostgreSQL
+CAS/rollback, durable outcome/restore and supported old-client acceptance remain.
+Other event producers/recipient recovery/provider/native N1–N5 work remains open.
+No flag, provider, scheduler, migration, generation, QA/build/browser or release
+was activated. This connection is source progress, not acceptance or #141 closure.

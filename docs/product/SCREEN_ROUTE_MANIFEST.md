@@ -6,7 +6,7 @@ browser, rendering, test scanner, provider, CI or release action ran.
 
 [SCREEN_ROUTE_MANIFEST.json](SCREEN_ROUTE_MANIFEST.json) records82 physical
 `src/app/**/page.tsx` sources,71 distinct route patterns, all22 literal feature
-keys/entry destinations from `src/lib/features.ts`, and16 named embedded surfaces (the original15 plus the dated chore-focus source addition).
+keys/entry destinations from `src/lib/features.ts`, and17 named embedded surfaces (the original15 plus dated chore-focus and parent-review source additions).
 These are counts of source records, not measured screen/frame/acceptance coverage.
 
 ## How the records relate
@@ -67,3 +67,22 @@ capability and reuses the existing canonical handler/Undo even when its row is
 outside loaded board pages. Unknown/current-terminal outcomes require a fresh
 read. This source addition changes neither page counts nor accepted device,
 privacy, focus or rendered coverage. No new completion store/API is introduced.
+
+
+## Gated parent chore review — 2026-10-25
+
+`OwnedChoreReview` adds the17th named embedded source on the existing Chores
+route. The strict capability is negotiated only for an original parent session
+and renewed before serialization; a missing owned context holds instead of
+falling back to a legacy mutation. The rounded shared dialog loads canonical
+current data, captures one original version, freezes decision/notes on first
+send, and requires explicit adoption of a different completion before another
+request. Unknown requests remain local in memory until explicit discard; the
+leave warning says leaving does not cancel a request. Auth/access refusals mask
+private review content. Legacy mode remains when the command flag is off.
+
+The earlier chore-focus object was placed in the JSON remaining-evidence list;
+it now belongs in embeddedSurfaces, matching the already documented16th source.
+This is source-directory correction, not a rendered coverage result. No page,
+route or feature count changed. EN/ES, keyboard/focus/Back, late-owner/privacy,
+old-client/restore and native acceptance remain unperformed.

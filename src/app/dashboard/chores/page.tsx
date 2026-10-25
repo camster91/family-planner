@@ -1,3 +1,6 @@
+import { choreCheckCommandsEnabled } from "@/lib/chore-check-command";
+import { renewChoreCheckOwner } from "@/lib/chore-check-owner";
+import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
 import { readChoreNotificationFocus } from "@/lib/chore-notification-focus";
 import { readChoreStreaks } from "@/lib/chore-streak-read";
 import {
@@ -7,7 +10,7 @@ import {
 import { readVisibleChoreRows } from "@/lib/chore-visible-read";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
-import { getServerUser, getServerActor } from "@/lib/supabase/server";
+import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import ChoresContent from "./ChoresContent";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
@@ -35,7 +38,7 @@ import {
 export default async function ChoresPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 } = {}) {
-  const sessionUser = await getServerUser();
+  const sessionUser = await getServerActor();
 
   if (!sessionUser) {
     return null;
@@ -247,8 +250,20 @@ export default async function ChoresPage({ searchParams }: {
     notificationFocus = { target };
   }
 
+  // Feature-specific precondition only; never serialize the internal actor DTO.
+  // Presence of this capability envelope selects strict mode even if renewal
+  // fails, so a new client cannot silently fall back to an unversioned write.
+  let ownedCheck: { owner: ChoreCheckOwner | null } | undefined;
+  if (choreCheckCommandsEnabled() && sessionUser.role === "parent") {
+    const candidate: ChoreCheckOwner | null = familyId && user?.role === "parent"
+      && sessionUser.family_id === familyId
+      ? { userId: sessionUser.id, familyId, role: "parent", generation: sessionUser.tokenVersion } : null;
+    ownedCheck = { owner: candidate && await renewChoreCheckOwner(prisma!, candidate).catch(() => false) ? candidate : null };
+  }
+
   return (
     <ChoresContent
+      ownedCheck={ownedCheck}
       notificationFocus={notificationFocus}
       preparationContextEnabled={
         Boolean(user && ["parent", "child", "teen"].includes(user.role)) &&
