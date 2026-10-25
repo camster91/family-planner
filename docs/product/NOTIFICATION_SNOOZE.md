@@ -28,3 +28,17 @@ consolidated QA must still exercise actual persistence across sessions/devices,
 expiry boundary/clock changes, direct foreign-row negatives, uncertain reload,
 read/delete/Undo interleavings and role/device/localized layout. No new scheduler,
 push/email delivery, production mutation or activation is implied.
+
+## Bounded inbox transport — 2026-10-24 (#134/#141, local source)
+
+The initial inbox and explicit older-page reads now use `notification-read-client`
+with the existing `runOwnedForeground` and `readBoundedJsonResponse`:15 seconds
+across fetch/body,512KiB stream limit, replacement/unmount cancellation and retained
+generation/cursor guards. An abort-ignoring bridge still releases the caller;
+JSON-only bridge size checks occur after allocation. Non-success bodies are not
+parsed/displayed; existing localized retry state handles them. Existing50-row
+DTO validation/cursor semantics, row actions/delete Undo and user/device policies
+are retained. No new notification channel, provider, scheduler or delivery claim.
+Source cases cover legacy/paged shapes, ignored-abort waits/cancellation, declared
+and JSON-only oversize replies and invalid/duplicate cursors. All unrun; browser,
+WebView/lifecycle, wire-size adequacy and full original acceptance stay open.

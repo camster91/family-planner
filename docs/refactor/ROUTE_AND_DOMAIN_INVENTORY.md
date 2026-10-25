@@ -1676,3 +1676,12 @@ also includes household. Existing legacy wire/deprecation, missing/foreign404,
 repeat404 and device refusal policies remain. No queue/tombstone/schema/activation.
 Generation/role/family race regression source adapted/authored but unrun. All real
 isolation, lifecycle locking/rollback, native and issue acceptance remain open.
+
+### Personal inbox read ownership — 2026-10-24 (#134/#141)
+
+Notification reads extracted into `notification-read-client.ts`, reusing existing
+owned foreground/decode bounds:15-second fetch/body deadline,512KiB response cap,
+replacement/unmount abort and existing stale-generation/cursor protection. Failed
+HTTP bodies are not decoded; existing localized retry UI remains. JSON-only bridge
+cap is post-allocation. No API/write/Undo/device/provider/scheduler change. Authored
+regression cases unrun; mounted/native/oversize acceptance remains unverified.

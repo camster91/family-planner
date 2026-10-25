@@ -10,6 +10,7 @@ import { useToast, useUndoToast, UNDO_TOAST_MS } from "@/components/ui/toast";
 import { responseErrorMessage } from "@/lib/fetch-error";
 import { cn } from "@/lib/utils";
 import { useSupportingText } from "@/i18n/supporting-ui";
+import { readNotificationPage, NotificationPageError, type NotificationItem } from "@/lib/notification-read-client";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 
 const GLYPH_COLORS: Record<
@@ -32,71 +33,6 @@ const GLYPH_COLORS: Record<
   system: "gray",
   list: "lists",
 };
-
-interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  message?: string | null;
-  read: boolean;
-  snoozed_until?: string | null;
-  created_at: string;
-}
-
-function isNotification(value: unknown): value is NotificationItem {
-  if (!value || typeof value !== "object") return false;
-  const row = value as Record<string, unknown>;
-  return (
-    typeof row.id === "string" &&
-    row.id.length > 0 &&
-    typeof row.type === "string" &&
-    typeof row.title === "string" &&
-    typeof row.read === "boolean" &&
-    typeof row.created_at === "string" &&
-    Number.isFinite(Date.parse(row.created_at)) &&
-    (row.message == null || typeof row.message === "string") &&
-    (row.snoozed_until == null ||
-      (typeof row.snoozed_until === "string" &&
-        Number.isFinite(Date.parse(row.snoozed_until))))
-  );
-}
-
-type NotificationPage = {
-  notifications: NotificationItem[];
-  nextCursor: string | null;
-  pagingSupported: boolean;
-};
-class NotificationPageError extends Error {}
-/** A late/aborted read never applies state; the owner checks its generation. */
-async function readNotificationPage(url: string, invalidMessage: string): Promise<NotificationPage> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      (async () => {
-        const response = await fetch(url, { cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new NotificationPageError(await responseErrorMessage(response));
-        const body: unknown = await response.json();
-        if (!body || typeof body !== "object" || !("notifications" in body) ||
-          !Array.isArray(body.notifications) || body.notifications.length > 50 ||
-          !body.notifications.every(isNotification) ||
-          new Set(body.notifications.map(row => row.id)).size !== body.notifications.length)
-          throw new NotificationPageError(invalidMessage);
-        const supported = "nextCursor" in body;
-        const cursor = "nextCursor" in body ? body.nextCursor : null;
-        if (cursor !== null && (typeof cursor !== "string" || !/^[A-Za-z0-9_-]{1,1024}$/.test(cursor) || !body.notifications.length))
-          throw new NotificationPageError(invalidMessage);
-        return { notifications: body.notifications, nextCursor: cursor as string | null, pagingSupported: supported };
-      })(),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => { controller.abort(); reject(new Error("Notification read timed out")); }, 15_000);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-    controller.abort();
-  }
-}
 
 /**
  * The server has no way to bring a deleted notification back, so Delete is
@@ -139,6 +75,7 @@ export default function NotificationsPage() {
   const [snoozePending, setSnoozePending] = useState<string | null>(null);
   const snoozeLock = useRef(false);
   const loadSequence = useRef(0);
+  const activeRead = useRef<AbortController | null>(null);
   useEffect(() => {
     const tick = () => setNow(Date.now());
     const timer = setInterval(tick, 30_000);
@@ -171,6 +108,9 @@ export default function NotificationsPage() {
 
   const loadNotifications = useCallback(async () => {
     const sequence = ++loadSequence.current;
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
     olderLock.current = false;
     restoreOlderFocus.current = false;
     cursorRef.current = null;
@@ -182,7 +122,7 @@ export default function NotificationsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await readNotificationPage("/api/notifications?includeSnoozed=true&limit=50", text("invalidNotifications"));
+      const page = await readNotificationPage("/api/notifications?includeSnoozed=true&limit=50", text("invalidNotifications"), controller.signal);
       if (sequence !== loadSequence.current) return;
       setNotifications(page.notifications.filter(n => !pending.current.has(n.id)));
       cursorRef.current = page.nextCursor;
@@ -192,6 +132,7 @@ export default function NotificationsPage() {
       if (sequence === loadSequence.current)
         setLoadError(cause instanceof NotificationPageError ? cause.message : text("offline"));
     } finally {
+      if (activeRead.current === controller) activeRead.current = null;
       if (sequence === loadSequence.current) setLoading(false);
     }
   }, [text]);
@@ -200,13 +141,15 @@ export default function NotificationsPage() {
     const cursor = cursorRef.current;
     if (loading || olderLock.current || !cursor) return;
     olderLock.current = true;
+    const controller = new AbortController();
+    activeRead.current = controller;
     restoreOlderFocus.current = document.activeElement === olderTrigger.current;
     const sequence = loadSequence.current;
     setLoadingOlder(true);
     setOlderError(null);
     try {
       const query = new URLSearchParams({ includeSnoozed: "true", limit: "50", cursor });
-      const page = await readNotificationPage(`/api/notifications?${query}`, text("invalidNotifications"));
+      const page = await readNotificationPage(`/api/notifications?${query}`, text("invalidNotifications"), controller.signal);
       if (sequence !== loadSequence.current || cursorRef.current !== cursor) return;
       if (!page.pagingSupported) throw new NotificationPageError(text("pagingUnavailable"));
       if (page.nextCursor && (page.nextCursor === cursor || seenCursors.current.has(page.nextCursor)))
@@ -223,6 +166,7 @@ export default function NotificationsPage() {
       if (sequence === loadSequence.current)
         setOlderError(cause instanceof NotificationPageError ? cause.message : text("offline"));
     } finally {
+      if (activeRead.current === controller) activeRead.current = null;
       if (sequence === loadSequence.current) {
         olderLock.current = false;
         setLoadingOlder(false);
@@ -242,6 +186,8 @@ export default function NotificationsPage() {
     void loadNotifications();
     return () => {
       loadSequence.current += 1;
+      activeRead.current?.abort();
+      activeRead.current = null;
     };
   }, [loadNotifications]);
 

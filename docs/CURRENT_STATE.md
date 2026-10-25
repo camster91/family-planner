@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work renews authority for personal list-item deletion
-inside its transaction (#134/#135). Both REST and installed-client routes use
-one canonical wrapper: current User/session/role/household and list feature are
-checked before a household-scoped item lock and the existing delete primitive.
-Parent-only policy remains, and the delete predicate itself repeats household
-ownership. Missing/foreign/repeat delete remains404; installed-client deprecation
-headers and existing pre-auth/device refusals remain. No queue, tombstone schema,
-Undo, new permission or activation is introduced. Session-generation/role/family
-race source cases for both routes are authored but unrun. No QA/test/check/build/
-browser/CI/API/database/provider/native/push/merge/deploy ran. Actual transactional
-lifecycle contention, isolation, rollback and original issue acceptance stay open.
+Latest bounded source work gives personal notification initial/older-page reads
+shared owned-request deadlines and512KiB response limits (#134/#141). Replacement
+loads and page unmount abort their owned transport/body read; generation/cursor
+checks still reject stale replies. Native bridges that ignore abort still settle
+at the15-second foreground deadline. Failed HTTP replies are not decoded into
+unbounded/raw server messages; existing localized retry states remain. Streaming
+size enforcement applies when supported; JSON-only bridge bounds are necessarily
+post-allocation. Existing50-row shape/cursor validation, explicit history paging,
+read/snooze/delete/Undo and API/device/privacy policies remain. Regression source
+authored but unrun. No QA/test/check/build/browser/CI/API/database/provider/native/
+push/merge/deploy ran. Rendered lifecycle/native and original acceptance stay open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
