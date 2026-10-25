@@ -54,12 +54,13 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): initial Capture proposal writes now
-bound async hashing/admission/fetch/body to45seconds and256KiB replies. Retirement
-is checked before storage/dispatch; unknown/late replies retain draft/envelope
-and cannot announce success. Typed storage/refusal behavior remains; synchronous
-CPU/native allocation limits remain explicit. Source cases authored UNRUN. No QA/
-checks/build/browser/CI/API/DB/provider/push/merge/deploy; #125/#135 remain open.
+Latest bounded source work (2026-10-25): canonical recipe ingredient name
+resolution reads500-row family/ID keysets and keeps only requested matches,
+stopping early when found while exhausting the catalog before missing-name
+creation. Existing normalization/lock/upsert/ID ownership remains; legacy name
+collisions get deterministic ID order. Total scan/SQL plans remain unmeasured.
+Source cases authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/push/
+merge/deploy; #134/#460 remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

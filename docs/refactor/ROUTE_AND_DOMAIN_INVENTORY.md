@@ -2648,3 +2648,30 @@ its existing domain-response contract; full receipt/reuse semantics remain open.
 Stalled initial reply/late success/retained exact operation and declared oversize
 before decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/
 provider/push/merge/deploy ran. #125/#135 remain open.
+
+## Recipe ingredient name resolution memory — 2026-10-25
+
+#134/#460 source: canonical resolveIngredientLines no longer loads and indexes
+the whole household Ingredient catalog for at most100 submitted recipe lines.
+It retains the existing household ingredient-name advisory lock, JavaScript NFC/
+trim/inner-whitespace/lowercase comparison and canonical same-family exact-name
+upsert. Catalog reads now use500-row ID keysets scoped to the original family,
+retaining only requested normalized matches and stopping once all are found.
+Missing names still require exhausting the catalog before creation; data is not
+silently truncated and no approximate SQL collation replaces Unicode matching.
+
+Legacy normalized-name collisions choose the first database-ID-ordered row for
+future name resolution; the previous read had unspecified database order. No
+existing ingredient/recipe identity, catalog row, unit, history or foreign key is
+rewritten/merged. Explicit ingredient IDs keep their existing ownership lookup;
+repeated resolved IDs retain duplicate-line refusal. Canonical source input
+bounds and outer recipe transaction/authority checks remain unchanged.
+
+This bounds per-read/retained application rows, not total scan/SQL/lock duration.
+A large missing-name catalog can still take multiple reads or hit the transaction
+limit. Family/ID index/plan measurement and a normalized-key additive migration
+would need separate duplicate-catalog/compatibility decisions; no index, schema,
+backfill or stored data is changed here. No capacity/read-latency claim is made.
+Cross-page Unicode reuse, early stop, full exhaustion before missing-name upsert,
+foreign-family exclusion and duplicate input cases are authored UNRUN. No QA/
+tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #134/#460 open.
