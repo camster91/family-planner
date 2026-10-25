@@ -1,3 +1,5 @@
+import { lockUser, lockHousehold } from "@/lib/household-lock";
+import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -50,8 +52,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       select: {
         id: true,
         family_id: true,
-        name: true,
-        color: true,
       },
     })
 
@@ -72,15 +72,47 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // project row, in one transaction, so concurrent sends cannot both create
     // the same events.
     const outcome = await prisma!.$transaction(async (tx) => {
+      // Same lifecycle order as canonical project writes: user, household,
+      // then project. The HTTP snapshot is not permission to write later.
+      await lockUser(tx, auth.user.id)
+      await lockHousehold(tx, auth.user.family_id)
+      // Row locks also serialize session/feature updates that use SQL writes.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${auth.user.id} FOR UPDATE`
+      await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${auth.user.family_id} FOR UPDATE`
+      const [actor, family] = await Promise.all([
+        tx.user.findUnique({ where: { id: auth.user.id }, select: { family_id: true, role: true, token_version: true } }),
+        tx.family.findUnique({ where: { id: auth.user.family_id }, select: { features: true } }),
+      ])
+      if (!actor || actor.token_version !== (auth.payload.tv ?? 0))
+        return { kind: 'refused' as const, status: 401, body: {
+          code: 'SESSION_CHANGED', error: 'Sign in again before sending project tasks to the calendar.',
+        } }
+      if (!family || actor.family_id !== auth.user.family_id || !['parent', 'teen', 'child'].includes(actor.role))
+        return { kind: 'refused' as const, status: 403, body: {
+          code: 'PROJECT_SEND_UNAVAILABLE', error: 'This household project can no longer be sent. Refresh the project.',
+        } }
+      if (!isFeatureEnabled(normalizeFeatures(family.features), 'projects'))
+        return { kind: 'refused' as const, status: 403, body: {
+          code: 'FEATURE_DISABLED', error: 'Projects is turned off for this household.',
+        } }
       await lockProjectRow(tx, projectId)
+      const currentProject = await tx.project.findFirst({
+        where: { id: projectId, family_id: auth.user.family_id }, select: { id: true, name: true },
+      })
+      if (!currentProject)
+        return { kind: 'refused' as const, status: 404, body: {
+          code: 'PROJECT_NOT_FOUND', error: 'Project not found',
+        } }
 
       // Fetch all incomplete tasks that have a due_date
       const tasks = await tx.projectTask.findMany({
         where: {
           project_id: projectId,
+          project: { family_id: auth.user.family_id },
           completed: false,
           due_date: { not: null },
         },
+        select: { id: true, title: true, description: true, due_date: true },
       })
       if (tasks.length === 0) return { kind: 'no-tasks' as const }
 
@@ -113,7 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             data: {
               family_id: auth.user.family_id,
               title: task.title,
-              description: task.description || `Task from project: ${project.name}`,
+              description: task.description || `Task from project: ${currentProject.name}`,
               start_time: start,
               end_time: end,
               event_type: 'other',
@@ -136,6 +168,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // default for a project with many dated tasks.
     }, { timeout: 30_000 })
 
+    if (outcome.kind === 'refused') {
+      return NextResponse.json(outcome.body, { status: outcome.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
     if (outcome.kind === 'no-tasks') {
       return NextResponse.json({
         message: 'No incomplete tasks with due dates found',

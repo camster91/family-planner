@@ -14,6 +14,8 @@ import { POST as sendToCalendar } from "../[id]/send-to-calendar/route";
 import { db, req, params, bodyOf, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
 import { DEFAULT_FAMILY_TIMEZONE } from "@/lib/calendar-import/timezone";
 import * as projectCalendar from "@/lib/project-calendar";
+import * as membershipLocks from "@/lib/household-lock";
+import { defaultFeatures } from "@/lib/features";
 
 const DUE = new Date("2026-10-15T00:00:00Z"); // picked "2026-10-15" in a date input
 
@@ -38,7 +40,55 @@ const send = (body?: unknown) =>
 describe("send-to-calendar", () => {
   beforeEach(() => {
     db.reset();
+    db.find("family", "family-A")!.features = { ...defaultFeatures(), projects: true };
     taskA().due_date = DUE;
+  });
+
+  // Authored/unrun. Fake lifecycle interleavings are not PostgreSQL lock proof.
+  it.each([
+    ["session revocation", () => { db.find("user", "parent-a")!.token_version = 1; }, 401, "SESSION_CHANGED"],
+    ["household change", () => { db.find("user", "parent-a")!.family_id = "family-B"; }, 403, "PROJECT_SEND_UNAVAILABLE"],
+    ["unsupported role", () => { db.find("user", "parent-a")!.role = "unsupported"; }, 403, "PROJECT_SEND_UNAVAILABLE"],
+    ["Projects switched off", () => { db.find("family", "family-A")!.features = { ...defaultFeatures(), projects: false }; }, 403, "FEATURE_DISABLED"],
+  ] as const)("renews authority after %s while the send was waiting", async (_label, change, status, code) => {
+    const original = membershipLocks.lockHousehold;
+    const lock = jest.spyOn(membershipLocks, "lockHousehold").mockImplementation(async (tx, familyId) => {
+      await original(tx, familyId);
+      change();
+    });
+    try {
+      const response = await send({ timeZone: "UTC" });
+      expect(response.status).toBe(status);
+      expect(await bodyOf(response)).toMatchObject({ code });
+      expect(writesTo("event")).toHaveLength(0);
+    } finally { lock.mockRestore(); }
+  });
+
+  it("refuses a project moved out of the household before its row lock completed", async () => {
+    const original = projectCalendar.lockProjectRow;
+    const lock = jest.spyOn(projectCalendar, "lockProjectRow").mockImplementation(async (tx, id) => {
+      await original(tx, id);
+      db.find("project", id)!.family_id = "family-B";
+    });
+    try {
+      const response = await send({ timeZone: "UTC" });
+      expect(response.status).toBe(404);
+      expect(await bodyOf(response)).toMatchObject({ code: "PROJECT_NOT_FOUND" });
+      expect(writesTo("event")).toHaveLength(0);
+    } finally { lock.mockRestore(); }
+  });
+
+  it("uses the current locked project name for generated descriptions", async () => {
+    taskA().description = null;
+    const original = projectCalendar.lockProjectRow;
+    const lock = jest.spyOn(projectCalendar, "lockProjectRow").mockImplementation(async (tx, id) => {
+      await original(tx, id);
+      db.find("project", id)!.name = "Current synthetic name";
+    });
+    try {
+      expect((await send({ timeZone: "UTC" })).status).toBe(200);
+      expect(writesTo("event")[0].args.data.description).toBe("Task from project: Current synthetic name");
+    } finally { lock.mockRestore(); }
   });
 
   it("creates an all-day event on the task's calendar day in the caller's zone", async () => {

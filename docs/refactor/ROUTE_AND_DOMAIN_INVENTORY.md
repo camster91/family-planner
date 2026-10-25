@@ -1,5 +1,25 @@
 # Route and domain inventory (#148)
 
+### Project calendar send authority renewal — 2026-10-24 (#134)
+
+Send to Calendar now acquires user/household advisory locks, then current User/
+Family row locks, before checking session generation, original household, known
+role and current Projects state. It then locks/re-reads the exact project in
+that household before reading task sources or creating events. The outer lookup
+now selects only IDs needed for the existing household check; locked fresh name
+supplies fallback descriptions. Task projection is narrowed and relation-scoped.
+Current known household roles retain send permission. No new parent/status gate,
+partial-send cap or silent task truncation is introduced. Task UIDs, legacy-title
+skip behavior, date-only/all-day timezone conversion and full success response
+remain unchanged. Refusal status/code is additive and occurs before any effects.
+The original full task/event/result arrays and 30-second transaction remain;
+new lifecycle locks can serialize other household work for that duration. A
+bounded full-intent protocol and contention/query acceptance remain unfinished.
+Fake lifecycle-interleaving/current-name cases are authored/unrun; original
+fixtures explicitly enable Projects. No QA/check/build/browser/API/database/
+permission/household/release action ran. Real PG lock/rollback/revocation and
+original compatibility/role/feature/privacy criteria remain open.
+
 ### Project detail task paging source — 2026-10-24 (#134)
 
 `project-task-paging.ts` adds versioned keysets scoped to family/project/completed
