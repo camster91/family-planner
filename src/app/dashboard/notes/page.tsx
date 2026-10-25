@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { noteCreateContext, makeNoteCreateIntent, postNoteCreate, inspectNoteCreateReceipt, NOTE_CREATE_RETRY_MS, type NoteCreateOutcome, type NoteCreateContext, type NoteCreateIntent, type NoteCreateDraft } from '@/lib/note-create-client'
 import { requestOwnedJson } from '@/lib/owned-request-http'
+import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 import Link from 'next/link'
 import { Plus, StickyNote as NoteIcon } from 'lucide-react'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
@@ -183,7 +184,10 @@ function NotesPageInner() {
       const result = await Promise.race([
         (async () => {
           const res = await fetch(`/api/notes?${params}`, { signal: controller.signal, cache: 'no-store' })
-          const data = await res.json()
+          // Revoked personal authority does not depend on a readable error body.
+          if (res.status === 401 || res.status === 403) return { res, data: null }
+          const body = await readBoundedJsonResponse(res, controller.signal, 2 * 1024 * 1024)
+          const data = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null
           return { res, data }
         })(),
         new Promise<never>((_, reject) => {

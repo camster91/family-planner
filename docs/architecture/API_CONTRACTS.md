@@ -1502,3 +1502,14 @@ not imply rollback or trigger a retry. Edit version/conflict review remains, and
 Source coverage for oversized replies authored only. No QA/test/check/build/
 browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered timeout/conflict/
 permission and complete recovery acceptance remain open.
+
+### Notes page decode and revoked-authority bounds — 2026-10-25 (#134/#135)
+
+Notes web source caps Notes page JSON at2MiB within its
+existing 15-second deadline (#134/#135). The shared decoder bounds streamed bytes;
+older JSON-only bridges retain post-parse limits. A401/403 response clears prior
+personal notes/drafts without waiting for an error body. Existing page/cursor/
+generation validation, exact retry and create recovery remain. Oversize/revoked-
+authority source cases authored only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Runtime timeout, rendered privacy recovery,
+old-server compatibility and full acceptance remain open.

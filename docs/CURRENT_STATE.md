@@ -54,15 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) moves note edits/deletes onto the shared
-15-second foreground deadline and bounded JSON decoder (#135). PATCH replies cap
-at256KiB and DELETE replies at32KiB. An absent/malformed/oversized reply retains
-the draft or delete confirmation and releases the sheet's pending latch; it does
-not imply rollback or trigger a retry. Edit version/conflict review remains, and
-404 deletion remains an error. JSON-only older bridges retain post-parse limits.
-Source coverage for oversized replies authored only. No QA/test/check/build/
-browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered timeout/conflict/
-permission and complete recovery acceptance remain open.
+Latest bounded source work (2026-10-25) caps Notes page JSON at2MiB within its
+existing 15-second deadline (#134/#135). The shared decoder bounds streamed bytes;
+older JSON-only bridges retain post-parse limits. A401/403 response clears prior
+personal notes/drafts without waiting for an error body. Existing page/cursor/
+generation validation, exact retry and create recovery remain. Oversize/revoked-
+authority source cases authored only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Runtime timeout, rendered privacy recovery,
+old-server compatibility and full acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

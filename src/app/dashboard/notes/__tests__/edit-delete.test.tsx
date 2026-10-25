@@ -654,3 +654,27 @@ it.each(['save', 'delete'] as const)('keeps the note sheet after an oversized %s
   expect((screen.getByRole('button', { name: `notes.${action}` }) as HTMLButtonElement).disabled).toBe(false)
   expect(calls.filter(call => call.method === (action === 'save' ? 'PATCH' : 'DELETE'))).toHaveLength(1)
 })
+
+it('refuses an oversized notes page before decoding and offers recovery', async () => {
+  const decode = jest.fn(async () => ({ notes: [pagedNote('Oversized note')], nextCursor: null }))
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': '3145728' }), json: decode })) as unknown as typeof fetch
+  render(<NotesPage />)
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.queryByTestId('note-card')).toBeNull()
+})
+
+it.each([401, 403])('clears an existing personal note view on %s without decoding its error body', async (status) => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  const decode = jest.fn(() => new Promise(() => {}))
+  global.fetch = jest.fn(async (_input, init) => init?.method === 'PATCH'
+    ? ({ ok: true, status: 200, json: async () => ({ success: true }) })
+    : ({ ok: false, status, json: decode })) as unknown as typeof fetch
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.queryByTestId('note-card')).toBeNull()
+})
