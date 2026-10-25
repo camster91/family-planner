@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { notificationDestination } from "@/lib/notification-destination";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Bell, Check, Trash2, Clock, AlertCircle } from "lucide-react";
 import { Glyph } from "@/components/ui/glyph";
@@ -525,6 +527,15 @@ export default function NotificationsPage() {
                       </span>
                     </div>
                   </div>
+                  {notificationDestination(notification.action_url) && (
+                    <Link
+                      href={notificationDestination(notification.action_url)!}
+                      className="btn-tinted min-h-[44px] inline-flex items-center"
+                      aria-label={text("openNotificationLabel", { title: notification.title })}
+                    >
+                      {text("openNotification")}
+                    </Link>
+                  )}
                   {isSnoozed(notification) && (
                     <p className="w-full text-caption-1 text-label-secondary">
                       {text("returns", {

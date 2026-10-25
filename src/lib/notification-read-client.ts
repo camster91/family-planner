@@ -8,6 +8,8 @@ export interface NotificationItem {
   type: string;
   title: string;
   message?: string | null;
+  /** Legacy/malformed destinations are ignored by the shared navigation contract. */
+  action_url?: unknown;
   read: boolean;
   snoozed_until?: string | null;
   created_at: string;

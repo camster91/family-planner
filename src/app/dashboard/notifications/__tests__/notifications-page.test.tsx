@@ -271,3 +271,16 @@ it('does not claim caught-up or a complete empty inbox from legacy page metadata
   expect(screen.queryByText('All caught up')).toBeNull()
   expect(screen.getByText(/This server cannot load older notification pages yet/)).toBeTruthy()
 })
+
+// Authored only: no navigation or notification mutation is sent by rendering links.
+it('offers the canonical summary destination and withholds arbitrary stored links', async () => {
+  const calls = mockFetch(() => ({ status: 200, body: { notifications: [
+    { ...UNREAD, action_url: '/dashboard/today' },
+    { ...READ, action_url: 'https://invalid.test/private' },
+  ], nextCursor: null } }));
+  renderPage();
+  const link = await screen.findByRole('link', { name: 'Open "Dishes done"' });
+  expect(link.getAttribute('href')).toBe('/dashboard/today');
+  expect(screen.queryByRole('link', { name: 'Open "Swim lesson"' })).toBeNull();
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+});

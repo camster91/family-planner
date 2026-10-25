@@ -5,6 +5,8 @@ import { useTranslation } from "@/i18n";
 
 const en = {
   notifications: "Notifications",
+  openNotification: "Open",
+  openNotificationLabel: 'Open "{title}"',
   unreadShownCount: "{count} unread shown",
   loadedNotifications: "Loaded notifications",
   noMatchingLoaded: "No matching notifications loaded",
@@ -83,6 +85,8 @@ const en = {
 } as const;
 const es: Record<keyof typeof en, string> = {
   notifications: "Notificaciones",
+  openNotification: "Abrir",
+  openNotificationLabel: 'Abrir "{title}"',
   unreadShownCount: "{count} sin leer mostradas",
   loadedNotifications: "Notificaciones cargadas",
   noMatchingLoaded: "No hay notificaciones coincidentes cargadas",

@@ -1685,3 +1685,12 @@ replacement/unmount abort and existing stale-generation/cursor protection. Faile
 HTTP bodies are not decoded; existing localized retry UI remains. JSON-only bridge
 cap is post-allocation. No API/write/Undo/device/provider/scheduler change. Authored
 regression cases unrun; mounted/native/oversize acceptance remains unverified.
+
+### Existing notification destination discovery — 2026-10-24 (#141)
+
+Personal inbox now exposes the existing summary sender's Today destination through
+an exact fixed-path mapper and EN/ES accessible44px Open link. Unsupported stored
+values do not navigate or invalidate the row. No API/sender/write/schema/provider
+change. Object-specific original-household/record/role/deletion resolution remains
+unfinished; source-backed next contract is in NOTIFICATION_SNOOZE.md. Pure/mounted
+cases authored/unrun; actual link/navigation/native acceptance remains open.
