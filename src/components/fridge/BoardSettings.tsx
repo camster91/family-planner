@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { runOwnedForeground } from '@/lib/owned-request-http'
+import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 import { CloudSun, Search } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
@@ -70,30 +72,24 @@ function notice(key: BoardSettingsTextKey, params?: Record<string, string | numb
 }
 // Only our known transport fallbacks are translated. Custom/server diagnostics
 // remain literal; transport interfaces and caller error semantics stay compatible.
-const transportErrorKeys = ['genericError', 'loadError', 'saveError', 'searchError', 'uploadError'] as const
+const transportErrorKeys = ['genericError', 'loadError', 'saveError', 'searchError', 'uploadError', 'unconfirmed'] as const
 
 const buttonClass =
   'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 text-[17px] font-semibold focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50'
 
-async function readError(res: Response): Promise<string> {
-  try {
-    const body = await res.json()
-    if (typeof body?.error === 'string') return body.error
-  } catch {
-    // fall through
-  }
-  return 'Something went wrong. Try again.'
-}
-
 async function personRequest<T>(input: string, init: RequestInit | undefined, offline: string): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(input, init)
-  } catch {
-    throw new Error(offline)
+  const writing = (init?.method ?? 'GET').toUpperCase() !== 'GET'
+  const result = await runOwnedForeground(async signal => {
+    const response = await fetch(input, { ...init, signal, credentials: 'same-origin', cache: 'no-store' })
+    const body = await readBoundedJsonResponse(response, signal, 2 * 1024 * 1024)
+    return { kind: 'reply' as const, response, body }
+  }, { signal: init?.signal, timeoutMs: writing ? (init?.body instanceof FormData ? 90000 : 45000) : 15000 })
+  if (result.kind !== 'reply') throw new Error(writing ? boardSettingsEnglish.unconfirmed : offline)
+  if (!result.response.ok) {
+    const body = result.body as { error?: unknown } | null
+    throw new Error(typeof body?.error === 'string' ? body.error : boardSettingsEnglish.genericError)
   }
-  if (!res.ok) throw new Error(await readError(res))
-  return (await res.json()) as T
+  return result.body as T
 }
 
 /** The signed-in parent's routes (person session). */
@@ -145,6 +141,11 @@ export default function BoardSettings({
   const showNotice = (value: BoardNotice) => 'key' in value ? text(value.key, value.params) : value.message
   const [data, setData] = React.useState<BoardSettingsData | null>(null)
   const [loadError, setLoadError] = React.useState<BoardNotice | null>(null)
+  const [loadRetry, setLoadRetry] = React.useState(0)
+  const transportEpoch = React.useRef(0)
+  const savePending = React.useRef<number | null>(null)
+  const searchPending = React.useRef<number | null>(null)
+  const uploadPending = React.useRef<number | null>(null)
   const [status, setStatus] = React.useState<BoardNotice | null>(null)
   const [error, setError] = React.useState<BoardNotice | null>(null)
   const [busy, setBusy] = React.useState(false)
@@ -169,14 +170,17 @@ export default function BoardSettings({
   }
 
   const uploadPhoto = async (file: File) => {
-    if (!transport.uploadPhoto) return
+    if (!transport.uploadPhoto || uploadPending.current !== null || savePending.current !== null) return
+    const epoch = transportEpoch.current; uploadPending.current = epoch
     setUploading(true)
     setError(null)
     setStatus(null)
     try {
       const { filename } = await transport.uploadPhoto(file)
+      if (epoch !== transportEpoch.current) return
       // Re-read the household's uploads, then choose the new one.
       const fresh = await transport.load()
+      if (epoch !== transportEpoch.current) return
       setData(fresh)
       const added = fresh.display?.uploads?.find((u) => filename && u.url.endsWith(`/${filename}`))
       if (!added) {
@@ -190,14 +194,21 @@ export default function BoardSettings({
         setStatus(notice('photoAlready'))
       }
     } catch (err) {
-      setError(messageOf(err, 'uploadError'))
+      if (epoch === transportEpoch.current) setError(messageOf(err, 'uploadError'))
     } finally {
-      setUploading(false)
+      if (epoch === transportEpoch.current && uploadPending.current === epoch) {
+        uploadPending.current = null; setUploading(false)
+      }
     }
   }
 
   React.useEffect(() => {
     let cancelled = false
+    const epoch = ++transportEpoch.current
+    savePending.current = null; searchPending.current = null; uploadPending.current = null
+    setBusy(false); setSearching(false); setUploading(false); setError(null); setStatus(null); setResults(null)
+    setData(null)
+    setLoadError(null)
     transport
       .load()
       .then((body) => {
@@ -208,41 +219,53 @@ export default function BoardSettings({
       })
     return () => {
       cancelled = true
+      if (transportEpoch.current === epoch) transportEpoch.current++
     }
-  }, [transport])
+  }, [transport, loadRetry])
 
   const save = React.useCallback(async (patch: object, done: BoardNotice) => {
+    if (savePending.current !== null) return false
+    const epoch = transportEpoch.current; savePending.current = epoch
     setBusy(true)
     setError(null)
     setStatus(null)
     try {
-      setData(await transport.save(patch))
+      const fresh = await transport.save(patch)
+      if (epoch !== transportEpoch.current) return false
+      setData(fresh)
       setStatus(done)
       return true
     } catch (err) {
-      setError(messageOf(err, 'saveError'))
+      if (epoch === transportEpoch.current) setError(messageOf(err, 'saveError'))
       return false
     } finally {
-      setBusy(false)
+      if (epoch === transportEpoch.current && savePending.current === epoch) {
+        savePending.current = null; setBusy(false)
+      }
     }
   }, [transport])
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (searchPending.current !== null || savePending.current !== null) return
     const q = query.trim()
     if (q.length < 2) {
       setError(notice('shortQuery'))
       return
     }
+    const epoch = transportEpoch.current; searchPending.current = epoch
     setSearching(true)
     setError(null)
     setResults(null)
     try {
-      setResults(await transport.searchPlaces(q))
+      const places = await transport.searchPlaces(q)
+      if (epoch === transportEpoch.current) setResults(places)
     } catch (err) {
-      setError(messageOf(err, 'searchError'))
+      if (epoch === transportEpoch.current) setError(messageOf(err, 'searchError'))
     } finally {
-      setSearching(false)
+      if (epoch === transportEpoch.current && searchPending.current === epoch) {
+        searchPending.current = null; setSearching(false)
+      }
     }
   }
 
@@ -257,9 +280,11 @@ export default function BoardSettings({
         </div>
 
         {loadError && (
-          <p role="alert" className="text-subhead text-[var(--danger-text)]">
-            {showNotice(loadError)}
-          </p>
+          <div className="space-y-2">
+            <p role="alert" className="text-subhead text-[var(--danger-text)]">{showNotice(loadError)}</p>
+            <button type="button" className={`${buttonClass} bg-[var(--surface-fill)] text-label-primary`}
+              onClick={() => setLoadRetry(value => value + 1)}>{text('retryLoad')}</button>
+          </div>
         )}
         {!data && !loadError && (
           <p role="status" className="text-subhead text-label-secondary">{text("loading")}</p>

@@ -2779,3 +2779,30 @@ Legacy behavior, strict conflict/no-write convergence, role/family/generation
 change during decoding, required protocol/body bound, retained draft/review and
 stalled reply/late success source cases are authored/adapted UNRUN. No QA/tests/
 checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#136 remain open.
+
+## Board Settings personal transport bounds and audience retirement — 2026-10-25
+
+#499/#135 source: personBoardSettingsTransport now bounds fetch and response JSON:
+15second reads/search,45second settings writes,90second deliberate photo uploads,
+and2MiB reply limit. Same-origin/no-store is explicit. Body/network/size/deadline
+uncertainty produces typed EN/ES unconfirmed-change feedback for writes; it never
+automatically sends a second setting or photo. Known HTTP diagnostics and custom
+transport message semantics are preserved. JSON-only bridges retain post-decode
+allocation limits; timers do not preempt synchronous serialization/FormData work.
+
+BoardSettings exposes an explicit44px retry after load failure. Each transport/
+retry generation clears the old audience view and retires previous results.
+Load cancellation and generation-guarded save/search/upload outcomes prevent an
+old transport from repainting names/settings or clearing a newer busy state.
+Synchronous lanes reject duplicate operations before React state updates; an old
+upload cannot continue into load/selection after audience retirement. Custom
+paired-tablet transports keep their original interface and error semantics; this
+patch does not add transport-level cancellation/deadlines to arbitrary custom
+promises or change elevation/provider/permission behavior.
+
+Stalled body/late result, single exact unconfirmed write, oversize-before-decode,
+explicit custom-load retry and old-save/new-audience cases are authored UNRUN.
+This is bounded personal transport and local audience retirement, not full server
+owner echo, compare-and-set setting updates, unknown upload reconciliation,
+native physical cancellation or rendered/role acceptance. No QA/tests/checks/
+build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#135 remain open.
