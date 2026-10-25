@@ -498,3 +498,37 @@ continued replay authority. A successful fresh device pairing emits the existing
 purge event so a same-client lookup cannot reuse the previous device queue.
 Custom store wrappers must share their `persistenceLane` when they address the
 same storage; independently constructed wrappers cannot infer that identity.
+
+## Personal item edit/tick authority — 2026-10-24 (#134/#135, source only)
+
+Both `/api/lists/items/edit` and `/api/lists/items/update` now supply the existing
+shared item writer with a trusted personal transaction-authority callback. It
+renews exact current role/session/family and list-feature permission under User
+then household locks before the item lock/read/write. The callback is server
+code, never a request field. Parent/teen/child item editing remains. The same base
+check is extracted from personal create into `person-list-item-authority.ts`;
+create/capture retain their existing policy and stronger default-list permission.
+
+Completed keyed personal replay now renews authority before returning its stored
+historical result. It does not reapply the old edit/check, validate an old version
+against the current row, or recreate a deleted item. These guards do not replace
+the queue owner header/action/body/key contract. Metadata edit's initial target
+lookup/legacy statuses remain. The effect still uses expectedUpdatedAt and the
+existing LIST_ITEM_CHANGED/DUPLICATE_OPEN_ITEM outcomes, monotonic server versions,
+absolute checked state and unchanged no-op attribution.
+
+The shared row-lock query is now joined to the list household, so a foreign
+item request does not first lock another family's item. The following lookup
+retains its existing missing/foreign handling and response policy. Device calls
+continue through the same comparison/write implementation without a personal
+callback; device-session/acting-member authorization stays in its coordinator.
+Their DTO, action namespace, audit and capability/opt-in boundaries are unchanged.
+
+This source does not couple an update and outer idempotency completion into a
+new atomic receipt, introduce whole-item conflict resolution, redesign best-effort
+post-commit section-trip tracking, add queue operations, change schemas or activate
+anything. Those original recovery/rollback/telemetry/device requirements remain.
+Callback denial/version/no-op/device-entry cases and an outer-auth-to-transaction
+session-generation race are authored/unrun. No app/DB/test/check/build/browser/
+provider/native/release execution occurred. Mock transactions establish no actual
+PostgreSQL query plan, row/lifecycle contention, rollback or hardware acceptance.

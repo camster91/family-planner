@@ -1639,3 +1639,18 @@ existing two-household route source authored/adapted but unrun; no PG locking or
 rollback result claimed. No QA/test/check/build/browser/CI/API/database/provider/
 push/merge/deploy ran. Original isolation/offline/device/release acceptance remains
 open.
+
+## Personal item edit/tick authority — 2026-10-24 (source only)
+
+Latest bounded source work renews current personal authority for list-item edit,
+checked-state updates and completed replay (#134/#135). A server-supplied callback
+runs under user/household locks before shared item reads/writes; the base create/
+capture authority is extracted and reused. The shared row lock is household-scoped
+through List. Existing version/conflict, explicit-check/no-op attribution, wire/
+queue/key/body and device-coordinator policies remain; device calls require no
+personal callback. Completed replay remains historical and does not reapply.
+No new atomic update receipt, whole-content conflict/section-trip redesign, queue
+operation or activation is claimed. Regression source authored/adapted but unrun;
+no PG plan/locking/rollback proof. No QA/test/check/build/browser/CI/API/database/
+provider/native/push/merge/deploy ran. Original isolation/offline/device/release
+acceptance remains open.

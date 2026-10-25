@@ -1,36 +1,15 @@
 /** Canonical personal item creates. Actor/target authority, item and keyed response
  * share a transaction. No-key adds remain distinct; device writes use their own auth. */
-import type { AssistantSourceGuard } from "./assistant-source-proof";
-import { lockUser, lockHousehold } from "./household-lock";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { createListItem, type NewListItem } from "./list-item-create";
 import { resolveDefaultGroceryListInTx } from "./grocery-from-recipe";
-import { canCreateList } from "./role-capabilities";
-import { isFeatureEnabled, normalizeFeatures } from "./features";
+import { authorizePersonListItemInTx as authorize, type PersonListItemActor, type PersonListItemOptions as Options } from "./person-list-item-authority";
 import { isGroceryListType } from "./grocery-display";
 import type { EffectResult } from "./idempotency";
 
 type Tx = Prisma.TransactionClient;
 type Db = Pick<PrismaClient, "$transaction">;
-export type PersonListItemActor = { familyId: string; addedBy: string; role: string; generation: number };
-type Options = { groceryOnly?: boolean; sourceGuard?: AssistantSourceGuard; requireListCreation?: boolean };
-async function authorize(tx: Tx, actor: PersonListItemActor, options: Options): Promise<EffectResult | null> {
-  await lockUser(tx, actor.addedBy);
-  await lockHousehold(tx, actor.familyId);
-  const user = await tx.user.findUnique({ where: { id: actor.addedBy },
-    select: { family_id: true, role: true, token_version: true } });
-  if (!user || user.family_id !== actor.familyId || user.role !== actor.role || user.token_version !== actor.generation)
-    return { status: 401, body: { error: "Unauthorized" } };
-  if (!["parent", "teen", "child"].includes(user.role) || (options.requireListCreation && !canCreateList(user.role)))
-    return { status: 403, body: { error: "This account cannot perform this list action" } };
-  await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id"=${actor.familyId} FOR SHARE`;
-  const family = await tx.family.findUnique({ where: { id: actor.familyId }, select: { features: true } });
-  if (!family) return { status: 404, body: { error: "Household not found" } };
-  if (!isFeatureEnabled(normalizeFeatures(family.features), "lists"))
-    return { status: 403, body: { error: "This feature is turned off for your family" } };
-  await options.sourceGuard?.authorize(tx);
-  return null;
-}
+export type { PersonListItemActor } from "./person-list-item-authority";
 
 async function replayTarget(tx: Tx, actor: PersonListItemActor, listId: string | null, options: Options): Promise<EffectResult | null> {
   if (listId === null) return null; // Capture keeps a historical completed response, no default lookup.

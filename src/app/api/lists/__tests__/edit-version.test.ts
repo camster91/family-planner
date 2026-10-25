@@ -21,6 +21,7 @@ import { PATCH } from "../items/edit/route";
 import { PATCH as legacy } from "../items/update/route";
 import {
   db,
+  fakePrisma,
   req,
   writesTo,
   FOREIGN,
@@ -150,4 +151,18 @@ it("requires a valid idempotency key", async () => {
   expect((await edit("parentA", data(), null)).status).toBe(400);
   expect((await edit("parentA", data(), "bad key")).status).toBe(400);
   expect(writesTo("listItem")).toHaveLength(0);
+});
+
+it("refuses a personal session generation changed after the outer target lookup", async () => {
+  const originalFind = fakePrisma.listItem.findUnique;
+  const read = jest.spyOn(fakePrisma.listItem, "findUnique").mockImplementationOnce(async (args: unknown) => {
+    const item = await originalFind(args);
+    db.find("user", "parent-a")!.token_version++;
+    return item;
+  });
+  try {
+    const response = await edit("parentA", data());
+    expect(response.status).toBe(401);
+    expect(writesTo("listItem")).toHaveLength(0);
+  } finally { read.mockRestore(); }
 });

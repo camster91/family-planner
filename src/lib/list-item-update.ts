@@ -17,7 +17,8 @@
  * `ListItem_open_recipe_source_key`; that `P2002` is answered as 409
  * `DUPLICATE_OPEN_ITEM`, which the #247 offline queue treats as a conflict.
  */
-import type { PrismaClient } from '@prisma/client'
+import type { Prisma, PrismaClient } from '@prisma/client'
+import type { PersonListItemAuthorityRefusal } from './person-list-item-authority'
 import { recordSectionTick } from '@/lib/grocery-section-store'
 import { logRouteError } from '@/lib/api-error'
 
@@ -40,8 +41,13 @@ export const LIST_ITEM_CHANGED = 'LIST_ITEM_CHANGED'
 
 export type ListItemUpdateResult =
   | { status: 200; body: { success: true; item: Record<string, unknown> } }
-  | { status: 400 | 403 | 404; body: { error: string } }
+  | { status: 400 | 401 | 403 | 404; body: { error: string } }
   | { status: 409; body: { error: { code: typeof DUPLICATE_OPEN_ITEM | typeof LIST_ITEM_CHANGED; message: string; retryable: false } } }
+
+/** Supplied only by personal routes; device auth stays in the device write coordinator. */
+export type ListItemUpdateOptions = {
+  authorize?: (tx: Prisma.TransactionClient) => Promise<PersonListItemAuthorityRefusal | null>
+}
 
 type Db = Pick<PrismaClient, '$transaction'>
 
@@ -53,10 +59,11 @@ export async function updateListItem(
   db: Db,
   data: ListItemUpdate,
   user: { id: string; family_id: string },
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  options: ListItemUpdateOptions = {}
 ): Promise<ListItemUpdateResult> {
   try {
-    return await applyListItemUpdate(db, data, user, now)
+    return await applyListItemUpdate(db, data, user, now, options)
   } catch (error) {
     // ListItem's only unique constraint besides its id is the partial index
     // "ListItem_open_recipe_source_key" (MEALS_AND_GROCERIES.md §5).
@@ -80,12 +87,19 @@ async function applyListItemUpdate(
   db: Db,
   data: ListItemUpdate,
   user: { id: string; family_id: string },
-  now: () => Date
+  now: () => Date,
+  options: ListItemUpdateOptions
 ): Promise<ListItemUpdateResult> {
   const { itemId, checked, content, quantity, category, notes, amount, unit, ingredient_id } = data
   return db.$transaction(async (tx) => {
-    // Serialise writers of this item; a missing row locks nothing and is a 404 below.
-    await tx.$queryRaw`SELECT "id" FROM "ListItem" WHERE "id" = ${itemId} FOR UPDATE`
+    if (options.authorize) {
+      const denied = await options.authorize(tx)
+      if (denied) return denied
+    }
+    // Serialize only an owned item; a foreign target must not acquire another household's row lock.
+    // Existing missing/foreign statuses are decided below without returning its content.
+    await tx.$queryRaw`SELECT i."id" FROM "ListItem" i JOIN "List" l ON l."id"=i."list_id"
+      WHERE i."id"=${itemId} AND l."family_id"=${user.family_id} FOR UPDATE OF i`
     const item = await tx.listItem.findUnique({
       where: { id: itemId },
       include: { list: { select: { family_id: true } } },
@@ -149,10 +163,11 @@ async function applyListItemUpdate(
 export async function updateListItemAndNoteTick(
   db: PrismaClient,
   data: ListItemUpdate,
-  user: { id: string; family_id: string }
+  user: { id: string; family_id: string },
+  options: ListItemUpdateOptions = {}
 ): Promise<ListItemUpdateResult> {
   const startedAt = new Date()
-  const result = await updateListItem(db, data, user)
+  const result = await updateListItem(db, data, user, undefined, options)
   if (result.status === 200 && data.checked === true) {
     const item = result.body.item
     const checkedAt = item.checked_at instanceof Date ? item.checked_at : null

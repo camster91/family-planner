@@ -52,18 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work connects note edit/delete to one locked canonical
-mutation (#134/#136). The existing list-container/note base authority is extracted
-and reused, preserving create/replay policy. Notes renew current role/session/
-household and stored feature permission, then lock/re-read the owned note/creator
-before a scoped mutation. Parent-any/teen-child-own edit and parent-only delete,
-body/color normalization, request/success DTOs and device refusal remain. Missing/
-foreign locked targets share404. No new version/Undo/receipt/queue/AI permission
-or activation; this is not complete content-conflict resolution. Regression and
-existing two-household route source authored/adapted but unrun; no PG locking or
-rollback result claimed. No QA/test/check/build/browser/CI/API/database/provider/
-push/merge/deploy ran. Original isolation/offline/device/release acceptance remains
-open.
+Latest bounded source work renews current personal authority for list-item edit,
+checked-state updates and completed replay (#134/#135). A server-supplied callback
+runs under user/household locks before shared item reads/writes; the base create/
+capture authority is extracted and reused. The shared row lock is household-scoped
+through List. Existing version/conflict, explicit-check/no-op attribution, wire/
+queue/key/body and device-coordinator policies remain; device calls require no
+personal callback. Completed replay remains historical and does not reapply.
+No new atomic update receipt, whole-content conflict/section-trip redesign, queue
+operation or activation is claimed. Regression source authored/adapted but unrun;
+no PG plan/locking/rollback proof. No QA/test/check/build/browser/CI/API/database/
+provider/native/push/merge/deploy ran. Original isolation/offline/device/release
+acceptance remains open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
