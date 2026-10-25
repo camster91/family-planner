@@ -54,15 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) fences notification page replies
-against intervening local actions (#141). First/older reads capture a write
-epoch; mark/snooze begin+settlement, delete/Undo/settlement and exit dispatch
-advance it. Changed or still-pending actions reject stale page application and
-retain explicit EN/ES refresh/exact-cursor retry. Older reads pause while actions
-are pending; in-flight delete rows cannot be submitted twice. Existing overlapping
-page merge and original Undo/send behavior remain. Concurrent-page source case
-authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
-deploy ran. Runtime race, focus, native lifecycle and full acceptance remain open.
+Latest bounded source work (2026-10-25) bounds assistant chat/report transport
+(#464/#144). Chat uses the shared foreground deadline at45 seconds, above the
+existing30-second provider timeout, and256KiB JSON cap. Network/unreadable/deadline
+failures keep existing localized retry/draft paths; no automatic provider retry
+or app write occurs. Feedback reads use15seconds/512KiB and validate/project at
+most25 report rows; saves use15seconds/64KiB and retain exact original request IDs/
+bodies on uncertainty. JSON-only bridges retain post-parse bounds. Oversize chat/
+report source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/
+provider/push/merge/deploy ran. Actual timeout, grounding, private identity, action/
+report concurrency and rendered/lifecycle acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

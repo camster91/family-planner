@@ -1,5 +1,7 @@
 "use client";
 import * as React from "react";
+import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import Link from "next/link";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { Mic, MicOff } from "lucide-react";
@@ -67,6 +69,30 @@ type Report = {
   status: string;
   created_at: string;
 };
+function reportRows(value: unknown): Report[] | null {
+  if (!value || typeof value !== "object" || !("reports" in value) || !Array.isArray(value.reports) || value.reports.length > 25) return null;
+  const rows: Report[] = [];
+  for (const row of value.reports) {
+    if (!row || typeof row !== "object" ||
+      !["id", "kind", "title", "status", "created_at"].every(key => typeof row[key] === "string") ||
+      !row.id.trim() || !Number.isFinite(Date.parse(row.created_at))) return null;
+    rows.push({ id: row.id, kind: row.kind, title: row.title, status: row.status, created_at: row.created_at });
+  }
+  return new Set(rows.map(row => row.id)).size === rows.length ? rows : null;
+}
+/** Provider work already has a30-second limit; leave room for server admission.
+ * This bounds the caller, never proves that a timed-out provider call was free. */
+async function readAssistantChat(init: RequestInit) {
+  return runOwnedForeground(async signal => {
+    let response: Response;
+    try { response = await fetch("/api/assistant", { ...init, signal, cache: "no-store" }); }
+    catch { return { kind: "network" as const }; }
+    try {
+      const body = await readBoundedJsonResponse(response, signal, 256 * 1024);
+      return { kind: "reply" as const, response, body };
+    } catch { return { kind: "unreadable" as const, response }; }
+  }, { timeoutMs: 45_000 });
+}
 const target =
   "min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50";
 const ASSISTANT_TODAY_PROTOCOL = "herewoven.assistant-today.v1";
@@ -355,11 +381,12 @@ export default function AssistantPanel({
     setReportsLoading(true);
     setReportsLoadFailed(false);
     try {
-      const r = await fetch("/api/feedback", { cache: "no-store" }),
-        b = await r.json();
-      if (!r.ok) throw new Error(b.error);
+      const result = await requestOwnedJson("/api/feedback", { method: "GET" }, 512 * 1024);
+      if (result.kind === "unknown" || !result.response.ok) throw new Error("Reports unavailable");
+      const rows = reportRows(result.body);
+      if (!rows) throw new Error("Invalid reports");
       if (generation !== reportsLoadGeneration.current) return;
-      setReports(b.reports ?? []);
+      setReports(rows);
     } catch {
       if (generation !== reportsLoadGeneration.current) return;
       setReportsLoadFailed(true);
@@ -413,9 +440,7 @@ export default function AssistantPanel({
         timeZone,
         ...(includeToday ? { includeToday: true } : {}),
       };
-      let r: Response;
-      try {
-        r = await fetch("/api/assistant", {
+      const result = await readAssistantChat({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -427,18 +452,13 @@ export default function AssistantPanel({
               : {}),
           },
           body: JSON.stringify(requestBody),
-        });
-      } catch {
-        throw new AssistantCopyError("chatOffline");
-      }
-      let body: unknown;
-      try {
-        body = await r.json();
-      } catch {
-        throw new AssistantCopyError(
-          r.ok || r.status < 500 ? "replyUnreadable" : "chatUnavailable",
-        );
-      }
+      });
+      if (result.kind === "unknown") throw new AssistantCopyError("chatUnavailable");
+      if (result.kind === "network") throw new AssistantCopyError("chatOffline");
+      if (result.kind === "unreadable") throw new AssistantCopyError(
+        result.response.ok || result.response.status < 500 ? "replyUnreadable" : "chatUnavailable",
+      );
+      const { response: r, body } = result;
       if (!r.ok) {
         if (r.status === 429) throw new AssistantCopyError("chatRateLimited");
         if (r.status === 413) throw new AssistantCopyError("chatTooLong");
@@ -799,14 +819,16 @@ export default function AssistantPanel({
     };
     const pendingReport = reportRequest.current;
     try {
-      const r = await fetch("/api/feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(pendingReport),
-        }),
-        b = await r.json();
+      const result = await requestOwnedJson("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pendingReport),
+      }, 64 * 1024);
+      if (result.kind === "unknown") throw new AssistantCopyError("reportSaveFailed");
+      const { response: r, body } = result;
+      const b = body && typeof body === "object" ? body as { error?: unknown; report?: { id?: unknown } } : null;
       if (!r.ok) {
-        if (typeof b.error === "string" && b.error) throw new Error(b.error);
+        if (typeof b?.error === "string" && b.error) throw new Error(b.error);
         throw new AssistantCopyError("reportSaveFailed");
       }
       if (typeof b?.report?.id !== "string" || !b.report.id.trim())
