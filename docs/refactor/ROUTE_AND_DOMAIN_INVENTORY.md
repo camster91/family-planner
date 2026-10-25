@@ -1861,3 +1861,14 @@ generation validation, exact retry and create recovery remain. Oversize/revoked-
 authority source cases authored only. No QA/test/check/build/browser/CI/API/DB/
 native/provider/push/merge/deploy ran. Runtime timeout, rendered privacy recovery,
 old-server compatibility and full acceptance remain open.
+
+### Queue recovery issue reconciliation — 2026-10-25 (#564/#565)
+
+Latest bounded follow-through (2026-10-25) reconciles #564/#565 source status
+against current contracts, storage adapters and compatibility documentation.
+#565's candidate/lane inspection and #564's generation/retirement design criteria
+are now checked with explicit evidence in GitHub. Both issues remain open for
+original fault/concurrency/lifecycle/old-client and rendered acceptance. No second
+retry engine was added; readiness flags are unchanged. Original issue bodies
+were backed up and changed bodies read back. No QA/test/check/build/browser/CI/
+API/DB/native/provider/push/merge/deploy ran.

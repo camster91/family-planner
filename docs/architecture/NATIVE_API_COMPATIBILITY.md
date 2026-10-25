@@ -201,3 +201,11 @@ with hardware/signing/distribution and actual forward/rollback still open. Sourc
 cases cover ignored-abort headers/body, declared oversize/cancel, partial legacy
 reports, protocol display and unmount. All authored/adapted/unrun. No plugin/device/
 permission/API/provider/browser/build/test/CI/release execution occurred.
+
+### Recovery issue status reconciliation — 2026-10-25
+
+Current source inspection completes #565's candidate/lane inspection criterion
+and #564's durable owner/generation/retirement design criterion only. Their
+GitHub statuses now distinguish existing source from pending acceptance. Original
+behavioral, fault, concurrency, native/old-binary/rollback and EN/ES rendered
+criteria remain unchecked. No new retry engine, flag activation or QA occurred.
