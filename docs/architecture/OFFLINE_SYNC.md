@@ -634,3 +634,16 @@ rollback is inferred. Definitive refusal and matched-success validation remain.
 JSON-only bridges retain post-parse bounds. Exact-key oversized-delete source
 coverage authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
 push/merge/deploy ran. Real timeout/retry/concurrency/role and full acceptance open.
+
+### Reward-board write deadlines — 2026-10-25 (#135/#134)
+
+Rewards board source completes reward-board foreground
+transport bounds (#135/#134): claim/approval now share15-second whole-request
+waits and256KiB JSON decode caps with existing exact target recovery. Missing/
+malformed/oversized replies retain original keys and review;408/409/425/429/5xx
+also retain keys rather than infer rollback. Parsed matched success still alone
+updates XP/claim/given state; no automatic replay or local point charge added.
+Existing localized error/review surfaces remain. Deadline/oversize exact-retry
+source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. Actual locking/replay/role/timeout/rendered and native
+lifecycle acceptance remain open; this is not release or durable-queue acceptance.

@@ -261,6 +261,7 @@ and complete legacy representations when adding opt-in continuation.
 Current Notes/Wishlist/Notifications and assistant/feedback transport bounds are
 separate client contracts, not SQL scan bounds. Notes reads2MiB/edit256KiB/delete32KiB;
 Wishlist list/target2MiB/account32KiB/writes256KiB; notification read512KiB/write32KiB.
+Reward-board claim/approval and exact status reads use256KiB with preserved unknown-result keys.
 These use15-second foreground deadlines. Assistant chat allows45seconds/256KiB
 above the existing30-second provider limit; report read512KiB/write64KiB uses15seconds.
 Streaming decoding bounds transferred bytes; JSON-only bridges remain post-parse

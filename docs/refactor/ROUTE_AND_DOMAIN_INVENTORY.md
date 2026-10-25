@@ -2042,3 +2042,16 @@ rendered/navigation and full reward acceptance remain open; no new DDL applied.
 Protocol: GET /api/rewards?limit=24[&status=available|claimed|approved|redeemed][&cursor=...] returns rewards plus nullable nextCursor. Duplicate/invalid paging and foreign household/status positions refuse400 REWARDS_INVALID_PAGE. GET ?rewardId=<id> is an exclusive exact-target filter returning the same rewards array shape with zero/one own-household row; it cannot combine with paging/status. Older servers may ignore the filter; clients still match the target and hold on absent/unreadable replies. This is not a write receipt or deletion tombstone. Legacy no-limit/no-target calls retain prior representation and ordering.
 
 Index follow-up is measured planning only: compare existing Reward family/status indexes with proposed family+created_at+id and family+status+created_at+id paths. No index/migration or latency result is implied. Reward history follows canonical erasure/retention; no time-based pruning is introduced.
+
+### Reward-board write deadlines — 2026-10-25 (#135/#134)
+
+Rewards board source completes reward-board foreground
+transport bounds (#135/#134): claim/approval now share15-second whole-request
+waits and256KiB JSON decode caps with existing exact target recovery. Missing/
+malformed/oversized replies retain original keys and review;408/409/425/429/5xx
+also retain keys rather than infer rollback. Parsed matched success still alone
+updates XP/claim/given state; no automatic replay or local point charge added.
+Existing localized error/review surfaces remain. Deadline/oversize exact-retry
+source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. Actual locking/replay/role/timeout/rendered and native
+lifecycle acceptance remain open; this is not release or durable-queue acceptance.

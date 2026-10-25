@@ -11,7 +11,6 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Dialog } from '@/components/ui/dialog'
 import { useMaybeToast } from '@/components/ui/toast'
-import { responseErrorMessage } from '@/lib/fetch-error'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { useRewardsText } from '@/i18n/rewards'
 
@@ -64,6 +63,13 @@ export function parseRewardCard(value: unknown): RewardCard | null {
     claimedById: stringOrNull(value.claimedById ?? value.claimed_by),
     claimedByName: stringOrNull(value.claimedByName ?? value.claimed_by_name ?? (isRecord(value.claimer) ? value.claimer.name : null)),
   }
+}
+
+function rewardFailureMessage(value: unknown, fallback: string) {
+  return isRecord(value) && typeof value.error === 'string' && value.error.trim() ? value.error : fallback
+}
+function uncertainRewardStatus(status: number) {
+  return status >= 500 || [408, 409, 425, 429].includes(status)
 }
 
 function parseRewardResponse(value: unknown): RewardCard | null {
@@ -211,22 +217,24 @@ export default function RewardsBoard({
     setClaiming(true)
     setClaimError(null)
     try {
-      const response = await fetch('/api/rewards/claim', {
+      const result = await requestOwnedJson('/api/rewards/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
         body: JSON.stringify({ rewardId: reward.id }),
-      })
+      }, 256 * 1024)
+      if (result.kind === 'unknown') throw new Error('Reward outcome unknown')
+      const { response, body } = result
       if (!response.ok) {
-        const message = await responseErrorMessage(response)
+        const message = rewardFailureMessage(body, rewardsText('claimErrorDescription'))
         setClaimError(message)
-        if (response.status >= 500 || response.status === 409) {
+        if (uncertainRewardStatus(response.status)) {
           putRecovery({ kind: 'claim', reward, key, message })
         } else {
           claimKeys.current.delete(reward.id)
         }
         return
       }
-      const parsed = parseClaimResponse(await response.json().catch(() => null))
+      const parsed = parseClaimResponse(body)
       if (!parsed || parsed.reward.id !== reward.id || parsed.reward.status !== 'claimed' || parsed.reward.claimedById !== currentUserId) {
         const message = rewardsText('recoveryTitle')
         setClaimError(message)
@@ -254,14 +262,16 @@ export default function RewardsBoard({
     const key = getKey(approveKeys, reward.id)
     setApproving(reward.id)
     try {
-      const response = await fetch('/api/rewards/approve', {
+      const result = await requestOwnedJson('/api/rewards/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
         body: JSON.stringify({ rewardId: reward.id }),
-      })
+      }, 256 * 1024)
+      if (result.kind === 'unknown') throw new Error('Reward outcome unknown')
+      const { response, body } = result
       if (!response.ok) {
-        const message = await responseErrorMessage(response)
-        if (response.status >= 500 || response.status === 409) {
+        const message = rewardFailureMessage(body, rewardsText('claimErrorDescription'))
+        if (uncertainRewardStatus(response.status)) {
           putRecovery({ kind: 'approve', reward, key, message })
         } else {
           approveKeys.current.delete(reward.id)
@@ -269,7 +279,7 @@ export default function RewardsBoard({
         }
         return
       }
-      const parsed = parseRewardResponse(await response.json().catch(() => null))
+      const parsed = parseRewardResponse(body)
       if (!parsed || parsed.id !== reward.id || !['approved', 'redeemed'].includes(parsed.status)) {
         putRecovery({ kind: 'approve', reward, key, message: rewardsText('recoveryTitle') })
         return

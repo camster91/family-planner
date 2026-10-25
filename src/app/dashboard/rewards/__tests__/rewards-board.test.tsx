@@ -6,7 +6,7 @@
 // for ever. Claiming now asks first and calls the claim API; a parent marks a
 // claimed reward as given through the approve API. Failures say why.
 import * as React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
@@ -385,4 +385,50 @@ it('retains a closed uncertain claim for review and holds page navigation after 
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
   expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('true')
   expect(calls.filter(call => call.method === 'POST')).toHaveLength(1)
+})
+
+// Source-only transport regressions; current no-QA instruction defers execution.
+it('settles an abort-ignoring claim deadline and retries with the original key/body', async () => {
+  jest.useFakeTimers()
+  try {
+    const calls: Array<{ body: unknown; headers: HeadersInit | undefined }> = []
+    global.fetch = jest.fn(async (_input, init) => {
+      calls.push({ body: init?.body, headers: init?.headers })
+      if (calls.length === 1) return await new Promise<Response>(() => {})
+      return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
+    }) as typeof fetch
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    renderBoard({ pageInfo: { older: false, nextCursor: 'fixture-cursor' } })
+    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+    await act(async () => { jest.advanceTimersByTime(15_001) })
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }).hasAttribute('disabled')).toBe(false)
+    expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('true')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls).toHaveLength(2)
+    expect(calls[1].body).toBe(calls[0].body)
+    expect(new Headers(calls[1].headers).get('Idempotency-Key')).toBe(new Headers(calls[0].headers).get('Idempotency-Key'))
+    expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('false')
+  } finally { jest.useRealTimers() }
+})
+it('keeps an oversized approval receipt uncertain and reuses the original key on explicit retry', async () => {
+  const calls: RequestInit[] = []
+  const decode = jest.fn(async () => GIVEN_ICE_CREAM)
+  global.fetch = jest.fn(async (_input, init) => {
+    calls.push(init ?? {})
+    return calls.length === 1
+      ? { ok: true, status: 200, headers: new Headers({ 'content-length': '1048576' }), json: decode } as unknown as Response
+      : { ok: true, status: 200, json: async () => GIVEN_ICE_CREAM } as Response
+  }) as typeof fetch
+  const user = userEvent.setup()
+  renderBoard({ isParent: true, currentUserId: 'parent_1' })
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }))
+  await screen.findByRole('button', { name: 'Try again' })
+  expect(decode).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  await screen.findByText('Ice cream marked as given')
+  expect(calls).toHaveLength(2)
+  expect(calls[1].body).toBe(calls[0].body)
+  expect(new Headers(calls[1].headers).get('Idempotency-Key')).toBe(new Headers(calls[0].headers).get('Idempotency-Key'))
 })
