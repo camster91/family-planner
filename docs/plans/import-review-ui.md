@@ -108,3 +108,45 @@ that compatibility exception is documented, not treated as completed server
 review coverage. The new web refuses to enable persistence against an old server
 without review metadata, preserving uncertainty instead of silently downgrading.
 Original real-data/PG/role/lock/old-client/reconciliation acceptance is deferred.
+
+## Duplicate source identity refusal — 2026-10-25
+
+The three export schemas now reject repeated source IDs within each currently
+declared record collection, before their planners build source lookup maps or
+persistence starts. Coverage is10 ChoreChamps, eight Meal Planner and14 Budget
+collections, including source-person catalogs and all eleven passthrough archive
+models. The shared refinement never trims/renames IDs, chooses first/last record,
+merges by name/value, drops duplicates or mutates input. Identical duplicate
+payloads also refuse pending explicit source review. Equal IDs across different
+models and distinct IDs with equal content remain supported. Repeating a valid
+export later still uses existing accepted mappings; this guard is per-input,
+not a change to cross-import identity/reuse behavior.
+
+At most one marked duplicate issue is added per collection, with the collection,
+duplicate row index and ID-field path. No source ID, name, email, payload or
+amount is copied into that issue message. This bounds only the new duplicate
+issues, not all other Zod diagnostics or source parsing/query work. Callers list
+every record collection explicitly; future source-model additions must include
+this refinement and source cases. Defaults, ordinary record order, relationship
+handling, target schema and existing accepted data/history remain unchanged.
+
+The existing Invalid source export400 response retains details.flatten() and
+adds at most32 content-minimal duplicateSourceIds pointers. The parent Imports
+form validates the bounded metadata before rendering EN/ES record-number help
+alongside its existing semantic error; JSON collection keys stay literal so
+parents can find that collection in the export. Invalid/unknown metadata falls
+back to the ordinary invalid-export message. File/source/map edits and new
+attempts clear stale pointers. Existing request/revision guards prevent older
+results from updating changed input. Locale changes only re-render semantic
+copy; no new request or approval is granted. Invalid exports never arm a dry-run
+preview/persistence checkbox or automatically choose a corrected source record.
+
+Schema/planner source cases cover all32 declared collections, identical/conflicting
+ID collisions, model namespace separation, equal names/different IDs, bounded
+value-free diagnostics and caller input preservation. Form cases cover pointer
+presentation, replacement cleanup, malformed metadata fallback and no approval.
+They are authored UNRUN. No QA/tests/checks/scanner/build/browser/CI/API/DB/import/
+migration/native/provider/push/merge/deploy ran. Existing accepted mappings,
+approved #104 export/identity/count reconciliation, repeated/concurrent import,
+unknown outcomes, source-version conflicts and original rollback/role/rendered
+acceptance remain open. This is validation source, not completed #104 migration.

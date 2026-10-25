@@ -2299,3 +2299,17 @@ profile disposition after former-account erasure is awaiting Cameron's pending
 product-choice question; no dependent identity/storage writer is implemented.
 
 Legacy guard scope/compatibility limits: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) rejects duplicate source IDs across
+all32 declared ChoreChamps/Meal Planner/Budget import collections (#104). A shared
+schema refinement refuses the whole ambiguous export before planners/maps or
+persistence; no first/last-record merge or source/history mutation occurs. Model
+namespaces and equal content with distinct IDs remain supported. Bounded value-
+free diagnostics reach the existing parent Imports alert in EN/ES, clear on input
+replacement and never arm approval. Source schema/form cases are authored UNRUN;
+no QA/test/check/build/scanner/browser/CI/API/DB/import/native/provider/push/merge/
+deploy ran. Approved exports/mappings/count reconciliation and all original import
+acceptance remain open.39 issues remain; the unlink product-choice question is
+still pending and no dependent identity/storage writer is implemented.
+
+Duplicate identity contract/recovery: docs/plans/import-review-ui.md.

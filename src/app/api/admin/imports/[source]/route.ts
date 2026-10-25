@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { sourceDuplicateDiagnostics } from "@/lib/imports/source-identity-validation";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import {
   isFamilyImportSource,
@@ -123,7 +124,7 @@ export async function POST(
       );
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid source export", details: error.flatten() },
+        { error: "Invalid source export", details: error.flatten(), duplicateSourceIds: sourceDuplicateDiagnostics(error) },
         { status: 400 },
       );
     }

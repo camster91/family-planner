@@ -85,3 +85,26 @@ it("refuses persistence when an older server omits reviewed scope metadata", asy
   expect(screen.queryByRole("checkbox")).toBeNull();
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
+it('shows a bounded duplicate-record pointer without enabling approval', async () => {
+  global.fetch = jest.fn(async () => ({ ok: false, json: async () => ({ error: 'Invalid source export', duplicateSourceIds: [{ collection: 'chores', rowIndex: 1 }] }) })) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('synthetic-duplicate.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-duplicate.json');
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByText('In chores, record 2 repeats an earlier source ID. Review the export before trying again.');
+  expect(screen.queryByRole('checkbox')).toBeNull();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  choose(file('synthetic-replacement.json', async () => '{"fixture":"replacement"}'));
+  await screen.findByText('synthetic-replacement.json');
+  expect(screen.queryByText(/record 2 repeats/)).toBeNull();
+});
+it('keeps the generic invalid-export error when duplicate diagnostic metadata is malformed', async () => {
+  global.fetch = jest.fn(async () => ({ ok: false, json: async () => ({ error: 'Invalid source export', duplicateSourceIds: [{ collection: 'chores', rowIndex: -1 }] }) })) as unknown as typeof fetch;
+  render(<ImportsClient />);
+  choose(file('synthetic-invalid.json', async () => '{"fixture":true}'));
+  await screen.findByText('synthetic-invalid.json');
+  fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+  await screen.findByRole('alert');
+  expect(screen.queryByText(/repeats an earlier source ID/)).toBeNull();
+  expect(screen.queryByRole('checkbox')).toBeNull();
+});

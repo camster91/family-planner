@@ -2,6 +2,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 const en = {
+  duplicateSourceId: "In {collection}, record {row} repeats an earlier source ID. Review the export before trying again.",
   back: "Back to settings",
   title: "Import family apps",
   description: "Validate an export first, review skipped records, then explicitly approve persistence.",
@@ -35,6 +36,7 @@ const en = {
   payloadTooLarge: "The import request exceeds 10 MB. Use a smaller export or mapping.",
 };
 const es: Record<keyof typeof en, string> = {
+  duplicateSourceId: "En {collection}, el registro {row} repite un ID de origen anterior. Revisa la exportación antes de volver a intentarlo.",
   back: "Volver a ajustes",
   title: "Importar apps familiares",
   description: "Valida primero una exportación, revisa los registros omitidos y aprueba expresamente que se guarden.",
@@ -73,5 +75,5 @@ export type ImportSettingsError = "fileTooLarge" | "fileUnreadable" | "fileRequi
 const messages = { en, es };
 export function useImportSettingsText() {
   const { t } = useTranslation();
-  return useCallback((key: keyof typeof en) => t(key, undefined, messages), [t]);
+  return useCallback((key: keyof typeof en, params?: Record<string, string | number>) => t(key, params, messages), [t]);
 }

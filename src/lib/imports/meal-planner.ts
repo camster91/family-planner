@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rejectDuplicateSourceIds } from "./source-identity-validation";
 
 const dateValue = z
   .union([z.string(), z.date()])
@@ -106,7 +107,16 @@ export const mealPlannerExportSchema = z.object({
       }),
     )
     .default([]),
-});
+}).superRefine((source, context) => rejectDuplicateSourceIds({
+  users: source.users,
+  recipes: source.recipes,
+  ingredients: source.ingredients,
+  recipeIngredients: source.recipeIngredients,
+  mealPlans: source.mealPlans,
+  mealPlanEntries: source.mealPlanEntries,
+  shoppingLists: source.shoppingLists,
+  shoppingItems: source.shoppingItems,
+}, context));
 
 export type MealPlannerImportPlan = ReturnType<typeof planMealPlannerImport>;
 

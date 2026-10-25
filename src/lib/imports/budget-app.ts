@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rejectDuplicateSourceIds } from "./source-identity-validation";
 import { readFinanceDecimal } from "@/lib/finance-values";
 
 const dateValue = z
@@ -96,7 +97,22 @@ export const budgetAppExportSchema = z.object({
   spendingPatterns: z.array(archiveRecord).default([]),
   dailyPeriods: z.array(archiveRecord).default([]),
   noSpendEntries: z.array(archiveRecord).default([]),
-});
+}).superRefine((source, context) => rejectDuplicateSourceIds({
+  categories: source.categories,
+  transactions: source.transactions,
+  wishlistItems: source.wishlistItems,
+  accounts: source.accounts,
+  bills: source.bills,
+  billPayments: source.billPayments,
+  budgets: source.budgets,
+  goals: source.goals,
+  goalContributions: source.goalContributions,
+  incomes: source.incomes,
+  screenshotReceipts: source.screenshotReceipts,
+  spendingPatterns: source.spendingPatterns,
+  dailyPeriods: source.dailyPeriods,
+  noSpendEntries: source.noSpendEntries,
+}, context));
 
 const archiveFields = [
   "accounts",

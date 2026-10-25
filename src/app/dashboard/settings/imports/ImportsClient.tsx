@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { duplicateSourceRows, type DuplicateSourceRow } from "@/lib/imports/source-identity-validation";
 import { useImportSettingsText, type ImportSettingsError } from "@/i18n/import-settings";
 import Link from "next/link";
 import {
@@ -52,6 +53,7 @@ export default function ImportsClient() {
   const [identityMap, setIdentityMap] = useState("{}");
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<ImportSettingsError | null>(null);
+  const [sourceDuplicates, setSourceDuplicates] = useState<DuplicateSourceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [writing, setWriting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -77,6 +79,7 @@ export default function ImportsClient() {
     setResult(null);
     setConfirmed(false);
     setError(null);
+    setSourceDuplicates([]);
   };
 
   const handleFile = async (file: File | undefined) => {
@@ -109,6 +112,7 @@ export default function ImportsClient() {
 
   const runImport = async (dryRun: boolean) => {
     if (pending.current || fileReading.current || inputVersion !== revision.current) return;
+    setSourceDuplicates([]);
     if (!fileData) return setError("fileRequired");
     let body: string;
     let selectedSource = source;
@@ -150,6 +154,10 @@ export default function ImportsClient() {
       const value: unknown = await response.json().catch(() => null);
       if (own !== operation.current || version !== revision.current) return;
       if (!response.ok) {
+        if (responseError(value) === 'invalidExport' && value && typeof value === 'object' && 'duplicateSourceIds' in value) {
+          const rows = duplicateSourceRows.safeParse(value.duplicateSourceIds);
+          if (rows.success) setSourceDuplicates(rows.data);
+        }
         setError(responseError(value) ?? (dryRun ? "failed" : "writeUnconfirmed"));
         return;
       }
@@ -283,7 +291,8 @@ export default function ImportsClient() {
             role="alert"
             className="rounded-lg border border-[var(--danger-tint)] bg-[var(--danger-tint)] p-3 text-danger-text"
           >
-            {text(error)}
+            <p>{text(error)}</p>
+            {error === 'invalidExport' && sourceDuplicates.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5">{sourceDuplicates.map((row, index) => <li key={`${row.collection}:${row.rowIndex}:${index}`}>{text('duplicateSourceId', { collection: row.collection, row: row.rowIndex + 1 })}</li>)}</ul>}
           </div>
         )}
 

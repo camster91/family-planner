@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rejectDuplicateSourceIds } from "./source-identity-validation";
 
 const dateValue = z
   .union([z.string(), z.date()])
@@ -125,7 +126,18 @@ export const choreChampsExportSchema = z.object({
       }),
     )
     .default([]),
-});
+}).superRefine((source, context) => rejectDuplicateSourceIds({
+  kids: source.kids,
+  chores: source.chores,
+  assignments: source.assignments,
+  habits: source.habits,
+  habitLogs: source.habitLogs,
+  rewards: source.rewards,
+  redemptions: source.redemptions,
+  familyGoals: source.familyGoals,
+  badges: source.badges,
+  earnedBadges: source.earnedBadges,
+}, context));
 
 export type ChoreChampsExport = z.input<typeof choreChampsExportSchema>;
 
