@@ -6,9 +6,9 @@
 // codes with separators. What the person typed is sent as is; the server
 // normalizes it (src/lib/family-code.ts).
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { I18nProvider } from '@/i18n'
+import { I18nProvider, useTranslation } from '@/i18n'
 
 const push = jest.fn()
 const refresh = jest.fn()
@@ -117,4 +117,50 @@ it('releases the pending guard before a signed-out code redirect', async () => {
   )
   expect(push).toHaveBeenCalledWith('/login?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA')
   expect((screen.getByRole('button', { name: /Joining/ }) as HTMLButtonElement).disabled).toBe(true)
+})
+
+// Source cases authored for deferred QA; not executed in this pass.
+it('discards a previous-code lookup after the typed code changes', async () => {
+  let finishFirst!: (value: Response) => void
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url === '/api/auth/me') return reply({ user: { id: 'fixture-user' } })
+    if (url.includes('FIRST-CODE-123')) return new Promise<Response>(resolve => { finishFirst = resolve })
+    if (url.startsWith('/api/family/lookup')) return reply({ family: { name: 'Current fixture family' } })
+    throw new Error('Unexpected fixture request')
+  }) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderJoin()
+  const input = screen.getByLabelText('Family Code')
+  await user.type(input, 'FIRST-CODE-123')
+  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.clear(input)
+  await user.type(input, 'SECOND-CODE-123')
+  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await screen.findByText('Current fixture family')
+  await act(async () => { finishFirst(reply({ family: { name: 'Stale fixture family' } })) })
+  expect(screen.queryByText('Stale fixture family')).toBeNull()
+  expect(screen.getByText('Current fixture family')).toBeTruthy()
+  expect((input as HTMLInputElement).value).toBe('SECOND-CODE-123')
+})
+function LanguageControl() {
+  const { setLocale } = useTranslation()
+  return <button onClick={() => setLocale('es')}>Fixture language</button>
+}
+it('changes mounted join labels without re-reading auth or looking up the code again', async () => {
+  const user = userEvent.setup()
+  render(<I18nProvider locale="en" persistLocale={false}>
+    <LanguageControl /><JoinFamilyPage />
+  </I18nProvider>)
+  const input = screen.getByLabelText('Family Code')
+  await user.type(input, 'K7QM-4XPD-2HNA')
+  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await screen.findByText('The Smiths')
+  const before = calls.length
+  fireEvent.click(screen.getByRole('button', { name: 'Fixture language' }))
+  expect(screen.getByLabelText('Código de familia')).toBe(input)
+  expect((input as HTMLInputElement).value).toBe('K7QM-4XPD-2HNA')
+  expect(screen.getByText('The Smiths')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Unirse a la familia' })).toBeTruthy()
+  expect(calls).toHaveLength(before)
 })

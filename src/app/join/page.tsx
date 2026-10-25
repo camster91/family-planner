@@ -5,25 +5,40 @@ import { useRouter } from 'next/navigation'
 import { Users, ArrowRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslation } from '@/i18n'
+import { useJoinFamilyText } from '@/i18n/join-family'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
 export const dynamic = 'force-dynamic'
 
 type EmailInvite = {
   familyName: string
-  role: string
+  role: 'parent' | 'teen' | 'child'
   email: string
+}
+
+type JoinError = 'invalid' | 'auth' | 'retry' | 'network'
+const errorKeys: Record<JoinError, string> = {
+  invalid: 'join.invalidCode', auth: 'common.error', retry: 'common.tryAgain', network: 'common.networkError',
+}
+function refusalKey(status: number): JoinError {
+  return status === 404 ? 'invalid' : status === 401 || status === 403 ? 'auth' : 'retry'
 }
 
 export default function JoinFamilyPage() {
   const { t } = useTranslation()
+  const text = useJoinFamilyText()
   const [code, setCode] = useState('')
   const [token, setToken] = useState<string | null>(null)
   const [emailInvite, setEmailInvite] = useState<EmailInvite | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [familyInfo, setFamilyInfo] = useState<{ name: string } | null>(null)
+  const [error, setError] = useState<JoinError | null>(null)
+  const [success, setSuccess] = useState<{ kind: 'email' | 'code'; family: string | null } | null>(null)
+  const [familyInfo, setFamilyInfo] = useState<{ name: string; code: string } | null>(null)
+  const [checking, setChecking] = useState(false)
+  const lookupGeneration = useRef(0)
+  const lookupRequest = useRef<AbortController | null>(null)
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pageGeneration = useRef(0)
   const [loggedIn, setLoggedIn] = useState(false)
   // A code lookup is intentionally session-gated. Keep that result separate
   // from an invalid code so a signed-out person can continue to auth without
@@ -39,82 +54,90 @@ export default function JoinFamilyPage() {
   const { releaseBeforeNavigation } = usePendingFormNavigationController(busy)
   const navigateAfterRelease = useCallback(
     async (href: string, refresh = false) => {
-      if (!(await releaseBeforeNavigation())) return
+      const own = pageGeneration.current
+      if (!(await releaseBeforeNavigation()) || own !== pageGeneration.current) return
       router.push(href)
       if (refresh) router.refresh()
     },
     [releaseBeforeNavigation, router],
   )
-  const refusalMessage = useCallback((status: number) => {
-    if (status === 404) return t('join.invalidCode')
-    if (status === 401 || status === 403) return t('common.error')
-    return t('common.tryAgain')
-  }, [t])
-
   const checkFamilyCode = useCallback(async (familyCode: string) => {
+    if (submittingRef.current) return
+    const own = ++lookupGeneration.current
+    lookupRequest.current?.abort()
+    const controller = new AbortController()
+    lookupRequest.current = controller
+    setChecking(true)
+    setFamilyInfo(null)
+    setSignedOutCode(false)
+    setError(null)
     try {
-      const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`)
-      // Signed out: the lookup needs a session. Keep the code visible and
-      // offer the existing login flow, which returns to this page after auth.
+      const res = await fetch(`/api/family/lookup?code=${encodeURIComponent(familyCode)}`, { cache: 'no-store', signal: controller.signal })
+      if (own !== lookupGeneration.current) return
       if (res.status === 401) {
-        setFamilyInfo(null)
         setSignedOutCode(true)
-        setError(null)
         return
       }
       const data = await res.json()
-      if (!res.ok) {
-        setSignedOutCode(false)
-        setError(refusalMessage(res.status))
-        return
-      }
-      setFamilyInfo(data.family)
-      setSignedOutCode(false)
-      setError(null)
+      if (own !== lookupGeneration.current) return
+      if (!res.ok) { setError(refusalKey(res.status)); return }
+      if (!data?.family || typeof data.family.name !== 'string') { setError('retry'); return }
+      setFamilyInfo({ name: data.family.name, code: familyCode.trim() })
     } catch {
-      setSignedOutCode(false)
-      setError(t('common.networkError'))
+      if (own === lookupGeneration.current) setError('network')
+    } finally {
+      if (own === lookupGeneration.current) setChecking(false)
     }
-  }, [refusalMessage, t])
+  }, [])
 
   useEffect(() => {
+    pageGeneration.current++
+    let active = true
+    const controller = new AbortController()
     const searchParams = new URLSearchParams(window.location.search)
     const urlToken = searchParams.get('token')
     const urlCode = searchParams.get('code')
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data) => setLoggedIn(Boolean(data.user)))
-      .catch(() => setLoggedIn(false))
+    void fetch('/api/auth/me', { cache: 'no-store', signal: controller.signal })
+      .then(async res => ({ ok: res.ok, data: await res.json() }))
+      .then(({ ok, data }) => { if (active) setLoggedIn(ok && Boolean(data.user)) })
+      .catch(() => { if (active) setLoggedIn(false) })
 
     if (urlToken) {
       setToken(urlToken)
-      fetch(`/api/family/invites/preview?token=${encodeURIComponent(urlToken)}`)
-        .then(async (res) => {
+      void fetch(`/api/family/invites/preview?token=${encodeURIComponent(urlToken)}`, { cache: 'no-store', signal: controller.signal })
+        .then(async res => {
           const data = await res.json()
-          if (!res.ok) {
-            setError(refusalMessage(res.status))
-            return
-          }
+          if (!active) return
+          if (!res.ok) { setError(refusalKey(res.status)); return }
+          if (typeof data?.familyName !== 'string' || typeof data.email !== 'string' ||
+            !['parent', 'teen', 'child'].includes(data.role)) { setError('retry'); return }
           setEmailInvite(data)
         })
-        .catch(() => setError(t('common.networkError')))
-      return
-    }
-
-    if (urlCode) {
+        .catch(() => { if (active) setError('network') })
+    } else if (urlCode) {
       setCode(urlCode)
-      checkFamilyCode(urlCode)
+      void checkFamilyCode(urlCode)
     }
-  }, [checkFamilyCode, refusalMessage, t])
+    return () => {
+      active = false
+      pageGeneration.current++
+      controller.abort()
+      lookupGeneration.current++
+      lookupRequest.current?.abort()
+      if (redirectTimer.current) clearTimeout(redirectTimer.current)
+    }
+  }, [checkFamilyCode])
 
   const acceptEmailInvite = async () => {
     if (!token || submittingRef.current) return
     submittingRef.current = true
+    const own = pageGeneration.current
     setLoading(true)
     setError(null)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
+      if (own !== pageGeneration.current) return
       if (!meRes.ok || !meData.user) {
         setLeaving(true)
         await navigateAfterRelease(`/register?token=${encodeURIComponent(token)}`)
@@ -126,20 +149,23 @@ export default function JoinFamilyPage() {
         body: JSON.stringify({ token }),
       })
       const joinData = await joinRes.json()
+      if (own !== pageGeneration.current) return
       if (!joinRes.ok) {
         submittingRef.current = false
-        setError(refusalMessage(joinRes.status))
+        setError(refusalKey(joinRes.status))
         return
       }
-      setSuccess(`Joined ${joinData.familyName || emailInvite?.familyName || 'your family'}`)
-      setTimeout(() => {
+      setSuccess({ kind: 'email', family: typeof joinData.familyName === 'string' ? joinData.familyName : emailInvite?.familyName || null })
+      redirectTimer.current = setTimeout(() => {
         void navigateAfterRelease('/dashboard', true)
       }, 1500)
     } catch {
-      submittingRef.current = false
-      setError(t('common.networkError'))
+      if (own === pageGeneration.current) {
+        submittingRef.current = false
+        setError('network')
+      }
     } finally {
-      setLoading(false)
+      if (own === pageGeneration.current) setLoading(false)
     }
   }
 
@@ -151,11 +177,13 @@ export default function JoinFamilyPage() {
     }
     if (submittingRef.current) return
     submittingRef.current = true
+    const own = pageGeneration.current
     setLoading(true)
     setError(null)
     try {
       const meRes = await fetch('/api/auth/me')
       const meData = await meRes.json()
+      if (own !== pageGeneration.current) return
       if (!meRes.ok || !meData.user) {
         setLeaving(true)
         await navigateAfterRelease(
@@ -163,9 +191,9 @@ export default function JoinFamilyPage() {
         )
         return
       }
-      if (!familyInfo) {
+      if (!familyInfo || familyInfo.code !== code.trim()) {
         submittingRef.current = false
-        setError(t('common.tryAgain'))
+        setError('retry')
         return
       }
       const joinRes = await fetch('/api/family/join', {
@@ -174,20 +202,23 @@ export default function JoinFamilyPage() {
         body: JSON.stringify({ inviteCode: code.trim() }),
       })
       const joinData = await joinRes.json()
+      if (own !== pageGeneration.current) return
       if (!joinRes.ok) {
         submittingRef.current = false
-        setError(refusalMessage(joinRes.status))
+        setError(refusalKey(joinRes.status))
         return
       }
-      setSuccess(`Successfully joined ${joinData.familyName || familyInfo.name}!`)
-      setTimeout(() => {
+      setSuccess({ kind: 'code', family: typeof joinData.familyName === 'string' ? joinData.familyName : familyInfo.name })
+      redirectTimer.current = setTimeout(() => {
         void navigateAfterRelease('/dashboard', true)
       }, 2000)
     } catch {
-      submittingRef.current = false
-      setError(t('common.networkError'))
+      if (own === pageGeneration.current) {
+        submittingRef.current = false
+        setError('network')
+      }
     } finally {
-      setLoading(false)
+      if (own === pageGeneration.current) setLoading(false)
     }
   }
 
@@ -201,26 +232,26 @@ export default function JoinFamilyPage() {
                 <Users className="w-8 h-8 text-white" />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-foreground">You are invited</h1>
+            <h1 className="text-3xl font-bold text-foreground">{text('invited')}</h1>
           </div>
           <div className="card space-y-4">
             {error && (
-              <div role="alert" aria-live="assertive" className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">{error}</div>
+              <div role="alert" aria-live="assertive" className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">{t(errorKeys[error])}</div>
             )}
             {success && (
               <div role="status" className="bg-[var(--success-tint)] border border-[var(--success-tint)] text-success-text px-4 py-3 rounded-md">
                 <div className="flex items-center">
                   <Check className="w-5 h-5 mr-2" />
-                  {success}
+                  {text(success.kind === 'email' ? 'joinedEmail' : 'joinedCode', { family: success.family ?? text('fallbackFamily') })}
                 </div>
               </div>
             )}
             {emailInvite && !success && (
               <>
                 <p className="text-foreground">
-                  Join <strong>{emailInvite.familyName}</strong> as a <strong>{emailInvite.role}</strong>.
+                  {text('invite', { family: emailInvite.familyName, role: text(emailInvite.role) })}
                 </p>
-                <p className="text-sm text-muted-foreground">Sent to {emailInvite.email}</p>
+                <p className="text-sm text-muted-foreground">{text('sentTo', { email: emailInvite.email })}</p>
                 {loggedIn ? (
                   <button
                     type="button"
@@ -228,7 +259,7 @@ export default function JoinFamilyPage() {
                     disabled={busy}
                     className="btn-primary w-full py-3 inline-flex items-center justify-center"
                   >
-                    {busy ? 'Joining...' : 'Join family'}
+                    {text(busy ? 'joining' : 'joinEmail')}
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </button>
                 ) : (
@@ -237,13 +268,13 @@ export default function JoinFamilyPage() {
                       href={`/register?token=${encodeURIComponent(token)}`}
                       className="btn-primary w-full py-3 inline-flex items-center justify-center"
                     >
-                      Create account and join
+                      {text('create')}
                     </Link>
                     <Link
                       href={`/login?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(`/join?token=${token}`)}`}
                       className="btn-secondary w-full py-3 inline-flex items-center justify-center"
                     >
-                      I already have an account
+                      {text('existing')}
                     </Link>
                   </div>
                 )}
@@ -264,9 +295,9 @@ export default function JoinFamilyPage() {
               <Users className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Join a Family</h1>
+          <h1 className="text-3xl font-bold text-foreground">{text('title')}</h1>
           <p className="mt-2 text-muted-foreground">
-            Use the in-person code from a parent, or open the link from your invite email.
+            {text('description')}
           </p>
         </div>
 
@@ -274,20 +305,20 @@ export default function JoinFamilyPage() {
           <form onSubmit={handleJoinFamily} className="space-y-6">
             {error && (
               <div role="alert" aria-live="assertive" className="bg-[var(--danger-tint)] border border-[var(--danger-tint)] text-danger-text px-4 py-3 rounded-md">
-                {error}
+                {t(errorKeys[error])}
               </div>
             )}
             {success && (
               <div role="status" className="bg-[var(--success-tint)] border border-[var(--success-tint)] text-success-text px-4 py-3 rounded-md">
                 <div className="flex items-center">
                   <Check className="w-5 h-5 mr-2" />
-                  {success}
+                  {text(success.kind === 'email' ? 'joinedEmail' : 'joinedCode', { family: success.family ?? text('fallbackFamily') })}
                 </div>
               </div>
             )}
             <div>
               <label htmlFor="code" className="block text-sm font-medium text-foreground mb-2">
-                Family Code
+                {text('code')}
               </label>
               <div className="flex space-x-4">
                 <input
@@ -296,12 +327,17 @@ export default function JoinFamilyPage() {
                   required
                   value={code}
                   onChange={(e) => {
+                    if (submittingRef.current) return
+                    lookupGeneration.current++
+                    lookupRequest.current?.abort()
+                    setChecking(false)
+                    setError(null)
                     setCode(e.target.value)
                     setFamilyInfo(null)
                     setSignedOutCode(false)
                   }}
                   className="input-field flex-1 font-mono tabular-nums tracking-wider"
-                  placeholder="e.g. K7QM-4XPD-2HNA"
+                  placeholder={text('codeExample')}
                   aria-describedby="code-hint"
                   inputMode="text"
                   autoCapitalize="characters"
@@ -314,20 +350,20 @@ export default function JoinFamilyPage() {
                 <button
                   type="button"
                   onClick={() => checkFamilyCode(code)}
-                  disabled={busy || !code.trim()}
+                  disabled={busy || checking || !code.trim()}
                   className="btn-secondary min-h-[44px] whitespace-nowrap"
                 >
-                  Check Code
+                  {text(checking ? 'checking' : 'check')}
                 </button>
               </div>
               <p id="code-hint" className="mt-2 text-sm text-muted-foreground">
-                Capitals, spaces and dashes don’t matter.
+                {text('hint')}
               </p>
             </div>
-            {familyInfo && (
+            {familyInfo && familyInfo.code === code.trim() && (
               <div className="bg-[var(--accent-tint)] border border-[var(--accent-tint-strong)] rounded-lg p-4">
                 <div className="font-medium text-foreground">{familyInfo.name}</div>
-                <div className="text-sm text-primary">Ready to join as a child or teen.</div>
+                <div className="text-sm text-primary">{text('ready')}</div>
               </div>
             )}
             {signedOutCode && (
@@ -346,10 +382,10 @@ export default function JoinFamilyPage() {
             {!signedOutCode && (
               <button
                 type="submit"
-                disabled={busy || !code.trim() || !familyInfo}
+                disabled={busy || checking || !code.trim() || !familyInfo || familyInfo.code !== code.trim()}
                 className="btn-primary w-full py-3 inline-flex items-center justify-center"
               >
-                {busy ? 'Joining...' : 'Join Family'}
+                {text(busy ? 'joining' : 'joinCode')}
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>
             )}

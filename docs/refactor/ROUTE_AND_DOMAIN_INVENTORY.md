@@ -1,5 +1,19 @@
 # Route and domain inventory (#148)
 
+### Household join copy/preview source — 2026-10-24 (#142)
+
+JoinFamilyPage uses typed scoped EN/ES labels, invitation role/sentence and
+semantic success/errors while keeping family names/emails/code/token values
+literal. Locale changes do not rerun auth or code/token preview effects. Exact
+checked-code identity and generation guards prevent stale lookups restoring a
+previous family's preview; code edits invalidate/abort pending lookups. Bootstrap
+reads and navigation timers clean up; late joined responses cannot apply/redirect
+after unmount. Server auth, session-gated lookup/quota, code normalization, token
+handling, join body/role enforcement, duplicate-submit guard and navigation
+release stay canonical. Sixteen owned copy records removed; no scanner ran.
+Stale-lookup and mounted-locale/no-reread cases authored/unrun. Full household/
+role/token/client/navigation/privacy/rendered acceptance remains open.
+
 ### Import reviewed-scope source — 2026-10-24 (#104)
 
 New-web reviewProtocol1 freezes server-derived actor/household IDs into the
