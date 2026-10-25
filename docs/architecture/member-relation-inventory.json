@@ -3,480 +3,910 @@
     "relation": "Activity.user",
     "fields": ["user_id"],
     "kind": "actor-and-member",
-    "migration": "Keep the required authenticated User actor and add the separate Activity.subject_member attribution. Preserve both during ordinary profile operations; explicit account erasure clears only the identifying subject and leaves the actor/deletion policy unchanged."
+    "migration": "Keep the required authenticated User actor and add the separate Activity.subject_member attribution. Preserve both during ordinary profile operations; explicit account erasure clears only the identifying subject and leaves the actor/deletion policy unchanged.",
+    "evidence": [
+      "prisma/schema.prisma: model Activity",
+      "src/lib/household-member-lifecycle.ts",
+      "src/lib/chore-profile-actions.ts"
+    ],
+    "disposition": "partial-separate-member-attribution",
+    "remaining": "Schema/source carries separate same-household subject_member_id and sticky erasure tombstone while retaining the User actor. Full writer/reader coverage, device/private boundaries and lifecycle acceptance remain open."
   },
   {
     "relation": "Allowance.from_user",
     "fields": ["from_user_id"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Allowance"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Allowance.to_user",
     "fields": ["to_user_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model Allowance"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Anniversary.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Anniversary"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Anniversary.person",
     "fields": ["person_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model Anniversary"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "AppFeedback.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model AppFeedback"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "AuditLog.actor",
     "fields": ["actor_user_id"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model AuditLog"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "BudgetCategory.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model BudgetCategory"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "CalendarConnection.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model CalendarConnection"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "CalendarOAuthState.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model CalendarOAuthState"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "CalendarSubscription.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model CalendarSubscription"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Chore.assignee",
     "fields": ["assigned_to"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model Chore",
+      "src/lib/chore-profile.ts",
+      "src/lib/chore-profile-assignee.ts",
+      "src/lib/chore-profile-actions.ts",
+      "src/lib/profile-chore-gates.ts",
+      "docs/plans/email-free-profile-routines.md"
+    ],
+    "disposition": "partial-gated-canonical-member-subject",
+    "remaining": "Source has composite assigned_member_id and gated name-only one-off/recurring actions; account aliases remain. Profile rotation, broader points/history parity, unlink and installed-client/runtime acceptance remain unfinished; activation is not implied."
   },
   {
     "relation": "Chore.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Chore"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ChoreAssignment.approver",
     "fields": ["approved_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model ChoreAssignment"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ChoreAssignment.assignee",
     "fields": ["assigned_to"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model ChoreAssignment",
+      "src/lib/backfill/chore-members.ts",
+      "src/lib/household-member-lifecycle.ts",
+      "src/lib/chore-profile-actions.ts"
+    ],
+    "disposition": "partial-account-backed-canonical-member-subject",
+    "remaining": "Composite assigned_member_id and erasure tombstone exist, but assigned_to remains a required User FK. Name-only Chore actions do not establish name-only assignment/credit parity. Preserve existing earned credit/actors; further writer/history/Undo and client treatment remain required."
   },
   {
     "relation": "ChoreAssignment.completer",
     "fields": ["completed_by"],
     "kind": "actor-and-member",
-    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution.",
+    "evidence": [
+      "prisma/schema.prisma: model ChoreAssignment"
+    ],
+    "disposition": "retain-actor-defer-separate-attribution",
+    "remaining": "Keep completed_by as authenticated account provenance; assigned_member_id separately describes the recipient. A name-only completer attribution/credit/Undo contract is not implemented by the assignee field. Preserve accepted completion actors and credit."
   },
   {
     "relation": "DeviceAuditEvent.actor",
     "fields": ["actor_user_id"],
     "kind": "actor-and-member",
-    "migration": "Keep the existing device/user actor provenance and add the separate DeviceAuditEvent.subject_member attribution. Preserve both during ordinary member operations; explicit account erasure clears only the identifying subject and leaves the actor/set-null policy unchanged."
+    "migration": "Keep the existing device/user actor provenance and add the separate DeviceAuditEvent.subject_member attribution. Preserve both during ordinary member operations; explicit account erasure clears only the identifying subject and leaves the actor/set-null policy unchanged.",
+    "evidence": [
+      "prisma/schema.prisma: model DeviceAuditEvent",
+      "src/lib/household-member-lifecycle.ts",
+      "src/lib/device-audit.ts"
+    ],
+    "disposition": "partial-separate-member-attribution",
+    "remaining": "Schema/source carries separate same-household subject_member_id and sticky erasure tombstone while retaining the User actor. Full writer/reader coverage, device/private boundaries and lifecycle acceptance remain open."
   },
   {
     "relation": "DevicePairing.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model DevicePairing"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "EarnedBadge.user",
     "fields": ["user_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model EarnedBadge"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "EmergencyContact.person",
     "fields": ["person_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model EmergencyContact"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Event.creator",
     "fields": ["created_by"],
     "kind": "actor-and-member",
-    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution.",
+    "evidence": [
+      "prisma/schema.prisma: model Event"
+    ],
+    "disposition": "retain-actor-defer-separate-attribution",
+    "remaining": "Keep the real account actor; separate profile attribution is not present for this operation. Define the member field without replacing actor/authorization or transferring accepted history."
   },
   {
     "relation": "FamilyGoal.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model FamilyGoal"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "FamilyInvite.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model FamilyInvite"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "FamilyLocation.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model FamilyLocation"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "FamilyMeal.cook",
     "fields": ["cook_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model FamilyMeal"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "FamilyMeal.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model FamilyMeal"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "GrocerySectionPreference.updater",
     "fields": ["updated_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model GrocerySectionPreference"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Habit.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Habit"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "HabitLog.user",
     "fields": ["user_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model HabitLog"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Handoff.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Handoff"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "HouseholdDevice.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model HouseholdDevice"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "HouseholdMember.erasure_account",
     "fields": ["erasure_user_id"],
     "kind": "account",
-    "migration": "Private erasure provenance for a detached archived profile, never a login/access grant or shared DTO. Ownership is established only while account and profile share a household, cannot transfer, and survives account household changes solely to remove copied identifying data on permanent account erasure. Future member-subject erasure ledger remains required before activation."
+    "migration": "Private erasure provenance for a detached archived profile, never a login/access grant or shared DTO. Ownership is established only while account and profile share a household, cannot transfer, and survives account household changes solely to remove copied identifying data on permanent account erasure. Future member-subject erasure ledger remains required before activation.",
+    "evidence": [
+      "prisma/schema.prisma: model HouseholdMember"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "HouseholdMemberAccountLink.user",
     "fields": ["user_id", "family_id"],
     "kind": "account",
-    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate."
+    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate.",
+    "evidence": [
+      "prisma/schema.prisma: model HouseholdMemberAccountLink",
+      "src/lib/profile-account-link.ts",
+      "src/lib/profile-account-link-gate.ts",
+      "docs/plans/profile-account-unlink.md"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "HouseholdMemberLegacyMapping.user",
     "fields": ["user_id", "family_id"],
     "kind": "account",
-    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate."
+    "migration": "Scoped real-account reference in the dormant identity foundation. Legacy mapping is compatibility only; active links require explicit owner verification. Account erasure removes this reference; profile archive/unlink and private authorization remain separate.",
+    "evidence": [
+      "prisma/schema.prisma: model HouseholdMemberLegacyMapping",
+      "src/lib/profile-account-link.ts",
+      "src/lib/profile-account-link-gate.ts",
+      "docs/plans/profile-account-unlink.md"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "HouseholdProfileLinkChallenge.claimant",
     "fields": ["claimed_by"],
     "kind": "account",
-    "migration": "Account whose owner explicitly reauthenticated to claim an existing profile. This is pending proof, not membership, permissions or a session. Account deletion cascades the challenge; confirmation rechecks household, role, verified email and session generation before any canonical link."
+    "migration": "Account whose owner explicitly reauthenticated to claim an existing profile. This is pending proof, not membership, permissions or a session. Account deletion cascades the challenge; confirmation rechecks household, role, verified email and session generation before any canonical link.",
+    "evidence": [
+      "prisma/schema.prisma: model HouseholdProfileLinkChallenge",
+      "src/lib/profile-account-link.ts",
+      "src/lib/profile-account-link-gate.ts",
+      "docs/plans/profile-account-unlink.md"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "HouseholdProfileLinkChallenge.issuer",
     "fields": ["issued_by"],
     "kind": "actor",
-    "migration": "Real parent who issued an expiring owner-proof challenge. Never a profile-selected actor. Account deletion cascades this credential record; loss of household, role or session generation invalidates outstanding proof. No raw token or password is stored."
+    "migration": "Real parent who issued an expiring owner-proof challenge. Never a profile-selected actor. Account deletion cascades this credential record; loss of household, role or session generation invalidates outstanding proof. No raw token or password is stored.",
+    "evidence": [
+      "prisma/schema.prisma: model HouseholdProfileLinkChallenge",
+      "src/lib/profile-account-link.ts",
+      "src/lib/profile-account-link-gate.ts",
+      "docs/plans/profile-account-unlink.md"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "IdempotencyRecord.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model IdempotencyRecord"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "ImportJob.starter",
     "fields": ["started_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model ImportJob"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "InventoryAdjustment.actor",
     "fields": ["actor_id"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model InventoryAdjustment"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "InventoryAdjustment.undoer",
     "fields": ["undone_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model InventoryAdjustment"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "InventoryItem.adder",
     "fields": ["added_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model InventoryItem"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "List.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model List"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ListItem.adder",
     "fields": ["added_by"],
     "kind": "actor-and-member",
-    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution.",
+    "evidence": [
+      "prisma/schema.prisma: model ListItem"
+    ],
+    "disposition": "retain-actor-defer-separate-attribution",
+    "remaining": "Keep the real account actor; separate profile attribution is not present for this operation. Define the member field without replacing actor/authorization or transferring accepted history."
   },
   {
     "relation": "ListItem.checker",
     "fields": ["checked_by"],
     "kind": "actor-and-member",
-    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution."
+    "migration": "Keep authenticated User/device principal and add separate household member attribution for supported shared operations; neither replaces the other. Preserve both during ordinary profile operations; explicit permanent erasure follows reviewed per-domain privacy rules without false attribution.",
+    "evidence": [
+      "prisma/schema.prisma: model ListItem"
+    ],
+    "disposition": "retain-actor-defer-separate-attribution",
+    "remaining": "Keep the real account actor; separate profile attribution is not present for this operation. Define the member field without replacing actor/authorization or transferring accepted history."
   },
   {
     "relation": "MealBatch.cook",
     "fields": ["cook_id"],
     "kind": "member",
-    "migration": "Retain the current account cook reference for compatibility; clear on membership removal or account erasure. Future canonical profile mapping must preserve dish history and never create a login from a member."
+    "migration": "Retain the current account cook reference for compatibility; clear on membership removal or account erasure. Future canonical profile mapping must preserve dish history and never create a login from a member.",
+    "evidence": [
+      "prisma/schema.prisma: model MealBatch"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "MealBatchConsumption.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep original authenticated actor and eaten portion history during membership/profile changes; permanent User erasure clears the nullable reference without transferring authorship."
+    "migration": "Keep original authenticated actor and eaten portion history during membership/profile changes; permanent User erasure clears the nullable reference without transferring authorship.",
+    "evidence": [
+      "prisma/schema.prisma: model MealBatchConsumption"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "MealPlan.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model MealPlan"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "MealPrepSession.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep original authenticated actor during membership/profile changes; permanent User erasure clears the nullable reference without transferring authorship."
+    "migration": "Keep original authenticated actor during membership/profile changes; permanent User erasure clears the nullable reference without transferring authorship.",
+    "evidence": [
+      "prisma/schema.prisma: model MealPrepSession"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Medication.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Medication"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Medication.person",
     "fields": ["person_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model Medication"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Message.sender",
     "fields": ["sender_id"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Message"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "MessageAttachment.uploader",
     "fields": ["uploaded_by"],
     "kind": "actor",
-    "migration": "Keep authenticated uploader provenance during profile archive/link/unlink; a name-only profile cannot upload or authenticate. Permanent account erasure removes attachments belonging to erased messages and clears the nullable uploader link on surviving household-owned files through ON DELETE SET NULL. Never transfer uploader identity to a successor. Household erasure removes attachment rows and private files."
+    "migration": "Keep authenticated uploader provenance during profile archive/link/unlink; a name-only profile cannot upload or authenticate. Permanent account erasure removes attachments belonging to erased messages and clears the nullable uploader link on surviving household-owned files through ON DELETE SET NULL. Never transfer uploader identity to a successor. Household erasure removes attachment rows and private files.",
+    "evidence": [
+      "prisma/schema.prisma: model MessageAttachment"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Notification.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model Notification"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "ParentElevationPin.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model ParentElevationPin"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "Pickup.assignee",
     "fields": ["assigned_to"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model Pickup"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Pickup.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Pickup"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "PinnedNote.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model PinnedNote"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Project.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Project"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ProjectTask.assignee",
     "fields": ["assigned_to"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model ProjectTask"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "PushSubscription.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model PushSubscription"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "Recipe.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Recipe"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Reward.approver",
     "fields": ["approved_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Reward"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "Reward.claimer",
     "fields": ["claimed_by"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model Reward"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Reward.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Reward"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "RewardRedemption.approver",
     "fields": ["approved_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model RewardRedemption"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "RewardRedemption.requester",
     "fields": ["requested_by"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model RewardRedemption"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "RoutineStack.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "RoutineStack.created_by is nullable and uses ON DELETE SET NULL: preserve the historical authenticated creator during ordinary profile archive/link/unlink operations; only permanent account erasure clears this actor pointer. Never replace the creator or transfer earned credit."
+    "migration": "RoutineStack.created_by is nullable and uses ON DELETE SET NULL: preserve the historical authenticated creator during ordinary profile archive/link/unlink operations; only permanent account erasure clears this actor pointer. Never replace the creator or transfer earned credit.",
+    "evidence": [
+      "prisma/schema.prisma: model RoutineStack"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ShoppingList.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model ShoppingList"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "SickDay.creator",
     "fields": ["created_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model SickDay"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "SickDay.person",
     "fields": ["person_id"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model SickDay"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "Transaction.user",
     "fields": ["user_id"],
     "kind": "account",
-    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links."
+    "migration": "Keep real User account scope; name-only profiles receive no credential, delivery subscription, private account access or session. Profile archive/unlink is distinct from permanent account erasure; preserve existing personal/account deletion rules and remove erased links.",
+    "evidence": [
+      "prisma/schema.prisma: model Transaction"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "Upload.uploader",
     "fields": ["uploaded_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model Upload"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "WishlistItem.requester",
     "fields": ["requested_by"],
     "kind": "member",
-    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login."
+    "migration": "Add canonical member ownership while retaining legacy compatibility columns and history during migration and profile operations; unlink removes the active account link without changing the historical member identity. Explicit permanent erasure needs reviewed per-domain erase/anonymize/retain rules; never transfer earned credit. A member alone is never a login.",
+    "evidence": [
+      "prisma/schema.prisma: model WishlistItem"
+    ],
+    "disposition": "defer-canonical-member-subject",
+    "remaining": "Canonical HouseholdMember subject is absent from this model; retain existing User representation until an additive dual-write/read, lifecycle, history and client compatibility slice is implemented and accepted. No profile parity is claimed."
   },
   {
     "relation": "WishlistItem.status_changer",
     "fields": ["status_changed_by"],
     "kind": "actor",
-    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor."
+    "migration": "Keep authenticated User provenance during profile archive/link/unlink. Explicit permanent erasure follows the reviewed per-domain clearing/redaction or household ownership handover rules; never treat a successor as the original actor.",
+    "evidence": [
+      "prisma/schema.prisma: model WishlistItem"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "AiUsageRequest.user",
     "fields": ["user_id"],
     "kind": "actor",
-    "migration": "Authenticated account that reserved the AI job, never a profile subject. Keep content-free household quota/cost history; permanent User deletion sets only user_id to null through its SetNull FK. Household deletion removes the usage rows. No prompts, names, model output or provider credentials belong here."
+    "migration": "Authenticated account that reserved the AI job, never a profile subject. Keep content-free household quota/cost history; permanent User deletion sets only user_id to null through its SetNull FK. Household deletion removes the usage rows. No prompts, names, model output or provider credentials belong here.",
+    "evidence": [
+      "prisma/schema.prisma: model AiUsageRequest"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ResponsibilityState.backupAccount",
     "fields": ["backup_account_id", "family_id"],
     "kind": "member",
-    "migration": "Account-backed proposed backup, separate from the signed-in decision actor. Archive/link changes require fresh canonical review. Account erasure cascades consent metadata, without assigning the canonical task or inventing acceptance by another person."
+    "migration": "Account-backed proposed backup, separate from the signed-in decision actor. Archive/link changes require fresh canonical review. Account erasure cascades consent metadata, without assigning the canonical task or inventing acceptance by another person.",
+    "evidence": [
+      "prisma/schema.prisma: model ResponsibilityState",
+      "src/lib/responsibility-runtime.ts",
+      "src/lib/responsibility-state-store.ts",
+      "src/lib/responsibility.ts"
+    ],
+    "disposition": "partial-separate-consent-member-subject",
+    "remaining": "Consent metadata has distinct account/profile subject fields and authenticated decision actors. This is not a migration of canonical Pickup/Chore/Handoff ownership or a grant of authority; source/race/rollback/old-client acceptance remains open."
   },
   {
     "relation": "ResponsibilityState.backupActor",
     "fields": ["backup_by_id", "family_id"],
     "kind": "actor",
-    "migration": "Authenticated account that recorded the backup decision, separate from subject/coordinator. Parent-recorded profile answers remain explicitly attributed to the parent. Permanent account erasure cascades consent metadata and never transfers an accepted decision."
+    "migration": "Authenticated account that recorded the backup decision, separate from subject/coordinator. Parent-recorded profile answers remain explicitly attributed to the parent. Permanent account erasure cascades consent metadata and never transfers an accepted decision.",
+    "evidence": [
+      "prisma/schema.prisma: model ResponsibilityState"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
     "relation": "ResponsibilityState.coordinator",
     "fields": ["coordinator_id", "family_id"],
     "kind": "account",
-    "migration": "Signed-in household coordinator, never inferred from a selected profile. Archive retains consent metadata but current permission is renewed before action; permanent deletion of this account cascades the consent row rather than assigning its acceptance to a successor. Canonical target ownership is separate."
+    "migration": "Signed-in household coordinator, never inferred from a selected profile. Archive retains consent metadata but current permission is renewed before action; permanent deletion of this account cascades the consent row rather than assigning its acceptance to a successor. Canonical target ownership is separate.",
+    "evidence": [
+      "prisma/schema.prisma: model ResponsibilityState"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Retain existing real-account scope. Profile selection must not grant authentication, delivery or private access. Current source classification is not runtime/lifecycle acceptance."
   },
   {
     "relation": "ResponsibilityState.primaryAccount",
     "fields": ["primary_subject_account_id", "family_id"],
     "kind": "member",
-    "migration": "Account-backed primary subject of this exact responsibility consent, separate from the authenticated decision actor and canonical target. Never translate a matching name into identity. Account erasure cascades this metadata; do not transfer an old acceptance to a successor."
+    "migration": "Account-backed primary subject of this exact responsibility consent, separate from the authenticated decision actor and canonical target. Never translate a matching name into identity. Account erasure cascades this metadata; do not transfer an old acceptance to a successor.",
+    "evidence": [
+      "prisma/schema.prisma: model ResponsibilityState",
+      "src/lib/responsibility-runtime.ts",
+      "src/lib/responsibility-state-store.ts",
+      "src/lib/responsibility.ts"
+    ],
+    "disposition": "partial-separate-consent-member-subject",
+    "remaining": "Consent metadata has distinct account/profile subject fields and authenticated decision actors. This is not a migration of canonical Pickup/Chore/Handoff ownership or a grant of authority; source/race/rollback/old-client acceptance remains open."
   },
   {
     "relation": "ResponsibilityState.primaryActor",
     "fields": ["primary_by_id", "family_id"],
     "kind": "actor",
-    "migration": "Authenticated account that recorded the primary decision; profile presentation never confers this authority. Preserve exact actor/method provenance while present. Permanent account erasure cascades the consent row; never rewrite the historical decision as a successor action."
+    "migration": "Authenticated account that recorded the primary decision; profile presentation never confers this authority. Preserve exact actor/method provenance while present. Permanent account erasure cascades the consent row; never rewrite the historical decision as a successor action.",
+    "evidence": [
+      "prisma/schema.prisma: model ResponsibilityState"
+    ],
+    "disposition": "retain-authenticated-actor",
+    "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   }
 ]

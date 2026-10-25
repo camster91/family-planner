@@ -2136,3 +2136,20 @@ receipt inspection, durable recovery and upload-retry identity are still outside
 this mounted-send slice. Source time-boundary/API/UI fixtures are authored/adapted
 but unrun. QA, real lock/retention/clock/lifecycle behavior, compatibility and all
 release acceptance remain open. No runtime, database or external activation ran.
+
+### Member relationship dispositions — 2026-10-25 (documentation only)
+
+#480's canonical member-relation-inventory.json now records disposition, source
+pointers and remaining work on all80 current User-FK rows. Historical64+3
+foundation coverage is preserved; the plan names13 later additions rather than
+claiming the old67 is the current count. The separate member-subject inventory
+has nine rows. Current source has six partial relationships (Chore and
+ChoreAssignment subjects, Activity/DeviceAuditEvent attribution, and two
+ResponsibilityState consent subjects); presence is not migrated-domain parity.
+The remaining member-subject models lack canonical member relations and remain
+explicitly deferred. Real actor/account retention is intentional. The plan
+corrects DeviceAuditEvent's grouping and adds MealBatch/consent subjects, keeps
+ChoreAssignment's required User FK distinct from gated name-only Chore source,
+and preserves non-FK/rotation/XP/history/link/unlink/privacy/old-client work.
+Only publication of the disposition inventory is reconciled; no checker, QA,
+DB, activation or release ran. #480 and its implementation/acceptance remain open.

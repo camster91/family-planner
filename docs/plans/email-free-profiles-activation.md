@@ -86,7 +86,27 @@ Before changing a domain, record the exact source SHA, schema migration, capabil
 
 Do not make `User.email` nullable, generate a synthetic email, reuse `assigned_to` for two ID types, make required legacy owners nullable, or create a second roster. Do not expose protocol 2 while only a subset of readers has been migrated.
 
-The existing schema inventory has **64 original explicit User-owned relationships**. The current checker has **67 rows** because the dormant foundation adds three account-owned provenance relationships: `HouseholdMember.erasure_account`, `HouseholdMemberLegacyMapping.user` and `HouseholdMemberAccountLink.user`. Inventory coverage is a prerequisite, not proof that a relationship is migrated.
+The baseline inventory has **64 original explicit User-owned relationships**.
+The current local inventory has **80 rows**: the original64, three foundation
+account-provenance rows, and13 subsequent relationships. The three foundation
+rows are `HouseholdMember.erasure_account`,
+`HouseholdMemberLegacyMapping.user` and `HouseholdMemberAccountLink.user`.
+The13 later rows are `RoutineStack.creator`, `MealPrepSession.creator`,
+`MealBatch.cook`, `MealBatchConsumption.creator`, `MessageAttachment.uploader`,
+`HouseholdProfileLinkChallenge.issuer`, `HouseholdProfileLinkChallenge.claimant`,
+`AiUsageRequest.user`, and the five `ResponsibilityState` User relationships.
+These are current source/inventory facts, not an executed checker result.
+
+[The canonical relationship inventory](../architecture/member-relation-inventory.json)
+now gives every row its identity classification, migration policy, current
+`disposition`, source `evidence` and `remaining` work. `retain-account-identity`
+and `retain-authenticated-actor` are deliberate ownership decisions, not profile
+migration or completed erasure claims. `defer-canonical-member-subject` means no
+canonical profile subject exists in that model. `partial-*` means the identified
+source exists but the named domain/lifecycle/client work remains open. The
+separate [nine-row member-FK inventory](../architecture/member-subject-inventory.json)
+describes additive composite profile relations, not nine activated domains.
+No schema scanner, tests, database or runtime acceptance ran in this source pass.
 
 ### 1. Add canonical subjects without breaking account readers
 
@@ -152,7 +172,12 @@ No member-only writer may fall back to the logged-in parent, a matching User nam
 
 ## User relationship inventory and migration rules
 
-The 64 original relationships below are the complete explicit User-FK surface in the reviewed inventory. Each must receive an owner, read/write plan and erasure decision before protocol 2 or production backfill. The current 67-row inventory additionally covers the three dormant foundation account provenance rows named above.
+The original64 relationships below are retained as the historical baseline.
+They are not the entire current User-FK surface: use the80-row canonical JSON
+inventory for current ownership, disposition, source pointers and remaining work.
+The grouped tables below include the current member-subject additions. Every
+partial/deferred row still needs its named implementation and acceptance before
+claiming all-domain profile parity or production activation.
 
 ### Member subjects — add canonical member ownership
 
@@ -166,6 +191,9 @@ These relationships represent the household person receiving, owning or being de
 | `ChoreAssignment.assignee`   | `assigned_to`  | occurrence subject, completion/credit history        |
 | `EarnedBadge.user`           | `user_id`      | badge subject, earned history and no credit transfer |
 | `EmergencyContact.person`    | `person_id`    | member DTO/private boundary and erasure policy       |
+| `MealBatch.cook`            | `cook_id`      | batch cook subject; independent from authenticated prep/consumption actor |
+| `ResponsibilityState.primaryAccount` | `primary_subject_account_id` | separate profile field exists for consent only; canonical task ownership is unchanged |
+| `ResponsibilityState.backupAccount` | `backup_account_id` | separate profile field exists for consent only; canonical task ownership is unchanged |
 | `FamilyMeal.cook`            | `cook_id`      | cook subject and meal history                        |
 | `HabitLog.user`              | `user_id`      | habit subject, streak history and erasure policy     |
 | `Medication.person`          | `person_id`    | private subject, role/privacy and erasure ledger     |
@@ -182,6 +210,7 @@ These records need a separate canonical subject/attribution field while retainin
 
 | Relation                    | User field     | Required separation                             |
 | --------------------------- | -------------- | ----------------------------------------------- |
+| `DeviceAuditEvent.actor`    | `actor_user_id` | account/device actor retained; separate member subject and erasure tombstone exist |
 | `Activity.user`             | `user_id`      | actor/session versus member attribution         |
 | `ChoreAssignment.completer` | `completed_by` | device/personal actor versus completed subject  |
 | `Event.creator`             | `created_by`   | actor provenance versus optional member context |
@@ -194,7 +223,7 @@ The existing removal policy may clear nullable account actor references under it
 
 These are provenance, creator, approver, sender, uploader or administrative actor fields. A name-only profile must not substitute for them or gain their authority.
 
-`Allowance.from_user.from_user_id`; `Anniversary.creator.created_by`; `AuditLog.actor.actor_user_id`; `BudgetCategory.creator.created_by`; `CalendarSubscription.creator.created_by`; `Chore.creator.created_by`; `ChoreAssignment.approver.approved_by`; `DeviceAuditEvent.actor.actor_user_id`; `DevicePairing.creator.created_by`; `FamilyGoal.creator.created_by`; `FamilyInvite.creator.created_by`; `FamilyMeal.creator.created_by`; `GrocerySectionPreference.updater.updated_by`; `Habit.creator.created_by`; `Handoff.creator.created_by`; `HouseholdDevice.creator.created_by`; `ImportJob.starter.started_by`; `InventoryAdjustment.actor.actor_id`; `InventoryAdjustment.undoer.undone_by`; `InventoryItem.adder.added_by`; `List.creator.created_by`; `MealPlan.creator.created_by`; `Medication.creator.created_by`; `Message.sender.sender_id`; `Pickup.creator.created_by`; `PinnedNote.creator.created_by`; `Project.creator.created_by`; `Recipe.creator.created_by`; `Reward.approver.approved_by`; `Reward.creator.created_by`; `RewardRedemption.approver.approved_by`; `ShoppingList.creator.created_by`; `SickDay.creator.created_by`; `Upload.uploader.uploaded_by`; and `WishlistItem.status_changer.status_changed_by`.
+`Allowance.from_user.from_user_id`; `Anniversary.creator.created_by`; `AuditLog.actor.actor_user_id`; `BudgetCategory.creator.created_by`; `CalendarSubscription.creator.created_by`; `Chore.creator.created_by`; `ChoreAssignment.approver.approved_by`; `DevicePairing.creator.created_by`; `FamilyGoal.creator.created_by`; `FamilyInvite.creator.created_by`; `FamilyMeal.creator.created_by`; `GrocerySectionPreference.updater.updated_by`; `Habit.creator.created_by`; `Handoff.creator.created_by`; `HouseholdDevice.creator.created_by`; `ImportJob.starter.started_by`; `InventoryAdjustment.actor.actor_id`; `InventoryAdjustment.undoer.undone_by`; `InventoryItem.adder.added_by`; `List.creator.created_by`; `MealPlan.creator.created_by`; `Medication.creator.created_by`; `Message.sender.sender_id`; `Pickup.creator.created_by`; `PinnedNote.creator.created_by`; `Project.creator.created_by`; `Recipe.creator.created_by`; `Reward.approver.approved_by`; `Reward.creator.created_by`; `RewardRedemption.approver.approved_by`; `ShoppingList.creator.created_by`; `SickDay.creator.created_by`; `Upload.uploader.uploaded_by`; and `WishlistItem.status_changer.status_changed_by`.
 
 Each actor field keeps its existing family and authorization checks. If a product later needs “created for member” or “approved for member,” add a separately named member attribution field rather than changing the actor column.
 
@@ -202,7 +231,28 @@ Each actor field keeps its existing family and authorization checks. If a produc
 
 These relationships must remain tied to a real login account and must not be included in name-only/shared profile selection: `AppFeedback.user.user_id`, `CalendarConnection.user.user_id`, `CalendarOAuthState.user.user_id`, `FamilyLocation.user.user_id`, `IdempotencyRecord.user.user_id`, `Notification.user.user_id`, `ParentElevationPin.user.user_id`, `PushSubscription.user.user_id` and `Transaction.user.user_id`.
 
-The current inventory's other three account rows are foundation provenance and are handled separately: `HouseholdMember.erasure_account.erasure_user_id`, `HouseholdMemberLegacyMapping.user.(user_id,family_id)` and `HouseholdMemberAccountLink.user.(user_id,family_id)`. Mapping/link rows never become shared DTOs, login credentials, AI context or elevation proof.
+The three foundation account rows are provenance and are handled separately: `HouseholdMember.erasure_account.erasure_user_id`, `HouseholdMemberLegacyMapping.user.(user_id,family_id)` and `HouseholdMemberAccountLink.user.(user_id,family_id)`. Mapping/link rows never become shared DTOs, login credentials, AI context or elevation proof.
+
+The later source rows retain the same separation: `RoutineStack.creator`,
+`MealPrepSession.creator`, `MealBatchConsumption.creator`,
+`MessageAttachment.uploader`, `HouseholdProfileLinkChallenge.issuer`,
+`AiUsageRequest.user` and `ResponsibilityState.primaryActor`/`backupActor`
+remain authenticated actors. `HouseholdProfileLinkChallenge.claimant` remains
+pending real-account proof; `ResponsibilityState.coordinator` remains an
+account-scoped coordinator. Profile consent subjects are separate fields and
+never replace canonical pickup/chore ownership. `MealBatch.cook` remains a
+member-subject migration gap; a parent recording a meal consumption is an actor,
+not proof of who cooked or ate it.
+
+Current partial source has six explicitly distinguished rows: chore subject,
+account-backed assignment subject, Activity and DeviceAuditEvent attribution,
+and primary/backup responsibility consent subjects. In particular,
+`ChoreAssignment.assigned_to` is still required, while gated profile-only Chore
+rows use `assigned_to: null`. Do not describe chore completion as full
+assignment/XP/badge/reward parity. Activity/audit subject presence does not prove
+all writers populate it. Account unlink/rejoin remains separately unfinished in
+[its current contract](profile-account-unlink.md). All other member subjects
+remain deferred; account and actor retention is intentional.
 
 ### Non-FK identity surfaces
 

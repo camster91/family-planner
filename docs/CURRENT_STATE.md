@@ -24,7 +24,7 @@ preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only and consolidated the full #105 final-
 candidate packet into #377 as duplicate tracking, leaving **39 open issues**.
 #105 closure does not mark any acceptance item done.
-Eleven documentation-only criteria are now reconciled in #134/#140/#146/#254/#563; all
+Twelve documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
 
@@ -54,19 +54,19 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds an original-send time window to
-owned chat writes (#135). The mounted client keeps original request bytes,
-issued_at and key together across edits/unknown replies. Retries stop after24h
-(or a shorter fraction of canonical receipt retention), and far-future/invalid
-clock values refuse. The strict send endpoint requires issued_at; legacy bodies
-without it remain supported. Supplied times are checked before idempotency and
-again under live actor/household locks and before creating a message. Seven-day
-receipt retention is unchanged. EN/ES held-draft recovery asks people to check
-the conversation/device clock before explicitly allowing a new send; that control
-never dispatches. Boundary/API/edit-return/aged-retry source cases authored or
-adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
-deploy ran.39 issues remain open; no persistent chat queue, receipt inspection,
-process-death recovery, rendered behavior or runtime acceptance is claimed.
+Latest bounded source work (2026-10-25) reconciles #480's canonical member
+relationship disposition. The existing JSON inventory has80 User-FK rows, not
+the stale67 in prose; all now include classification/policy plus current
+disposition, source evidence and remaining work. The plan names13 additions
+beyond the67-row foundation, the separate nine member-FK rows, and six partial
+source relationships. Gated profile Chore rows are distinct from account-backed
+ChoreAssignment rows whose assigned_to remains required. Actor/account retention
+is intentional; broader member/XP/rotation/private-domain migration and non-FK
+identity surfaces remain open. Only inventory publication is reconciled in the
+issue; no all-domain migration or activation acceptance is claimed. No QA/test/
+check/build/scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.
+39 issues remain open. The prior original-send time-window source is retained;
+its runtime/clock/retention/compatibility acceptance remains deferred.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
