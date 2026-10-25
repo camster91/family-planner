@@ -2153,3 +2153,41 @@ ChoreAssignment's required User FK distinct from gated name-only Chore source,
 and preserves non-FK/rotation/XP/history/link/unlink/privacy/old-client work.
 Only publication of the disposition inventory is reconciled; no checker, QA,
 DB, activation or release ran. #480 and its implementation/acceptance remain open.
+## Dormant routine writeback adapter — 2026-10-25
+
+`rewriteRoutineSubjectsForUnlinkInTx` in
+`src/lib/routine-subject-unlink-write.ts` now composes fresh bounded preparation
+with routine-only writeback. It accepts an internal transaction and exact
+association, never a caller-supplied ready plan. It grants no authority and has
+no production endpoint/UI/link/account caller. The future complete unlink
+command must first hold sorted participant User locks then the household lock,
+renew the association/proof/review/capability, and support all other domains.
+
+Before any effect, it checks every affected stack's storage and locked ID,
+household, version and byte metadata. Missing/foreign/duplicate/inconsistent
+stacks hold; revisions at Int32 exhaustion hold rather than clamp. Stack label
+and config payloads each cap at64KiB and their combined aggregate at4MiB before
+JSON transfer. This stack budget is separate from the root reader's4MiB budget;
+neither is a total memory/SQL/latency claim. Null schedule_config preserves a
+legacy current-occurrence stack. Unsupported non-null definitions or a known
+stack definition that omits a rewritten root hold the entire routine slice.
+
+After all preparation succeeds, only each root's future routine_series_config
+changes, under a scoped root/revision comparison. Its schedule/state/content,
+stable member and canonical row IDs remain as prepared; occurrence assignment,
+completion/credit/actor fields are untouched. Each unique affected stack gets
+one new version and the existing lifecycle-style SHA-256 review fingerprint.
+Stack schedule/label remain unchanged. Failed root or stack update counts throw
+`RoutineSubjectUnlinkWriteConflict`; the future outer transaction MUST propagate
+that error and roll back all domains. Held results occur only before writes.
+Internal applied counts are not an unlink receipt or ownership proof.
+
+Source regression cases cover shared-stack invalidation once, paused definition
+and points preservation, no occurrence/alias/credit writes, incomplete inventory,
+foreign/oversized/exhausted stack metadata before JSON/effects, unknown config,
+and failed root/stack compare refusal. They are authored/unrun. No PostgreSQL
+transaction or rollback, source check, test, API, identity mutation, activation
+or deployment ran. This adapter supplies routine writeback only: former-account
+provenance, credit/Undo and all-domain disposition, owner-proof/snapshot/receipt,
+canonical unlink UI/endpoint and old/new-client acceptance remain unfinished.
+

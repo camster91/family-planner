@@ -54,19 +54,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) reconciles #480's canonical member
-relationship disposition. The existing JSON inventory has80 User-FK rows, not
-the stale67 in prose; all now include classification/policy plus current
-disposition, source evidence and remaining work. The plan names13 additions
-beyond the67-row foundation, the separate nine member-FK rows, and six partial
-source relationships. Gated profile Chore rows are distinct from account-backed
-ChoreAssignment rows whose assigned_to remains required. Actor/account retention
-is intentional; broader member/XP/rotation/private-domain migration and non-FK
-identity surfaces remain open. Only inventory publication is reconciled in the
-issue; no all-domain migration or activation acceptance is claimed. No QA/test/
+Latest bounded source work (2026-10-25) adds #557's dormant routine-only
+unlink writeback adapter. It freshly prepares the complete bounded future-root
+inventory, preflights all affected stack storage/ownership/version/byte/config
+metadata before effects, rewrites future definitions, and invalidates each stack
+review once. Failed root/stack comparisons throw for the future enclosing
+identity transaction to roll back; held results precede writes. No production
+endpoint/UI/link/account command calls it. No link, mapping, occurrence, credit
+or actor mutation is introduced. Source cases are authored/unrun; no QA/test/
 check/build/scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.
-39 issues remain open. The prior original-send time-window source is retained;
-its runtime/clock/retention/compatibility acceptance remains deferred.
+Standalone unlink's provenance, all-domain/credit/Undo, owner-proof/review/receipt,
+canonical command/UI and client/rollback acceptance remain open.39 issues remain.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

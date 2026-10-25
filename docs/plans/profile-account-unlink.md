@@ -1,6 +1,6 @@
 # Completed profile/account unlink and rejoin — #557 / #480
 
-2026-10-24 source-backed design. Status: a dormant pure routine adapter and bounded transaction-reader helper are authored; the full implementation contract remains proposed;
+2026-10-24 source-backed design. Status: dormant pure routine preparation, bounded transaction-reader and routine-only writeback helpers are authored; the full unlink command remains proposed;
 standalone unlink is **not implemented or activated**. No test, browser, migration,
 account mutation, provider call or production action ran. Keep #557 open.
 
@@ -12,7 +12,7 @@ account mutation, provider call or production action ran. Keep #557 open.
 | `attachSubjects` in `profile-account-link.ts` | Creates both AccountLink and LegacyMapping, fills canonical chore aliases, rewrites routine future subjects and increments profile revision | Removing only AccountLink leaves mapping-based identity active; removing both without domain reconciliation loses compatibility |
 | `chore-member-subject.ts` | Resolves both mappings and links; canonical-required callers refuse an unmapped account | Account assignment behavior after unlink must be explicit, including installed clients |
 | `chore-profile-assignee.ts`, `household-profile-http.ts` | Name-only eligibility requires no mapping/link, no archive and no erasure provenance | Setting erasure_user_id as a shortcut would make the supposedly active unlinked profile ineligible |
-| `routine-subject-lifecycle.ts`, `routine-subject-unlink.ts` | Existing link/invalidate/erase transactions remain unchanged; pure unlink preflight adapter now authored, not connected | Exact known account+profile aliases convert to the same stable profile with a new revision; ambiguous/unsupported definitions hold the whole future unlink |
+| `routine-subject-lifecycle.ts`, `routine-subject-unlink.ts`, `routine-subject-unlink-write.ts` | Existing link/invalidate/erase transactions remain unchanged; pure unlink preflight and routine-only writeback adapter authored, not connected | Exact known account+profile aliases convert to the same stable profile with a new revision; ambiguous/unsupported definitions hold the whole future unlink |
 | `household-member-lifecycle.ts` | Member removal archives profiles; private erasure_user_id identifies detached archived copies for later account deletion | Removal changes household access/archive state. It cannot substitute for standalone unlink while preserving an active household profile |
 | `chore-complete.ts`, `chore-profile-actions.ts` | Account-backed completion/credit and profile completion use distinct paths | Alias cleanup must not duplicate credit, prevent a legitimate reversal, or transfer prior awards to another account |
 
@@ -136,6 +136,44 @@ cases are also authored/unrun, including metadata-first size limits, overflow,
 malformed sizes and changed JSON inventory. There is no call from existing identity
 transactions, endpoint, UI, database/schema change, permission change or activation. This adapter alone is not a standalone unlink implementation or
 proof of account/member-domain/credit parity.
+
+## Dormant routine writeback adapter — 2026-10-25
+
+`rewriteRoutineSubjectsForUnlinkInTx` in
+`src/lib/routine-subject-unlink-write.ts` now composes fresh bounded preparation
+with routine-only writeback. It accepts an internal transaction and exact
+association, never a caller-supplied ready plan. It grants no authority and has
+no production endpoint/UI/link/account caller. The future complete unlink
+command must first hold sorted participant User locks then the household lock,
+renew the association/proof/review/capability, and support all other domains.
+
+Before any effect, it checks every affected stack's storage and locked ID,
+household, version and byte metadata. Missing/foreign/duplicate/inconsistent
+stacks hold; revisions at Int32 exhaustion hold rather than clamp. Stack label
+and config payloads each cap at64KiB and their combined aggregate at4MiB before
+JSON transfer. This stack budget is separate from the root reader's4MiB budget;
+neither is a total memory/SQL/latency claim. Null schedule_config preserves a
+legacy current-occurrence stack. Unsupported non-null definitions or a known
+stack definition that omits a rewritten root hold the entire routine slice.
+
+After all preparation succeeds, only each root's future routine_series_config
+changes, under a scoped root/revision comparison. Its schedule/state/content,
+stable member and canonical row IDs remain as prepared; occurrence assignment,
+completion/credit/actor fields are untouched. Each unique affected stack gets
+one new version and the existing lifecycle-style SHA-256 review fingerprint.
+Stack schedule/label remain unchanged. Failed root or stack update counts throw
+`RoutineSubjectUnlinkWriteConflict`; the future outer transaction MUST propagate
+that error and roll back all domains. Held results occur only before writes.
+Internal applied counts are not an unlink receipt or ownership proof.
+
+Source regression cases cover shared-stack invalidation once, paused definition
+and points preservation, no occurrence/alias/credit writes, incomplete inventory,
+foreign/oversized/exhausted stack metadata before JSON/effects, unknown config,
+and failed root/stack compare refusal. They are authored/unrun. No PostgreSQL
+transaction or rollback, source check, test, API, identity mutation, activation
+or deployment ran. This adapter supplies routine writeback only: former-account
+provenance, credit/Undo and all-domain disposition, owner-proof/snapshot/receipt,
+canonical unlink UI/endpoint and old/new-client acceptance remain unfinished.
 
 ## Erasure, credit and compatibility decisions still required
 
