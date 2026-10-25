@@ -1705,3 +1705,12 @@ policy remain. Whole-history preload is removed; database scan cost/snapshots ar
 not claimed bounded. Index-plan next evidence is recorded in CORE_QUERY_PLAN.md;
 no index/schema/DB activation. Pure/disposable-PG source cases authored/unrun; full
 query/isolation/date/runtime/capacity acceptance stays open.
+
+### Chore profile hydration scope — 2026-10-24 (#134/#480)
+
+List/single-item API hydration extracted into `chore-profile-read.ts`: household+
+selected-ID predicates,200-ID batches, existing projection and strict unexpected/
+duplicate result refusal. Missing references remain null; archived history and
+canonical subject/protocol/action checks remain. No new profile authority, identity
+link, mutation, device DTO, flag or schema. Source cases authored/unrun; actual SQL
+fanout/plans, snapshot/isolation and broad profile/runtime acceptance stay open.

@@ -199,3 +199,24 @@ and its write/storage cost before any index migration. Cross-batch consistency i
 not a new snapshot guarantee. No index/schema/migration or database operation ran.
 Authored pure and guarded PostgreSQL source cases are unrun; real grouping/date/
 scoping equivalence and the broader N+1/capacity acceptance remain open.
+
+## Canonical chore profile hydration — 2026-10-24 (#134/#480, local source)
+
+Both list and single-item chore API reads now use `hydrateChoreProfileMembers`.
+Previously their local helper queried all selected profile IDs together, without
+a family predicate on `HouseholdMember`. New queries include the authenticated
+household and at most200 unique IDs, with `take` matching the batch length and
+only the existing subject/identity projection. Returned IDs/household/duplicates
+are checked; unexpected rows or later batch failure throw before any result map
+is exposed. Missing profile references remain null and reach the existing subject
+refusal path. Account-only inputs do not query the profile table.
+
+Archived profiles intentionally remain in this read for historical display.
+No active-membership filter or new linkage/credit/action policy is invented;
+`readChoreSubject`, profile protocol gates and canonical mutation/lifecycle checks
+continue to own those decisions. The helper is read-only and does not perform a
+new authority renewal or establish cross-query snapshot consistency. Relation
+fanout/query plans still need actual PostgreSQL observation; this payload/parameter
+bound is not full N+1 or household-isolation acceptance. No schema/index/DB change.
+Authored empty/deduplicated/archived/later-batch/missing/foreign/failure source cases
+are unrun. Original profile/queue/native/permission acceptance remains separate.

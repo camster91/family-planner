@@ -52,18 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work replaces the chores board's unbounded completion
-history preload with a grouped streak projection (#134/#137). Only displayed
-account assignees are queried in200-ID batches, returning at most seven distinct
-day markers per account with no chore title/body hydration. Parent/teen/child
-board data, profile-only exclusion, completed/verified status policy, consecutive
-count,3-day display threshold,7-day cap and existing server-local/UTC-key behavior
-remain. A single captured clock prevents a cross-midnight key shift within this
-read. Dense-day/database aggregation scan cost and across-batch snapshots are not
-claimed bounded or proved. Pure/guarded disposable-PostgreSQL source authored but
-unrun. No schema/index activation, QA/test/check/build/browser/CI/API/database/
-provider/native/push/merge/deploy ran. Full query audit/plans/capacity and original
-isolation/runtime acceptance remain open.
+Latest bounded source work scopes and batches canonical chore profile hydration
+for list and single-item API reads (#134/#480). The shared read helper requests
+only the authenticated household's selected profile IDs in200-ID batches with
+bounded projections and explicit ID/household/duplicate checks. Missing profiles
+remain null for existing downstream refusal policy; no partial result returns on
+a later read failure. Archived history stays readable and current subject/action/
+protocol/erasure checks remain in their canonical paths. No new membership,
+identity linkage, device field, flag, schema or permission. Regression source
+covers empty/account rows, deduplication, archived history, later batches, missing/
+foreign/invalid results and later failure; all unrun. No QA/test/check/build/browser/
+CI/API/database/provider/native/push/merge/deploy ran. Database query plans, actual
+isolation/runtime compatibility and full core-query/profile acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

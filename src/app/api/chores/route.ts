@@ -1,3 +1,4 @@
+import { hydrateChoreProfileMembers, type ProfileHydrated } from "@/lib/chore-profile-read";
 import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-source-proof'
 import { assistantDeleteTargetGuard } from '@/lib/assistant-delete-target'
 import { deletePersonRecord, authorizePersonDeleteReplay } from '@/lib/person-record-delete'
@@ -30,45 +31,6 @@ import { getRequestId } from '@/lib/request-id'
 import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 import { applyRotationEditInTx, rotationMembersInHousehold } from '@/lib/chore-rotation'
 import { profileChoreActionAvailability, profileChoreLegacyWriteRefusal, profileChoreReadRefusal, readChoreSubject } from '@/lib/chore-profile'
-
-type HydratedProfileMember = {
-  id: string
-  family_id: string
-  name: string
-  role: string
-  age: number | null
-  archived_at: Date | null
-  erasure_user_id: string | null
-  legacy_mapping: { user_id: string } | null
-  account_link: { user_id: string } | null
-}
-
-type ProfileHydrated<T> = T & { assigneeMember?: HydratedProfileMember | null }
-
-/** Hydrate only rows that carry a canonical profile subject. */
-async function hydrateProfileMembers<T extends { assigned_member_id?: string | null }>(rows: T[]): Promise<ProfileHydrated<T>[]> {
-  const memberIds = [...new Set(rows.flatMap((row) => (row.assigned_member_id != null ? [row.assigned_member_id] : [])))]
-  if (memberIds.length === 0) return rows.map((row) => ({ ...row, assigneeMember: undefined }))
-  const members = await prisma!.householdMember.findMany({
-    where: { id: { in: memberIds } },
-    select: {
-      id: true,
-      family_id: true,
-      name: true,
-      role: true,
-      age: true,
-      archived_at: true,
-      erasure_user_id: true,
-      legacy_mapping: { select: { user_id: true } },
-      account_link: { select: { user_id: true } },
-    },
-  })
-  const byId = new Map(members.map((member) => [member.id, member]))
-  return rows.map((row) => ({
-    ...row,
-    ...(row.assigned_member_id != null ? { assigneeMember: byId.get(row.assigned_member_id) ?? null } : {}),
-  }))
-}
 
 export const dynamic = 'force-dynamic'
 
@@ -147,7 +109,7 @@ async function handleGET(request: NextRequest) {
     const profileRead = profileChoreReadRefusal(request)
     const hasProfileRows = chores.some((row) => row.assigned_to === null && row.assigned_member_id != null)
     const rowsWithProfileMembers: ProfileHydrated<(typeof chores)[number]>[] = chores.some((row) => row.assigned_member_id != null)
-      ? await hydrateProfileMembers(chores)
+      ? await hydrateChoreProfileMembers(prisma!, auth.user.family_id, chores)
       : chores.map((row) => ({ ...row, assigneeMember: undefined }))
     if (hasProfileRows && profileRead) return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
     if (hasProfileRows && rowsWithProfileMembers.some((row) => row.assigned_to === null && row.assigned_member_id != null && !readChoreSubject(row, auth.user.family_id))) {
@@ -205,7 +167,7 @@ async function getOneChore(id: string, familyId: string, request: NextRequest) {
     (template ? template.rotation_member_ids : chore.recurrence_id === chore.id ? chore.rotation_member_ids : null) ?? []
   const profileRead = profileChoreReadRefusal(request)
   const hydrated: ProfileHydrated<typeof chore> = chore.assigned_member_id != null
-    ? (await hydrateProfileMembers([chore]))[0]
+    ? (await hydrateChoreProfileMembers(prisma!, familyId, [chore]))[0]
     : { ...chore, assigneeMember: undefined }
   if (chore.assigned_to === null && chore.assigned_member_id != null && profileRead) {
     return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
