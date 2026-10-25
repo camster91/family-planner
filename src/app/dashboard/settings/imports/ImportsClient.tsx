@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { duplicateSourceRows, type DuplicateSourceRow } from "@/lib/imports/source-identity-validation";
 import { useImportSettingsText, type ImportSettingsError } from "@/i18n/import-settings";
 import Link from "next/link";
@@ -12,6 +14,11 @@ import {
   Loader2,
   ShieldCheck,
 } from "lucide-react";
+
+const IMPORT_PREVIEW_TIMEOUT_MS = 15_000;
+// Existing canonical effect transactions allow60s, plus job/auth/transport work.
+const IMPORT_WRITE_TIMEOUT_MS = 90_000;
+const IMPORT_RESPONSE_BYTES = 16 * 1024 * 1024;
 
 type Source = "chore-champs" | "meal-planner" | "budget-app";
 
@@ -64,11 +71,14 @@ export default function ImportsClient() {
   const fileRequest = useRef(0);
   const operation = useRef(0);
   const pending = useRef(false);
+  const activeRequest = useRef<AbortController | null>(null);
   const fileReading = useRef(false);
   const reviewed = useRef<{ version: number; source: Source; body: string } | null>(null);
   useEffect(() => () => {
     fileRequest.current++;
     operation.current++;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
     reviewed.current = null;
   }, []);
 
@@ -142,17 +152,26 @@ export default function ImportsClient() {
     }
     pending.current = true;
     const own = ++operation.current;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true);
     setWriting(!dryRun);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/imports/${selectedSource}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-      });
-      const value: unknown = await response.json().catch(() => null);
+      const outcome = await runOwnedForeground(async signal => {
+        const response = await fetch(`/api/admin/imports/${selectedSource}`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body,
+          signal, cache: "no-store", credentials: "same-origin",
+        });
+        const value = await readBoundedJsonResponse(response, signal, IMPORT_RESPONSE_BYTES);
+        return { kind: 'reply' as const, response, value };
+      }, { signal: controller.signal, timeoutMs: dryRun ? IMPORT_PREVIEW_TIMEOUT_MS : IMPORT_WRITE_TIMEOUT_MS });
       if (own !== operation.current || version !== revision.current) return;
+      if (outcome.kind === 'unknown') {
+        setError(dryRun ? "failed" : "writeUnconfirmed");
+        return;
+      }
+      const { response, value } = outcome;
       if (!response.ok) {
         if (responseError(value) === 'invalidExport' && value && typeof value === 'object' && 'duplicateSourceIds' in value) {
           const rows = duplicateSourceRows.safeParse(value.duplicateSourceIds);
@@ -185,6 +204,7 @@ export default function ImportsClient() {
       if (own === operation.current && version === revision.current)
         setError(dryRun ? "failed" : "writeUnconfirmed");
     } finally {
+      if (activeRequest.current === controller) activeRequest.current = null;
       if (own === operation.current) { pending.current = false; setLoading(false); }
     }
   };

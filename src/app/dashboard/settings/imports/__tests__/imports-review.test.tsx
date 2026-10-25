@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 // Deferred source cases only; no import, database or runtime acceptance ran.
 import * as React from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ImportsClient from "../ImportsClient";
 const originalFetch = global.fetch;
 afterEach(() => { global.fetch = originalFetch; });
@@ -107,4 +107,55 @@ it('keeps the generic invalid-export error when duplicate diagnostic metadata is
   await screen.findByRole('alert');
   expect(screen.queryByText(/repeats an earlier source ID/)).toBeNull();
   expect(screen.queryByRole('checkbox')).toBeNull();
+});
+describe('bounded import transport source (unrun)', () => {
+  afterEach(() => { jest.useRealTimers(); });
+  it('releases a stalled preview without enabling approval', async () => {
+    jest.useFakeTimers();
+    global.fetch = jest.fn(async () => await new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+    render(<ImportsClient />);
+    choose(file('synthetic-stalled.json', async () => '{"fixture":true}'));
+    await screen.findByText('synthetic-stalled.json');
+    fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { jest.advanceTimersByTime(15_000); });
+    await screen.findByText(/Could not validate this import/);
+    expect((global.fetch as jest.Mock).mock.calls[0][1].signal.aborted).toBe(true);
+    expect((screen.getByRole('button', { name: 'Validate dry run' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+  it('keeps an abort-ignoring persistence body unknown and ignores its late success', async () => {
+    jest.useFakeTimers();
+    let finish!: (body: unknown) => void;
+    global.fetch = jest.fn(async (_url, init) => {
+      if (JSON.parse(String(init?.body)).dryRun) return response(preview);
+      return { ok: true, json: () => new Promise(resolve => { finish = resolve; }) };
+    }) as unknown as typeof fetch;
+    render(<ImportsClient />);
+    choose(file('synthetic-unknown.json', async () => '{"fixture":true}'));
+    await screen.findByText('synthetic-unknown.json');
+    fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+    await screen.findByRole('heading', { name: 'Reconciliation preview' });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Persist approved import' }));
+    await waitFor(() => expect(finish).toBeDefined());
+    await act(async () => { jest.advanceTimersByTime(90_000); });
+    await screen.findByText(/The import result could not be confirmed/);
+    expect((global.fetch as jest.Mock).mock.calls[1][1].signal.aborted).toBe(true);
+    expect((screen.getByRole('button', { name: 'Persist approved import' }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { finish({ ...preview, jobId: 'synthetic-late-job', plan: { late: 'late-success-must-stay-hidden' } }); });
+    expect(screen.queryByText(/late-success-must-stay-hidden/)).toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+  it('refuses a declared oversized preview before JSON decoding or approval', async () => {
+    const decode = jest.fn(async () => preview);
+    global.fetch = jest.fn(async () => ({ ok: true, headers: new Headers({ 'content-length': String(16 * 1024 * 1024 + 1) }), json: decode })) as unknown as typeof fetch;
+    render(<ImportsClient />);
+    choose(file('synthetic-large-reply.json', async () => '{"fixture":true}'));
+    await screen.findByText('synthetic-large-reply.json');
+    fireEvent.click(screen.getByRole('button', { name: 'Validate dry run' }));
+    await screen.findByText(/Could not validate this import/);
+    expect(decode).not.toHaveBeenCalled();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
 });

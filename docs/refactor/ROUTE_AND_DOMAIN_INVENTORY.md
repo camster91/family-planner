@@ -2313,3 +2313,16 @@ acceptance remain open.39 issues remain; the unlink product-choice question is
 still pending and no dependent identity/storage writer is implemented.
 
 Duplicate identity contract/recovery: docs/plans/import-review-ui.md.
+
+Latest bounded source work (2026-10-25) bounds ImportsClient fetch/reply work
+(#104/#135) with15second preview and90second explicit-write deadlines plus a16MiB
+JSON response cap. Unmount abort and existing operation/input guards retire late
+callbacks. Unknown writes stay unconfirmed with consumed approval; failed replies
+never arm preview and no automatic retry is added. Local file/map parsing costs,
+old-bridge allocation, proxy/native/process-death and actual server outcomes stay
+separate/unverified. Source cases are authored/adapted UNRUN; no QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; approved export/mapping/reconciliation and original import
+acceptance remain open. The unlink product-choice question is still pending.
+
+Request/deadline resource limitations: docs/plans/import-review-ui.md.

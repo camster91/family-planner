@@ -150,3 +150,44 @@ migration/native/provider/push/merge/deploy ran. Existing accepted mappings,
 approved #104 export/identity/count reconciliation, repeated/concurrent import,
 unknown outcomes, source-version conflicts and original rollback/role/rendered
 acceptance remain open. This is validation source, not completed #104 migration.
+
+## Bounded import request/reply handling — 2026-10-25
+
+ImportsClient now uses the shared owned foreground/stream-bounded JSON helpers
+for fetch and response decoding. Dry-run replies have a15second client deadline;
+explicit persistence replies use90seconds to allow the existing60second effect
+transaction plus job/auth/transport work. Both cap response bytes at16MiB.
+Unknown fetch/body/parse/oversize/deadline results never confirm a write or arm
+preview approval. Valid dense exports can still exceed the reply budget; that
+is explicit failed-preview/unconfirmed-write recovery, not a complete large-file
+support or capacity claim. Existing10MiB request/source validation is unchanged.
+Local file read, mapping parse and request serialization costs remain outside
+this request/reply deadline; this does not claim the whole import UI work is
+preemptible or that a synchronous parser cannot block the main thread.
+
+One original request/body/source is dispatched per explicit attempt. An owner
+AbortController is retired on unmount, while existing operation/input revisions
+prevent stale callbacks from changing current form/preview. Shared abort racing
+settles the mounted caller even if fetch/native JSON ignores AbortSignal.
+Streaming responses have a byte gate before full allocation; older JSON-only
+bridges have only post-parse size validation, so native allocation/lifecycle
+acceptance remains open. A timeout/abort is not server cancellation or rollback.
+It may occur before or after effects; no second write/review is sent automatically.
+
+The existing consumed-review policy is retained on every persistence attempt.
+An unknown outcome uses the existing EN/ES unconfirmed result and requires
+canonical record inspection/new dry-run review before another explicit write.
+A failed/malformed/timed-out preview never enables approval. Input/body/source
+freezing and server authority/generation checks are unchanged; no source file,
+identity map, pending import or receipt is persisted to browser storage. No new
+offline import action/queue or server scheduler is introduced.
+
+Source cases for stalled preview fetch, abort-ignoring persistence body with
+late success, oversized declared reply before JSON decoding, unchanged approval
+consumption and no automatic retries are authored/adapted UNRUN. Existing source
+cases retain duplicate diagnostics, original body/scope binding, stale-file and
+lost-write recovery. Actual stream/timeout/proxy/large-export/bridge/process-death,
+server-outcome/reconciliation and original role/rollback acceptance stay open.
+No QA/tests/checks/scanner/build/browser/CI/API/DB/import/native/provider/push/
+merge/deploy ran. A bounded response envelope is not approved source or import
+completion evidence; #104 and #135 remain open.

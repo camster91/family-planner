@@ -54,17 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) rejects duplicate source IDs across
-all32 declared ChoreChamps/Meal Planner/Budget import collections (#104). A shared
-schema refinement refuses the whole ambiguous export before planners/maps or
-persistence; no first/last-record merge or source/history mutation occurs. Model
-namespaces and equal content with distinct IDs remain supported. Bounded value-
-free diagnostics reach the existing parent Imports alert in EN/ES, clear on input
-replacement and never arm approval. Source schema/form cases are authored UNRUN;
-no QA/test/check/build/scanner/browser/CI/API/DB/import/native/provider/push/merge/
-deploy ran. Approved exports/mappings/count reconciliation and all original import
-acceptance remain open.39 issues remain; the unlink product-choice question is
-still pending and no dependent identity/storage writer is implemented.
+Latest bounded source work (2026-10-25) bounds ImportsClient fetch/reply work
+(#104/#135) with15second preview and90second explicit-write deadlines plus a16MiB
+JSON response cap. Unmount abort and existing operation/input guards retire late
+callbacks. Unknown writes stay unconfirmed with consumed approval; failed replies
+never arm preview and no automatic retry is added. Local file/map parsing costs,
+old-bridge allocation, proxy/native/process-death and actual server outcomes stay
+separate/unverified. Source cases are authored/adapted UNRUN; no QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; approved export/mapping/reconciliation and original import
+acceptance remain open. The unlink product-choice question is still pending.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
