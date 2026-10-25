@@ -4,10 +4,10 @@ import * as React from 'react'
 import { CloudSun, Search } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { boardSettingsEnglish, useBoardSettingsText, type BoardSettingsTextKey } from '@/i18n/board-settings'
 import {
   MEMBER_COLOR_CSS,
   MEMBER_COLOR_KEYS,
-  MEMBER_COLOR_LABELS,
   type MemberColorKey,
 } from '@/lib/member-colors'
 
@@ -62,10 +62,15 @@ export interface BoardSettingsTransport {
 
 const DEFAULT_NIGHT = { start: '21:30', end: '06:30' }
 
-function idleLabel(minutes: number): string {
-  if (minutes === 0) return 'Never'
-  return minutes === 1 ? 'After 1 minute' : `After ${minutes} minutes`
+type BoardNotice =
+  | { key: BoardSettingsTextKey; params?: Record<string, string | number> }
+  | { message: string }
+function notice(key: BoardSettingsTextKey, params?: Record<string, string | number>): BoardNotice {
+  return { key, params }
 }
+// Only our known transport fallbacks are translated. Custom/server diagnostics
+// remain literal; transport interfaces and caller error semantics stay compatible.
+const transportErrorKeys = ['genericError', 'loadError', 'saveError', 'searchError', 'uploadError'] as const
 
 const buttonClass =
   'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 text-[17px] font-semibold focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50'
@@ -120,8 +125,10 @@ export const personBoardSettingsTransport: BoardSettingsTransport = {
   },
 }
 
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback
+function messageOf(err: unknown, fallback: BoardSettingsTextKey): BoardNotice {
+  if (!(err instanceof Error) || !err.message) return notice(fallback)
+  const key = transportErrorKeys.find((key) => boardSettingsEnglish[key] === err.message)
+  return key ? notice(key) : { message: err.message }
 }
 
 export default function BoardSettings({
@@ -134,10 +141,12 @@ export default function BoardSettings({
 } = {}) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3'
   const displayLocale = useDisplayLocale()
+  const text = useBoardSettingsText()
+  const showNotice = (value: BoardNotice) => 'key' in value ? text(value.key, value.params) : value.message
   const [data, setData] = React.useState<BoardSettingsData | null>(null)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [status, setStatus] = React.useState<string | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
+  const [loadError, setLoadError] = React.useState<BoardNotice | null>(null)
+  const [status, setStatus] = React.useState<BoardNotice | null>(null)
+  const [error, setError] = React.useState<BoardNotice | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const [results, setResults] = React.useState<Place[] | null>(null)
@@ -156,7 +165,7 @@ export default function BoardSettings({
   const togglePhoto = (id: string, on: boolean) => {
     const current = data?.display?.photoIds ?? []
     const next = on ? [...current.filter((x) => x !== id), id] : current.filter((x) => x !== id)
-    void save({ display: { photoIds: next } }, on ? 'Photo added to the calm screen.' : 'Photo removed from the calm screen.')
+    void save({ display: { photoIds: next } }, on ? notice('photoAdded') : notice('photoRemoved'))
   }
 
   const uploadPhoto = async (file: File) => {
@@ -171,17 +180,17 @@ export default function BoardSettings({
       setData(fresh)
       const added = fresh.display?.uploads?.find((u) => filename && u.url.endsWith(`/${filename}`))
       if (!added) {
-        setError('That photo cannot be shown on the calm screen. Use a JPEG, PNG or WebP photo.')
+        setError(notice('photoUnsupported'))
         return
       }
       const ids = fresh.display?.photoIds ?? []
       if (!ids.includes(added.id)) {
-        await save({ display: { photoIds: [...ids, added.id] } }, 'Photo uploaded and added to the calm screen.')
+        await save({ display: { photoIds: [...ids, added.id] } }, notice('photoReady'))
       } else {
-        setStatus('That photo is already on the calm screen.')
+        setStatus(notice('photoAlready'))
       }
     } catch (err) {
-      setError(messageOf(err, 'Could not upload the photo. Check your connection and try again.'))
+      setError(messageOf(err, 'uploadError'))
     } finally {
       setUploading(false)
     }
@@ -195,14 +204,14 @@ export default function BoardSettings({
         if (!cancelled) setData(body)
       })
       .catch((err: unknown) => {
-        if (!cancelled) setLoadError(messageOf(err, 'Could not load board settings.'))
+        if (!cancelled) setLoadError(messageOf(err, 'loadError'))
       })
     return () => {
       cancelled = true
     }
   }, [transport])
 
-  const save = React.useCallback(async (patch: object, done: string) => {
+  const save = React.useCallback(async (patch: object, done: BoardNotice) => {
     setBusy(true)
     setError(null)
     setStatus(null)
@@ -211,7 +220,7 @@ export default function BoardSettings({
       setStatus(done)
       return true
     } catch (err) {
-      setError(messageOf(err, 'Could not save. Check your connection and try again.'))
+      setError(messageOf(err, 'saveError'))
       return false
     } finally {
       setBusy(false)
@@ -222,7 +231,7 @@ export default function BoardSettings({
     e.preventDefault()
     const q = query.trim()
     if (q.length < 2) {
-      setError('Type at least 2 characters to search.')
+      setError(notice('shortQuery'))
       return
     }
     setSearching(true)
@@ -231,7 +240,7 @@ export default function BoardSettings({
     try {
       setResults(await transport.searchPlaces(q))
     } catch (err) {
-      setError(messageOf(err, 'Place search is not reachable right now.'))
+      setError(messageOf(err, 'searchError'))
     } finally {
       setSearching(false)
     }
@@ -244,39 +253,32 @@ export default function BoardSettings({
           <Glyph color="calendar" size="md">
             <CloudSun className="h-4 w-4" aria-hidden="true" />
           </Glyph>
-          <Heading id="board-settings-title" className="text-title-3 font-semibold text-label-primary">
-            Today board
-          </Heading>
+          <Heading id="board-settings-title" className="text-title-3 font-semibold text-label-primary">{text("title")}</Heading>
         </div>
 
         {loadError && (
           <p role="alert" className="text-subhead text-[var(--danger-text)]">
-            {loadError}
+            {showNotice(loadError)}
           </p>
         )}
         {!data && !loadError && (
-          <p role="status" className="text-subhead text-label-secondary">
-            Loading board settings…
-          </p>
+          <p role="status" className="text-subhead text-label-secondary">{text("loading")}</p>
         )}
 
         {data && (
           <>
             <div role="status" aria-live="polite" className="min-h-0">
-              {status && <p className="text-subhead text-label-primary">{status}</p>}
+              {status && <p className="text-subhead text-label-primary">{showNotice(status)}</p>}
             </div>
             {error && (
               <p role="alert" className="text-subhead text-[var(--danger-text)]">
-                {error}
+                {showNotice(error)}
               </p>
             )}
 
             <fieldset className="space-y-3">
-              <legend className="text-headline font-semibold text-label-primary">Member colours</legend>
-              <p className="text-subhead text-label-secondary">
-                Each person&apos;s colour marks their chores and the events they add on the board, always next to
-                their name.
-              </p>
+              <legend className="text-headline font-semibold text-label-primary">{text("memberColours")}</legend>
+              <p className="text-subhead text-label-secondary">{text("colourHint")}</p>
               <ul className="space-y-2">
                 {data.members.map((m) => (
                   <li key={m.id} className="flex flex-wrap items-center gap-3" data-testid="board-member-color">
@@ -295,15 +297,15 @@ export default function BoardSettings({
                       onChange={(e) =>
                         void save(
                           { memberColors: { [m.id]: e.target.value || null } },
-                          `${m.name}'s colour saved.`
+                          notice('colourSaved', { name: m.name })
                         )
                       }
                       className="input-apple min-h-[44px]"
                     >
-                      <option value="">Automatic ({MEMBER_COLOR_LABELS[m.color]})</option>
+                      <option value="">{text('automatic', { colour: text(m.color) })}</option>
                       {MEMBER_COLOR_KEYS.map((k) => (
                         <option key={k} value={k}>
-                          {MEMBER_COLOR_LABELS[k]}
+                          {text(k)}
                         </option>
                       ))}
                     </select>
@@ -313,26 +315,19 @@ export default function BoardSettings({
             </fieldset>
 
             <fieldset className="space-y-3">
-              <legend className="text-headline font-semibold text-label-primary">Weather</legend>
+              <legend className="text-headline font-semibold text-label-primary">{text("weather")}</legend>
               {!data.weather.available ? (
-                <p className="text-subhead text-label-secondary">Weather is turned off on this server.</p>
+                <p className="text-subhead text-label-secondary">{text("weatherUnavailable")}</p>
               ) : (
                 <>
-                  <p className="text-subhead text-label-secondary" data-testid="weather-privacy-note">
-                    Off unless you turn it on. When it is on, the server sends the place you choose, rounded to about
-                    1 km, to Open-Meteo (a free weather service) to get the forecast. No names or other household
-                    information are sent. The board shows the place name you pick.
-                  </p>
+                  <p className="text-subhead text-label-secondary" data-testid="weather-privacy-note">{text("weatherPrivacy")}</p>
 
-                  <p className="text-body text-label-primary">
-                    Place: <strong>{data.weather.place ? data.weather.place.label : 'none chosen'}</strong>
+                  <p className="text-body text-label-primary">{text("place")}<strong>{data.weather.place ? data.weather.place.label : text('noPlace')}</strong>
                   </p>
 
                   <form onSubmit={search} className="flex flex-wrap items-end gap-3" role="search">
                     <div className="min-w-0 flex-1">
-                      <label htmlFor="weather-place" className="mb-2 block text-subhead font-medium text-label-primary">
-                        Find a town or city
-                      </label>
+                      <label htmlFor="weather-place" className="mb-2 block text-subhead font-medium text-label-primary">{text("findPlace")}</label>
                       <input
                         id="weather-place"
                         type="search"
@@ -345,16 +340,16 @@ export default function BoardSettings({
                     </div>
                     <button type="submit" disabled={searching} className={`${buttonClass} bg-accent-tint text-accent`}>
                       <Search className="h-5 w-5" aria-hidden="true" />
-                      Search
+                      {text("search")}
                     </button>
                   </form>
 
                   {results && (
                     <div>
                       {results.length === 0 ? (
-                        <p className="text-subhead text-label-secondary">No places found. Try another spelling.</p>
+                        <p className="text-subhead text-label-secondary">{text("noResults")}</p>
                       ) : (
-                        <ul aria-label="Places found" className="space-y-2">
+                        <ul aria-label={text('placesFound')} className="space-y-2">
                           {results.map((p) => (
                             <li key={`${p.label}|${p.latitude}|${p.longitude}`}>
                               <button
@@ -362,7 +357,7 @@ export default function BoardSettings({
                                 disabled={busy}
                                 className={`${buttonClass} w-full justify-start rounded-[var(--radius-md)] bg-[var(--surface-fill)] text-left text-label-primary`}
                                 onClick={async () => {
-                                  if (await save({ weather: { place: p } }, `Place set to ${p.label}.`)) {
+                                  if (await save({ weather: { place: p } }, notice('placeSaved', { name: p.label }))) {
                                     setResults(null)
                                     setQuery('')
                                   }
@@ -386,17 +381,17 @@ export default function BoardSettings({
                       onChange={(e) =>
                         void save(
                           { weather: { enabled: e.target.checked } },
-                          e.target.checked ? 'Weather is on for the board.' : 'Weather is off.'
+                          e.target.checked ? notice('weatherOn') : notice('weatherOff')
                         )
                       }
                     />
-                    Show weather on the Today board
+                    {text("showWeather")}
                   </label>
                   {!data.weather.place && (
-                    <p className="text-subhead text-label-secondary">Choose a place first.</p>
+                    <p className="text-subhead text-label-secondary">{text("choosePlace")}</p>
                   )}
 
-                  <div role="radiogroup" aria-label="Temperature unit" className="flex flex-wrap gap-4">
+                  <div role="radiogroup" aria-label={text('temperatureUnit')} className="flex flex-wrap gap-4">
                     {(['celsius', 'fahrenheit'] as const).map((u) => (
                       <label key={u} className="flex min-h-[44px] items-center gap-2 text-body text-label-primary">
                         <input
@@ -405,9 +400,9 @@ export default function BoardSettings({
                           className="h-5 w-5"
                           checked={data.weather.unit === u}
                           disabled={busy}
-                          onChange={() => void save({ weather: { unit: u } }, 'Temperature unit saved.')}
+                          onChange={() => void save({ weather: { unit: u } }, notice('unitSaved'))}
                         />
-                        {u === 'celsius' ? 'Celsius (°C)' : 'Fahrenheit (°F)'}
+                        {text(u)}
                       </label>
                     ))}
                   </div>
@@ -417,10 +412,8 @@ export default function BoardSettings({
                       type="button"
                       disabled={busy}
                       className={`${buttonClass} bg-[var(--surface-fill)] text-label-primary`}
-                      onClick={() => void save({ weather: { place: null } }, 'Place removed and weather turned off.')}
-                    >
-                      Remove place
-                    </button>
+                      onClick={() => void save({ weather: { place: null } }, notice('placeRemoved'))}
+                    >{text("removePlace")}</button>
                   )}
                 </>
               )}
@@ -429,15 +422,9 @@ export default function BoardSettings({
             {data.display && (
               <>
                 <fieldset className="space-y-3" data-testid="calm-display-settings">
-                  <legend className="text-headline font-semibold text-label-primary">Calm screen</legend>
-                  <p className="text-subhead text-label-secondary">
-                    In fridge mode, when nobody has touched the board for a while, it fades to a calm screen: the
-                    time, the date, the weather (when it is on), the next event and tonight&apos;s dinner. A tap
-                    brings the board back.
-                  </p>
-                  <label htmlFor="calm-idle" className="block text-subhead font-medium text-label-primary">
-                    Fade to the calm screen
-                  </label>
+                  <legend className="text-headline font-semibold text-label-primary">{text("calmScreen")}</legend>
+                  <p className="text-subhead text-label-secondary">{text("calmHint")}</p>
+                  <label htmlFor="calm-idle" className="block text-subhead font-medium text-label-primary">{text("fade")}</label>
                   <select
                     id="calm-idle"
                     value={data.display.idleMinutes}
@@ -447,27 +434,23 @@ export default function BoardSettings({
                       void save(
                         { display: { idleMinutes: minutes } },
                         minutes === 0
-                          ? 'The calm screen is off.'
-                          : `The board fades after ${minutes} minute${minutes === 1 ? '' : 's'} without a touch.`
+                          ? notice('calmOff')
+                          : notice(minutes === 1 ? 'fadeOne' : 'fadeMany', { count: minutes })
                       )
                     }}
                     className="input-apple min-h-[44px]"
                   >
                     {data.display.idleChoices.map((m) => (
                       <option key={m} value={m}>
-                        {idleLabel(m)}
+                        {m === 0 ? text('never') : m === 1 ? text('afterOne') : text('afterMany', { count: m })}
                       </option>
                     ))}
                   </select>
                 </fieldset>
 
                 <fieldset className="space-y-3" data-testid="night-hours-settings">
-                  <legend className="text-headline font-semibold text-label-primary">Night hours</legend>
-                  <p className="text-subhead text-label-secondary">
-                    Dims the fridge screen between these times, on the tablet&apos;s own clock, once the board has been
-                    left alone. The app can only darken what it shows; it cannot turn down the tablet&apos;s backlight,
-                    so use the tablet&apos;s display settings for that.
-                  </p>
+                  <legend className="text-headline font-semibold text-label-primary">{text("nightHours")}</legend>
+                  <p className="text-subhead text-label-secondary">{text("nightHint")}</p>
                   <label className="flex min-h-[44px] items-center gap-3 text-body text-label-primary">
                     <input
                       type="checkbox"
@@ -477,24 +460,22 @@ export default function BoardSettings({
                       onChange={(e) =>
                         void save(
                           { display: { night: e.target.checked ? night : null } },
-                          e.target.checked ? 'Night hours are on.' : 'Night hours are off.'
+                          e.target.checked ? notice('nightOn') : notice('nightOff')
                         )
                       }
                     />
-                    Dim the screen at night
+                    {text("dimNight")}
                   </label>
                   {data.display.night && (
                     <form
                       className="flex flex-wrap items-end gap-3"
                       onSubmit={(e) => {
                         e.preventDefault()
-                        void save({ display: { night } }, 'Night hours saved.')
+                        void save({ display: { night } }, notice('nightSaved'))
                       }}
                     >
                       <div>
-                        <label htmlFor="night-start" className="mb-2 block text-subhead font-medium text-label-primary">
-                          From
-                        </label>
+                        <label htmlFor="night-start" className="mb-2 block text-subhead font-medium text-label-primary">{text("from")}</label>
                         <input
                           id="night-start"
                           type="time"
@@ -505,9 +486,7 @@ export default function BoardSettings({
                         />
                       </div>
                       <div>
-                        <label htmlFor="night-end" className="mb-2 block text-subhead font-medium text-label-primary">
-                          Until
-                        </label>
+                        <label htmlFor="night-end" className="mb-2 block text-subhead font-medium text-label-primary">{text("until")}</label>
                         <input
                           id="night-end"
                           type="time"
@@ -517,21 +496,15 @@ export default function BoardSettings({
                           className="input-apple min-h-[44px]"
                         />
                       </div>
-                      <button type="submit" disabled={busy} className={`${buttonClass} bg-accent-tint text-accent`}>
-                        Save night hours
-                      </button>
+                      <button type="submit" disabled={busy} className={`${buttonClass} bg-accent-tint text-accent`}>{text("saveNight")}</button>
                     </form>
                   )}
                 </fieldset>
 
                 {photosEnabled && (
                 <fieldset className="space-y-3" data-testid="calm-photos-settings">
-                  <legend className="text-headline font-semibold text-label-primary">Family photos</legend>
-                  <p className="text-subhead text-label-secondary">
-                    Optional. Photos you choose from your household&apos;s own uploads show on the calm screen of a
-                    signed-in fridge board. They are not shown on a paired shared tablet, and the calm screen never
-                    shows ads.
-                  </p>
+                  <legend className="text-headline font-semibold text-label-primary">{text("familyPhotos")}</legend>
+                  <p className="text-subhead text-label-secondary">{text("photosPrivacy")}</p>
                   {/* The file input is visually hidden, so the label shows its keyboard focus. */}
                   <label
                     className={`${buttonClass} w-fit cursor-pointer bg-[var(--surface-fill)] text-label-primary has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--accent-text)]`}
@@ -547,12 +520,12 @@ export default function BoardSettings({
                         if (file) void uploadPhoto(file)
                       }}
                     />
-                    {uploading ? 'Uploading…' : 'Upload a photo'}
+                    {text(uploading ? 'uploading' : 'uploadPhoto')}
                   </label>
                   {(data.display.uploads ?? []).length === 0 ? (
-                    <p className="text-subhead text-label-secondary">No household photos uploaded yet.</p>
+                    <p className="text-subhead text-label-secondary">{text("noUploads")}</p>
                   ) : (
-                    <ul aria-label="Household photos" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                    <ul aria-label={text('householdPhotos')} className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                       {(data.display.uploads ?? []).map((u, i) => {
                         const chosen = (data.display!.photoIds ?? []).includes(u.id)
                         return (
@@ -573,7 +546,7 @@ export default function BoardSettings({
                                   disabled={busy || (!chosen && (data.display!.photoIds ?? []).length >= 20)}
                                   onChange={(e) => togglePhoto(u.id, e.target.checked)}
                                 />
-                                Photo {i + 1}, uploaded{' '}
+                                {text('photoUploaded', { count: i + 1 })}{' '}
                                 {new Date(u.createdAt).toLocaleDateString(displayLocale, { month: 'short', day: 'numeric', year: 'numeric' })}
                               </span>
                             </label>
@@ -584,8 +557,8 @@ export default function BoardSettings({
                   )}
                   <p className="text-subhead text-label-secondary">
                     {(data.display.photoIds ?? []).length === 0
-                      ? 'No photos chosen: the calm screen is plain.'
-                      : `${(data.display.photoIds ?? []).length} of up to 20 photos chosen.`}
+                      ? text('noChosenPhotos')
+                      : text('chosenPhotos', { count: (data.display.photoIds ?? []).length })}
                   </p>
                 </fieldset>
                 )}
@@ -594,13 +567,8 @@ export default function BoardSettings({
 
             {data.deviceWrites?.available && (
               <fieldset className="space-y-3" data-testid="device-writes-settings">
-                <legend className="text-headline font-semibold text-label-primary">Family tablet</legend>
-                <p className="text-subhead text-label-secondary">
-                  Off unless you turn it on. When it is on, a paired family tablet can tick off groceries, add to the
-                  grocery list and mark today&apos;s chores done. It asks &ldquo;Who&apos;s this?&rdquo; and records the
-                  name picked, but anyone at the tablet can pick any name. Chores ticked there still wait for a
-                  parent&apos;s check, and the tablet never shows points.
-                </p>
+                <legend className="text-headline font-semibold text-label-primary">{text("familyTablet")}</legend>
+                <p className="text-subhead text-label-secondary">{text("tabletPrivacy")}</p>
                 <label className="flex min-h-[44px] items-center gap-3 text-body text-label-primary">
                   <input
                     type="checkbox"
@@ -611,12 +579,12 @@ export default function BoardSettings({
                       void save(
                         { deviceWrites: { enabled: e.target.checked } },
                         e.target.checked
-                          ? 'The family tablet can tick things off.'
-                          : 'The family tablet is read-only again.'
+                          ? notice('tabletOn')
+                          : notice('tabletOff')
                       )
                     }
                   />
-                  Let the family tablet tick things off
+                  {text("allowTablet")}
                 </label>
               </fieldset>
             )}

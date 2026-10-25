@@ -1,5 +1,22 @@
 # Route and domain inventory (#148)
 
+### Today-board settings copy source — 2026-10-24 (#142)
+
+`fridge/BoardSettings.tsx` now uses 77 scoped typed EN/ES keys from
+`i18n/board-settings.ts`. Colour/temperature labels, weather consent wording,
+calm-screen idle choices, night-hour controls, person-only photo labels and
+shared-tablet write controls follow translation context. Local status/error
+notices retain semantic keys/parameters until render. Known person-transport
+fallbacks map to those keys; arbitrary server/custom transport diagnostics stay
+literal, preserving caller semantics. `BoardSettingsTransport` remains unchanged.
+Member/place names, palette keys, coordinates, photos, times, idle choices,
+privacy/disclosure wording and request patches remain canonical. Device audience
+still cannot list/pick/upload photos or receive stored coordinates. Existing
+load/save dependencies are unchanged; locale does not trigger reads or writes.
+Forty-two owned copy inventory records removed, without running a scanner.
+No new copy-only tests or QA/build/browser/provider/device/household action ran;
+full shared-device/settings/locale-data acceptance remains open.
+
 ### Meals page and recovery-link copy source — 2026-10-24 (#142)
 
 `dashboard/meals/page.tsx` now uses 39 scoped typed EN/ES keys for remaining
