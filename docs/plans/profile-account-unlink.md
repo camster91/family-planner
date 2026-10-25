@@ -93,9 +93,26 @@ protocols by guessed subject fields or discard a held result as unrelated.
   proof, invalidate affected stack reviews and commit all domain dispositions
   atomically before removing any link or mapping.
 
+`prepareRoutineSubjectUnlinkBatch` now composes the pure adapter over a complete
+future-root inventory. It validates bounded association IDs, household/root
+identity and duplicate root IDs before preparing definitions. The future locked
+reader must enumerate every non-null future definition without subject/protocol
+filtering, use limit + 1, and report incomplete coverage truthfully. The planner
+holds partial inventories or more than 1,000 roots instead of accepting a prefix;
+a later reviewed large-household path is required above that preparation bound.
+
+Any held definition returns a held batch with **no partial rewrite/stack list**.
+A ready result includes inspected/unchanged counts, deterministic root order,
+previous revisions and unique sorted affected stack IDs, without mutating input
+order. `complete` is internal reader metadata, never a public request/owner proof.
+The planner cannot itself prove coverage, current role, family membership, owner
+proof or absence of subsequent edits; a ready plan is not an unlink receipt.
+No reader, transaction or HTTP/UI route consumes this source yet.
+
 Regression source covers exact/profile/paused/stopped/unrelated/erased subjects,
 conflicting/ambiguous aliases, unknown/malformed protocols, bounded IDs and
-revision exhaustion. It is authored and **unrun**. There is no call from existing
+revision exhaustion, plus batch completeness/foreign-root/duplicates/bounds/
+ordering/no-partial-result cases. It is authored and **unrun**. There is no call from existing
 identity transactions, endpoint, UI, database/schema change, permission change or
 activation. This adapter alone is not a standalone unlink implementation or
 proof of account/member-domain/credit parity.

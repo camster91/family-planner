@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Dormant routine unlink batch preflight — 2026-10-24 (#557/#480)
+
+`prepareRoutineSubjectUnlinkBatch` now validates a supplied complete household
+future-root inventory before returning any changes. Foreign/non-root/malformed
+rows, duplicate IDs, incomplete coverage or more than 1,000 roots hold; any
+ambiguous/unsupported/conflicting/exhausted definition holds the entire batch
+without exposing partial rewrite/stack lists. Ready plans retain prior revisions,
+deterministic root order and unique sorted stack IDs without reordering inputs.
+Completeness is internal reader metadata, not authority or a server proof. The
+future locked reader must enumerate all non-null future definitions with no
+subject/protocol filter and limit + 1; above the cap requires a reviewed path,
+never truncation. No reader, transaction, schema, HTTP/UI caller or gate is changed.
+Regression source authored/unrun; no QA/check/build/browser/database/household or
+release action ran. Full unlink/stack/credit/provenance/domain acceptance remains.
+
 ### Dormant routine unlink adapter source — 2026-10-24 (#557/#480)
 
 `routine-subject-unlink.ts` implements pure future-definition preflight only.

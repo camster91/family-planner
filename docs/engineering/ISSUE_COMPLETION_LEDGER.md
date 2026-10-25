@@ -37,7 +37,7 @@ No unverified feature is declared completed by source authorship.
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
 | #473 native contract | Per-platform capability/fallback matrix, support-window decision boundary and forward/rollback sequence | Actual supported binaries/old operations/hardware evidence and signing inputs |
-| #557/#480 identity | Existing gated linking reconciled; unlink/rejoin design plus dormant pure future-routine adapter authored | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
+| #557/#480 identity | Existing gated linking reconciled; unlink/rejoin design plus dormant pure routine/batch preflight authored | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
 | #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
 | #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
 | #146 support | 20-case runbook, response ownership, communication strategy and support scaling triggers defined | Actual recovery/privacy/dashboard/backup, publishing and staffed operating evidence remain |
@@ -48,17 +48,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds a dormant pure routine unlink adapter (#557).
-Only an exact known account/member alias becomes the same stable profile with
-a new future-definition revision; already-profile definitions invalidate too.
-Ambiguous, conflicting, unsupported and exhausted-revision definitions hold.
-Unrelated/erased subjects remain unchanged. The full future writer must preflight
-every household future definition, honor every hold and renew authority/proof/
-stack revisions atomically with all domain dispositions. No existing caller,
-endpoint, transaction, schema, account or permission is changed. Regression
-source authored/unrun. No QA/tests/check/build/browser, database/migration,
-household write or release action ran. Standalone unlink/provenance/credit and
-wider member-domain implementation remain unfinished; #557 stays open.
+Latest bounded source work composes the dormant routine unlink adapter into
+all-or-nothing batch preflight (#557). It validates exact household/root IDs,
+duplicates and explicit complete coverage before planning. Partial inventories,
+more than 1,000 roots or any held definition yield no partial rewrite list. Ready
+plans return deterministic roots, prior revisions, unchanged counts and unique
+stack IDs; caller input order is preserved. Completeness is trusted internal
+reader metadata, not owner proof or authorization; the future locked reader/
+writer, stack renewal and all-domain atomic unlink remain unfinished. Regression
+source authored/unrun. No existing caller, transaction, schema, permission or
+gate is changed. No QA/tests/check/build/browser, database/household mutation or
+release action ran. #557 and the full identity/credit/provenance criteria stay open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
