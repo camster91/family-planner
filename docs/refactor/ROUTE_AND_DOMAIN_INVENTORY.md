@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Calm-screen, weather and preference status copy — 2026-10-24 (#142)
+
+AmbientCover uses typed Today keys for accessible time, next-event prefix,
+tonight and wake instruction. Its weather summary uses the existing main-board
+locale mapping. Visual weather high/low abbreviations also use Today keys;
+canonical temperatures/units/labels and existing accessible weather descriptions
+remain. DisplayPreferencesStatus and QuietDisplayControl use ten scoped core
+translation keys while keeping the original status precedence, switch gating
+and provider save/refresh callbacks. No focus/wake/dimming/photo lifecycle,
+clock/date formatting, weather request or preference protocol change. Ten owned
+copy inventory records removed without scanning. No new copy-only tests;
+existing cases unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Original shared-device/preferences/recovery/locale/layout/
+runtime acceptance remains open.
+
 ### Barcode capture and cooking-preview copy — 2026-10-24 (#142)
 
 BarcodeFoodDialog now uses64 typed scoped EN/ES keys. Controlled local feedback

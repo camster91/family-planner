@@ -52,17 +52,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work routes food barcode capture and recipe cooking
-preview copy through typed EN/ES (#142). Sixty-four barcode keys replace inline
-pairs; controlled feedback stores semantic keys/params until render, including
-literal product names and localized display counts. Four recipe keys replace
-inline preview labels/help without changing scaling or numeric drafts. Existing
-camera lifecycle, lookup/privacy, intake ownership/request/key/recovery and
-request/effect dependencies remain. Seven recipe inventory records removed;
-barcode format/sample/licence entries remain literal. Draft/feedback locale
-regression source authored/unrun. No QA/check/build/browser/API/database/native/
-provider/permission/release ran. Original camera/stock/recovery/privacy/locale/
-layout/runtime acceptance remains open.
+Latest bounded source work localizes calm-screen/weather labels and account
+preference status (#142). Six Today keys cover time/next/tonight/wake/high/low;
+the calm weather summary reuses the main board's existing locale mapping. Ten
+scoped preference keys replace inline language branches for load/save/conflict/
+recovery/quiet copy. Existing focus/wake/dimming/photo effects, weather values/
+units/attribution, provider state, switch eligibility and save/refresh callbacks
+remain. Ten owned inventory records removed without scanning. No new copy-only
+tests; existing cases unrun. No QA/check/build/browser/API/database/native/
+provider/permission/release ran. Remaining copy and original shared-device/
+preferences/recovery/locale/layout/runtime acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

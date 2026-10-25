@@ -4,6 +4,12 @@ import { useCoreTranslation } from "@/i18n/core";
 
 /** Visible Today/fridge-board copy. Event, member, recipe and list values stay caller-supplied. */
 export const todayBoardEnglish = {
+  ambientTime: "Time: ",
+  ambientNext: "Next · {when}",
+  ambientTonight: "Tonight",
+  ambientWake: "Tap anywhere to show the board",
+  weatherHighShort: "H",
+  weatherLowShort: "L",
   from: "From {name}",
   until: "Until {time}",
   allDay: "All day",
@@ -102,6 +108,12 @@ export type TodayBoardMessage = keyof typeof todayBoardEnglish;
 export type TodayBoardMessages = Record<TodayBoardMessage, string>;
 
 export const todayBoardSpanish: TodayBoardMessages = {
+  ambientTime: "Hora: ",
+  ambientNext: "Después · {when}",
+  ambientTonight: "Esta noche",
+  ambientWake: "Toca cualquier lugar para ver el panel",
+  weatherHighShort: "Máx.",
+  weatherLowShort: "Mín.",
   from: "De {name}",
   until: "Hasta {time}",
   allDay: "Todo el día",

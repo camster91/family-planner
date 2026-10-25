@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTodayBoardText } from '@/i18n/today-board'
 import { useCoreI18n } from '@/i18n/core'
 import { getWeatherCopy, localizeWeatherSummary } from '@/i18n/weather'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
@@ -60,6 +61,7 @@ export function WeatherTile({ view }: { view: WeatherView }) {
   const { locale } = useCoreI18n()
   const displayLocale = useDisplayLocale()
   const copy = getWeatherCopy(locale)
+  const text = useTodayBoardText()
   const CurrentIcon = iconFor(weather.current.icon, weather.current.isDay)
   const unit = `°${weather.unit}`
   const precip = today ? precipitationText(today.precipitationChance, copy) : null
@@ -90,9 +92,9 @@ export function WeatherTile({ view }: { view: WeatherView }) {
           {today && (
             <span className="tabular-nums">
               <span className="sr-only">{copy.todayHigh}</span>
-              <span aria-hidden="true">H </span>
+              <span aria-hidden="true">{text('weatherHighShort')} </span>
               {today.high}°<span className="sr-only">{copy.low}</span>
-              <span aria-hidden="true"> · L </span>
+              <span aria-hidden="true"> · {text('weatherLowShort')} </span>
               {today.low}°
             </span>
           )}
