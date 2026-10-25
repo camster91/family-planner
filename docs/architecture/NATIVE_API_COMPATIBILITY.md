@@ -209,3 +209,27 @@ and #564's durable owner/generation/retirement design criterion only. Their
 GitHub statuses now distinguish existing source from pending acceptance. Original
 behavioral, fault, concurrency, native/old-binary/rollback and EN/ES rendered
 criteria remain unchecked. No new retry engine, flag activation or QA occurred.
+
+### Message composition compatibility candidate — 2026-10-25 (#135/#136)
+
+Source-only, unverified. Current clients negotiate private message-owner-v1 context
+on reads, retain exact account/household/generation in send bytes and use dedicated
+`/api/messages/send` and `/api/messages/attachments/owned` endpoints. Legacy clients
+retain old endpoints/body representations. Both route pairs share one canonical
+handler/effect/storage implementation. Owner metadata never grants authorization.
+
+A cached new client talking to an older server must never retry via the old write
+URL: unknown support holds drafts; an unrecognized strict route cannot silently
+strip owner fields through the legacy parser. The source predicts refusal/no
+canonical effect, not a measured old-binary/server result. Modern upload context
+is required before media parsing and checked against canonical user/household/
+session before draft-row creation and after file placement. This does not prove
+physical process-death, filesystem compensation or a safe operator rollback.
+
+Later acceptance must cover old/new client against old/new server, stale positive
+negotiation, unsupported routes, changed household/generation during upload and
+send, exact receipt replay and expired unknown requests, same-account sign-in,
+shared-device refusal, erase/read-ack races, partial file cleanup and explicit
+reload. The new UI pauses sending on a server without the marker; old-client
+behavior is unchanged. No protocol-2/native-window/queue-support claim, provider,
+permission, scheduler, migration or rollout activation is implied.

@@ -1,5 +1,5 @@
-import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
-import { lockHousehold, lockUser } from '@/lib/household-lock'
+import { authorizeMessageActorInTx, messageError, type MessageActor } from '@/lib/message-authority'
+import { messageExpectedOwnerMatches } from '@/lib/message-owner-contract'
 import type { EffectResult, IdempotencyDb } from '@/lib/idempotency'
 import { messageAttachmentPath } from '@/lib/message-attachments'
 
@@ -30,42 +30,12 @@ export type MessageWriteBody = {
   type: 'text' | 'image' | 'voice' | 'announcement'
   pickup_id?: string | null
   attachment_ids: string[]
+  expected_user_id?: string
+  expected_family_id?: string
+  expected_generation?: number
 }
 
-export type MessageActor = { id: string; familyId: string }
-
-export function messageError(status: number, error: string): EffectResult {
-  return { status, body: { error } }
-}
-
-/**
- * Re-check the live actor and feature while holding the same locks used by
- * member/account deletion. Messages are all-member writes, so this helper
- * deliberately does not add a role check.
- */
-export async function authorizeMessageActorInTx(
-  tx: any,
-  actor: MessageActor,
-): Promise<EffectResult | null> {
-  await lockUser(tx, actor.id)
-  await lockHousehold(tx, actor.familyId)
-
-  const current = await tx.user.findUnique({
-    where: { id: actor.id },
-    select: { family_id: true },
-  })
-  if (current?.family_id !== actor.familyId)
-    return messageError(404, 'Message sender is no longer in this family')
-
-  const family = await tx.family.findUnique({
-    where: { id: actor.familyId },
-    select: { features: true },
-  })
-  if (!isFeatureEnabled(normalizeFeatures(family?.features), 'messages')) {
-    return messageError(403, 'This feature is turned off for your family')
-  }
-  return null
-}
+export { authorizeMessageActorInTx, messageError, type MessageActor } from '@/lib/message-authority'
 
 function safePickup(pickup: any, familyId: string | null | undefined) {
   if (!pickup || pickup.family_id !== familyId) return null
@@ -127,8 +97,11 @@ export async function createMessageEffect(
   recordId: string | null,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const authError = await authorizeMessageActorInTx(tx, actor)
+    const writeActor = { ...actor, generation: actor.generation ?? body.expected_generation }
+    const authError = await authorizeMessageActorInTx(tx, writeActor)
     if (authError) return authError
+    if (!messageExpectedOwnerMatches(body, { userId: actor.id, familyId: actor.familyId, generation: writeActor.generation ?? 0 }))
+      return { status: 409, body: { error: 'Message household changed. Reload before sending.', code: 'MESSAGE_OWNER_CHANGED', retryable: false } }
 
     if (recordId) {
       const receipt = await lockReceipt(tx, recordId)

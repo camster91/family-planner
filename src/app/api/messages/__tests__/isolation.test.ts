@@ -1,3 +1,4 @@
+import { POST as ownedSend } from '../send/route'
 // Two-household isolation for /api/messages (#102).
 
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
@@ -133,5 +134,32 @@ describe('opt-in message keysets (source only)', () => {
     expect(before.messages).toEqual([])
     expect((await messages.GET(req({ as: 'childA', query: { paging: 'unknown' } }))).status).toBe(400)
     expect(db.writes).toHaveLength(0)
+  })
+})
+
+describe('owned message send preconditions (source only)', () => {
+  beforeEach(() => { db.reset(); db.find('family', 'family-A')!.features = { messages: true } })
+  it('refuses missing/changed household/account/session context before a message or receipt effect', async () => {
+    const proof = (await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1' } }))).json()).writeContext
+    const body = { content: 'Private original draft', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
+    expect((await ownedSend(req({ as: 'childA', body: { content: 'Missing context' } }))).status).toBe(400)
+    const noKey = await ownedSend(req({ as: 'childA', body }))
+    expect(noKey.status).toBe(400)
+    expect(await noKey.json()).toMatchObject({ code: 'MESSAGE_KEY_REQUIRED' })
+    for (const change of [{ expected_user_id: 'child-b' }, { expected_family_id: 'family-B' }, { expected_generation: proof.generation + 1 }]) {
+      const response = await ownedSend(req({ as: 'childA', body: { ...body, ...change } }))
+      expect(response.status).toBe(409)
+      expect(await response.json()).toMatchObject({ code: 'MESSAGE_OWNER_CHANGED' })
+    }
+    expect(db.writes).toHaveLength(0)
+  })
+  it('replays a matching owned send once through the canonical message effect', async () => {
+    const proof = (await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1' } }))).json()).writeContext
+    const body = { content: 'Owned current message', expected_user_id: proof.userId, expected_family_id: proof.familyId, expected_generation: proof.generation }
+    const call = () => ownedSend(req({ as: 'childA', body, headers: { 'Idempotency-Key': 'owned-message-request-00001' } }))
+    const first = await call(), replay = await call()
+    expect(first.status).toBe(200); expect(replay.status).toBe(200)
+    expect((await first.json()).message.id).toBe((await replay.json()).message.id)
+    expect(db.rows('message').filter(row => row.content === body.content)).toHaveLength(1)
   })
 })

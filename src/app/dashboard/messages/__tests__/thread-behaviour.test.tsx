@@ -38,6 +38,7 @@ function msg(n: number, sender = 'u2'): Msg {
 }
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => msg(from + i))
 
+const WRITE_OWNER = { protocol: 'herewoven.message-owner.v1', userId: 'u1', familyId: 'family-a', generation: 0 }
 let latest: Msg[] = []
 let older: Msg[] = []
 let postReply: () => Promise<Response>
@@ -70,12 +71,12 @@ beforeEach(() => {
     calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
     if (method === 'POST') return postReply()
     if (new URL(url, 'http://localhost').searchParams.has('cursor')) {
-      return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1', nextCursor: older.length >= 50 ? 'history-next' : null, readContext: { userId: 'u1', familyId: 'family-a' } }) } as Response
+      return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1', writeContext: WRITE_OWNER, nextCursor: older.length >= 50 ? 'history-next' : null, readContext: { userId: 'u1', familyId: 'family-a' } }) } as Response
     }
     return {
       ok: true,
       status: 200,
-      json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', nextCursor: latest.length >= 50 ? 'history-start' : null, readContext: { userId: 'u1', familyId: 'family-a' } }),
+      json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER, nextCursor: latest.length >= 50 ? 'history-start' : null, readContext: { userId: 'u1', familyId: 'family-a' } }),
     } as Response
   }) as unknown as typeof fetch
 })
@@ -112,7 +113,7 @@ describe('initial loading recovery', () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }),
+        json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }),
       }) as unknown as typeof fetch
 
     render(
@@ -155,7 +156,7 @@ describe('initial loading recovery', () => {
     const user = userEvent.setup()
     let finishPoll!: (response: Response) => void
     const pendingPoll = new Promise<Response>(resolve => { finishPoll = resolve })
-    const fresh = { messages: [msg(20)], members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }
+    const fresh = { messages: [msg(20)], members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }
     global.fetch = jest.fn()
       .mockRejectedValueOnce(new Error('offline'))
       .mockReturnValueOnce(pendingPoll)
@@ -185,7 +186,7 @@ describe('initial loading recovery', () => {
     await act(async () => { poll?.(); poll?.() })
     expect(global.fetch).toHaveBeenCalledTimes(1)
     await act(async () => {
-      finishLoad({ ok: true, json: async () => ({ messages: latest, members: [], userId: 'u1' }) } as Response)
+      finishLoad({ ok: true, json: async () => ({ messages: latest, members: [], userId: 'u1', writeContext: WRITE_OWNER }) } as Response)
       await pendingLoad
     })
     expect(await screen.findByText('Message 3')).toBeInTheDocument()
@@ -279,17 +280,18 @@ describe('pickup links and photos', () => {
           json: async () => ({ pickups: [{ id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false }] }),
         } as Response
       }
-      if (url === '/api/messages/attachments') {
+      if (url === '/api/messages/attachments/owned') {
+        expect(new Headers(init?.headers).get('X-Herewoven-Message-Owner')).toBe(JSON.stringify(WRITE_OWNER))
         expect(init?.body).toBeInstanceOf(FormData)
         expect((init?.body as FormData).get('file')).toBe(photo)
         return { ok: true, status: 201, json: async () => ({ attachment: { id: 'attachment-1' } }) } as Response
       }
       if (method === 'POST') {
         const body = JSON.parse(String(init?.body))
-        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'] })
+        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'], expected_user_id: 'u1', expected_family_id: 'family-a', expected_generation: 0 })
         return { ok: true, status: 200, json: async () => ({ message: { ...msg(99, 'u1'), content: 'Dinner tonight', pickup: { id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false, assignee: null }, attachments: ['/api/messages/attachments/attachment-1'] } }) } as Response
       }
-      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }) } as Response
+      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }) } as Response
     }) as unknown as typeof fetch
 
     render(<MessagesPage />)
@@ -304,7 +306,7 @@ describe('pickup links and photos', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
     expect(await screen.findByText('Dinner tonight')).toBeInTheDocument()
-    expect(calls.some((call) => call.url === '/api/messages/attachments' && call.method === 'POST')).toBe(true)
+    expect(calls.some((call) => call.url === '/api/messages/attachments/owned' && call.method === 'POST')).toBe(true)
   })
 })
 
@@ -477,7 +479,7 @@ describe('read recovery', () => {
         readAttempts += 1
         return (readAttempts === 1 ? { ok: false, status: 503 } : { ok: true, status: 200 }) as Response
       }
-      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }) } as Response
+      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }) } as Response
     }) as unknown as typeof fetch
     const user = userEvent.setup()
     render(<MessagesPage />)
@@ -603,7 +605,7 @@ it('masks the thread and composer when a same-account reply changes the househol
   await screen.findByText('Message 3')
   await user.type(screen.getByLabelText('Message text'), 'Private old household draft')
   ;(global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, status: 200, json: async () => ({
-    messages: [{ ...msg(100), content: 'New context content' }], members: [{ id: 'u1', name: 'Me' }], userId: 'u1', nextCursor: null,
+    messages: [{ ...msg(100), content: 'New context content' }], members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: { ...WRITE_OWNER, familyId: 'family-b' }, nextCursor: null,
     readContext: { userId: 'u1', familyId: 'family-b' },
   }) }) as Response)
   await act(async () => { poll?.() })
@@ -619,4 +621,40 @@ it('labels an older server recent-only rather than inventing an earlier cursor',
   await screen.findByText('Message 149')
   expect(screen.getByText('This server shows recent messages only. Earlier history needs a server update.')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Load earlier messages' })).toBeNull()
+})
+
+it('keeps an older-server draft local while sending support is unknown', async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ messages: latest, members: [], userId: 'u1' }) })) as unknown as typeof fetch
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  await user.type(screen.getByLabelText('Message text'), 'Keep this draft local')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  expect(screen.getByText('Sending needs an updated server. Your draft stays here.')).toBeTruthy()
+  expect(screen.getByLabelText('Message text')).toHaveValue('Keep this draft local')
+  expect((global.fetch as jest.Mock).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+})
+it('never sends after a photo upload finishes in a retired session context', async () => {
+  let generation = 0
+  let finish!: (response: Response) => void
+  const paths: string[] = []
+  global.fetch = jest.fn(async (input, init) => {
+    const path = String(input); paths.push(path)
+    if (path === '/api/messages/attachments/owned') return await new Promise<Response>(resolve => { finish = resolve })
+    if (init?.method === 'PATCH') return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    return { ok: true, status: 200, json: async () => ({ messages: latest, members: [], userId: 'u1', nextCursor: null, readContext: { userId: 'u1', familyId: 'family-a' }, writeContext: { ...WRITE_OWNER, generation } }) } as Response
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  await user.type(screen.getByLabelText('Message text'), 'Private original photo')
+  await user.upload(screen.getByLabelText('Add a photo'), new File(['fabricated-image'], 'fixture.png', { type: 'image/png' }))
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(finish).toBeDefined())
+  generation = 1
+  await act(async () => { poll?.() })
+  await screen.findByText('Reload messages to confirm your current household before continuing.')
+  await act(async () => { finish({ ok: true, status: 201, json: async () => ({ attachment: { id: 'original-draft-photo' } }) } as Response) })
+  expect(paths).not.toContain('/api/messages/send')
+  expect(screen.queryByLabelText('Message text')).toBeNull()
 })

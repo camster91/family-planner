@@ -1,3 +1,4 @@
+import { authorizeMessageActorInTx, MessageAuthorityRefusal } from '@/lib/message-authority'
 import crypto from 'crypto'
 import { existsSync } from 'fs'
 import { link, mkdir, rename, unlink } from 'fs/promises'
@@ -157,6 +158,7 @@ export async function storeMessageAttachment(
   contentType: MessageAttachmentMime,
   ext: string,
   uploadDir = resolveUploadDir(),
+  actorGeneration?: number,
 ): Promise<StoredMessageAttachment> {
   if (bytes.byteLength > MESSAGE_ATTACHMENT_MAX_BYTES)
     throw new Error('MESSAGE_ATTACHMENT_TOO_LARGE')
@@ -171,6 +173,10 @@ export async function storeMessageAttachment(
   let placed = false
   try {
     row = await db.$transaction(async (tx: any) => {
+      if (actorGeneration !== undefined) {
+        const refusal = await authorizeMessageActorInTx(tx, { id: userId, familyId, generation: actorGeneration })
+        if (refusal) throw new MessageAuthorityRefusal(refusal)
+      }
       if (!(await lockHouseholdForJoin(tx, familyId)))
         throw new Error('MESSAGE_FAMILY_NOT_FOUND')
       let existing = await tx.messageAttachment.findUnique({
@@ -238,10 +244,13 @@ export async function storeMessageAttachment(
     if (placed) {
       await rename(tempPath, filepath)
     }
-    const still = await db.messageAttachment.findUnique({
-      where: { filename },
-      select: { family_id: true },
-    })
+    const still = actorGeneration === undefined
+      ? await db.messageAttachment.findUnique({ where: { filename }, select: { family_id: true } })
+      : await db.$transaction(async (tx: any) => {
+        const refusal = await authorizeMessageActorInTx(tx, { id: userId, familyId, generation: actorGeneration })
+        if (refusal) throw new MessageAuthorityRefusal(refusal)
+        return tx.messageAttachment.findUnique({ where: { filename }, select: { family_id: true } })
+      })
     if (!still || still.family_id !== familyId) {
       throw new Error('MESSAGE_FAMILY_NOT_FOUND')
     }

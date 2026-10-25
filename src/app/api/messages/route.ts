@@ -1,14 +1,16 @@
+import { authorizeMessageActorInTx } from '@/lib/message-authority'
+import { postMessage } from '@/lib/message-create-http'
+import { MESSAGE_OWNER_PROTOCOL } from '@/lib/message-owner-contract'
 import { parseMessagePaging, afterMessageCursor, encodeMessageCursor } from '@/lib/message-paging'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
-import { sendMessageSchema, markMessagesReadSchema } from '@/lib/validations'
+import { markMessagesReadSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
-import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
-import { authorizeMessageActorInTx, createMessageEffect, MESSAGE_INCLUDE, toMessageResponse } from '@/lib/message-mutations'
+import { MESSAGE_INCLUDE, toMessageResponse } from '@/lib/message-mutations'
 import { readBoundedJson, RequestBodyTooLargeError } from '@/lib/bounded-body'
 
 export const dynamic = 'force-dynamic'
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
       messages: messages.reverse().map(toMessageResponse), // Return in chronological order
       members,
       userId: auth.user.id,
-      ...(modern ? { nextCursor, readContext: { userId: auth.user.id, familyId: auth.user.family_id } } : {}),
+      ...(modern ? { nextCursor, readContext: { userId: auth.user.id, familyId: auth.user.family_id }, writeContext: { protocol: MESSAGE_OWNER_PROTOCOL, userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 } } : {}),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/messages', error, getRequestId(request))
@@ -87,56 +89,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Send a message
-export async function POST(request: NextRequest) {
-  try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
-
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
-
-    const gate = await featureGate(auth.user.family_id, 'messages')
-    if (gate) return gate
-
-    const { key, error: keyError } = readIdempotencyKey(request)
-    if (keyError) return keyError
-
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-    }
-    const parsed = sendMessageSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
-    }
-
-    const response = await withIdempotency(
-      prisma!,
-      key,
-      { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'message.create' },
-      parsed.data,
-      ({ recordId }) => createMessageEffect(
-        prisma!,
-        { id: auth.user.id, familyId: auth.user.family_id },
-        parsed.data,
-        recordId,
-      ),
-      {
-        beforeReplay: () => prisma!.$transaction(async (tx) =>
-          authorizeMessageActorInTx(tx, { id: auth.user.id, familyId: auth.user.family_id }),
-        ),
-      },
-    )
-    response.headers.set('Cache-Control', 'private, no-store')
-    return response
-  } catch (error) {
-    logRouteError('POST /api/messages', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+// Legacy clients keep their original endpoint/body contract.
+export async function POST(request: NextRequest) { return postMessage(request) }
 
 // PATCH - Mark messages as read
 export async function PATCH(request: NextRequest) {
@@ -166,32 +120,39 @@ export async function PATCH(request: NextRequest) {
 
     const { messageIds, markAll } = parsed.data
 
-    if (markAll) {
-      // Mark all unread family messages as read by this user
-      await prisma!.message.updateMany({
-        where: {
-          family_id: auth.user.family_id,
-          NOT: { read_by: { has: auth.user.id } },
-        },
-        data: {
-          read_by: { push: auth.user.id },
-        },
-      })
-    } else if (messageIds && messageIds.length > 0) {
-      // Mark specific messages as read
-      await prisma!.message.updateMany({
-        where: {
-          id: { in: messageIds },
-          family_id: auth.user.family_id,
-          NOT: { read_by: { has: auth.user.id } },
-        },
-        data: {
-          read_by: { push: auth.user.id },
-        },
-      })
-    }
+    const result = await prisma!.$transaction(async tx => {
+      // Match erasure's user -> household order before appending a plain
+      // read_by ID; a late acknowledgment cannot resurrect an erased actor.
+      const refusal = await authorizeMessageActorInTx(tx, { id: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 })
+      if (refusal) return refusal
+      if (markAll) {
+        // Mark all unread family messages as read by this user
+        await tx.message.updateMany({
+          where: {
+            family_id: auth.user.family_id,
+            NOT: { read_by: { has: auth.user.id } },
+          },
+          data: {
+            read_by: { push: auth.user.id },
+          },
+        })
+      } else if (messageIds && messageIds.length > 0) {
+        // Mark specific messages as read
+        await tx.message.updateMany({
+          where: {
+            id: { in: messageIds },
+            family_id: auth.user.family_id,
+            NOT: { read_by: { has: auth.user.id } },
+          },
+          data: {
+            read_by: { push: auth.user.id },
+          },
+        })
+      }
 
-    return NextResponse.json({ success: true })
+      return { status: 200, body: { success: true } }
+    })
+    return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('PATCH /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

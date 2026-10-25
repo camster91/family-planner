@@ -247,6 +247,18 @@ const PRIVATE_PERSON_ROUTES = [
     path: "/api/messages",
   },
   {
+    route: "POST /api/messages/send",
+    module: "../messages/send/route",
+    method: "POST",
+    path: "/api/messages/send",
+  },
+  {
+    route: "POST /api/messages/attachments/owned",
+    module: "../messages/attachments/owned/route",
+    method: "POST",
+    path: "/api/messages/attachments/owned",
+  },
+  {
     route: "PATCH /api/messages",
     module: "../messages/route",
     method: "PATCH",

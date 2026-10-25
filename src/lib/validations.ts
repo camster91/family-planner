@@ -165,7 +165,11 @@ export const sendMessageSchema = z.object({
   // Attachments are uploaded through /api/messages/attachments first. The
   // message write claims these household-owned draft ids atomically.
   attachment_ids: z.array(z.string().trim().min(1).max(100)).max(8).default([]),
-})
+  expected_user_id: z.string().min(1).max(128).optional(),
+  expected_family_id: z.string().min(1).max(128).optional(),
+  expected_generation: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+}).refine(value => [value.expected_user_id, value.expected_family_id, value.expected_generation].every(field => field === undefined) ||
+  [value.expected_user_id, value.expected_family_id, value.expected_generation].every(field => field !== undefined), { message: 'Message owner context must be complete' })
 
 // Rewards
 export const createRewardSchema = z.object({

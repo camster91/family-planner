@@ -69,6 +69,7 @@ jest.mock("@/lib/feature-gate-server", () => ({
 
 import path from "node:path";
 import { GET as serveAttachment } from "@/app/api/messages/attachments/[id]/route";
+import { POST as ownedUpload } from "@/app/api/messages/attachments/owned/route";
 import { POST as uploadAttachment } from "@/app/api/messages/attachments/route";
 import { MESSAGE_ATTACHMENT_MAX_REQUEST_BYTES as MESSAGE_UPLOAD_MAX_REQUEST_BYTES } from "@/lib/message-attachments";
 import {
@@ -460,4 +461,20 @@ describe("message attachment routes", () => {
       ).status,
     ).toBe(200);
   });
+  it("requires the original owner on the modern upload endpoint before parsing or writing media", async () => {
+    expect((await ownedUpload(uploadReq() as never)).status).toBe(409);
+    const owner = { protocol: "herewoven.message-owner.v1", userId: "parent-a", familyId: FAMILY_B, generation: 0 };
+    expect((await ownedUpload(uploadReq("parentA", PNG, { "X-Herewoven-Message-Owner": JSON.stringify(owner) }) as never)).status).toBe(409);
+    expect(db.rows("messageAttachment")).toHaveLength(0);
+    expect(mockFiles.size).toBe(0);
+  });
+  it("refuses a session changed during file placement and compensates only its unclaimed draft", async () => {
+    const owner = { protocol: "herewoven.message-owner.v1", userId: "parent-a", familyId: FAMILY_A, generation: 0 };
+    afterWriteFile = () => { db.find("user", "parent-a")!.token_version = 1; };
+    const response = await ownedUpload(uploadReq("parentA", PNG, { "X-Herewoven-Message-Owner": JSON.stringify(owner) }) as never);
+    expect(response.status).toBe(401);
+    expect(db.rows("messageAttachment")).toHaveLength(0);
+    expect(mockFiles.size).toBe(0);
+  });
+
 });

@@ -54,18 +54,21 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) connects chat to message history
-keysets (#134/#135). Latest/earlier reads use15-second/2MiB bounded decoding,
-validated50-row unique pages and explicit opaque continuation. Failed older reads
-retain the exact cursor; loop/unread/unknown pages do not advance it. Latest
-merges preserve loaded timestamp ties and just-sent boundary rows; scroll/focus
-and unsent text/attachments/send intents remain. Modern API readContext binds
-user/household; changed/revoked read context masks the thread/composer and stops
-new reads until explicit reload. Older servers show recent-only EN/ES notice,
-without invented continuation. Source fixtures/cases authored/adapted only. No
-QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual
-tie collation, same-window edits, send/read/history races, large refresh gaps,
-old-client/server, async owner/lifecycle and rendered acceptance remain open.
+Latest bounded source work (2026-10-25) binds chat composition to original
+account/household/session (#135/#136). Modern GET advertises a strict writeContext;
+the client freezes it before uploads and includes it in exact send bytes. New
+/send and /attachments/owned routes require those preconditions while sharing
+canonical legacy handlers/effects. Unsupported old servers cannot silently strip
+fields via a legacy fallback. Unknown support keeps drafts local. Fresh user ->
+household locks renew session/feature before message effect/replay, upload row
+creation and post-file publication check. Lost upload authority uses existing
+exact unclaimed-file compensation. Read acknowledgments now renew the same
+locks before appending non-FK read_by IDs. Upload/send/read waits are bounded;
+unknown sends keep original keys and late retired uploads do not trigger sends.
+Legacy endpoints/body formats remain supported. Source contract/API/UI/paired/
+upload-fault cases authored/adapted only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Actual PG/filesystem/race/rollback/native/
+aging/lifecycle acceptance remains open; no persistent message queue is claimed.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

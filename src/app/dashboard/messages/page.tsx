@@ -14,7 +14,8 @@ import { useTranslation } from '@/i18n'
 import { useMessagesText } from '@/i18n/messages'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { mergeLatest, prependEarlier } from './thread'
-import { runOwnedForeground } from '@/lib/owned-request-http'
+import { MESSAGE_OWNER_HEADER, parseMessageWriteContext, type MessageWriteContext } from '@/lib/message-owner-contract'
+import { requestOwnedJson, runOwnedForeground } from '@/lib/owned-request-http'
 import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 
 /** GET /api/messages page size (the route's default). */
@@ -149,7 +150,7 @@ async function readChatPage(url: string, signal: AbortSignal) {
   if (result.kind === 'unknown') throw new Error('Message read unavailable')
   return result
 }
-function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; members: Member[]; userId: string; nextCursor: string | null; pagingSupported: boolean; scope: string } | null {
+function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; members: Member[]; userId: string; nextCursor: string | null; pagingSupported: boolean; scope: string; writeContext: MessageWriteContext | null } | null {
   if (!value || typeof value !== 'object') return null
   const data = value as Record<string, unknown>
   if (!Array.isArray(data.messages) || data.messages.length > PAGE_SIZE || !data.messages.every(isChatMessage) ||
@@ -160,8 +161,10 @@ function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; membe
   if (cursor !== null && (typeof cursor !== 'string' || !/^[A-Za-z0-9_-]{1,1024}$/.test(cursor) || data.messages.length !== PAGE_SIZE)) return null
   const context = data.readContext && typeof data.readContext === 'object' ? data.readContext as Record<string, unknown> : null
   if (pagingSupported && (!context || context.userId !== data.userId || typeof context.familyId !== 'string' || !context.familyId)) return null
+  const writeContext = data.writeContext === undefined ? null : parseMessageWriteContext(data.writeContext)
+  if (data.writeContext !== undefined && (!writeContext || writeContext.userId !== data.userId || (pagingSupported && writeContext.familyId !== context!.familyId))) return null
   return { messages: data.messages, members: data.members, userId: data.userId, nextCursor: cursor as string | null, pagingSupported,
-    scope: JSON.stringify([data.userId, pagingSupported ? context!.familyId : 'legacy-context']) }
+    scope: JSON.stringify([data.userId, pagingSupported ? context!.familyId : writeContext?.familyId ?? 'legacy-context']), writeContext }
 
 }
 
@@ -211,6 +214,8 @@ function MessagesContent() {
   const [historyUnavailable, setHistoryUnavailable] = useState(false)
   const [contextChanged, setContextChanged] = useState(false)
   const retired = useRef(false)
+  const writeContext = useRef<MessageWriteContext | null>(null)
+  const [writeUnavailable, setWriteUnavailable] = useState(true)
   const readScope = useRef<string | null>(null)
   const earlierCursor = useRef<string | null>(null)
   const seenHistoryCursors = useRef(new Set<string>())
@@ -256,12 +261,13 @@ function MessagesContent() {
     setReadPending(true)
     setReadError(false)
     try {
-      const res = await fetch('/api/messages', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageIds: ids }),
-      })
-      if (!res.ok) throw new Error('read status')
+      const result = await requestOwnedJson('/api/messages', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageIds: ids }),
+      }, 32 * 1024)
+      if (result.kind === 'unknown' || !result.response.ok) {
+        if (result.kind === 'reply' && [401, 403].includes(result.response.status)) { retireThread(); return }
+        throw new Error('Read status unavailable')
+      }
     } catch {
       if (request === readRequestRef.current) {
         markedReadSignatureRef.current = null
@@ -270,7 +276,7 @@ function MessagesContent() {
     } finally {
       if (request === readRequestRef.current) setReadPending(false)
     }
-  }, [])
+  }, [retireThread])
 
   const loadData = useCallback(async () => {
     if (retired.current) return
@@ -290,8 +296,10 @@ function MessagesContent() {
         setLoadError(true)
         return
       }
-      if (readScope.current !== null && readScope.current !== data.scope) { retireThread(); return }
+      if (readScope.current !== null && (readScope.current !== data.scope || JSON.stringify(writeContext.current) !== JSON.stringify(data.writeContext))) { retireThread(); return }
       readScope.current = data.scope
+      writeContext.current = data.writeContext
+      setWriteUnavailable(data.writeContext === null)
       // Keep loaded same-time history outside this precise newest window.
       setMessages(prev => mergeLatest(prev, data.messages, data.pagingSupported))
       if (firstLoadRef.current) {
@@ -378,7 +386,7 @@ function MessagesContent() {
       if ([401, 403].includes(response.status)) { retireThread(); return }
       const data = response.ok ? parseMessagesResponse(body) : null
       if (!data || !data.pagingSupported) throw new Error('History unavailable')
-      if (data.scope !== scope || scope !== readScope.current) { retireThread(); return }
+      if (data.scope !== scope || scope !== readScope.current || JSON.stringify(data.writeContext) !== JSON.stringify(writeContext.current)) { retireThread(); return }
       if (data.nextCursor && (data.nextCursor === cursor || seenHistoryCursors.current.has(data.nextCursor))) throw new Error('Repeated history position')
       seenHistoryCursors.current.add(cursor)
       earlierCursor.current = data.nextCursor
@@ -453,22 +461,25 @@ function MessagesContent() {
     setPendingAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  const uploadPendingAttachments = async (items: PendingAttachment[]): Promise<string[] | null> => {
+  const uploadPendingAttachments = async (items: PendingAttachment[], owner: MessageWriteContext): Promise<string[] | null> => {
     const uploaded = [...items]
     for (let index = 0; index < uploaded.length; index += 1) {
+      if (retired.current || JSON.stringify(writeContext.current) !== JSON.stringify(owner)) return null
       const item = uploaded[index]
       if (item.id) continue
       const formData = new FormData()
       formData.append('file', item.file)
-      let response: Response
+      let result: Awaited<ReturnType<typeof requestOwnedJson>>
       try {
-        response = await fetch('/api/messages/attachments', { method: 'POST', body: formData })
+        result = await requestOwnedJson('/api/messages/attachments/owned', { method: 'POST', headers: { [MESSAGE_OWNER_HEADER]: JSON.stringify(owner) }, body: formData }, 32 * 1024)
       } catch {
-        setSendError(messageText('photoUploadFailed'))
-        return null
+        setSendError(messageText('photoUploadFailed')); return null
       }
-      const data = await response.json().catch(() => null)
-      const id = data && typeof data === 'object' && data.attachment && typeof data.attachment === 'object'
+      if (result.kind === 'unknown') { setSendError(messageText('photoUploadFailed')); return null }
+      const { response, body: data } = result
+      if (retired.current || JSON.stringify(writeContext.current) !== JSON.stringify(owner)) return null
+      if ([401, 403].includes(response.status) || (data && typeof data === 'object' && 'code' in data && data.code === 'MESSAGE_OWNER_CHANGED')) { retireThread(); return null }
+      const id = data && typeof data === 'object' && 'attachment' in data && data.attachment && typeof data.attachment === 'object'
         ? (data.attachment as Record<string, unknown>).id
         : null
       if (!response.ok || typeof id !== 'string' || id.length === 0) {
@@ -484,12 +495,14 @@ function MessagesContent() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     const content = newMessage.trim()
-    if (!content || sending) return
+    if (!content || sending || retired.current) return
+    const owner = writeContext.current ? { ...writeContext.current } : null
+    if (!owner) { setSendError(messageText('writeUnavailable')); return }
 
     setSending(true)
     setSendError(null)
-    const attachmentIds = await uploadPendingAttachments(pendingAttachments)
-    if (attachmentIds === null) {
+    const attachmentIds = await uploadPendingAttachments(pendingAttachments, owner)
+    if (attachmentIds === null || retired.current || JSON.stringify(writeContext.current) !== JSON.stringify(owner)) {
       setSending(false)
       return
     }
@@ -498,6 +511,9 @@ function MessagesContent() {
       type: 'text',
       pickup_id: selectedPickupId || null,
       attachment_ids: attachmentIds,
+      expected_user_id: owner.userId,
+      expected_family_id: owner.familyId,
+      expected_generation: owner.generation,
     }
     const payload = JSON.stringify(body)
     const current = sendIntentRef.current
@@ -507,22 +523,18 @@ function MessagesContent() {
     sendIntentRef.current = { payload, key }
 
     try {
-      let res: Response
-      try {
-        res = await fetch('/api/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
-          body: payload,
-        })
-      } catch {
-        // The typed text and key stay in place so the same intent can be sent again.
+      const result = await requestOwnedJson('/api/messages/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key }, body: payload,
+      }, 256 * 1024)
+      if (result.kind === 'unknown') {
         ambiguousSendRef.current.set(payload, key)
-        setSendError(messageText('sendNetworkError'))
-        return
+        setSendError(messageText('sendNetworkError')); return
       }
-      const data = await res.json().catch(() => null)
+      const { response: res, body: data } = result
+      if (retired.current || JSON.stringify(writeContext.current) !== JSON.stringify(owner)) return
+      if ([401, 403].includes(res.status) || (data && typeof data === 'object' && 'code' in data && data.code === 'MESSAGE_OWNER_CHANGED')) { retireThread(); return }
       if (!res.ok) {
-        if (res.status >= 400 && res.status < 500 && res.status !== 409) {
+        if (res.status >= 400 && res.status < 500 && ![408, 409, 425, 429].includes(res.status)) {
           ambiguousSendRef.current.delete(payload)
           if (sendIntentRef.current?.payload === payload) sendIntentRef.current = null
         } else {
@@ -531,13 +543,14 @@ function MessagesContent() {
         setSendError(messageText('sendFailed'))
         return
       }
-      if (!data || !isChatMessage(data.message)) {
+      if (!data || typeof data !== 'object' || !('message' in data) || !isChatMessage(data.message) || data.message.sender_id !== owner.userId) {
         ambiguousSendRef.current.set(payload, key)
         setSendError(messageText('sendUnconfirmed'))
         return
       }
+      const confirmed = data.message
       justSentRef.current = true
-      setMessages(prev => (prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]))
+      setMessages(prev => (prev.some(m => m.id === confirmed.id) ? prev : [...prev, confirmed]))
       setNewMessage('')
       setSelectedPickupId('')
       setPendingAttachments([])
@@ -586,6 +599,7 @@ function MessagesContent() {
           aria-label={messageText('threadLabel')}
           tabIndex={0}
         >
+          {writeUnavailable && !loading && <p role="status" className="px-4 py-3 text-footnote text-label-secondary">{messageText('writeUnavailable')}</p>}
           {historyUnavailable && <p role="status" className="px-4 py-3 text-footnote text-label-secondary">{messageText('historyUnavailable')}</p>}
           {loadError && !loading && (
             <div data-testid="messages-load-error" role="alert" className="card-apple m-4 flex flex-wrap items-center justify-between gap-3 p-4">
@@ -791,7 +805,7 @@ function MessagesContent() {
             />
             <button
               type="submit"
-              disabled={sending || !newMessage.trim()}
+              disabled={sending || writeUnavailable || !newMessage.trim()}
               className={cn(
                 'w-11 h-11 rounded-full flex items-center justify-center transition-colors',
                 newMessage.trim()

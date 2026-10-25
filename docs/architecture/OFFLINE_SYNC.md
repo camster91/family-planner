@@ -647,3 +647,25 @@ Existing localized error/review surfaces remain. Deadline/oversize exact-retry
 source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
 push/merge/deploy ran. Actual locking/replay/role/timeout/rendered and native
 lifecycle acceptance remain open; this is not release or durable-queue acceptance.
+
+### Original-owner chat composition and uploads — 2026-10-25 (#135/#136)
+
+Chat/API source binds chat composition to original
+account/household/session (#135/#136). Modern GET advertises a strict writeContext;
+the client freezes it before uploads and includes it in exact send bytes. New
+/send and /attachments/owned routes require those preconditions while sharing
+canonical legacy handlers/effects. Unsupported old servers cannot silently strip
+fields via a legacy fallback. Unknown support keeps drafts local. Fresh user ->
+household locks renew session/feature before message effect/replay, upload row
+creation and post-file publication check. Lost upload authority uses existing
+exact unclaimed-file compensation. Read acknowledgments now renew the same
+locks before appending non-FK read_by IDs. Upload/send/read waits are bounded;
+unknown sends keep original keys and late retired uploads do not trigger sends.
+Legacy endpoints/body formats remain supported. Source contract/API/UI/paired/
+upload-fault cases authored/adapted only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Actual PG/filesystem/race/rollback/native/
+aging/lifecycle acceptance remains open; no persistent message queue is claimed.
+
+Modern read writeContext is `{protocol:"herewoven.message-owner.v1",userId,familyId,generation}`. This is private context, not a token or authority. Optional legacy message fields expected_user_id/expected_family_id/expected_generation must be all absent or all present and match the authenticated actor. POST `/api/messages/send` requires them and an Idempotency-Key, stream-bounds JSON at64KiB and delegates to the same message.create receipt/effect. POST `/api/messages/attachments/owned` requires X-Herewoven-Message-Owner with exact strict context and delegates to the same bounded multipart/storage/compensation handler. Existing message/attachment endpoints remain legacy-compatible; supplied owner constraints still enforce. Neither strict endpoint falls back to a legacy write URL.
+
+The client captures context before asynchronous photo work and masks the thread on generation/context change. Missing marker keeps composing local with EN/ES explanation. Request deadlines are15seconds, upload/read-ack JSON caps32KiB and send cap256KiB. Network/parse/timeout and408/409/425/429/5xx send uncertainty retains original key/body. This is mounted recovery only: no new persistent queue, receipt-retention extension, original-send age guarantee or automatic retry. Existing unbound-media pruning/file compensation and wider erase/claim/rollback/lifecycle races still require real acceptance.
