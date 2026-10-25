@@ -1,4 +1,4 @@
-/** N1 canonical birth-event adapter, not yet called by chore create.
+/** N1/N2 canonical birth-event adapter for the default-off chore-create cohort.
  * Call only with the actual freshly created row inside createPersonChore's
  * existing transaction, after its ordered User/household locks. No retroactive
  * adoption, current-assignee reconstruction or legacy sender fallback here.
@@ -9,7 +9,9 @@ import {
   admitNotificationEventInTx, notificationEventAdmissionEnabled,
   type NotificationEventActor,
 } from "@/lib/notification-event-admission";
-import { NOTIFICATION_EVENT_PROTOCOL } from "@/lib/notification-event-contract";
+import { NOTIFICATION_EVENT_PROTOCOL, compareNotificationOccurrence } from "@/lib/notification-event-contract";
+import { admitNotificationRecipientInTx } from "@/lib/notification-recipient-admission";
+import { IDEMPOTENCY_TTL_MS } from "@/lib/idempotency-key";
 
 type CreatedChore = {
   id: string; family_id: string; created_by: string; assigned_to: string | null;
@@ -28,25 +30,74 @@ export async function recordChoreCreationNotificationEventInTx(
       || !created.assigned_to || !Number.isFinite(created.created_at.getTime())
       || !Number.isFinite(deliverBefore.getTime()))
     return { kind: "held" as const };
-  return admitNotificationEventInTx(tx, actor, {
+  return admitNotificationEventInTx(tx, actor, choreCreationEnvelope(actor, created, deliverBefore),
+    choreCreationSourceGuard(actor, created), clock);
+}
+function choreCreationEnvelope(actor: NotificationEventActor, created: CreatedChore, deliverBefore: Date) {
+  return {
     protocol: NOTIFICATION_EVENT_PROTOCOL, familyId: actor.familyId,
-    kind: "chore.assignment", sourceId: created.id,
+    kind: "chore.assignment" as const, sourceId: created.id,
     sourceGeneration: created.responsibility_generation,
-    // Canonical row birth is exactly one transition per immutable generation.
-    // Later assignment/verification transitions need their own accepted identity.
     transitionId: "created", occurredAt: created.created_at.toISOString(),
     deliverBefore: deliverBefore.toISOString(),
-  }, async (sourceTx) => {
+  };
+}
+function choreCreationSourceGuard(
+  actor: NotificationEventActor, created: CreatedChore,
+  presentation?: { title: string; dueDate: Date },
+) {
+  return async (sourceTx: Prisma.TransactionClient) => {
     const families = await sourceTx.$queryRaw<Array<{ features: Prisma.JsonValue | null }>>`
       SELECT "features" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
     if (families.length !== 1 || !isFeatureEnabled(normalizeFeatures(families[0].features), "chores")) return false;
-    const rows = await sourceTx.$queryRaw<Array<CreatedChore & { status: string; member_subject_erased: boolean }>>`
-      SELECT "id", "family_id", "created_by", "assigned_to", "responsibility_generation", "created_at", "status", "member_subject_erased"
+    const rows = await sourceTx.$queryRaw<Array<CreatedChore & { title: string; due_date: Date; status: string; member_subject_erased: boolean }>>`
+      SELECT "id", "family_id", "created_by", "assigned_to", "responsibility_generation", "created_at", "title", "due_date", "status", "member_subject_erased"
       FROM "Chore" WHERE "id" = ${created.id} AND "family_id" = ${actor.familyId} FOR UPDATE`;
     const row = rows.length === 1 ? rows[0] : null;
     return !!row && row.created_by === actor.userId && row.assigned_to === created.assigned_to
       && row.responsibility_generation === created.responsibility_generation
       && row.created_at.getTime() === created.created_at.getTime()
+      && (!presentation || (row.title === presentation.title && row.due_date.getTime() === presentation.dueDate.getTime()))
       && row.status === "pending" && !row.member_subject_erased;
-  }, clock);
+  };
 }
+
+/** No default duration is invented. Both private acknowledgements and a reviewed
+ * positive dispatch window (at most the existing receipt horizon) are required.
+ * Misconfigured opted-in mode fails before creation rather than falling back.
+ */
+export function choreCreateNotificationDispatchWindow(): number | null {
+  if (process.env.CHORE_CREATE_NOTIFICATION_EVENTS_ENABLED !== "1") return null;
+  const raw = process.env.CHORE_CREATE_NOTIFICATION_DISPATCH_MS ?? "";
+  const value = Number(raw);
+  if (!notificationEventAdmissionEnabled() || !/^[1-9][0-9]{0,8}$/.test(raw)
+      || !Number.isSafeInteger(value) || value > IDEMPOTENCY_TTL_MS)
+    throw new Error("Chore notification event contract unavailable");
+  return value;
+}
+
+export async function deliverChoreCreationNotificationEventInTx(
+  tx: Prisma.TransactionClient, actor: NotificationEventActor,
+  created: CreatedChore & { title: string; due_date: Date }, deliverBefore: Date,
+  clock: () => Date = () => new Date(),
+) {
+  const event = await recordChoreCreationNotificationEventInTx(tx, actor, created, deliverBefore, clock);
+  if (event.kind === "held" || !created.assigned_to) throw new Error("Chore notification event admission held");
+  // N1 holds the actual creator row, so this canonical name cannot change
+  // between the content read and the recipient decision in this transaction.
+  const creator = await tx.user.findUnique({ where: { id: actor.userId }, select: { name: true } });
+  if (!creator) throw new Error("Chore notification creator unavailable");
+  const expected = choreCreationEnvelope(actor, created, deliverBefore);
+  const guard = choreCreationSourceGuard(actor, created, { title: created.title, dueDate: created.due_date });
+  const outcome = await admitNotificationRecipientInTx(tx, actor, {
+    eventId: event.id, slot: 0, userId: created.assigned_to,
+    content: {
+      title: "New Chore Assigned",
+      message: `${creator.name} assigned you "${created.title}" (due ${created.due_date.toLocaleDateString()})`,
+      type: "chore",
+    },
+  }, async (sourceTx, stored) => compareNotificationOccurrence(expected, stored) === "same" && await guard(sourceTx), clock);
+  if (outcome.kind === "held") throw new Error("Chore notification recipient admission held");
+  return outcome;
+}
+

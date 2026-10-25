@@ -14,6 +14,7 @@ import { expandSeriesInTx } from "@/lib/recurringChores";
 import { recordChoreAssigned } from "@/lib/beta-metrics";
 import { notificationServiceServer } from "@/lib/notifications-server";
 import { logRouteError } from "@/lib/api-error";
+import { choreCreateNotificationDispatchWindow, deliverChoreCreationNotificationEventInTx } from "@/lib/chore-create-notification-event";
 export const ACCOUNT_CHORE_CREATE_ACTION = "chore.create";
 export const CHORE_CREATE_INCLUDE = {
   assignee: { select: { id: true, name: true, avatar_url: true, role: true } },
@@ -63,14 +64,20 @@ export async function createPersonChore(
   sourceGuard?: AssistantSourceGuard,
 ): Promise<EffectResult> {
   const createdRows: Created[] = [];
+  const deliveredInTransaction = new Set<string>();
+  const notificationWindowMs = choreCreateNotificationDispatchWindow();
   const result = await db.$transaction(async (tx) => {
     const rotation = input.rotation ?? null,
       assignee = rotation ? rotation[0] : input.assigned_to!;
-    for (const id of [
-      ...new Set([actor.userId, assignee, ...(rotation ?? [])]),
-    ].sort())
-      await lockUser(tx, id);
+    const participantIds = [...new Set([actor.userId, assignee, ...(rotation ?? [])])].sort();
+    for (const id of participantIds) await lockUser(tx, id);
     await lockHousehold(tx, actor.familyId);
+    if (notificationWindowMs !== null) {
+      // Ordinary User updates can invalidate chore sources through SQL triggers.
+      // Take their real rows before creating/locking the chore, not afterward.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ANY(${participantIds}::text[]) ORDER BY "id" FOR SHARE`;
+      await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
+    }
     const denied = await personChoreCreateAuthority(tx, actor);
     if (denied) return denied;
     await sourceGuard?.authorize(tx);
@@ -141,6 +148,11 @@ export async function createPersonChore(
       kind: "chore",
       id: chore.id,
     });
+    if (notificationWindowMs !== null) {
+      await deliverChoreCreationNotificationEventInTx(tx, { ...actor, role: "parent" }, chore,
+        new Date(chore.created_at.getTime() + notificationWindowMs));
+      deliveredInTransaction.add(chore.id);
+    }
     const body = { choreId: chore.id };
     if (recordId)
       await tx.idempotencyRecord.update({
@@ -153,7 +165,7 @@ export async function createPersonChore(
   const created = createdRows[0];
   if (created) {
     await recordChoreAssigned(db, actor.familyId, created);
-    if (created.assignee && created.creator) {
+    if (!deliveredInTransaction.has(created.id) && created.assignee && created.creator) {
       try {
         await notificationServiceServer.notifyChoreAssignment(
           created,

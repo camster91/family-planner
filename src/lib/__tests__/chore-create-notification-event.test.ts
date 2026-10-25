@@ -1,6 +1,7 @@
 // Authored UNRUN. Required canonical-source callback, not PG or producer proof.
 import { recordChoreCreationNotificationEventInTx } from "../chore-create-notification-event";
 import { admitNotificationEventInTx, notificationEventAdmissionEnabled } from "../notification-event-admission";
+jest.mock("../notification-recipient-admission", () => ({ admitNotificationRecipientInTx: jest.fn() }));
 jest.mock("../notification-event-admission", () => ({ admitNotificationEventInTx: jest.fn(), notificationEventAdmissionEnabled: jest.fn() }));
 jest.mock("@/lib/features", () => ({ normalizeFeatures: (value: unknown) => value, isFeatureEnabled: (value: Record<string, boolean>, key: string) => value?.[key] === true }));
 const admit = jest.mocked(admitNotificationEventInTx);

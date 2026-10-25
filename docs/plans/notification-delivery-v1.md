@@ -288,3 +288,52 @@ private payload is stored in the new decision table. Seven mocked source cases
 are authored/unrun. DDL/FK/SET NULL, concurrency, canonical source integration,
 export/erasure, rollback and all acceptance remain unverified. Producer wiring
 and the complete recipient-roster freeze contract still precede activation.
+
+
+## First producer: canonical account-chore creation — 2026-10-25
+
+`createPersonChore` now composes the birth event, fixed original account-recipient
+slot0, central preference-controlled inbox create/suppression and compact chore
+receipt inside its existing canonical transaction. Opt-in mode takes actual
+participant User rows and Family row locks before writing chores, then reuses
+those locks through admission. Canonical title/due date and current locked creator
+name determine the same assignment copy as before; source checks bind title/date,
+original assignee, birth/generation/status/feature and the exact stored event.
+A held event/recipient aborts the whole canonical transaction rather than falling
+back to a second sender or committing a chore with missing required evidence.
+
+After commit, the old assignment sender is skipped ONLY for the chore already
+handled atomically. Default mode keeps the existing post-commit notification
+behavior. A completed command receipt replays before new effects, so it neither
+regenerates the event nor invokes the old sender. Missing visible inbox records
+and preference changes do not turn a completed birth into another notification.
+The initial recipient is the creation transaction's exact assignee, never a later
+roster/current-assignee reconstruction. Profile-only work, reassignment, routine
+generation, verification/recompletion and reward/manual/summary producers are
+not silently adopted by this birth-only slice.
+
+Private readiness inputs, all unchanged/unset here:
+
+- `CHORE_CREATE_NOTIFICATION_EVENTS_ENABLED=1` explicitly opts into this producer.
+- `NOTIFICATION_EVENT_ADMISSION_ENABLED=1` is also required.
+- `CHORE_CREATE_NOTIFICATION_DISPATCH_MS` must be an explicitly reviewed positive
+  integer, at most the existing seven-day canonical receipt horizon. There is no
+  default duration; that cap is not a new retention/pruning policy. Missing, zero,
+  normalized/ambiguous or oversized values in opted-in mode fail before creation.
+
+The original dispatch deadline is birth timestamp + that fixed reviewed duration,
+not the next retry time or due date. This is an immediate in-app transaction, not
+an activated deferred provider queue. Keep all inputs off pending migration,
+producer/old-client/rollback/privacy review and consolidated acceptance. Do not
+roll back to legacy sending for events that an adopted strict command already
+accepted; retain their canonical command receipts and additive evidence.
+
+Pure policy source cases plus three guarded disposable-DB source cases are
+authored/unrun: single/replayed delivery without legacy duplication, suppression
+remaining terminal after opt-in, and final receipt refusal rolling back chore/
+event/recipient/inbox. Existing integration fixture now clears new local rows and
+restores mocked environment state. No fixture, DB, migration/generation, check,
+provider, browser or deployment ran. Wider producers, explicit recovery/dispatch
+UX, typed exact destinations, native/provider behavior and all #141 criteria
+remain open. Earlier unconnected notes describe preceding checkpoints; only this
+account-chore-birth producer is now connected in source behind private gates.

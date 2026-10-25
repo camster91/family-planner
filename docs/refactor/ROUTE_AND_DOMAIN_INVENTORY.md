@@ -3089,3 +3089,17 @@ adopted. User FK inventory source grows from80 to81, retaining old publication
 history and classifying the new slot as account delivery. Seven source cases
 authored/unrun. Producer/roster integration, actual DDL/FK/concurrency/lifecycle/
 rollback, privacy and original #141 acceptance remain; no QA/DB/release ran.
+
+
+### Notification first canonical producer connected — 2026-10-25
+
+Default-off account-chore creation now atomically records its DB birth event,
+original account-recipient slot0, central in-app preference outcome and existing
+compact effect receipt. Strict mode skips legacy post-commit send; default mode
+preserves it. Actual participant User/Family locks precede chore writes, and
+locked source/content/current creator checks bind the notice. Both private gates
+and an explicit reviewed positive dispatch duration are required; none activated.
+Held evidence aborts the command; completed receipt replay invokes no sender.
+Policy plus three guarded DB source cases authored/unrun, not PG/rollback proof.
+Other producers/rosters, recovery UI, provider/native and exact destinations are
+unfinished; #141 remains open. No QA/migration/DB/provider/release action ran.
