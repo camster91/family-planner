@@ -110,8 +110,8 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Store-section sorting of a list (`PATCH /api/lists/section-sort`, #273) | U | yes | yes | no (403 `SECTION_SORT_FORBIDDEN`) | no (403, before person auth) | Changes how the list looks for the whole household, so it follows list creation. Grocery/shopping lists only; the list is looked up with the caller's household (404). A child sees the current setting as text. |
 | Walking order (shopping trips recorded by ticks, #273) | R (as section order) | yes | yes | yes | no | Recorded as a side effect of a person ticking a grocery row; section ids and times only; read back as the list's section order. Exported with the household. |
 | Pinned notes | R / C | yes | yes | yes | no (O-11) | |
-| Pinned notes | U | yes | own | own | no | `created_by = self`, else 403. |
-| Pinned notes | D | yes | no | no | no | |
+| Pinned notes | U | yes | own | own | no | `created_by = self`, else 403. Local source renews current session/membership/Notes gate and creator under User/household/note locks; concurrency acceptance unrun. |
+| Pinned notes | D | yes | no | no | no | Current parent/session/Notes permission and owned target renewed inside the mutation transaction; unrun. |
 | Anniversaries | R / C | yes | yes | yes | no (O-11) | |
 | Anniversaries | U | yes | own | own | no | `created_by = self`, else 403. `created_by` is set on create and is not writable by PATCH. Rows created before the column existed have `created_by` NULL and are parent-edit-only. |
 | Anniversaries | D | yes | no | no | no | |

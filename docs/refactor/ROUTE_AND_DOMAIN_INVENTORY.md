@@ -1624,3 +1624,18 @@ Regression/route/integration source authored/adapted but unrun; no PG rollback o
 concurrency result is claimed. No QA/test/check/build/browser/CI/API/database/
 provider/push/merge/deploy ran. Original isolation/offline/device/release acceptance
 remains open.
+
+## Note mutation lifecycle authority — 2026-10-24 (source only)
+
+Latest bounded source work connects note edit/delete to one locked canonical
+mutation (#134/#136). The existing list-container/note base authority is extracted
+and reused, preserving create/replay policy. Notes renew current role/session/
+household and stored feature permission, then lock/re-read the owned note/creator
+before a scoped mutation. Parent-any/teen-child-own edit and parent-only delete,
+body/color normalization, request/success DTOs and device refusal remain. Missing/
+foreign locked targets share404. No new version/Undo/receipt/queue/AI permission
+or activation; this is not complete content-conflict resolution. Regression and
+existing two-household route source authored/adapted but unrun; no PG locking or
+rollback result claimed. No QA/test/check/build/browser/CI/API/database/provider/
+push/merge/deploy ran. Original isolation/offline/device/release acceptance remains
+open.

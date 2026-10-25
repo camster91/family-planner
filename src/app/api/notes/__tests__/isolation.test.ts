@@ -177,4 +177,13 @@ describe("notes — two households", () => {
     await expectDenied(await note.PATCH(req({ as: "childB", body: { id: "note-a", title: "x" } })));
     expect(db.writes).toHaveLength(0);
   });
+  it("refuses edit/delete when stored Notes permission changed after the route gate", async () => {
+    // The route gate deliberately stays mocked open; transaction renewal owns this decision.
+    db.find("family", "family-A")!.features = { notes: false };
+    expect((await note.PATCH(req({ as: "parentA", body: { id: "note-a", title: "Blocked draft" } }))).status).toBe(403);
+    expect((await note.DELETE(req({ as: "parentA", body: { id: "note-a" } }))).status).toBe(403);
+    expect(db.find("pinnedNote", "note-a")?.title).toBe("Home wifi");
+    expect(db.writes).toHaveLength(0);
+  });
+
 });

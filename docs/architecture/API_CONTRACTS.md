@@ -1256,3 +1256,29 @@ API can serve legacy clients unchanged. No schema/store/secret/provider action
 or automatic retry added. Source cases authored/unrun; exact current/previous
 server/client, account/household switch, lifecycle/PG and original import
 reconciliation/rollback acceptance remain open.
+
+## Note mutation lifecycle follow-through — 2026-10-24 (#134/#136, source only)
+
+Existing `PATCH/DELETE /api/notes/[id]` request bodies and successful response
+shapes remain. Both now delegate to `person-note-mutation.ts`: User then household
+locks, exact current role/session/membership, stored Notes feature permission
+protected by a Family share lock, then owned PinnedNote row lock and creator
+re-read before a scoped write. Parents edit any owned-household note; teen/child
+edit only their own; deletion stays parent-only. Device refusal and outer route
+checks remain. A missing/foreign locked target returns the same404 rather than
+serializing another household's record. Results from the effect are private/no-store.
+
+`person-content-authority.ts` extracts the existing list-container/note base
+check without changing create/replay policy. Creation and note edit/delete reuse
+it; per-record/action policy remains in the domain mutation. Body trimming and
+unknown-color-to-yellow behavior are preserved. No new client authority field,
+schema, queue action, assistant command, provider or activation was added.
+
+This closes an unprotected read-then-write source gap, not all multi-device edit
+semantics: absolute-field writes remain last-writer behavior, without a new
+optimistic version, delete receipt or Undo. Lost responses still need canonical
+reinspection. Current authority/feature/creator/range decisions, two-household
+isolation and paired-device tests are authored/adapted but unrun. No API/database,
+test/check/build/browser/native/provider or release was executed; mock transactions
+do not prove actual PostgreSQL isolation, rollback or deadlock behavior. Full
+#134/#136 acceptance remains open.
