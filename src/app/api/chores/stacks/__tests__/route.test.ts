@@ -101,7 +101,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest
     .mocked(authenticateWithFamily)
-    .mockResolvedValue([{ user } as any, null]);
+    .mockResolvedValue([{ user, payload: { tv: 0 } } as any, null]);
   jest
     .mocked(requireParent)
     .mockImplementation((role: string) =>
@@ -263,7 +263,7 @@ describe("POST /api/chores/stacks", () => {
     expect(saveParentRoutineStack).toHaveBeenCalledWith(
       expect.anything(),
       draft,
-      { familyId: "family-a", userId: "parent-a", role: "parent" },
+      { familyId: "family-a", userId: "parent-a", role: "parent", tokenVersion: 0 },
       "key-a",
     );
     expect(await responseBody(response as any)).toEqual({
@@ -287,6 +287,7 @@ describe("POST /api/chores/stacks", () => {
         userId: "parent-a",
         role: "parent",
         memberProtocol: 2,
+        tokenVersion: 0,
       },
       "key-a",
     );
@@ -345,4 +346,12 @@ describe("POST /api/chores/stacks", () => {
     expect(readIdempotencyKey).not.toHaveBeenCalled();
     expect(saveParentRoutineStack).not.toHaveBeenCalled();
   });
+});
+
+// Authored UNRUN: generation comes from authentication, never body fields.
+it('carries a nonzero original session generation to routine persistence', async () => {
+  jest.mocked(authenticateWithFamily).mockResolvedValueOnce([{ user, payload: { tv: 7 } } as any, null]);
+  await POST(request('https://family.test/api/chores/stacks', draft, 'key-a'));
+  expect(saveParentRoutineStack).toHaveBeenCalledWith(expect.anything(), draft,
+    expect.objectContaining({ tokenVersion: 7, userId: 'parent-a', familyId: 'family-a' }), 'key-a');
 });

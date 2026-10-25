@@ -37,6 +37,8 @@ import {
 export const ROUTINE_STACK_ACTION = "routine-stack.mutate";
 
 export type ParentRoutineStackActor = RoutineStackActor & {
+  /** Original verified HTTP generation; optional only for existing internal callers. */
+  tokenVersion?: number;
   familyId: string;
   userId: string;
   memberProtocol?: MemberProtocol;
@@ -705,9 +707,13 @@ export async function saveParentRoutineStack(
     await lockUser(tx, actor.userId);
     await lockHousehold(tx, actor.familyId);
 
+    // Lifecycle locks precede the actual row lock. FOR SHARE also fences ordinary
+    // password/role/membership UPDATEs that do not use advisory locks. Held until
+    // the receipt/effect transaction ends; no old-session receipt is replayed.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE`;
     const currentActor = await tx.user.findUnique({
       where: { id: actor.userId },
-      select: { family_id: true, role: true },
+      select: { family_id: true, role: true, token_version: true },
     });
     if (
       !currentActor ||
@@ -716,6 +722,9 @@ export async function saveParentRoutineStack(
     ) {
       return mutationError(403, "FORBIDDEN", "Parent access is required.");
     }
+
+    if (actor.tokenVersion !== undefined && currentActor.token_version !== actor.tokenVersion)
+      return mutationError(401, "SESSION_CHANGED", "Sign in again before saving this routine.");
 
     let receipt = await tx.idempotencyRecord.findUnique({
       where: { scope_key: { scope, key } },

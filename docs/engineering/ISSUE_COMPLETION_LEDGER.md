@@ -54,12 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): canonical recipe create/edit use a
-1MiB streamed UTF-8 request budget before parsing/writes, with known413 EN/ES
-editor recovery that preserves drafts and prior unknown-outcome status. Schema,
-role, review, receipt and revision contracts remain intact. Declared/chunked-size
-source cases authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/push/
-merge/deploy ran; #460/#134 remain open.
+Latest bounded source work (2026-10-25): current-occurrence routine saves carry
+original HTTP session generation into the existing atomic writer. User-row SHARE
+lock plus fresh family/parent/generation checks precede receipt access and effects;
+changed supplied generation refuses401. Internal callers retain optional marker
+compatibility. Propagation/refusal source cases authored UNRUN. No QA/checks/
+build/browser/CI/API/DB/provider/push/merge/deploy ran; #450/#136 remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

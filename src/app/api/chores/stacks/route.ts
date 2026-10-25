@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     const result = await saveParentRoutineStack(
       prisma! as unknown as RoutineStackWriteDb,
       body,
-      routineStackActor(request, auth.user),
+      { ...routineStackActor(request, auth.user), tokenVersion: auth.payload.tv ?? 0 },
       key,
     );
     const response = NextResponse.json(result.body, { status: result.status });

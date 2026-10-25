@@ -219,6 +219,7 @@ describe("routine-stack API helper", () => {
       expected_fingerprint: "",
     };
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest.fn().mockResolvedValue({
           family_id: "family-a",
@@ -301,6 +302,7 @@ describe("routine-stack API helper", () => {
       expected_fingerprint: "",
     };
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest
           .fn()
@@ -336,6 +338,7 @@ describe("routine-stack API helper", () => {
 
   it("refuses a role change observed after authentication before receipt access", async () => {
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest
           .fn()
@@ -368,4 +371,26 @@ describe("routine-stack API helper", () => {
     });
     expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
   });
+});
+
+// Authored UNRUN: expired sessions may not inspect/replay receipts or write.
+it('refuses a session generation changed while waiting for lifecycle/row locks', async () => {
+  const events: string[] = [];
+  const tx = {
+    $queryRaw: jest.fn(async () => { events.push('row-lock'); return []; }),
+    user: { findUnique: jest.fn(async () => { events.push('fresh-user'); return { family_id: 'family-a', role: 'parent', token_version: 4 }; }) },
+    idempotencyRecord: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
+    householdMember: { findMany: jest.fn() },
+  };
+  const db = { $transaction: <T,>(callback: (value: unknown) => Promise<T>) => callback(tx) };
+  const result = await saveParentRoutineStack(db, {
+    family_id: 'family-a', occurrence_date: '2026-10-11', label: 'Morning',
+    steps: [], remove_chore_ids: [], expected_fingerprint: '',
+  }, { ...actor, tokenVersion: 3 }, 'unchanged-request-key');
+  expect(result).toMatchObject({ status: 401, body: { error: { code: 'SESSION_CHANGED' } } });
+  expect(events).toEqual(['row-lock', 'fresh-user']);
+  expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.create).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.delete).not.toHaveBeenCalled();
+  expect(tx.householdMember.findMany).not.toHaveBeenCalled();
 });

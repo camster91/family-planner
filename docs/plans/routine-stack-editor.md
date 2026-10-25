@@ -206,3 +206,28 @@ The implementation is ready for independent release review only when all of thes
 - `src/lib/routine-icons.ts`, `src/lib/validations.ts`, `src/lib/recurringChores.ts`, `src/app/api/chores/route.ts`, `prisma/schema.prisma` — executable current model and constraints.
 
 This document records the implemented current-occurrence candidate and its deliberate limits. It does not claim future-series editing, legacy migration preview, all-age navigation, or a production release; those require separate scope and evidence.
+
+## Current-occurrence writer session fence — 2026-10-25
+
+#450/#136 source: the existing stack POST now carries the original authenticated
+session generation internally into saveParentRoutineStack. After the established
+User/household advisory locks, the transaction holds the actual actor User row
+FOR SHARE, re-reads family/parent role/token_version, and refuses changed supplied
+generation with401 SESSION_CHANGED before receipt lookup/expiry cleanup/create,
+member dictionary access or chore/stack effects. The actual row lock fences
+ordinary password/session/role/membership UPDATEs that bypass advisory locks;
+locks remain held through the atomic receipt/effect transaction. Current family
+or parent-role loss retains its existing403 refusal. No HTTP body supplies this
+check, and an old key cannot authorize replay under a retired HTTP session.
+
+The optional generation field preserves existing internal helper callers; those
+without a generation still receive row-locked live family/role checks but do not
+claim HTTP session continuity. Lower-level direct coordinator authorization and
+full roster/read renewal remain separate. No schema/API request-format/feature
+activation or recurrence/history changes are introduced. A prior unknown write
+is not proved absent by a later401; this patch does not claim new recovery UX.
+
+Route propagation, pre-receipt stale-generation refusal/order and existing role
+refusal cases are authored/adapted UNRUN. No QA/tests/checks/build/browser/API/DB/
+CI/provider/push/merge/deploy ran. Real PostgreSQL lock/revocation/race/idempotency,
+old-client, profile and rendered acceptance remain open in #450/#136.
