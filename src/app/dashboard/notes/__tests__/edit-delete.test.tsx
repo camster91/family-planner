@@ -39,6 +39,7 @@ let calls: Call[] = []
 let notePermissions = { can_edit: true, can_delete: true }
 let noteBody = 'abc'
 let noteColor = 'yellow'
+let noteUpdatedAt: string | undefined
 // What a save/delete answers: a status + body, or a thrown network error.
 let mutationReply: () => Promise<Response>
 
@@ -46,6 +47,7 @@ beforeEach(() => {
   calls = []
   noteBody = 'abc'
   noteColor = 'yellow'
+  noteUpdatedAt = undefined
   mockLocale = 'en'
   notePermissions = { can_edit: true, can_delete: true }
   mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
@@ -65,6 +67,7 @@ beforeEach(() => {
             body: noteBody,
             color: noteColor,
             created_at: '2026-09-01T00:00:00Z',
+            ...(noteUpdatedAt ? { updated_at: noteUpdatedAt } : {}),
             ...notePermissions,
           }],
         }),
@@ -489,3 +492,31 @@ it('ends a stalled response-body read without allowing its late notes to replace
     jest.useRealTimers()
   }
 })
+
+// Authored only: conflict resolution retains the mounted draft and never auto-saves.
+it.each([true, false])('reviews saved content before re-saving a conflicting draft (keep=%s)', async keepDraft => {
+  const user = userEvent.setup();
+  noteUpdatedAt = '2026-09-01T00:00:00.000Z';
+  const current = { id: 'n 1', title: 'Latest title', body: 'Latest saved body', color: 'blue',
+    created_at: '2026-09-01T00:00:00Z', updated_at: '2026-10-25T12:00:00.000Z' };
+  mutationReply = async () => ({ ok: false, status: 409, json: async () => ({ error: { code: 'NOTE_CHANGED' }, current }) }) as Response;
+  render(<NotesPage />);
+  await user.click(await screen.findByText('Wifi code'));
+  await user.clear(screen.getByLabelText('notes.noteTitle'));
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'My draft');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect((await screen.findByRole('alert')).textContent).toBe('notes.changed');
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('My draft');
+  expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText('Latest saved body')).toBeTruthy();
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: keepDraft ? 'notes.keepDraft' : 'notes.useSaved' }));
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe(keepDraft ? 'My draft' : current.title);
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1);
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ note: current }) }) as Response;
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await waitFor(() => expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(2));
+  const writes = calls.filter(call => call.method === 'PATCH');
+  expect(writes[0].body).toEqual(expect.objectContaining({ expected_updated_at: noteUpdatedAt }));
+  expect(writes[1].body).toEqual(expect.objectContaining({ expected_updated_at: current.updated_at, title: keepDraft ? 'My draft' : current.title }));
+});

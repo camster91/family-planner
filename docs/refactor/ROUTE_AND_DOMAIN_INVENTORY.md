@@ -1771,3 +1771,13 @@ reference/order/state source cases authored only. Read-triggered top-up outcomes
 profile/scheduled routine definitions, credit/history and broader fixtures/adapters/
 observed reconciliation remain unsupported/incomplete. No generator/writer/DB/API/
 QA/build/browser/provider/native/release run; full capacity/recurrence acceptance open.
+
+### Pinned-note content conflict review — 2026-10-25 (#134/#135/#499)
+
+Canonical note edit now compares optional expected_updated_at after live permission/
+row locking, returns a safe saved-content409 and advances write timestamps
+monotonically. Web editor binds its loaded version and keeps draft/saved comparison
+in the same EN/ES sheet; explicit choice changes local review only, Save rechecks.
+Legacy no-version clients/delete remain compatible. No schema/queue/receipt/merge
+or new permission. Server/schema/mounted source authored/adapted only; no tests/
+DB/API/browser/build/native/provider/release run or full acceptance claimed.

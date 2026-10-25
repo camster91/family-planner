@@ -763,6 +763,7 @@ export const createNoteSchema = z.object({ title: noteTitle, body: noteBody, col
 
 export const updateNoteSchema = z.object(
   {
+    expected_updated_at: z.string().datetime({ offset: true }).optional(),
     id: z
       .string({ error: 'Note ID is required' })
       .min(1, 'Note ID is required'),

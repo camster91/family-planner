@@ -541,3 +541,15 @@ Regression cases cover authority-before-receipt, missing/malformed holds, origin
 JSON replay, no-op completion and propagated receipt failure; guarded PostgreSQL
 source covers stored-result replay after a later edit. All authored/unrun. No
 actual PostgreSQL rollback/locking/plan, lifecycle/device or release proof.
+
+## Online note content conflicts — 2026-10-25 (#134/#135, local source)
+
+Compatible online note edits now send optional expected_updated_at to the existing
+personal writer. Authority/creator checks and row lock precede comparison; stale
+edits return NOTE_CHANGED without applying a field, with a minimal current saved
+projection. The sheet retains the draft and offers explicit saved-vs-draft review;
+Save requires a choice and rechecks the reviewed version. No automatic overwrite,
+merge, queue operation or new permission. Legacy unversioned behavior remains;
+this is not offline note support or note-create exactly-once recovery. Timestamp
+versions advance monotonically for content writes. Authored cases unrun; actual
+locking/convergence/network/native acceptance remains open, no activation/run.

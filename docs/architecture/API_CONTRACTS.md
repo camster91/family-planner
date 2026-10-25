@@ -1322,3 +1322,30 @@ snapshot or complete-history/retention guarantee. No schema/index migration.
 Pure/route source covers round-trip/refusal, ties, deleted pivot, household scope
 and legacy shape; all unrun. Actual PostgreSQL collation/query plans/isolation,
 installed clients, network/lifecycle and #134/#135 original acceptance remain open.
+
+### Pinned-note edit precondition — 2026-10-25 (#134/#135/#499, local source)
+
+`PATCH /api/notes/[id]` accepts optional `expected_updated_at` (ISO datetime with
+offset). The existing body id and permission policy remain; no new URL/body
+binding or delete policy. After current personal authority and owned-record lock,
+author/parent edit permission is checked before comparing the server timestamp.
+Mismatch returns private/no-store409 `error.code: NOTE_CHANGED`, retryable:false,
+plus `current` containing only id/title/body/color/created_at/updated_at. No creator
+or lifecycle markers. No content change is applied. Known content fields cause a
+server timestamp advance to max(current clock, previous+1ms), including clock
+retreat/same-millisecond updates. Empty patches retain existing behavior. Legacy
+unversioned callers still work and retain their existing overwrite limitation.
+
+The web sheet sends the loaded version when present. A recognized conflict keeps
+the draft/form mounted, displays saved content and disables Save until the person
+chooses Keep my draft or Use saved version. The first retains draft fields, the
+second explicitly replaces them with saved content; both adopt only that reviewed
+version and neither writes. A later Save still rechecks permission/version, so a
+second intervening edit conflicts again. EN/ES text and44px review controls are
+authored. Older servers without versions retain existing compatibility; complete
+conflict protection on those servers is not claimed. Cancel still follows existing
+draft-close policy; no automatic merge, idempotent receipt or destructive Undo.
+
+Server/schema/mounted comparison-choice cases authored/unrun. No PG/concurrency,
+unknown-outcome, browser/long-text/locale/device or release acceptance is inferred;
+notes create recovery and broader async/membership boundaries remain separate.

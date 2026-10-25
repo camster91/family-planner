@@ -18,6 +18,7 @@ interface Note {
   title: string
   body: string
   color: 'yellow' | 'pink' | 'blue' | 'green' | 'purple'
+  updated_at?: string
   created_at: string
   /** Server-computed D9 permissions; absent only for older compatible clients. */
   can_edit?: boolean
@@ -52,11 +53,11 @@ function isNoteList(value: unknown): value is Note[] {
   if (!Array.isArray(value)) return false
   return value.every((note) => note && typeof note === 'object' && typeof note.id === 'string' && note.id.length > 0 &&
     typeof note.title === 'string' && typeof note.body === 'string' && typeof note.color === 'string' && Object.hasOwn(noteColors, note.color) &&
-    typeof note.created_at === 'string' && ['can_edit', 'can_delete'].every((key) => note[key] === undefined || typeof note[key] === 'boolean')) &&
+    typeof note.created_at === 'string' && (note.updated_at === undefined || (typeof note.updated_at === 'string' && Number.isFinite(Date.parse(note.updated_at)))) && ['can_edit', 'can_delete'].every((key) => note[key] === undefined || typeof note[key] === 'boolean')) &&
     new Set(value.map((note) => note.id)).size === value.length
 }
 
-type MutationError = { action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
+type MutationError = { current?: Note; action: 'save' | 'delete'; raw?: string; fallback: 'common.tryAgain' | 'common.networkError' }
 
 /** The server's `error` text, or null when the body has none. */
 async function serverError(res: Response): Promise<string | null> {
@@ -264,7 +265,7 @@ function NotesPageInner() {
   }
 
   const handleSave = async () => {
-    if (saving || loading || !formTitle.trim()) return
+    if (saving || loading || modalError?.current || !formTitle.trim()) return
 
     setSaving(true)
     setModalError(null)
@@ -282,12 +283,19 @@ function NotesPageInner() {
         res = await fetch(`/api/notes/${encodeURIComponent(selectedNote.id)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: selectedNote.id, ...payload }),
+          body: JSON.stringify({ id: selectedNote.id, ...payload, ...(selectedNote.updated_at ? { expected_updated_at: selectedNote.updated_at } : {}) }),
         })
       } else {
         return
       }
       if (!res.ok) {
+        if (res.status === 409 && selectedNote) {
+          const conflict = await res.json().catch(() => null)
+          if (conflict?.error?.code === 'NOTE_CHANGED' && isNoteList([conflict.current]) && conflict.current.id === selectedNote.id && conflict.current.updated_at) {
+            setModalError({ action: 'save', current: conflict.current, fallback: 'common.tryAgain' })
+          } else setModalError({ action: 'save', raw: typeof conflict?.error === 'string' ? conflict.error : undefined, fallback: 'common.tryAgain' })
+          return
+        }
         setModalError({ action: 'save', raw: (await serverError(res)) ?? undefined, fallback: 'common.tryAgain' })
         return
       }
@@ -300,6 +308,14 @@ function NotesPageInner() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const reviewConflict = (keepDraft: boolean) => {
+    const current = modalError?.current
+    if (!current || !selectedNote || current.id !== selectedNote.id || saving) return
+    setSelectedNote({ ...selectedNote, ...current })
+    if (!keepDraft) { setFormTitle(current.title); setFormBody(current.body); setFormColor(current.color) }
+    setModalError(null) // No save is sent until the person explicitly presses Save.
   }
 
   const handleDelete = async () => {
@@ -532,7 +548,21 @@ function NotesPageInner() {
                 </div>
               </div>
 
-              {modalError && (
+              {modalError?.current && (
+                <section className="rounded-xl border border-[var(--surface-separator)] p-3 space-y-3" aria-label={t('notes.savedVersion')}>
+                  <p role="alert" className="text-footnote text-[var(--danger-text)]">{t('notes.changed')}</p>
+                  <details open>
+                    <summary className="min-h-[44px] flex items-center cursor-pointer text-headline">{t('notes.savedVersion')}</summary>
+                    <p className="font-semibold [overflow-wrap:anywhere]">{modalError.current.title}</p>
+                    <p className="text-subhead whitespace-pre-wrap [overflow-wrap:anywhere]">{modalError.current.body}</p>
+                  </details>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn-secondary min-h-[44px]" onClick={() => reviewConflict(true)}>{t('notes.keepDraft')}</button>
+                    <button type="button" className="btn-secondary min-h-[44px]" onClick={() => reviewConflict(false)}>{t('notes.useSaved')}</button>
+                  </div>
+                </section>
+              )}
+              {modalError && !modalError.current && (
                 <p role="alert" className="text-footnote text-[var(--danger-text)]">
                   {t(modalError.action === 'save' ? 'notes.errorSave' : 'notes.errorDelete')} {modalError.raw ?? t(modalError.fallback)}
                 </p>
@@ -565,7 +595,7 @@ function NotesPageInner() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving || loading || !formTitle.trim()}
+                  disabled={saving || loading || Boolean(modalError?.current) || !formTitle.trim()}
                   className="btn-primary"
                 >
                   {saving ? t('common.saving') : t('notes.save')}

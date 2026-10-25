@@ -52,18 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds account-based weekly chore roots
-and dated occurrences to the dormant capacity builder (#137). Version6 reuses the
-existing canonical fixture factory for20 roots/200 copies in ordinary/calendar/
-food and500/10,000 in history. Self-root recurrence IDs, distinct UTC due days,
-local account subjects, rotation indices and pending/completed/verified snapshots
-are explicit; root parents precede copies. These are initial construction counts,
-not evidence that real read-triggered top-up preserves them. Profile-only chores,
-scheduled routine definitions and credit/verification/erasure history remain
-unsupported, along with other fixture/adoption/adapter gaps; manifest incomplete.
-Integrity source authored/adapted only. No builder/writer/seed/reset, DB/API/load/
-test/check/build/browser/CI/provider/native/push/merge/deploy ran. Real recurrence,
-reconciliation/query/capacity and original acceptance remain open.
+Latest bounded source work (2026-10-25) connects note conflict checks from the
+web sheet to the canonical locked writer (#134/#135/#499). Optional
+expected_updated_at preserves legacy edits; compatible web edits bind their loaded
+version. Current authority/creator permission precedes stale-version409 and a
+minimal saved-content DTO (no creator markers). Content changes advance timestamp
+monotonically under lock. The EN/ES sheet preserves its draft, shows saved content,
+and requires explicit Keep draft/Use saved choice before Save; neither choice
+writes automatically. Rows without a server version retain legacy compatibility,
+not a safe-concurrency claim. Delete policy unchanged. Server/mounted/schema source
+cases authored/adapted but unrun. No QA/test/check/build/browser/CI/API/database/
+provider/native/push/merge/deploy ran. PG/concurrent/network/device/localized sheet
+acceptance and broader note-create recovery/other async work remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
