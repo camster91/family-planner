@@ -12,7 +12,7 @@ The existing read-only household ICS export now folds text and long RRULE
 lines by UTF-8 byte count without dividing Unicode code points. Prior conservative
 ASCII widths remain. Bare CR joins CRLF/LF normalization in escaped text, retaining
 literal text rather than creating extra content lines. Token/family resolution,
-UIDs, timestamps, recurrence grammar, date range and cache headers are unchanged.
+UIDs, timestamps, supported recurrence spelling, date range and cache headers are unchanged.
 Multibyte/emoji, newline-escaping and ASCII-boundary cases are authored/unrun.
 No provider access, sync, QA/build/browser/API/database or release ran.
 
@@ -38,6 +38,32 @@ master UIDs and duplicate resolved override identities also refuse before writes
 Boundary/ambiguity/sync-preservation regression source is authored/unrun. Broader
 semantic/format validation, historical partial-import recovery, query/native/
 provider/error behavior and all original #124 acceptance remain open.
+
+## Stored recurrence export guard — 2026-10-24, source only
+
+`calendar-feed-rule.ts` validates stored recurrence at the feed boundary before
+emission. It uses the already lockedical.js2.2.1 parser without expanding any
+occurrences, plus explicit structural checks for missing/duplicated/unknown keys,
+non-positive/unsafe count or interval, conflicting count/until, unsupported zero
+day/week/position values and extra content lines. Rules above8,192 characters
+are unsupported. Parsed UNTIL values must preserve their supplied basic-ICAL
+representation; normalized replacements are not silently adopted. Supported rules
+keep supplied key order/explicit values, with the existing uppercase/prefix
+normalization. No `Recur.toString()` reconstruction that could omit parts.
+
+A malformed/ambiguous/unsupported stored rule refuses the entire feed with
+503/private-no-store `CALENDAR_FEED_INVALID_RULE`. No successful prefix, skipped
+series or one-off substitution is returned. Error text contains no stored rule,
+event identifier or token; stored data, event input schemas and identity are
+unchanged. Parent-facing identification/repair remains separate work. This is a
+bounded parser/structure guard, not exhaustive cross-part recurrence semantics,
+Toronto/DST/provider acceptance or validation of every legacy rule format.
+
+Reference inspected (read only):
+[ical.js2.2.1 recurrence parser](https://github.com/kewisch/ical.js/blob/v2.2.1/lib/ical/recur.js).
+Its parser permits unknown parts and normalizes some interval values, so a parse
+alone is not the feed acceptance decision. Regression source is authored/unrun;
+no parser execution, QA, application/provider/database call or release ran.
 
 ## Product modes and actual ownership
 

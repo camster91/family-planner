@@ -1,5 +1,6 @@
 /** Complete token-scoped ICS assembly inside a caller-owned read snapshot. */
 import type { Prisma } from "@prisma/client";
+import { calendarFeedRule } from "./calendar-feed-rule";
 export const CALENDAR_FEED_PAGE_SIZE = 200;
 export const CALENDAR_FEED_MAX_EVENTS = 10000;
 export const CALENDAR_FEED_MAX_BYTES = 16 * 1024 * 1024;
@@ -95,10 +96,10 @@ export async function buildCalendarFeed(tx: FeedTx, token: string, now: Date) {
       text("SUMMARY", event.title);
       if (event.description) text("DESCRIPTION", event.description);
       if (event.location) text("LOCATION", event.location);
-      if (event.recurrence) {
+      if (event.recurrence !== null) {
         if (Buffer.byteLength(event.recurrence, "utf8") > CALENDAR_FEED_MAX_BYTES - bytes)
           throw new CalendarFeedTooLarge();
-        append(fold(`RRULE:${event.recurrence.replace(/^RRULE:/i, "").toUpperCase()}`));
+        append(fold(`RRULE:${calendarFeedRule(event.recurrence)}`));
       }
       append("END:VEVENT");
     }

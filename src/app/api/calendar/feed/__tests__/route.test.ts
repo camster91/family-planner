@@ -130,4 +130,17 @@ describe("GET /api/calendar/feed", () => {
     expect((await res.json()).code).toBe("CALENDAR_FEED_TOO_LARGE");
     expect(db.writes).toHaveLength(0);
   });
+  it.each(["FREQ=NOTAFREQUENCY", "FREQ=DAILY;INTERVAL=0", "FREQ=DAILY\r\nBEGIN:VEVENT", ""])(
+    "refuses the entire source for an unsupported stored rule without content leakage", async recurrence => {
+      db.find("event", "event-a")!.recurrence = recurrence;
+      const res = await GET(req({ query: { token: "feed-token-a" } }));
+      expect(res.status).toBe(503);
+      expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+      const body = await res.json();
+      expect(body.code).toBe("CALENDAR_FEED_INVALID_RULE");
+      expect(JSON.stringify(body)).not.toMatch(/BEGIN:VCALENDAR|feed-token-a|event-a|NOTAFREQUENCY/);
+      expect(db.writes).toHaveLength(0);
+    },
+  );
+
 });

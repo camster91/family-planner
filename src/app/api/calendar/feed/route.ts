@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { CalendarFeedInvalidRule } from "@/lib/calendar-feed-rule";
 import { buildCalendarFeed, CalendarFeedTooLarge } from "@/lib/calendar-feed";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         code: "CALENDAR_FEED_TOO_LARGE",
         error: "This calendar is too large to export completely right now.",
+      }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    if (error instanceof CalendarFeedInvalidRule)
+      return NextResponse.json({
+        code: "CALENDAR_FEED_INVALID_RULE",
+        error: "This calendar has a recurrence rule that needs review before export.",
       }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
     logRouteError("GET /api/calendar/feed", error, getRequestId(request));
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

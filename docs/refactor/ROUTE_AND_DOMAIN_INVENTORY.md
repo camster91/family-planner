@@ -1549,3 +1549,16 @@ snapshot/concurrency and provider behavior are unmeasured. Regression source for
 is authored/adapted but unrun; fake transactions prove no PG isolation. No QA/test/
 check/build/browser/CI/API/database/provider/push/merge/deploy ran. Original calendar/
 role/isolation/native and all release acceptance remain open.
+
+## Stored recurrence feed boundary — 2026-10-24 (source only)
+
+Latest bounded source work adds a stored-recurrence feed guard (#124). Structural
+checks plus the existing lockedical.js parser refuse malformed/ambiguous/unsupported
+rules without expansion or normalization into a different interpretation. Supported
+rule order/values retain existing uppercase/prefix treatment. A bad rule holds the
+whole feed with503/no-store and a content-minimal code; no skipped series, successful
+prefix, one-off replacement, storage rewrite or input-schema change. Parent-facing
+rule repair and exhaustive cross-part/DST/provider semantics remain separate.
+Official parser source was read; no parser was executed. Regression source authored
+but unrun. No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy
+ran. Original calendar/isolation/native and all release acceptance remain open.
