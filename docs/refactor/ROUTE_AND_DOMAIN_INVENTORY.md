@@ -1792,3 +1792,12 @@ explicit retry reuses bytes/key and confirmed replies match family/creator. No
 persistent journal/navigation/process-death/removal guarantee or new queue/schema/
 permission. Pure/route/mounted source authored/adapted only, no execution; original
 storage/fault/native/PG and broad acceptance remain open.
+
+### Read-only note-create receipt inspection — 2026-10-25 (#134/#135/#499)
+
+New personal receipt route renews current authority/owner, validates scoped original
+key/action/hash/expiry and returns minimal current presence/removal without effect
+or cached content. Mounted retries inspect before reusing original create bytes;
+present/removed settle without recreation, pending/expired/unknown hold. Paired
+devices refused; inventory/source cases updated, all unrun. Persistent/restore-era
+recovery and full PG/fault/isolation/native/QA acceptance remain open; no execution.

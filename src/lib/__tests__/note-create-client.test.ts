@@ -44,3 +44,26 @@ it("requires real owner context and valid bounded drafts", () => {
   expect(noteCreateContext({ familyId: "family-a" })).toBeNull();
   expect(() => makeNoteCreateIntent({ ...draft, body: "x".repeat(10001) }, context, key)).toThrow();
 });
+
+it.each(["present", "removed"])("settles a %s receipt without issuing another create", async state => {
+  const intent = makeNoteCreateIntent(draft, context, key);
+  global.fetch = jest.fn(async () => reply(200, { state, noteId: "note-a" }));
+  expect(await postNoteCreate(intent, { recovery: true })).toEqual({ kind: state === "present" ? "confirmed" : "removed", noteId: "note-a" });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(jest.mocked(fetch).mock.calls[0][0]).toBe("/api/notes/create/receipt");
+});
+it("uses the same create bytes/key only after an unissued receipt", async () => {
+  const intent = makeNoteCreateIntent(draft, context, key);
+  global.fetch = jest.fn().mockResolvedValueOnce(reply(200, { state: "unissued" }))
+    .mockResolvedValueOnce(reply(201, { note: { id: "note-a", family_id: context.familyId, created_by: context.userId } }));
+  expect(await postNoteCreate(intent, { recovery: true })).toEqual({ kind: "confirmed", noteId: "note-a" });
+  const calls = jest.mocked(fetch).mock.calls;
+  expect(calls.map(call => call[0])).toEqual(["/api/notes/create/receipt", "/api/notes"]);
+  expect(calls[0][1]?.body).toBe(calls[1][1]?.body);
+  expect(new Headers(calls[0][1]?.headers).get("Idempotency-Key")).toBe(new Headers(calls[1][1]?.headers).get("Idempotency-Key"));
+});
+it.each(["pending", "expired", "unavailable", "unknown-mode"])("never recreates from %s inspection", async state => {
+  global.fetch = jest.fn(async () => reply(200, { state }));
+  expect(await postNoteCreate(makeNoteCreateIntent(draft, context, key), { recovery: true })).toEqual({ kind: "unknown" });
+  expect(fetch).toHaveBeenCalledTimes(1);
+});

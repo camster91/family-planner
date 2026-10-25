@@ -534,10 +534,28 @@ it('retries an uncertain create with the same bytes/key and keeps that draft on 
   await user.click(screen.getByRole('button', { name: 'notes.cancel' }));
   await user.click(screen.getByRole('button', { name: 'notes.addNote' }));
   expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Original create');
-  mutationReply = async () => ({ ok: true, status: 201, json: async () => ({ note: { id: 'created-note', family_id: 'family-a', created_by: 'account-a' } }) }) as Response;
+  mutationReply = async () => calls[calls.length - 1].url.endsWith('/receipt')
+    ? ({ ok: true, status: 200, json: async () => ({ state: 'unissued' }) }) as Response
+    : ({ ok: true, status: 201, json: async () => ({ note: { id: 'created-note', family_id: 'family-a', created_by: 'account-a' } }) }) as Response;
   await user.click(screen.getByRole('button', { name: 'notes.save' }));
-  await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(2));
-  const posts = jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST' && call.url === '/api/notes')).toHaveLength(2));
+  const posts = jest.mocked(fetch).mock.calls.filter(([url, init]) => init?.method === 'POST' && String(url) === '/api/notes');
   expect(posts[0][1]?.body).toBe(posts[1][1]?.body);
   expect(new Headers(posts[0][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[1][1]?.headers).get('Idempotency-Key'));
+});
+
+it('finishes removed-note recovery without recreating the original note', async () => {
+  const user = userEvent.setup();
+  mutationReply = async () => { throw new TypeError('Fixture lost response') };
+  render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.addNote' }));
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Removed later');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await screen.findByRole('alert');
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ state: 'removed', noteId: 'old-note' }) }) as Response;
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect(await screen.findByText('notes.createRemoved')).toBeTruthy();
+  expect(calls.filter(call => call.method === 'POST' && call.url === '/api/notes')).toHaveLength(1);
+  expect(calls.filter(call => call.url === '/api/notes/create/receipt')).toHaveLength(1);
+  expect(screen.queryByLabelText('notes.noteTitle')).toBeNull();
 });

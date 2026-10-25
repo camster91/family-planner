@@ -52,18 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) connects mounted note creation to the
-existing canonical keyed create transaction (#134/#135/#499). Notes GET adds
-personal writeContext; optional paired expected owner fields on POST refuse moved
-account/household before key/effect work. Legacy bodies remain accepted. The sheet
-retains original key/body/owner after uncertain network/5xx/in-progress or malformed
-success, freezes that draft, and retries only the same bytes. Success must identify
-the expected owner; a24-hour client window holds stale requests inside server key
-retention. Cancel/reopen within this mounted page retains the intent; no persistent
-journal, reload/process-death recovery or removal proof is claimed. Pending save/
-delete uses one immediate request lock. Source cases authored/adapted but unrun.
+Latest bounded source work (2026-10-25) adds read-only note-create receipt
+inspection and connects mounted recovery (#134/#135/#499). The new personal route
+renews current authority/original owner, locks a scoped key, validates action/hash/
+expiry and exposes only receipt state plus minimal note ID/current presence. No
+cached title/body, replay, pruning or write. Explicit uncertain retry first inspects:
+present confirms, removed clears with EN/ES terminal explanation and no recreation;
+unissued may use the original keyed create within its retry window. Pending/
+expired/malformed/failed inspection holds. Device sessions stay refused. Server/
+client/mounted/device-inventory source cases authored/adapted but unrun. Persistent
+journal/reload/native restart and restore-era exactly-once recovery remain open.
 No QA/test/check/build/browser/CI/API/database/provider/native/push/merge/deploy ran.
-Persistent owned recovery, fault/native/session/receipt acceptance remain open.
+Actual PG/fault/owner/lifecycle/isolation and original acceptance remain unverified.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

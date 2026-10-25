@@ -168,6 +168,7 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Pinned notes are person-session routes; paired tablets are refused before auth.
   "GET /api/notes": [403],
   "POST /api/notes": [403],
+  "POST /api/notes/create/receipt": [403],
   "PATCH /api/notes/[id]": [403],
   "DELETE /api/notes/[id]": [403],
 };
@@ -745,6 +746,7 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "DELETE /api/notes/[id]",
   "GET /api/notes",
   "POST /api/notes",
+  "POST /api/notes/create/receipt",
   "GET /api/notifications",
   "POST /api/notifications",
   "PATCH /api/notifications",

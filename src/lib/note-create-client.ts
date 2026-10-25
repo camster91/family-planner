@@ -19,12 +19,24 @@ export function makeNoteCreateIntent(draft: NoteCreateDraft, context: NoteCreate
   return { key, context: { ...context }, issuedAt: Date.now(), body: JSON.stringify({ title, body, color: draft.color,
     expected_user_id: context.userId, expected_family_id: context.familyId }) };
 }
-export type NoteCreateOutcome = { kind: "confirmed"; noteId: string } | { kind: "unknown" } |
+export type NoteCreateOutcome = { kind: "removed"; noteId: string } | { kind: "confirmed"; noteId: string } | { kind: "unknown" } |
   { kind: "refused"; code: string; message?: string };
-export async function postNoteCreate(intent: NoteCreateIntent): Promise<NoteCreateOutcome> {
+export async function postNoteCreate(intent: NoteCreateIntent, options: { recovery?: boolean } = {}): Promise<NoteCreateOutcome> {
   const age = Date.now() - intent.issuedAt;
   // Stay well inside the seven-day server key retention. A stale mounted page holds.
   if (age < 0 || age > 24 * 60 * 60 * 1000) return { kind: "refused", code: "NOTE_RECOVERY_EXPIRED" };
+  if (options.recovery) {
+    const inspected = await requestOwnedJson("/api/notes/create/receipt", { method: "POST", headers: {
+      "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
+    }, body: intent.body }, 32 * 1024);
+    if (inspected.kind !== "reply" || !inspected.response.ok) return { kind: "unknown" };
+    const receipt = inspected.body as { state?: unknown; noteId?: unknown } | null;
+    if ((receipt?.state === "present" || receipt?.state === "removed") && typeof receipt.noteId === "string" && receipt.noteId.length > 0 && receipt.noteId.length <= 128)
+      return { kind: receipt.state === "present" ? "confirmed" : "removed", noteId: receipt.noteId };
+    // Only a missing receipt may proceed through the original keyed writer;
+    // pending/expired/malformed/unsupported inspection never becomes a fresh key.
+    if (receipt?.state !== "unissued") return { kind: "unknown" };
+  }
   const result = await requestOwnedJson("/api/notes", { method: "POST", headers: {
     "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: intent.key,
   }, body: intent.body }, 256 * 1024);

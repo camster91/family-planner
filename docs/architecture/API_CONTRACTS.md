@@ -1381,3 +1381,35 @@ claim all #135 exactly-once acceptance. Older servers missing writeContext hold
 new creates until refreshed/updated; browsing/edit legacy bodies remain compatible.
 No offline queue/device capability/provider/schema change. Pure/route/mounted source
 cases authored/unrun; real fault/PG/native/owner/storage acceptance remains open.
+
+### Original note-create receipt inspection — 2026-10-25 (#134/#135/#499, local source)
+
+`POST /api/notes/create/receipt` is read-only. It takes the original owner-bound
+create JSON and Idempotency-Key in the header, keeping private draft text/key out
+of URL logs. Paired devices are refused, personal auth is required, and both owner
+fields/key are mandatory. Current User/household/role/session/notes-feature renewal
+precedes receipt lookup under existing lifecycle locks. The scoped receipt is read
+under FOR SHARE; action note.create, canonical parsed request hash, stored expiry
+and compatible successful response pointer are checked. No receipt claiming,
+pruning/replay/effect or content recreation is called.
+
+Successful replies expose only state: unissued (no matching scoped receipt),
+pending, expired, unavailable (malformed/unsupported completed receipt), or
+present/removed with noteId. Current presence is read by exact id+household with
+id-only projection; cached note title/body/creator markers are never returned.
+Owner mismatch is409 NOTE_OWNER_CHANGED; action/hash mismatch422
+IDEMPOTENCY_KEY_REUSED; ordinary auth/feature refusals retain their codes. Responses
+are private/no-store, including failures.
+
+Mounted uncertain Save now inspects first using shared15s/32KiB bounds. Present
+confirms without another write; removed ends recovery with EN/ES explanation and
+never recreates. Only unissued can continue through the same original keyed POST,
+subject to the existing24h client window and canonical atomic-receipt assumption.
+Pending/expired/unavailable/malformed/non-success inspection holds the original
+intent. A missing receipt is not a disaster-restore proof; post-restore key/history
+continuity remains a separate acceptance requirement. No background retry/new key,
+queue/storage schema, device permission or persistent journal is added.
+
+Server/client/mounted/device-inventory source authored/adapted only. No real API/DB/
+locking/fault/restart/native/privacy/browser/test/build/release execution occurred.
+Persistent adoption/reload/process-death and full #135 acceptance remain open.

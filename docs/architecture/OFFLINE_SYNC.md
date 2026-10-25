@@ -569,3 +569,19 @@ inspect removal after completed receipt or enable background sends. The existing
 owned-request journal is not replaced or forked; persistent adoption/recovery and
 all actual failure/restart/lifecycle acceptance remain future work. Legacy unbound
 API callers retain their old behavior. Source cases authored/adapted only; no run.
+
+## Note receipt presence/removal — 2026-10-25 (#135, local source)
+
+Mounted note-create recovery now inspects its exact original request/key through
+personal read-only POST /api/notes/create/receipt. Current authority, owner, scoped
+receipt action/hash/expiry and present note ID are checked without replay/pruning
+or a note write. Present confirms and removed terminates without recreation.
+Only an unissued result may proceed through the original keyed writer within the
+safe client retry window; pending/expired/unknown replies hold. No raw cached note
+content is exposed. Removed recovery gets an explicit EN/ES terminal message.
+
+This extends the preceding mounted-only recovery checkpoint; it still has no
+persistent journal or navigation/reload/native restart guarantee. An absent key
+is not a restored-database exactly-once guarantee. No new queue/scheduler/device
+permission. Source cases unrun; real locks, races, deletion/owner changes, fault/
+restore and lifecycle acceptance remain open.

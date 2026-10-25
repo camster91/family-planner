@@ -123,7 +123,7 @@ function NotesPageInner() {
   React.useEffect(() => {
     dialogOpen.current = modalState !== null || viewingNote !== null
   }, [modalState, viewingNote])
-  const [notice, setNotice] = React.useState<'saved' | 'deleted' | 'savedRefreshFailed' | 'deletedRefreshFailed' | null>(null)
+  const [notice, setNotice] = React.useState<'createRemoved' | 'saved' | 'deleted' | 'savedRefreshFailed' | 'deletedRefreshFailed' | null>(null)
 
   // Form state
   const [formTitle, setFormTitle] = React.useState('')
@@ -293,7 +293,11 @@ function NotesPageInner() {
           pendingCreate.current = { intent: makeNoteCreateIntent(payload, writeContext.current), draft: { ...payload }, uncertain: false }
         }
         const pending = pendingCreate.current
-        const outcome = await postNoteCreate(pending.intent)
+        const outcome = await postNoteCreate(pending.intent, { recovery: pending.uncertain })
+        if (outcome.kind === 'removed') {
+          pendingCreate.current = null; setCreateHeld(false)
+          await fetchNotes(); setNotice('createRemoved'); resetModal(); return
+        }
         if (outcome.kind !== 'confirmed') {
           if (outcome.kind === 'unknown' || pending.uncertain || outcome.code === 'NOTE_RECOVERY_EXPIRED') {
             pending.uncertain = true; setCreateHeld(true)
