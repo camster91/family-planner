@@ -2,8 +2,9 @@
 
 2026-10-24. **Defined model, not an executed test or capacity result.** This
 completes the planning requirement to cover household, event, grocery, inventory,
-task and AI traffic. No runner, fixture seed, query trace, load run, provider,
-scheduler, infrastructure or release is activated here. #137's reproducible-load
+task and AI traffic. A dormant mixed-load engine is now authored (see `CAPACITY_RUNNER.md`); no
+runner, fixture seed, query trace, load run, provider, scheduler, infrastructure
+or release is activated here. #137's reproducible-load
 and measured-bottleneck criteria remain open. Existing `perf-baseline.mjs` is a
 sequential ten-endpoint timing baseline; it does not implement this mixed model.
 
@@ -149,7 +150,8 @@ then propose one reversible optimization and an objective capacity trigger.
 Without a completed run these fields are **unmeasured**, not “no bottleneck”.
 Keep frontend, database, native, provider and production evidence separate.
 
-Still required: guarded deterministic dataset builder, mixed-session runner,
+Still required: guarded deterministic dataset builder, canonical mixed-session
+adapters/adoption around the authored engine (`CAPACITY_RUNNER.md`),
 provider fakes/adoption isolation, outcome reconciler, resource sampling and
 clean-environment instructions bound to an exact candidate; then actual runs and
 observed repairs. Do not mark reproducibility, capacity, recovery drills or

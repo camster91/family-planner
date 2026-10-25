@@ -1491,3 +1491,17 @@ retry remain; no write/provider/reimport or current-recipe history fallback.
 Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
 CI/API/database/native/provider/push/merge/deploy ran. Original runtime/isolation/
 responsive/native and complete recipe acceptance remain open.
+
+## Dormant mixed-capacity engine — 2026-10-24 (source only)
+
+Latest bounded source work adds a dormant seeded capacity workload model and
+mixed-load engine (#137). Fixed stages, eight-domain weights, small-stage skew
+refusal, sentinel exclusion, per-worker serialization, bounded callbacks/scenarios,
+warmup separation, fail-closed adoption and content-free report source are authored.
+No CLI/adapters/dataset are silently substituted: canonical fixture builder,
+all-domain route adapters, provider/process isolation, resource sampler and outcome
+reconciler remain unfinished. Worker counts are not measured active sessions;
+request counts/bytes are adapter reports, not transport proof. Regression source
+is authored but unrun. No QA/test/check/build/browser/CI/API/database/load/provider/
+push/merge/deploy ran. #137 clean-environment reproducibility/capacity/drill and
+all original runtime/production acceptance remain open.

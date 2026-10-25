@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work reuses shared runOwnedForeground and bounded JSON
-decoding for recipe picker, grocery review, saved-recipe reuse and prepared-recipe
-history reads (#460/#134). This replaces two duplicated deadline implementations;
-reuse/history now settle ignored-abort header/body stalls at their existing10s
-limit, picker/review retain15s. One1MiB response limit streams where supported;
-JSON-only bridges are checked after allocation, not pre-allocation protection.
-Canonical endpoint/schema/ID matching, stored history, selection and explicit
-retry remain; no write/provider/reimport or current-recipe history fallback.
-Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
-CI/API/database/native/provider/push/merge/deploy ran. Original runtime/isolation/
-responsive/native and complete recipe acceptance remain open.
+Latest bounded source work adds a dormant seeded capacity workload model and
+mixed-load engine (#137). Fixed stages, eight-domain weights, small-stage skew
+refusal, sentinel exclusion, per-worker serialization, bounded callbacks/scenarios,
+warmup separation, fail-closed adoption and content-free report source are authored.
+No CLI/adapters/dataset are silently substituted: canonical fixture builder,
+all-domain route adapters, provider/process isolation, resource sampler and outcome
+reconciler remain unfinished. Worker counts are not measured active sessions;
+request counts/bytes are adapter reports, not transport proof. Regression source
+is authored but unrun. No QA/test/check/build/browser/CI/API/database/load/provider/
+push/merge/deploy ran. #137 clean-environment reproducibility/capacity/drill and
+all original runtime/production acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -10,9 +10,11 @@ This page says how fast and how reliable the app should be during the beta, what
 
 [CAPACITY_MODEL.md](../testing/CAPACITY_MODEL.md) defines fabricated cardinalities,
 role/device mixes, weighted core traffic, bounded local stages, safety/correctness
-stops and the evidence record for #134/#137. It is a planning artifact. The guarded
-mixed runner, dataset builder and actual reproducibility/capacity observations
-remain unfinished. Existing sequential `perf:baseline` does not run that model.
+stops and the evidence record for #134/#137. It is a planning artifact. A dormant
+mixed-load engine is now authored in `src/lib/capacity`; see
+[CAPACITY_RUNNER.md](../testing/CAPACITY_RUNNER.md). Canonical scenario adapters,
+fixture builder/adoption and actual reproducibility/capacity observations remain
+unfinished. Existing sequential `perf:baseline` does not run that model.
 No QA, workload, provider, telemetry activation or infrastructure/release change
 accompanies this update; the historical baseline remains bound to its old source.
 
