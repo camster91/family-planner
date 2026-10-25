@@ -1,11 +1,11 @@
-/** Strict original review contract and atomic source guard. Currently no HTTP
- * endpoint uses it. Requires the caller's freshly authenticated parent and
+/** Strict original review contract and atomic source guard for the owned endpoint. Requires the caller's freshly authenticated parent and
  * ordered User/household/actual principal locks BEFORE this chore row lock.
  */
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
 import { CHORE_CHECK_COMMAND_PROTOCOL, CHORE_CHECK_EPOCH_MAX, CHORE_CHECK_GENERATION, type ChoreCheckOwner, type ChoreCheckSnapshot } from "@/lib/chore-check-command-shared";
+export const choreCheckCommandsEnabled = () => process.env.CHORE_CHECK_COMMANDS_ENABLED === "1";
 const epoch = z.number().int().min(0).max(CHORE_CHECK_EPOCH_MAX - 1);
 export const choreCheckCommandSchema = z.object({
   protocol: z.literal(CHORE_CHECK_COMMAND_PROTOCOL),

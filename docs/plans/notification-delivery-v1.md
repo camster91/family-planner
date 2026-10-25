@@ -510,3 +510,35 @@ context/capability projection and retained-review UI behavior without silently
 refreshing an old command's expected version. Legacy endpoint stays compatible.
 All PG/old-client/restore/receipt/role/concurrency acceptance remains unfinished;
 no QA, DB, generation/migration/build/browser or release action ran.
+
+
+## Shared owned check endpoint and atomic guard — 2026-10-25
+
+Legacy and new `/api/chores/verify/owned` POST now call the SAME
+`chore-check-http.ts` implementation. The route wrappers select their fixed mode;
+there is no second status/XP/profile/notification engine. Owned mode requires the
+private default-off `CHORE_CHECK_COMMANDS_ENABLED=1` acknowledgement, current
+parent authentication,8KiB strict JSON and exact original actor/family/session
+preconditions before target lookup. Foreign/absent initial targets both404. All
+owned results, including denials, are private/no-store. Legacy body/response and
+conditional-state behavior remain in the original path. No fallback from owned
+to legacy is provided.
+
+Owned approval/rejection always takes ordered participant/actual principal/
+household locks and renews original role/token, independent of notification mode.
+After that it atomically locks ONLY the still-completed chore with original birth,
+material and completion epochs. Failed comparison returns409 CHORE_CHECK_CHANGED
+before status/XP/activity/notification/profile effects. Already-verified or a
+later pending/completed cycle is not silently treated as original success. The
+existing actual transaction then performs the canonical action, including gated
+notification composition where enabled. No new migration/version column is added.
+
+Five mocked route source cases cover exact source to shared mutation, later-cycle
+refusal, owner mismatch, disabled/malformed refusal and claimed-parent bypass.
+All unrun; mocks do not prove the actual SQL guard, concurrent legacy updates,
+rollback, isolation or trigger behavior. Parent capability/context projection,
+immutable command transport and explicit retained-review recovery UI are next.
+There is no durable exact-command receipt/current-outcome proof here: a retry
+after original success may409 and must be inspected, never automatically renewed.
+Backup restore/epoch rollback and supported old-client retirement remain separate
+real rollout gates. No QA, DB, generation/migration/build/browser or release ran.

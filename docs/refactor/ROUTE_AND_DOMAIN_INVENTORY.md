@@ -3163,3 +3163,14 @@ matching and default/saturated versions are refused. Authenticated owner renewal
 remains a caller requirement; no endpoint/UI/receipt/restore guarantee is implied.
 Four source cases unrun. Shared strict endpoint/capability/original-review wiring
 remains next under #141/#135; no QA/data/release action ran.
+
+
+### Owned chore-check endpoint — 2026-10-25
+
+Legacy/owned routes now select one canonical handler. New path defaults off,
+authenticates a current parent, bounds strict owner/version/decision JSON and
+atomically guards the original completed row under participant/principal locks.
+Later cycles/material changes hold before all effects; owned results private/
+no-store and no legacy fallback. Five route source cases unrun. Actual SQL/
+concurrency/rollback, capability/client/review UI, owned receipt proof, restore
+and old-client acceptance remain; no QA/data/release action ran.

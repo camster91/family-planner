@@ -54,13 +54,14 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): strict original chore-check command
-schema/shared snapshot and atomic row predicate are authored. Source generation,
-material epoch and completion epoch distinguish later cycles even with identical
-timestamps; missing/saturated versions hold. Owner remains a server-checked
-precondition. Endpoint/client/capability and retained-original-review wiring are
-next, not completed by this helper. Source cases unrun; no QA, DB, migration,
-generation/build/browser, activation, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): a separate default-off owned chore
+check endpoint now shares the legacy canonical handler, with bounded strict body,
+original owner/session checks and atomic completed/birth/material/completion
+version guard before effects. Changed cycles409; no legacy fallback or owned
+success inference. Parent capability/original-command transport and review UI
+remain next; receipt/restore/old-client gates remain real work. Mocked route
+cases unrun; no QA, DB, migration/generation, build, browser, activation, push,
+merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
