@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       messages: messages.reverse().map(toMessageResponse), // Return in chronological order
       members,
       userId: auth.user.id,
-      ...(modern ? { nextCursor } : {}),
+      ...(modern ? { nextCursor, readContext: { userId: auth.user.id, familyId: auth.user.family_id } } : {}),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/messages', error, getRequestId(request))

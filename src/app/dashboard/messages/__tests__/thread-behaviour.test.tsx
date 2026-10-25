@@ -3,7 +3,7 @@
  */
 // Family chat thread: the 5s poll must not yank a reader scrolling history,
 // a failed send says why and keeps the text, and older history can be loaded
-// with GET /api/messages?cursor=<oldest created_at>.
+// with explicit household-bound message keysets.
 import * as React from 'react'
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -69,13 +69,13 @@ beforeEach(() => {
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
     if (method === 'POST') return postReply()
-    if (url.startsWith('/api/messages?cursor=')) {
-      return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1' }) } as Response
+    if (new URL(url, 'http://localhost').searchParams.has('cursor')) {
+      return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1', nextCursor: older.length >= 50 ? 'history-next' : null, readContext: { userId: 'u1', familyId: 'family-a' } }) } as Response
     }
     return {
       ok: true,
       status: 200,
-      json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }),
+      json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', nextCursor: latest.length >= 50 ? 'history-start' : null, readContext: { userId: 'u1', familyId: 'family-a' } }),
     } as Response
   }) as unknown as typeof fetch
 })
@@ -100,7 +100,7 @@ async function runPoll() {
   await act(async () => {
     poll?.()
   })
-  await waitFor(() => expect(calls.filter((c) => c.url === '/api/messages').length).toBeGreaterThan(1))
+  await waitFor(() => expect(calls.filter((c) => c.url === '/api/messages?paging=keyset-v1&limit=50').length).toBeGreaterThan(1))
 }
 
 describe('initial loading recovery', () => {
@@ -509,8 +509,8 @@ describe('Load earlier messages', () => {
     await user.click(button)
 
     await screen.findByText('Message 60')
-    const cursorCall = calls.find((c) => c.url.startsWith('/api/messages?cursor='))!
-    expect(cursorCall.url).toBe(`/api/messages?cursor=${encodeURIComponent(latest[0].created_at)}&limit=50`)
+    const cursorCall = calls.find((c) => new URL(c.url, 'http://localhost').searchParams.has('cursor'))!
+    expect(cursorCall.url).toBe('/api/messages?paging=keyset-v1&limit=50&cursor=history-start')
     const texts = screen.getAllByText(/^Message \d+$/).map((el) => el.textContent)
     expect(texts[0]).toBe('Message 60')
     expect(texts[texts.length - 1]).toBe('Message 149')
@@ -563,4 +563,60 @@ describe('mergeLatest', () => {
     expect(prependEarlier(prev, range(1, 3)).map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm4'])
     expect(prependEarlier(prev, range(3, 4))).toBe(prev)
   })
+})
+
+// Authored source cases; no QA/test invocation at this checkpoint.
+it('keeps loaded same-time history and a just-sent boundary message during keyset refresh', () => {
+  const at = '2026-10-25T12:00:00.000Z'
+  const a = { ...msg(1), id: 'a', created_at: at }
+  const b = { ...msg(2), id: 'b', created_at: at }
+  const c = { ...msg(3), id: 'c', created_at: at }
+  const sent = { ...msg(4), id: '0', created_at: at }
+  const prev = [c, b, a, sent]
+  expect(mergeLatest(prev, [b, a], true)).toBe(prev)
+  const changed = mergeLatest(prev, [{ ...b, content: 'Updated safe display' }, a], true)
+  expect(changed.map(row => row.id)).toEqual(['c', 'b', 'a', '0'])
+  expect(changed[1].content).toBe('Updated safe display')
+})
+it('retries the exact opaque history position without clearing the message draft', async () => {
+  latest = range(100, 149)
+  older = range(60, 99)
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 149')
+  await user.type(screen.getByLabelText('Message text'), 'Keep this unsent text')
+  ;(global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: false, status: 503 }) as Response)
+  await user.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+  await screen.findByText("Couldn't load earlier messages. Try again.")
+  await user.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+  await screen.findByText('Message 60')
+  const urls = (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url)).filter(url => new URL(url, 'http://localhost').searchParams.has('cursor'))
+  expect(urls).toEqual([
+    '/api/messages?paging=keyset-v1&limit=50&cursor=history-start',
+    '/api/messages?paging=keyset-v1&limit=50&cursor=history-start',
+  ])
+  expect(screen.getByLabelText('Message text')).toHaveValue('Keep this unsent text')
+})
+it('masks the thread and composer when a same-account reply changes the household context', async () => {
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  await user.type(screen.getByLabelText('Message text'), 'Private old household draft')
+  ;(global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, status: 200, json: async () => ({
+    messages: [{ ...msg(100), content: 'New context content' }], members: [{ id: 'u1', name: 'Me' }], userId: 'u1', nextCursor: null,
+    readContext: { userId: 'u1', familyId: 'family-b' },
+  }) }) as Response)
+  await act(async () => { poll?.() })
+  await screen.findByText('Reload messages to confirm your current household before continuing.')
+  expect(screen.queryByLabelText('Message text')).toBeNull()
+  expect(screen.queryByText('Message 3')).toBeNull()
+  expect(screen.queryByText('New context content')).toBeNull()
+  expect(calls.some(call => call.method === 'POST')).toBe(false)
+})
+it('labels an older server recent-only rather than inventing an earlier cursor', async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ messages: range(100, 149), members: [], userId: 'u1' }) })) as unknown as typeof fetch
+  render(<MessagesPage />)
+  await screen.findByText('Message 149')
+  expect(screen.getByText('This server shows recent messages only. Earlier history needs a server update.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Load earlier messages' })).toBeNull()
 })

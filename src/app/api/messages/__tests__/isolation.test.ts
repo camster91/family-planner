@@ -116,6 +116,7 @@ describe('opt-in message keysets (source only)', () => {
     const first = await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1', limit: '2' } }))).json()
     expect(first.messages.map((row: any) => row.id)).toEqual(['tie-b', 'tie-a'])
     expect(first.nextCursor).toBeTruthy()
+    expect(first.readContext).toEqual({ userId: 'child-a', familyId: 'family-A' })
     await require('@/__tests__/helpers/two-household').fakePrisma.message.deleteMany({ where: { id: 'tie-b' } })
     const next = await (await messages.GET(req({ as: 'childA', query: { paging: 'keyset-v1', limit: '2', cursor: first.nextCursor } }))).json()
     expect(next.messages.map((row: any) => row.id)).toEqual(['msg-a', 'tie-c'])

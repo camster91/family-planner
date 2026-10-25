@@ -1635,3 +1635,20 @@ remain open; no complete roster-size or whole-response bound is claimed.
 GET /api/messages?paging=keyset-v1[&limit=1..100][&cursor=...] returns the existing messages/members/userId plus nullable nextCursor. Invalid/duplicate mode/limit/cursor or another household position refuses400 MESSAGES_INVALID_PAGE. Page selection is created_at DESC/id ASC; the response reverses only that selected page for chronological display. Complete current-member roster and canonical sender/pickup masking remain. No mode retains the legacy timestamp-only API, including its tie limitation; no client adoption or read-snapshot guarantee is implied.
 
 Next source integration: latest/earlier client reads must validate explicit continuation, retain the exact failed cursor, preserve all loaded same-time messages during a latest merge, keep unsent text/attachments/unknown send keys, and retain scroll position/focus. Specify unknown/older-server recovery rather than inventing a cursor from timestamps. Later QA owns actual refresh/send/read/history races and query plans. Compare a proposed Message(family_id,created_at DESC,id ASC) index only after plan measurement; no DDL/retention change here.
+
+### Chat history keyset adoption — 2026-10-25 (#134/#135)
+
+Message web source connects chat to message history
+keysets (#134/#135). Latest/earlier reads use15-second/2MiB bounded decoding,
+validated50-row unique pages and explicit opaque continuation. Failed older reads
+retain the exact cursor; loop/unread/unknown pages do not advance it. Latest
+merges preserve loaded timestamp ties and just-sent boundary rows; scroll/focus
+and unsent text/attachments/send intents remain. Modern API readContext binds
+user/household; changed/revoked read context masks the thread/composer and stops
+new reads until explicit reload. Older servers show recent-only EN/ES notice,
+without invented continuation. Source fixtures/cases authored/adapted only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual
+tie collation, same-window edits, send/read/history races, large refresh gaps,
+old-client/server, async owner/lifecycle and rendered acceptance remain open.
+
+Modern message responses now also include readContext:{userId,familyId}; it is observed read scope, never a write permission or cached authority. The client validates it before merging latest/history. Unknown old-server responses remain recent-only with no fabricated history cursor. Legacy no-mode API shape remains unchanged. Existing5-second polling/sending/upload/read-ack paths are not new delivery or offline queues; their wider lifecycle/owner mutation requirements remain separate. Read scopes do not prove an in-flight send's outcome or revoke an already dispatched action. Streaming bytes are bounded; JSON-only bridges retain post-parse limits.

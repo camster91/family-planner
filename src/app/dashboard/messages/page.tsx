@@ -14,6 +14,8 @@ import { useTranslation } from '@/i18n'
 import { useMessagesText } from '@/i18n/messages'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { mergeLatest, prependEarlier } from './thread'
+import { runOwnedForeground } from '@/lib/owned-request-http'
+import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 
 /** GET /api/messages page size (the route's default). */
 const PAGE_SIZE = 50
@@ -74,7 +76,7 @@ function isChatMessage(value: unknown): value is ChatMessage {
   const assignee = pickup && typeof pickup === 'object' ? (pickup as Record<string, unknown>).assignee : undefined
   const attachments = message.attachments
   return (
-    typeof message.id === 'string' &&
+    typeof message.id === 'string' && message.id.length > 0 &&
     typeof message.created_at === 'string' &&
     !Number.isNaN(Date.parse(message.created_at)) &&
     typeof message.content === 'string' &&
@@ -138,16 +140,29 @@ function isMember(value: unknown): value is Member {
   return typeof member.id === 'string' && typeof member.name === 'string'
 }
 
-function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; members: Member[]; userId: string } | null {
+async function readChatPage(url: string, signal: AbortSignal) {
+  const result = await runOwnedForeground(async ownedSignal => {
+    const response = await fetch(url, { cache: 'no-store', signal: ownedSignal })
+    const data = response.ok ? await readBoundedJsonResponse(response, ownedSignal, 2 * 1024 * 1024) : null
+    return { kind: 'reply' as const, response, data }
+  }, { signal })
+  if (result.kind === 'unknown') throw new Error('Message read unavailable')
+  return result
+}
+function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; members: Member[]; userId: string; nextCursor: string | null; pagingSupported: boolean; scope: string } | null {
   if (!value || typeof value !== 'object') return null
   const data = value as Record<string, unknown>
-  return (
-    Array.isArray(data.messages) && data.messages.every(isChatMessage) &&
-    Array.isArray(data.members) && data.members.every(isMember) &&
-    typeof data.userId === 'string'
-  )
-    ? { messages: data.messages, members: data.members, userId: data.userId }
-    : null
+  if (!Array.isArray(data.messages) || data.messages.length > PAGE_SIZE || !data.messages.every(isChatMessage) ||
+    new Set(data.messages.map(row => row.id)).size !== data.messages.length ||
+    !Array.isArray(data.members) || !data.members.every(isMember) || (typeof data.userId !== 'string' || !data.userId)) return null
+  const pagingSupported = 'nextCursor' in data
+  const cursor = pagingSupported ? data.nextCursor : null
+  if (cursor !== null && (typeof cursor !== 'string' || !/^[A-Za-z0-9_-]{1,1024}$/.test(cursor) || data.messages.length !== PAGE_SIZE)) return null
+  const context = data.readContext && typeof data.readContext === 'object' ? data.readContext as Record<string, unknown> : null
+  if (pagingSupported && (!context || context.userId !== data.userId || typeof context.familyId !== 'string' || !context.familyId)) return null
+  return { messages: data.messages, members: data.members, userId: data.userId, nextCursor: cursor as string | null, pagingSupported,
+    scope: JSON.stringify([data.userId, pagingSupported ? context!.familyId : 'legacy-context']) }
+
 }
 
 function formatMessageDate(date: string, locale: string): string {
@@ -190,9 +205,21 @@ function MessagesContent() {
   const [readPending, setReadPending] = useState(false)
   const [readError, setReadError] = useState(false)
   const attachmentInputRef = useRef<HTMLInputElement>(null)
-  // Older history: GET /api/messages?cursor=<oldest created_at> returns the
-  // page of messages created before it.
+  // Opaque continuation belongs to the first successfully loaded thread.
+  // Newest refreshes must not replace an older-history retry position.
   const [hasEarlier, setHasEarlier] = useState(false)
+  const [historyUnavailable, setHistoryUnavailable] = useState(false)
+  const [contextChanged, setContextChanged] = useState(false)
+  const retired = useRef(false)
+  const readScope = useRef<string | null>(null)
+  const earlierCursor = useRef<string | null>(null)
+  const seenHistoryCursors = useRef(new Set<string>())
+  const earlierRequest = useRef(0)
+  const earlierLock = useRef(false)
+  const latestAbort = useRef<AbortController | null>(null)
+  const earlierAbort = useRef<AbortController | null>(null)
+  const earlierTrigger = useRef<HTMLButtonElement>(null)
+  const restoreEarlierFocus = useRef(false)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [earlierError, setEarlierError] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -211,8 +238,17 @@ function MessagesContent() {
   const sendIntentRef = useRef<SendIntent | null>(null)
   const ambiguousSendRef = useRef(new Map<string, string>())
 
+  const retireThread = useCallback(() => {
+    retired.current = true
+    latestLoadRef.current++; earlierRequest.current++
+    latestAbort.current?.abort(); earlierAbort.current?.abort()
+    // Hide all old household content/drafts. Memory is retained until an explicit
+    // reload; no pending send is rebound or replayed into the changed context.
+    setContextChanged(true)
+  }, [])
+
   const markMessagesRead = useCallback(async (ids: string[]) => {
-    if (ids.length === 0) return
+    if (retired.current || ids.length === 0) return
     const signature = ids.join(',')
     if (markedReadSignatureRef.current === signature) return
     markedReadSignatureRef.current = signature
@@ -237,22 +273,32 @@ function MessagesContent() {
   }, [])
 
   const loadData = useCallback(async () => {
+    if (retired.current) return
     const request = ++latestLoadRef.current
+    latestAbort.current?.abort()
+    const controller = new AbortController()
+    latestAbort.current = controller
     latestLoadPendingRef.current = true
     try {
-      const res = await fetch('/api/messages')
-      const data = res.ok ? parseMessagesResponse(await res.json().catch(() => null)) : null
+      const result = await readChatPage(`/api/messages?paging=keyset-v1&limit=${PAGE_SIZE}`, controller.signal)
+      const res = result.response
+      if (request !== latestLoadRef.current || retired.current) return
+      if ([401, 403].includes(res.status)) { retireThread(); return }
+      const data = res.ok ? parseMessagesResponse(result.data) : null
       if (request !== latestLoadRef.current) return
       if (!res.ok || !data) {
         setLoadError(true)
         return
       }
-      // Same newest message and count: keep the same array, so a quiet
-      // poll neither re-renders the thread nor scrolls it.
-      setMessages(prev => mergeLatest(prev, data.messages))
+      if (readScope.current !== null && readScope.current !== data.scope) { retireThread(); return }
+      readScope.current = data.scope
+      // Keep loaded same-time history outside this precise newest window.
+      setMessages(prev => mergeLatest(prev, data.messages, data.pagingSupported))
       if (firstLoadRef.current) {
         firstLoadRef.current = false
-        setHasEarlier(data.messages.length >= PAGE_SIZE)
+        earlierCursor.current = data.nextCursor
+        setHasEarlier(data.nextCursor !== null)
+        setHistoryUnavailable(!data.pagingSupported)
       }
       setFamilyMembers(prev => (sameIds(prev, data.members) ? prev : data.members))
       setCurrentUserId(data.userId)
@@ -266,7 +312,7 @@ function MessagesContent() {
         setLoading(false)
       }
     }
-  }, [markMessagesRead])
+  }, [markMessagesRead, retireThread])
 
   useEffect(() => {
     void loadData()
@@ -278,6 +324,8 @@ function MessagesContent() {
       latestLoadRef.current += 1
       latestLoadPendingRef.current = false
       readRequestRef.current += 1
+      earlierRequest.current += 1
+      latestAbort.current?.abort(); earlierAbort.current?.abort()
     }
   }, [loadData])
 
@@ -313,36 +361,47 @@ function MessagesContent() {
   }
 
   const loadEarlier = async () => {
-    const oldest = messages[0]
-    if (!oldest || loadingEarlier) return
+    const cursor = earlierCursor.current
+    if (retired.current || !cursor || earlierLock.current) return
+    earlierLock.current = true
+    const request = ++earlierRequest.current
+    const scope = readScope.current
+    const controller = new AbortController()
+    earlierAbort.current = controller
+    restoreEarlierFocus.current = document.activeElement === earlierTrigger.current
     setLoadingEarlier(true)
     setEarlierError(false)
     try {
-      const res = await fetch(`/api/messages?cursor=${encodeURIComponent(oldest.created_at)}&limit=${PAGE_SIZE}`)
-      if (!res.ok) {
-        setEarlierError(true)
-        return
-      }
-      const data = await res.json().catch(() => null)
-      const older: ChatMessage[] =
-        data && typeof data === 'object' && Array.isArray(data.messages) && data.messages.every(isChatMessage)
-          ? data.messages
-          : []
-      if (!data || typeof data !== 'object' || !Array.isArray(data.messages) || !data.messages.every(isChatMessage)) {
-        setEarlierError(true)
-        return
-      }
-      setHasEarlier(older.length >= PAGE_SIZE)
-      if (older.length > 0) {
+      const query = new URLSearchParams({ paging: 'keyset-v1', limit: String(PAGE_SIZE), cursor })
+      const { response, data: body } = await readChatPage(`/api/messages?${query}`, controller.signal)
+      if (request !== earlierRequest.current || retired.current) return
+      if ([401, 403].includes(response.status)) { retireThread(); return }
+      const data = response.ok ? parseMessagesResponse(body) : null
+      if (!data || !data.pagingSupported) throw new Error('History unavailable')
+      if (data.scope !== scope || scope !== readScope.current) { retireThread(); return }
+      if (data.nextCursor && (data.nextCursor === cursor || seenHistoryCursors.current.has(data.nextCursor))) throw new Error('Repeated history position')
+      seenHistoryCursors.current.add(cursor)
+      earlierCursor.current = data.nextCursor
+      setHasEarlier(data.nextCursor !== null)
+      if (data.messages.length > 0) {
         prependAnchorRef.current = threadRef.current?.scrollHeight ?? null
-        setMessages(prev => prependEarlier(prev, older))
+        setMessages(prev => prependEarlier(prev, data.messages))
       }
     } catch {
-      setEarlierError(true)
+      if (request === earlierRequest.current && !retired.current) setEarlierError(true)
     } finally {
-      setLoadingEarlier(false)
+      if (request === earlierRequest.current) {
+        earlierLock.current = false
+        setLoadingEarlier(false)
+      }
     }
   }
+  useEffect(() => {
+    if (loadingEarlier || !restoreEarlierFocus.current) return
+    restoreEarlierFocus.current = false
+    if (document.activeElement !== document.body && document.activeElement !== earlierTrigger.current) return
+    ;(hasEarlier ? earlierTrigger.current : threadRef.current)?.focus({ preventScroll: true })
+  }, [loadingEarlier, hasEarlier, earlierError])
 
   const retryRead = () => {
     markedReadSignatureRef.current = null
@@ -489,6 +548,8 @@ function MessagesContent() {
     }
   }
 
+  if (contextChanged) return <div role="alert" className="card-apple m-4 p-5 space-y-3"><p>{messageText('contextChanged')}</p><button type="button" className="btn-tinted min-h-[44px]" onClick={() => window.location.reload()}>{messageText('reloadMessages')}</button></div>
+
   return (
     <div className="pb-20">
       <div className="px-4 pt-2 pb-3">
@@ -525,6 +586,7 @@ function MessagesContent() {
           aria-label={messageText('threadLabel')}
           tabIndex={0}
         >
+          {historyUnavailable && <p role="status" className="px-4 py-3 text-footnote text-label-secondary">{messageText('historyUnavailable')}</p>}
           {loadError && !loading && (
             <div data-testid="messages-load-error" role="alert" className="card-apple m-4 flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
@@ -561,6 +623,7 @@ function MessagesContent() {
                 <div className="flex flex-col items-center gap-1 px-4 pb-2">
                   <button
                     type="button"
+                    ref={earlierTrigger}
                     onClick={() => void loadEarlier()}
                     disabled={loadingEarlier}
                     aria-busy={loadingEarlier || undefined}
