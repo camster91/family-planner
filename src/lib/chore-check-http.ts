@@ -1,3 +1,5 @@
+import { choreCheckOwnerAvailableInTx, renewChoreCheckOwner } from "@/lib/chore-check-owner";
+import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { choreCheckCommandsEnabled, choreCheckCommandSchema, choreCheckOwnerMatches, lockOriginalChoreCheckInTx } from "@/lib/chore-check-command";
 import type { ChoreCheckCommand } from "@/lib/chore-check-command-shared";
@@ -49,6 +51,15 @@ async function choreState(choreId: string) {
  * verified_notes, completed_at) so the page can show the server's state.
  */
 export async function handleChoreCheckRequest(request: NextRequest, mode: "legacy" | "owned" = "legacy") {
+  const scope: { owner: ChoreCheckOwner | null } = { owner: null }
+  const response = await performChoreCheckRequest(request, mode, scope)
+  if (mode === "owned" && scope.owner) {
+    const available = await renewChoreCheckOwner(prisma!, scope.owner).catch(() => false)
+    if (!available) return choreJson({ error: 'Your account or household changed. Review the chore again.', code: 'CHORE_CHECK_OWNER_CHANGED' }, { status: 409 })
+  }
+  return response
+}
+async function performChoreCheckRequest(request: NextRequest, mode: "legacy" | "owned", scope: { owner: ChoreCheckOwner | null }) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
@@ -71,6 +82,7 @@ export async function handleChoreCheckRequest(request: NextRequest, mode: "legac
       if (!choreCheckOwnerMatches(command.data.owner, { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }))
         return choreJson({ error: 'Your account or household changed. Review before checking this chore.', code: 'CHORE_CHECK_OWNER_CHANGED' }, { status: 409 })
       originalCommand = command.data
+      scope.owner = originalCommand.owner
     }
     const parsed = verifyChoreSchema.safeParse(originalCommand ? {
       choreId: originalCommand.choreId, decision: originalCommand.decision, verificationNotes: originalCommand.verificationNotes,
@@ -126,6 +138,7 @@ export async function handleChoreCheckRequest(request: NextRequest, mode: "legac
         return { kind: 'forbidden' as const }
       }
 
+      if (originalCommand && !await choreCheckOwnerAvailableInTx(tx, originalCommand.owner)) return { kind: 'ownedUnavailable' as const }
       if (originalCommand && !await lockOriginalChoreCheckInTx(tx, auth.user.family_id, choreId, originalCommand.expected)) return { kind: 'checkChanged' as const }
       const fresh = await tx.chore.findUnique({
         where: { id: choreId },
@@ -234,6 +247,7 @@ export async function handleChoreCheckRequest(request: NextRequest, mode: "legac
       }
     })
 
+    if (outcome.kind === 'ownedUnavailable') return choreJson({ error: 'Chore checking is unavailable', code: 'CHORE_CHECK_UNAVAILABLE' }, { status: 503 })
     if (outcome.kind === 'checkChanged') return choreJson({ error: 'This chore changed since your review. Check its current state before trying again.', code: 'CHORE_CHECK_CHANGED' }, { status: 409 })
     if (outcome.kind === 'unauthorized') return choreJson({ error: 'Unauthorized' }, { status: 401 })
     if (outcome.kind === 'changed') return choreJson({ error: 'This chore changed. Review its current assignment before checking it.', code: 'CHORE_CHANGED', chore: await choreState(choreId) }, { status: 409 })
@@ -373,6 +387,7 @@ async function rejectChore(
     if (!freshCaller || freshCaller.family_id !== familyId || freshCaller.role !== 'parent') {
       return { kind: 'forbidden' as const }
     }
+    if (notification.originalCommand && !await choreCheckOwnerAvailableInTx(tx, notification.originalCommand.owner)) return { kind: 'ownedUnavailable' as const }
     if (notification.originalCommand && !await lockOriginalChoreCheckInTx(tx, familyId, choreId, notification.originalCommand.expected)) return { kind: 'checkChanged' as const }
     const chore = await tx.chore.findUnique({
       where: { id: choreId },
@@ -441,6 +456,7 @@ async function rejectChore(
     }
   })
 
+  if (reopened.kind === 'ownedUnavailable') return choreJson({ error: 'Chore checking is unavailable', code: 'CHORE_CHECK_UNAVAILABLE' }, { status: 503 })
   if (reopened.kind === 'checkChanged') return choreJson({ error: 'This chore changed since your review. Check its current state before trying again.', code: 'CHORE_CHECK_CHANGED' }, { status: 409 })
   if (reopened.kind === 'unauthorized') return choreJson({ error: 'Unauthorized' }, { status: 401 })
   if (reopened.kind === 'changed') return choreJson({ error: 'This chore changed. Review its current assignment before checking it.', code: 'CHORE_CHANGED' }, { status: 409 })

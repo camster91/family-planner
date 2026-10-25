@@ -1,9 +1,10 @@
+import { readCanonicalChoreDetail } from "@/lib/chore-detail-read";
 import { hydrateChoreProfileMembers, type ProfileHydrated } from "@/lib/chore-profile-read";
 import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-source-proof'
 import { assistantDeleteTargetGuard } from '@/lib/assistant-delete-target'
 import { deletePersonRecord, authorizePersonDeleteReplay } from '@/lib/person-record-delete'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
-import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import { scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
 import { readVisibleChoreRows } from "@/lib/chore-visible-read";
@@ -54,7 +55,7 @@ async function handleGET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    if (id !== null) return getOneChore(id, auth.user.family_id, request)
+    if (id !== null) return readCanonicalChoreDetail(id, auth.user.family_id, request)
 
     const status = searchParams.get('status')
     const assigned_to = searchParams.get('assigned_to')
@@ -144,57 +145,6 @@ async function handleGET(request: NextRequest) {
 }
 
 /** `GET /api/chores?id=`: one chore of the caller's household (another household's reads as missing). */
-async function getOneChore(id: string, familyId: string, request: NextRequest) {
-  const chore = await prisma!.chore.findFirst({
-    where: { id, family_id: familyId },
-    include: {
-      assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
-      creator: { select: { id: true, name: true } },
-    },
-  })
-  if (!chore || (await hiddenRoutineOccurrenceIds(prisma!, familyId, { ids: [id] })).includes(id)) return choreJson({ error: 'Chore not found' }, { status: 404 })
-  // A generated copy is stored as 'once'; the edit form shows its series' frequency.
-  const template =
-    chore.recurrence_id && chore.recurrence_id !== chore.id
-      ? await prisma!.chore.findFirst({
-          where: { id: chore.recurrence_id, family_id: familyId },
-          select: { id: true, frequency: true, weekly_days: true, rotation_member_ids: true },
-        })
-      : null
-  // Take turns (O-39) is a series setting: on the template itself, or on the
-  // template of a generated copy.
-  const seriesRotation =
-    (template ? template.rotation_member_ids : chore.recurrence_id === chore.id ? chore.rotation_member_ids : null) ?? []
-  const profileRead = profileChoreReadRefusal(request)
-  const hydrated: ProfileHydrated<typeof chore> = chore.assigned_member_id != null
-    ? (await hydrateChoreProfileMembers(prisma!, familyId, [chore]))[0]
-    : { ...chore, assigneeMember: undefined }
-  if (chore.assigned_to === null && chore.assigned_member_id != null && profileRead) {
-    return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
-  }
-  const subject = readChoreSubject(hydrated, familyId)
-  if (!subject) {
-    if (chore.assigned_to === null && chore.assigned_member_id != null) {
-      return choreJson(profileRead?.body ?? { error: 'PROFILE_CHORE_SUBJECT_UNREADABLE' }, { status: profileRead?.status ?? 409 })
-    }
-    return choreJson({ error: 'Chore subject unavailable' }, { status: 409 })
-  }
-  const safeChore = (() => {
-    const { assigneeMember: _member, ...safe } = hydrated
-    return subject.kind === 'profile' ? { ...safe, subject } : safe
-  })()
-  const gamified = await isGamificationOn(familyId)
-  const scheduledOnceIds = subject.kind === 'profile'
-    ? await scheduledOnceRoutineOccurrenceIds(prisma!, familyId, [chore.id])
-    : new Set<string>()
-  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(hydrated, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy") : null
-  const projectedChore = subject.kind === 'profile' && actionAvailability ? { ...safeChore, actionAvailability } : safeChore
-  return choreJson({
-    chore: gamified ? projectedChore : omitChorePoints(projectedChore),
-    template: template ?? null,
-    rotation: seriesRotation.length > 0 ? seriesRotation : null,
-  })
-}
 
 // PATCH - Update a chore (family-scoped, parent or assignee). Details only:
 // `updateChoreSchema` drops `status` and the verify fields, so status changes

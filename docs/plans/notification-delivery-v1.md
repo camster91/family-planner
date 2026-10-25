@@ -542,3 +542,34 @@ There is no durable exact-command receipt/current-outcome proof here: a retry
 after original success may409 and must be inspected, never automatically renewed.
 Backup restore/epoch rollback and supported old-client retirement remain separate
 real rollout gates. No QA, DB, generation/migration/build/browser or release ran.
+
+
+## Owned check context and immutable transport — 2026-10-25
+
+Source now includes GET on the existing private owned endpoint. It validates the
+bounded original-owner header and exact target query, requires current parent
+and the default-off command gate, and renews the original session/family/chores
+feature before and after canonical detail reads. The canonical single-chore
+reader was extracted unchanged from the existing chores route; no second data
+projection or subject engine is introduced. Missing targets are neutral. Current
+versions can describe pending/verified rows for explicit recovery; only completed
+rows qualify as new check snapshots. Unsupported counters never default to zero.
+
+Owned writes renew original authority inside the transaction before effects and
+again before response disclosure. A late authority loss may follow a committed
+mutation: the resulting hold is NOT rollback or proof that the command failed.
+Clients must retain the original intent and inspect rather than blindly create a
+replacement. Generic old endpoints retain their existing compatibility behavior.
+
+Browser transport freezes exact original owner/version/decision/notes bytes,
+uses only the owned endpoint, bounds foreground work to the existing15-second
+request helper and caps write/read replies at64/256KiB. Unknown transport/body or
+malformed success remains unknown; explicit reads require matching owner echo,
+target household and source version. No auto-retry or automatic snapshot renewal,
+legacy fallback, persistent command journal or exact-outcome receipt is claimed.
+
+Authored source cases cover immutable retries, malformed/foreign replies, current
+version reads, original parent authority and late withdrawal after a private read.
+They are unrun. Parent SSR capability and retained-review UI are still pending,
+as are actual role/session/concurrency/SQL/restore/legacy-client and device QA.
+No gates enabled, DB action, generation, test/build/browser or release ran.

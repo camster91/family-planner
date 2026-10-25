@@ -1,3 +1,4 @@
+jest.mock("@/lib/chore-check-owner", () => ({ choreCheckOwnerAvailableInTx: jest.fn(async () => true), renewChoreCheckOwner: jest.fn(async () => true) }));
 // Authored UNRUN. Shared-handler/strict-path source, not real CAS/SQL proof.
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);

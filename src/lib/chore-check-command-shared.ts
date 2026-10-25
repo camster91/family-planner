@@ -10,15 +10,19 @@ export type ChoreCheckCommand = {
   protocol: typeof CHORE_CHECK_COMMAND_PROTOCOL; owner: ChoreCheckOwner; choreId: string;
   expected: ChoreCheckSnapshot; decision: "approve" | "reject"; verificationNotes?: string;
 };
-export function choreCheckSnapshot(row: {
+export function choreCheckVersion(row: {
   status?: unknown; responsibility_generation?: unknown; responsibility_epoch?: unknown; preparation_epoch?: unknown;
 }): ChoreCheckSnapshot | null {
   const epoch = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value < CHORE_CHECK_EPOCH_MAX;
-  if (row.status !== "completed" || typeof row.responsibility_generation !== "string"
+  if (typeof row.responsibility_generation !== "string"
       || !CHORE_CHECK_GENERATION.test(row.responsibility_generation)
       || !epoch(row.responsibility_epoch) || !epoch(row.preparation_epoch)) return null;
   return { generation: row.responsibility_generation, materialEpoch: row.responsibility_epoch, completionEpoch: row.preparation_epoch };
 }
+export function choreCheckSnapshot(row: Parameters<typeof choreCheckVersion>[0]): ChoreCheckSnapshot | null {
+  return row.status === "completed" ? choreCheckVersion(row) : null;
+}
+export const CHORE_CHECK_OWNER_HEADER = "X-Herewoven-Chore-Check-Owner";
 export function sameChoreCheckSnapshot(left: ChoreCheckSnapshot, right: ChoreCheckSnapshot): boolean {
   return left.generation === right.generation && left.materialEpoch === right.materialEpoch && left.completionEpoch === right.completionEpoch;
 }
