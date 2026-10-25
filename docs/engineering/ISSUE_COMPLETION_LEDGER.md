@@ -46,21 +46,24 @@ No unverified feature is declared completed by source authorship.
 | #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
 | #134 Project detail tasks | SSR40-task keyset pages, whole-project grouped progress, draft-aware EN/ES page controls; opt-in API paging and additive index source | Legacy unpaged API remains unbounded; index unapplied; database/query-plan/concurrency/isolation/rendered acceptance unrun |
 | #134 Project calendar send | Locked authority, 200-task candidate/match reads and opt-in count-only web summary; legacy event response retained | Legacy full result and all-send total work/lock duration remain unbounded within existing timeout; indexes unapplied; real acceptance unrun |
+| #134 Notes | Opt-in household creation-time/ID keysets; web24-note page controls, exact retry and bounded read; additive index source | Legacy API unbounded; index unapplied; query plans/compatibility/isolation/concurrency/rendered acceptance unrun |
 | #134 Recent changes | Canonical 20-entry page validation, bounded transport/body read, generation/abort and exact-cursor recovery source | Runtime/navigation/reconnect/body-timeout/loop and original household/privacy acceptance remain unverified |
 | #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes command-palette controls (#142): 11 typed
-EN/ES keys, literal query interpolation, and 14 owned inventory records removed.
-Arrow keys now traverse the current role/feature-filtered destinations; Tab wraps
-inside the panel, and IME Enter does not submit search. Existing draft-aware
-routing and role/feature filters remain canonical. Device text now uses shared
-scoped translation, retaining locale-aware numbers and default English transport
-helpers while supporting pseudolocalization. Keyboard regression source authored
-and the Spanish selector adapted, all unrun. No QA/check/build/browser/API/
-database/native/provider/permission/release ran. Original modal-stack, focus,
-responsive/layout, locale-data and runtime acceptance remain open.
+Latest bounded source work adds household-scoped Notes keyset paging (#134).
+Opt-in API pages use stable creation-time/ID order, one lookahead and a maximum
+of 100 rows; legacy requests retain their unbounded response shape. Web reads
+24 notes at a time with previous/older/newest controls, page-only EN/ES counts,
+exact failed-page retry and a 15-second fetch/body deadline. Generation/abort
+handling ignores superseded/unmounted reads; unknown page envelopes fail visibly.
+Existing write endpoints, permissions and draft/recovery behavior remain.
+Additive index schema/SQL source is unapplied. Cursor, household/permission,
+page-navigation/retry/old-server/body-timeout regression source authored/unrun;
+existing UI fixtures adapted. No QA/check/build/browser/API/database/native/
+provider/permission/release action ran. Query plans, index costs, compatibility,
+concurrency/isolation, rendered and original broader acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

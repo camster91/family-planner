@@ -1443,6 +1443,7 @@ model PinnedNote {
   creator User   @relation("CreatedNotes", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([family_id])
+  @@index([family_id, created_at(sort: Desc), id(sort: Asc)], map: "PinnedNote_family_created_id_idx")
 }
 
 model Anniversary {

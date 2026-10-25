@@ -1,5 +1,28 @@
 # Route and domain inventory (#148)
 
+### Pinned Notes paging source — 2026-10-24 (#134)
+
+`note-paging.ts` defines an additive limit1–100 and household-bound versioned
+creation-time-descending/ID-ascending cursor. Duplicate/malformed/foreign cursor
+inputs refuse; the cursor never grants access. GET Notes retains personal-only,
+feature-gated, household-scoped reads and original server permissions. Opted-in
+reads use one lookahead; unpaged older clients keep the full list/response shape.
+An additive composite index is authored in schema/SQL, unapplied.
+The web asks for 24 notes and replaces each page instead of accumulating bodies.
+Previous/older/newest controls, page-only EN/ES counts and separate older-empty
+copy keep partial reads truthful. Failed-page retry preserves the exact cursor
+and navigation trail; changed responses, missing old-server page envelopes,
+oversized pages and cursor loops refuse. Generation/abort guards ignore older
+or unmounted requests; a 15-second deadline includes fetch and body reading.
+Page navigation returns focus to the heading. Save/delete still use canonical
+endpoints and refresh newest notes without replaying a confirmed write.
+Legacy API total memory remains unbounded. Concurrent reads are not a snapshot;
+index plans/build/locking, old/new-client forward/rollback, actual household/
+permission isolation, body-timeout/navigation/draft/rendered acceptance remain
+open. Unit, API and UI regression source authored; existing fixtures adapted,
+all unrun. No QA/test/check/build/browser/API/database/migration/permission/
+provider/native/release ran.
+
 ### Command-palette localization and keyboard source — 2026-10-24 (#142)
 
 CommandPalette now uses 11 typed scoped EN/ES keys for dialog/input labels,

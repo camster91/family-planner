@@ -25,6 +25,8 @@ interface Note {
 }
 
 type NotesLoadError = 'load' | 'household' | null
+const NOTE_PAGE_SIZE = 24
+const NOTE_READ_TIMEOUT_MS = 15_000
 
 const noteColors = {
   yellow: {
@@ -101,6 +103,12 @@ function NotesPageInner() {
   ]
   const [notes, setNotes] = React.useState<Note[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [pageCursor, setPageCursor] = React.useState<string | null>(null)
+  const [pageTrail, setPageTrail] = React.useState<Array<string | null>>([])
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
+  const readGeneration = React.useRef(0)
+  const activeRead = React.useRef<AbortController | null>(null)
+  const retryPage = React.useRef<{ cursor: string | null; trail: Array<string | null> }>({ cursor: null, trail: [] })
   // Keep the failure semantic so a locale change can translate the existing
   // recovery surface without starting the request over.
   const [error, setError] = React.useState<NotesLoadError>(null)
@@ -109,6 +117,10 @@ function NotesPageInner() {
   const [modalState, setModalState] = React.useState<'add' | 'edit' | null>(null)
   const [selectedNote, setSelectedNote] = React.useState<Note | null>(null)
   const [viewingNote, setViewingNote] = React.useState<Note | null>(null)
+  const dialogOpen = React.useRef(false)
+  React.useEffect(() => {
+    dialogOpen.current = modalState !== null || viewingNote !== null
+  }, [modalState, viewingNote])
   const [notice, setNotice] = React.useState<'saved' | 'deleted' | 'savedRefreshFailed' | 'deletedRefreshFailed' | null>(null)
 
   // Form state
@@ -123,16 +135,43 @@ function NotesPageInner() {
   // Why the last save/delete failed; shown in the modal, which stays open.
   const [modalError, setModalError] = React.useState<MutationError | null>(null)
 
-  const fetchNotes = React.useCallback(async (preserveError = false) => {
+  const fetchNotes = React.useCallback(async (
+    preserveError = false,
+    cursor: string | null = null,
+    trail: Array<string | null> = [],
+  ) => {
+    const generation = ++readGeneration.current
+    activeRead.current?.abort()
+    const controller = new AbortController()
+    activeRead.current = controller
+    retryPage.current = { cursor, trail: [...trail] }
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
       setLoading(true)
-      // Keep the recovery surface mounted while a retry is in flight. This
-      // keeps the action discoverable and lets the button expose its pending
-      // state instead of replacing it with an unrelated loading screen.
       if (!preserveError) setError(null)
-      const res = await fetch('/api/notes')
-      if (res.status === 400) {
+      const params = new URLSearchParams({ limit: String(NOTE_PAGE_SIZE) })
+      if (cursor !== null) params.set('cursor', cursor)
+      // The deadline includes body reading, even if a transport ignores abort.
+      const result = await Promise.race([
+        (async () => {
+          const res = await fetch(`/api/notes?${params}`, { signal: controller.signal, cache: 'no-store' })
+          const data = await res.json()
+          return { res, data }
+        })(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            controller.abort()
+            reject(new Error('Notes read timed out'))
+          }, NOTE_READ_TIMEOUT_MS)
+        }),
+      ])
+      if (generation !== readGeneration.current || controller.signal.aborted) return false
+      const { res, data } = result
+      if (res.status === 400 && data?.error === 'You must belong to a family') {
         setNotes([])
+        setNextCursor(null)
+        setPageCursor(null)
+        setPageTrail([])
         setViewingNote(null)
         setModalState(null)
         setSelectedNote(null)
@@ -144,29 +183,38 @@ function NotesPageInner() {
         setError('household')
         return false
       }
-      if (!res.ok) {
-        throw new Error('Failed to fetch notes')
+      if (!res.ok) throw new Error('Failed to fetch notes')
+      if (!data || !isNoteList(data.notes) || data.notes.length > NOTE_PAGE_SIZE ||
+        !(data.nextCursor === null || (typeof data.nextCursor === 'string' &&
+          /^[A-Za-z0-9_-]{1,1024}$/.test(data.nextCursor) && data.notes.length === NOTE_PAGE_SIZE &&
+          data.nextCursor !== cursor && !trail.includes(data.nextCursor)))) {
+        throw new Error('Invalid notes page')
       }
-      const data = await res.json()
-      // A successful retry must leave recovery mode. Keep the prior error
-      // while the request is pending so the retry remains discoverable, then
-      // clear it only after the response body has been accepted.
-      if (!isNoteList(data.notes)) throw new Error('Invalid notes response')
       setError(null)
       setNotes(data.notes)
+      setPageCursor(cursor)
+      setPageTrail([...trail])
+      setNextCursor(data.nextCursor)
       setNotice(null)
       return true
-    } catch (err) {
-      console.error('Error fetching notes:', err)
-      setError('load')
+    } catch {
+      if (generation === readGeneration.current) setError('load')
       return false
     } finally {
-      setLoading(false)
+      if (timer !== undefined) clearTimeout(timer)
+      if (generation === readGeneration.current) {
+        activeRead.current = null
+        setLoading(false)
+      }
     }
   }, [])
 
   React.useEffect(() => {
-    fetchNotes()
+    void fetchNotes()
+    return () => {
+      ++readGeneration.current
+      activeRead.current?.abort()
+    }
   }, [fetchNotes])
 
   React.useEffect(() => {
@@ -174,6 +222,12 @@ function NotesPageInner() {
   }, [notice, modalState, error])
 
   const loadErrorMessage = error === 'load' ? t('notes.errorLoad') : null
+
+  const showNotesPage = (cursor: string | null = null, trail: Array<string | null> = [], preserveError = false) => {
+    void fetchNotes(preserveError, cursor, trail).then((loaded) => {
+      if (loaded && !dialogOpen.current) headingRef.current?.focus()
+    })
+  }
 
   const openAddModal = () => {
     setNotice(null)
@@ -280,7 +334,7 @@ function NotesPageInner() {
         <div>
           <h1 ref={headingRef} tabIndex={-1} className="text-large-title font-display rounded-[var(--radius-sm)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">{t('notes.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('notes.subtitle')}</p>
-          {!loading && !error && <p className="mt-2 text-footnote text-label-secondary">{t(notes.length === 1 ? 'notes.countOne' : 'notes.countMany', { count: notes.length.toLocaleString(locale) })}</p>}
+          {!loading && !error && <p className="mt-2 text-footnote text-label-secondary">{t(notes.length === 1 ? 'notes.pageCountOne' : 'notes.pageCountMany', { count: notes.length.toLocaleString(locale) })}</p>}
         </div>
         {error !== 'household' && <button
           type="button"
@@ -313,7 +367,7 @@ function NotesPageInner() {
             <button
               type="button"
               className="btn-secondary min-h-11 min-w-11"
-              onClick={() => void fetchNotes(true)}
+              onClick={() => showNotesPage(retryPage.current.cursor, retryPage.current.trail, true)}
               disabled={loading}
               aria-busy={loading}
               data-testid="notes-retry"
@@ -333,7 +387,7 @@ function NotesPageInner() {
         <EmptyState
           icon={NoteIcon}
           glyphColor="gray"
-          title={t('notes.empty')}
+          title={t(pageCursor === null ? 'notes.empty' : 'notes.noOlder')}
         />
       ) : (
         <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 stagger">
@@ -389,6 +443,17 @@ function NotesPageInner() {
 
 
         </div>
+      )}
+
+      {error !== 'household' && !modalState && (error || pageTrail.length > 0 || nextCursor !== null) && (
+        <nav aria-label={t('notes.pages')} className="flex flex-wrap items-center gap-3">
+          {(error || pageCursor !== null) && <button type="button" className="btn-secondary min-h-[44px]"
+            disabled={loading} onClick={() => showNotesPage()}>{t('notes.newest')}</button>}
+          {!error && pageTrail.length > 0 && <button type="button" className="btn-secondary min-h-[44px]"
+            disabled={loading} onClick={() => showNotesPage(pageTrail[pageTrail.length - 1], pageTrail.slice(0, -1))}>{t('notes.previous')}</button>}
+          {!error && nextCursor !== null && <button type="button" className="btn-secondary min-h-[44px]"
+            disabled={loading} onClick={() => showNotesPage(nextCursor, [...pageTrail, pageCursor])}>{t('notes.older')}</button>}
+        </nav>
       )}
 
       <Dialog open={viewingNote !== null} onClose={() => setViewingNote(null)} title={viewingNote?.title ?? t('notes.title')} closeLabel={t('notes.close')} description={t('notes.readOnly')} variant="form">

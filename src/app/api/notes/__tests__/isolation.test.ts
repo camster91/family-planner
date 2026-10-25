@@ -11,7 +11,7 @@ jest.mock("@/lib/feature-gate-server", () => ({
 
 import * as notes from "../route";
 import * as note from "../[id]/route";
-import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, req, fakePrisma, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 import { hashDeviceToken } from "@/lib/device-session";
 
 describe("notes — two households", () => {
@@ -36,6 +36,40 @@ describe("notes — two households", () => {
     const body = await expectNoForeignData(await notes.GET(req({ as: "childA" })));
     expect(body.notes.map((n: any) => n.id)).toEqual(["note-a"]);
     expect(body.notes[0]).toMatchObject({ can_edit: false, can_delete: false });
+  });
+
+  // Authored/unrun. Equal timestamps must continue by ID; foreign cursors
+  // cannot widen the authenticated household scope or change permissions.
+  it("pages notes within the household and retains the legacy whole-list mode", async () => {
+    db.rows("pinnedNote").splice(0);
+    const created_at = new Date("2026-10-24T12:00:00Z");
+    for (const id of ["note-a", "note-b", "note-c"]) {
+      db.rows("pinnedNote").push({ id, family_id: "family-A", title: id,
+        body: "Fixture", color: "yellow", created_by: "parent-a", created_at });
+    }
+    db.rows("pinnedNote").push({ id: "foreign-note", family_id: "family-B",
+      title: "Foreign", body: "Private", color: "yellow", created_by: "parent-b", created_at });
+    const read = jest.spyOn(fakePrisma.pinnedNote, "findMany");
+    let firstResponse: Response;
+    try {
+      firstResponse = await notes.GET(req({ as: "teenA", query: { limit: "2" } }));
+      expect(read).toHaveBeenCalledWith({
+        where: { family_id: "family-A" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }], take: 3,
+      });
+    } finally { read.mockRestore(); }
+    const first = await firstResponse.json();
+    expect(first.notes.map((row: any) => row.id)).toEqual(["note-a", "note-b"]);
+    expect(first.notes[0]).toMatchObject({ can_edit: false, can_delete: false });
+    expect(typeof first.nextCursor).toBe("string");
+    const second = await (await notes.GET(req({ as: "teenA", query: { limit: "2", cursor: first.nextCursor } }))).json();
+    expect(second.notes.map((row: any) => row.id)).toEqual(["note-c"]);
+    expect(second.nextCursor).toBeNull();
+    expect((await notes.GET(req({ as: "parentB", query: { limit: "2", cursor: first.nextCursor } }))).status).toBe(400);
+    const legacy = await (await notes.GET(req({ as: "parentA" }))).json();
+    expect(legacy.notes).toHaveLength(3);
+    expect(legacy).not.toHaveProperty("nextCursor");
+    expect(db.writes).toHaveLength(0);
   });
 
   it("returns server-computed ownership permissions without changing the note DTO", async () => {

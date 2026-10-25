@@ -53,11 +53,12 @@ beforeEach(() => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
-    if (url === '/api/notes' && method === 'GET') {
+    if (url === '/api/notes?limit=24' && method === 'GET') {
       return {
         ok: true,
         status: 200,
         json: async () => ({
+          nextCursor: null,
           notes: [{
             id: 'n 1',
             title: 'Wifi code',
@@ -123,7 +124,7 @@ it('keeps an open draft while a failed notes load is retried', async () => {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    if (url === '/api/notes' && method === 'GET') {
+    if (url === '/api/notes?limit=24' && method === 'GET') {
       getAttempts += 1
       if (getAttempts === 1) {
         return { ok: false, status: 503, json: async () => ({}) } as Response
@@ -133,6 +134,7 @@ it('keeps an open draft while a failed notes load is retried', async () => {
         ok: true,
         status: 200,
         json: async () => ({
+          nextCursor: null,
           notes: [{
             id: 'recovered-note',
             title: 'Recovered note',
@@ -175,7 +177,7 @@ it('keeps a failed load through locale hydration without refetching', async () =
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    if (url === '/api/notes' && method === 'GET') {
+    if (url === '/api/notes?limit=24' && method === 'GET') {
       getAttempts += 1
       if (getAttempts === 1) {
         return { ok: false, status: 503, json: async () => ({}) } as Response
@@ -185,6 +187,7 @@ it('keeps a failed load through locale hydration without refetching', async () =
         ok: true,
         status: 200,
         json: async () => ({
+          nextCursor: null,
           notes: [{
             id: 'locale-recovered',
             title: 'Recovered locale note',
@@ -329,7 +332,7 @@ it('records a confirmed save when refresh fails and retries only the read', asyn
   const fetchOriginal = global.fetch
   let reads = 0
   global.fetch = jest.fn(async (input, init) => {
-    if (String(input) === '/api/notes' && !init?.method && ++reads === 2) return { ok: false, status: 503, json: async () => ({}) } as Response
+    if (String(input) === '/api/notes?limit=24' && !init?.method && ++reads === 2) return { ok: false, status: 503, json: async () => ({}) } as Response
     return fetchOriginal(input, init)
   }) as typeof fetch
   const user = userEvent.setup()
@@ -422,4 +425,67 @@ it('returns Cancel to Add after dismissing an earlier success notice', async () 
   expect(screen.queryByText('notes.saved')).toBeNull()
   await user.click(screen.getByRole('button', { name: 'notes.cancel' }))
   expect(document.activeElement).toBe(opener)
+})
+
+// Authored/unrun: current web requires bounded notes pages, including retries.
+const pagedNote = (id: string) => ({ id, title: id, body: 'Fixture', color: 'yellow', created_at: '2026-10-24T12:00:00Z', can_edit: false, can_delete: false })
+const notesReply = (notes: ReturnType<typeof pagedNote>[], nextCursor: string | null) => ({ ok: true, status: 200, json: async () => ({ notes, nextCursor }) }) as Response
+
+it('replaces each page, returns to previous/newest notes, and retries an exact failed cursor', async () => {
+  const user = userEvent.setup()
+  const urls: string[] = []
+  let olderReads = 0
+  global.fetch = jest.fn(async (input) => {
+    const url = String(input)
+    urls.push(url)
+    if (url.includes('cursor=')) {
+      if (++olderReads === 1) return { ok: false, status: 503, json: async () => ({}) } as Response
+      return notesReply([pagedNote('Older note')], null)
+    }
+    return notesReply(Array.from({ length: 24 }, (_, i) => pagedNote(`Recent ${i}`)), 'fixture-next')
+  }) as typeof fetch
+  render(<NotesPage />)
+  await screen.findByText('Recent 0')
+  expect(screen.getAllByTestId('note-card')).toHaveLength(24)
+  await user.click(screen.getByRole('button', { name: 'notes.older' }))
+  await screen.findByRole('button', { name: 'notes.retry' })
+  await user.click(screen.getByRole('button', { name: 'notes.retry' }))
+  await screen.findByText('Older note')
+  expect(screen.queryByText('Recent 0')).toBeNull()
+  expect(urls.slice(-2)).toEqual(['/api/notes?limit=24&cursor=fixture-next', '/api/notes?limit=24&cursor=fixture-next'])
+  await user.click(screen.getByRole('button', { name: 'notes.previous' }))
+  await screen.findByText('Recent 0')
+  await user.click(screen.getByRole('button', { name: 'notes.older' }))
+  await screen.findByText('Older note')
+  await user.click(screen.getByRole('button', { name: 'notes.newest' }))
+  await screen.findByText('Recent 0')
+  expect(screen.queryByRole('button', { name: 'notes.previous' })).toBeNull()
+})
+
+it.each([
+  { notes: [pagedNote('Legacy note')] },
+  { notes: Array.from({ length: 25 }, (_, i) => pagedNote(`Too many ${i}`)), nextCursor: null },
+  { notes: [pagedNote('Incomplete page')], nextCursor: 'fixture-next' },
+])('rejects old or malformed page envelopes instead of claiming a complete list', async (body) => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => body })) as unknown as typeof fetch
+  render(<NotesPage />)
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(screen.queryByTestId('note-card')).toBeNull()
+})
+
+it('ends a stalled response-body read without allowing its late notes to replace recovery', async () => {
+  jest.useFakeTimers()
+  try {
+    let release!: (body: unknown) => void
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: () => new Promise(resolve => { release = resolve }) })) as unknown as typeof fetch
+    render(<NotesPage />)
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { jest.advanceTimersByTime(15_000) })
+    expect(screen.getByRole('button', { name: 'notes.retry' })).toBeTruthy()
+    await act(async () => { release({ notes: [pagedNote('Late note')], nextCursor: null }) })
+    expect(screen.queryByText('Late note')).toBeNull()
+    expect(screen.getByRole('button', { name: 'notes.retry' })).toBeTruthy()
+  } finally {
+    jest.useRealTimers()
+  }
 })
