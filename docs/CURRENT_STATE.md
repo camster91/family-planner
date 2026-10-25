@@ -32,7 +32,7 @@ No unverified feature is declared completed by source authorship.
 | #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
 | #134/#450 routine visibility | API/SSR/Today/probe candidate+metadata batches before caps; other reads scoped; history skips open policy | Remaining core-query audit, dense-range latency, PostgreSQL/date/root-join plans and original acceptance remain unverified |
 | #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
-| #142 localization | Chore/recipe/Meals/food-plan, board/activity settings and sync/shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
+| #142 localization | Chore/recipe/Meals/food-plan, board/activity/device entry and shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
 | #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
 | #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
 | #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
@@ -51,18 +51,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work adds opt-in summary-v1 project-calendar responses
-and connects the web sender (#134). Summary mode retains only a created count,
-not a full event array, and returns a strict versioned created/no-tasks/all-sent
-result. Legacy requests retain complete event-array responses. Unsupported modes
-refuse before effects. Web requests the summary and validates coherent counts;
-legacy/malformed success bodies, network failures and server errors are shown
-as unconfirmed without automatic retry. No-tasks copy is distinct from already-
-sent; generation/pending guards ignore late project results and duplicate taps.
-Protocol/server/UI cases authored/unrun; original assertions adapted/retained.
-No QA/tests/check/build/browser/API/database/household or release ran. Legacy
-result memory, total transaction/lock duration, index application, true replay
-receipts and original concurrency/compatibility/rendered acceptance remain open.
+Latest bounded source work localizes PairScreen, ElevationSheet and
+ElevatedBanner (#142): 56 added typed EN/ES device-dictionary keys plus existing
+shared labels. Error/notice state now stores semantic DeviceFeedback keys,
+params and retry seconds, translated at render. Generic device feedback keeps
+its prior English string helper for unmigrated consumers. Actual names, codes,
+PIN digits/progress counts, secrets, countdown/expiry math, polling, focus,
+elevation callbacks and API/native metadata remain canonical. Locale/text never
+enter existing effect dependencies. Thirty-six owned copy inventory records
+removed without a scanner. No new copy-only tests; existing cases remain unrun.
+No QA/check/build/browser/native/permission/provider/API/database/household or
+release ran. DeviceToday/other copy and full shared-device/runtime/layout/
+locale-data/native acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

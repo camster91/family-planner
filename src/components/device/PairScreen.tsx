@@ -1,12 +1,13 @@
 'use client'
 
 import * as React from 'react'
+import { useDeviceText, type DeviceFeedback, type DeviceMessage } from '@/i18n/device-management'
 import { Loader2, TabletSmartphone } from 'lucide-react'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { DeviceApiError, formatCodeInput, isCompleteCode, PAIRING_POLL_MS } from '@/lib/device-client'
 import { clearRewardCreateIntents } from '@/lib/reward-create-intent-store'
-import { formatCountdown, genericErrorText, useDeviceClient, waitText } from './use-device-client'
+import { formatCountdown, genericDeviceFeedback, renderDeviceFeedback, useDeviceClient } from './use-device-client'
 import {
   errorTextClass,
   inputClass,
@@ -49,18 +50,18 @@ export async function getPairingMetadata(): Promise<PairingMetadata> {
   }
 }
 
-const ENDED_COPY: Record<'expired' | 'cancelled' | 'device_limit', { title: string; body: string }> = {
+const ENDED_COPY: Record<'expired' | 'cancelled' | 'device_limit', { title: DeviceMessage; body: DeviceMessage }> = {
   expired: {
-    title: 'This code has expired',
-    body: 'Pairing codes last 10 minutes. Ask a parent for a new code, then enter it here.',
+    title: 'pairExpiredTitle',
+    body: 'pairExpiredBody',
   },
   cancelled: {
-    title: 'Pairing was cancelled',
-    body: "The parent cancelled this pairing, or the number didn't match. Ask a parent for a new code.",
+    title: 'pairCancelledTitle',
+    body: 'pairCancelledBody',
   },
   device_limit: {
-    title: 'This household has too many tablets',
-    body: 'A household can have 5 tablets. A parent can remove one in Settings, then pair this tablet again.',
+    title: 'pairLimitTitle',
+    body: 'pairLimitBody',
   },
 }
 
@@ -70,10 +71,11 @@ const ENDED_COPY: Record<'expired' | 'cancelled' | 'device_limit', { title: stri
  * until paired, expired or cancelled. The claim token stays in memory.
  */
 export default function PairScreen() {
+  const text = useDeviceText()
   const client = useDeviceClient()
   const [state, setState] = React.useState<PairState>({ kind: 'enter' })
   const [code, setCode] = React.useState('')
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<DeviceFeedback | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [now, setNow] = React.useState(() => Date.now())
   const headingRef = React.useRef<HTMLHeadingElement>(null)
@@ -150,7 +152,7 @@ export default function PairScreen() {
     e.preventDefault()
     if (!client || busy) return
     if (!complete) {
-      setError('Pairing codes have 8 letters and numbers, like ABCD-2345.')
+      setError({ key: 'pairCodeLength' })
       return
     }
     setBusy(true)
@@ -161,13 +163,13 @@ export default function PairScreen() {
       setState({ kind: 'waiting', digits: claimed.confirmDigits, expiresAt: claimed.expiresAt })
     } catch (err) {
       if (err instanceof DeviceApiError && err.code === 'PAIRING_CODE_INVALID') {
-        setError('That code did not work. Check it and try again, or ask a parent for a new code.')
+        setError({ key: 'pairCodeInvalid' })
       } else if (err instanceof DeviceApiError && err.status === 429) {
-        setError(`Too many tries from this tablet. Wait ${waitText(err.retryAfterSeconds)}, then try again.`)
+        setError({ key: 'pairTabletRate', retryAfter: err.retryAfterSeconds })
       } else if (err instanceof DeviceApiError && err.status === 404) {
-        setError('Tablet mode is not available right now.')
+        setError({ key: 'tabletUnavailable' })
       } else {
-        setError(genericErrorText(err))
+        setError(genericDeviceFeedback(err))
       }
     } finally {
       setBusy(false)
@@ -195,18 +197,11 @@ export default function PairScreen() {
 
         {state.kind === 'enter' && (
           <>
-            <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>
-              Connect this tablet
-            </h1>
-            <p className="mt-3 text-[19px] leading-snug text-label-secondary md:text-[21px]">
-              On a parent&apos;s phone, open Settings, then Devices, and choose &ldquo;Pair a tablet&rdquo;. Type the
-              code shown there.
-            </p>
+            <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>{text("connectTablet")}</h1>
+            <p className="mt-3 text-[19px] leading-snug text-label-secondary md:text-[21px]">{text("connectHint")}</p>
             <form onSubmit={submit} className="mt-8 space-y-5" noValidate>
               <div>
-                <label htmlFor="pairing-code" className={labelClass}>
-                  Pairing code
-                </label>
+                <label htmlFor="pairing-code" className={labelClass}>{text("pairCodeLabel")}</label>
                 <input
                   id="pairing-code"
                   name="pairing-code"
@@ -226,13 +221,11 @@ export default function PairScreen() {
                   aria-invalid={error ? true : undefined}
                   className={`${inputClass} max-w-xs font-mono text-[28px] tracking-[0.12em] min-h-[60px]`}
                 />
-                <p id="pairing-code-hint" className="mt-2 text-[15px] text-label-secondary">
-                  8 letters and numbers. Dashes and spaces are optional.
-                </p>
+                <p id="pairing-code-hint" className="mt-2 text-[15px] text-label-secondary">{text("pairCodeHint")}</p>
               </div>
               {error && (
                 <p role="alert" className={errorTextClass}>
-                  {error}
+                  {renderDeviceFeedback(error, text)}
                 </p>
               )}
               <button type="submit" disabled={busy} className={primaryButtonClass}>
@@ -245,38 +238,30 @@ export default function PairScreen() {
 
         {waiting && (
           <>
-            <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>
-              Type this number on the parent&apos;s phone
-            </h1>
+            <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>{text("confirmOnPhone")}</h1>
             <p
               data-testid="confirm-digits"
-              aria-label={`Confirmation number ${waiting.digits.split('').join(' ')}`}
+              aria-label={text('confirmationNumber', { digits: waiting.digits.split('').join(' ') })}
               className="mt-6 font-mono text-[72px] font-bold leading-none tracking-[0.25em] text-label-primary md:text-[96px]"
             >
               {waiting.digits}
             </p>
             <p role="status" className="mt-6 flex items-center gap-2 text-[19px] text-label-primary">
-              <Loader2 className="h-5 w-5 shrink-0 motion-safe:animate-spin" aria-hidden="true" />
-              Waiting for a parent to confirm.
-            </p>
+              <Loader2 className="h-5 w-5 shrink-0 motion-safe:animate-spin" aria-hidden="true" />{text("waitingParent")}</p>
             <p data-testid="pair-expiry" className="mt-2 text-[17px] text-label-secondary">
-              This code expires in {formatCountdown(waiting.expiresAt - now)}.
+              {text('pairExpires', { time: formatCountdown(waiting.expiresAt - now) })}
             </p>
             <div className="mt-8">
-              <button type="button" onClick={restart} className={neutralButtonClass}>
-                Start again
-              </button>
+              <button type="button" onClick={restart} className={neutralButtonClass}>{text("startAgain")}</button>
             </div>
           </>
         )}
 
         {state.kind === 'paired' && (
           <>
-            <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>
-              Connected
-            </h1>
+            <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>{text("entryConnected")}</h1>
             <p role="status" className="mt-3 text-[19px] text-label-secondary">
-              {state.label} is ready. Opening today&apos;s board.
+              {text('tabletReady', { name: state.label })}
             </p>
           </>
         )}
@@ -284,15 +269,13 @@ export default function PairScreen() {
         {(state.kind === 'expired' || state.kind === 'cancelled' || state.kind === 'device_limit') && (
           <>
             <h1 ref={headingRef} tabIndex={-1} className={`mt-5 ${headingClass}`}>
-              {ENDED_COPY[state.kind].title}
+              {text(ENDED_COPY[state.kind].title)}
             </h1>
             <p role="alert" className="mt-3 text-[19px] leading-snug text-label-secondary md:text-[21px]">
-              {ENDED_COPY[state.kind].body}
+              {text(ENDED_COPY[state.kind].body)}
             </p>
             <div className="mt-8">
-              <button type="button" onClick={restart} className={primaryButtonClass}>
-                Enter a new code
-              </button>
+              <button type="button" onClick={restart} className={primaryButtonClass}>{text("enterNewCode")}</button>
             </div>
           </>
         )}

@@ -7,7 +7,7 @@ import {
   type DeviceClient,
 } from "@/lib/device-client";
 import { PRODUCT_BRAND } from "@/lib/brand";
-import { englishDeviceText, type DeviceText } from "@/i18n/device-management";
+import { englishDeviceText, type DeviceText, type DeviceFeedback } from "@/i18n/device-management";
 
 /** The tab's device client, or null during server rendering (never used there). */
 export function useDeviceClient(): DeviceClient | null {
@@ -48,16 +48,22 @@ export function waitText(
 }
 
 /** Plain-language message for an error the tablet cannot act on itself. */
-export function genericErrorText(error: unknown): string {
+export function genericDeviceFeedback(error: unknown): DeviceFeedback {
   if (error instanceof DeviceApiError) {
-    if (error.code === "NETWORK_ERROR")
-      return `Could not reach ${PRODUCT_BRAND.name}. Check the Wi-Fi and try again.`;
-    if (error.status === 429)
-      return `Too many tries. Wait ${waitText(error.retryAfterSeconds)}, then try again.`;
-    if (error.code === "SERVICE_UNAVAILABLE")
-      return `${PRODUCT_BRAND.name} is busy right now. Trying again shortly.`;
+    if (error.code === "NETWORK_ERROR") return { key: "tabletNetwork", params: { brand: PRODUCT_BRAND.name } };
+    if (error.status === 429) return { key: "tabletRate", retryAfter: error.retryAfterSeconds };
+    if (error.code === "SERVICE_UNAVAILABLE") return { key: "tabletBusy", params: { brand: PRODUCT_BRAND.name } };
   }
-  return "Something went wrong. Try again.";
+  return { key: "tabletError" };
+}
+export function renderDeviceFeedback(feedback: DeviceFeedback, text: DeviceText = englishDeviceText): string {
+  return text(feedback.key, {
+    ...feedback.params,
+    ...('retryAfter' in feedback ? { wait: waitText(feedback.retryAfter, text) } : {}),
+  });
+}
+export function genericErrorText(error: unknown): string {
+  return renderDeviceFeedback(genericDeviceFeedback(error));
 }
 
 /** m:ss for a countdown. */

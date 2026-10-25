@@ -1,5 +1,24 @@
 # Route and domain inventory (#148)
 
+### Paired-tablet entry/parent-mode copy source — 2026-10-24 (#142)
+
+PairScreen, ElevationSheet and ElevatedBanner now use the existing typed device
+EN/ES dictionary (56 added keys plus reused labels). Terminal pairing states,
+parent/PIN/password instructions, progress/accessible labels, countdown/status
+and controls follow the app locale. Pair/elevation feedback stores semantic keys,
+params and retry seconds until render; raw errors/secrets are not added to state.
+`genericDeviceFeedback`/`renderDeviceFeedback` adapt existing generic device
+errors while `genericErrorText` preserves its old English default for other
+callers. Actual parent/tablet names, pairing/confirmation/PIN digits, countdowns,
+TTL/idle deadlines, credential clearing, terminal errors, polling/native version
+metadata, focus and API/elevation callbacks remain unchanged. Locale/text are
+not added to any existing effect dependency, so changing language does not
+restart pairing or extend an elevation. Thirty-six owned inventory records
+removed without a scanner. No new copy-only tests; existing cases unrun. No
+QA/check/build/browser/hardware/native permission/provider/API/database/household/
+release ran. Other tablet copy and original shared-device/native/privacy/layout/
+locale-data/runtime acceptance remain open.
+
 ### Opt-in project-calendar summary response — 2026-10-24 (#134)
 
 `project-calendar-response.ts` defines summary-v1 with a versioned created/

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useDeviceText } from '@/i18n/device-management'
 import { Pencil, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
 import { elevationDeadline, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import { formatCountdown } from './use-device-client'
@@ -33,6 +34,7 @@ export default function ElevatedBanner({
   /** Board setup on the tablet (#274): weather, colours, calm display, tablet writes. */
   onSettings?: () => void
 }) {
+  const text = useDeviceText()
   const [remaining, setRemaining] = React.useState(() => elevationDeadline(session) - Date.now())
   const onExpireRef = React.useRef(onExpire)
   onExpireRef.current = onExpire
@@ -55,7 +57,7 @@ export default function ElevatedBanner({
 
   return (
     <section
-      aria-label="Parent mode"
+      aria-label={text('parentMode')}
       data-testid="elevated-banner"
       className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[var(--radius-xl)] border-2 border-[var(--accent-text)] bg-[var(--surface-elevated)] px-5 py-4 shadow-[var(--shadow-sm)]"
     >
@@ -63,39 +65,30 @@ export default function ElevatedBanner({
         <ShieldCheck className="h-7 w-7 shrink-0 text-accent" aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-[19px] font-bold leading-tight text-label-primary md:text-[21px]">
-            Parent mode: {session.member.name}
+            {text('parentModeName', { name: session.member.name })}
           </p>
           {endingSoon ? (
-            <p data-testid="elevation-countdown" className="text-[17px] font-semibold text-[var(--warning-text)]">
-              Ends in <span className="tabular-nums">{formatCountdown(remaining)}</span>
+            <p data-testid="elevation-countdown" className="text-[17px] font-semibold text-[var(--warning-text)]">{text("endsIn")}<span className="tabular-nums">{formatCountdown(remaining)}</span>
             </p>
           ) : (
-            <p className="text-[16px] text-label-secondary">Ends after 5 minutes without activity.</p>
+            <p className="text-[16px] text-label-secondary">{text("parentIdleLimit")}</p>
           )}
           {/* One announcement when the last minute starts, not one per second. */}
           <p className="sr-only" aria-live="polite">
-            {endingSoon ? 'Parent mode ends in less than a minute.' : ''}
+            {endingSoon ? text('parentEndingSoon') : ''}
           </p>
         </div>
       </div>
       <div className="flex flex-wrap gap-3">
         {onSettings && (
           <button type="button" onClick={onSettings} className={neutralButtonClass}>
-            <Settings2 className="h-5 w-5" aria-hidden="true" />
-            Board settings
-          </button>
+            <Settings2 className="h-5 w-5" aria-hidden="true" />{text("boardSettings")}</button>
         )}
         <button type="button" onClick={onRename} className={neutralButtonClass}>
-          <Pencil className="h-5 w-5" aria-hidden="true" />
-          Rename tablet
-        </button>
+          <Pencil className="h-5 w-5" aria-hidden="true" />{text("renameTablet")}</button>
         <button type="button" onClick={onRemove} className={dangerButtonClass}>
-          <Trash2 className="h-5 w-5" aria-hidden="true" />
-          Remove this tablet
-        </button>
-        <button type="button" onClick={onDone} className={primaryButtonClass}>
-          Done
-        </button>
+          <Trash2 className="h-5 w-5" aria-hidden="true" />{text("removeThisTablet")}</button>
+        <button type="button" onClick={onDone} className={primaryButtonClass}>{text("parentDone")}</button>
       </div>
     </section>
   )

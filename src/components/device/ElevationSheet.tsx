@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import { useDeviceText, type DeviceFeedback } from '@/i18n/device-management'
 import { Delete, KeyRound, Loader2, UserRound } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { DeviceApiError, type DeviceClient, type ElevationSession } from '@/lib/device-client'
-import { genericErrorText, waitText, type DeviceMe } from './use-device-client'
+import { genericDeviceFeedback, renderDeviceFeedback, type DeviceMe } from './use-device-client'
 import {
   errorTextClass,
   focusRing,
@@ -45,11 +46,12 @@ export default function ElevationSheet({
   parents: Parent[]
   onElevated: (session: ElevationSession) => void
 }) {
+  const text = useDeviceText()
   const [step, setStep] = React.useState<Step>({ kind: 'pick' })
   const [pin, setPin] = React.useState('')
   const [password, setPassword] = React.useState('')
-  const [error, setError] = React.useState<string | null>(null)
-  const [notice, setNotice] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<DeviceFeedback | null>(null)
+  const [notice, setNotice] = React.useState<DeviceFeedback | null>(null)
   const [busy, setBusy] = React.useState(false)
   const passwordRef = React.useRef<HTMLInputElement>(null)
   const padRef = React.useRef<HTMLDivElement>(null)
@@ -79,7 +81,7 @@ export default function ElevationSheet({
       setNotice(null)
       setStep({ kind: 'pin', parent })
     } else {
-      setNotice(`${parent.name} has no tablet PIN yet, so use the account password. A PIN can be set in Settings on a phone.`)
+      setNotice({ key: 'noTabletPin', params: { name: parent.name } })
       setStep({ kind: 'password', parent })
     }
   }
@@ -96,21 +98,21 @@ export default function ElevationSheet({
       setPassword('')
       if (err instanceof DeviceApiError && err.terminal) return
       if (err instanceof DeviceApiError && err.code === 'ELEVATION_BACKGROUNDED') {
-        setError('Parent mode ended because the tablet was put away. Try again.')
+        setError({ key: 'parentBackgrounded' })
         return
       }
       if (err instanceof DeviceApiError && err.code === 'ELEVATION_INVALID_CREDENTIAL') {
-        setError(method === 'pin' ? "That PIN didn't work. Try again." : "That password didn't work. Try again.")
+        setError({ key: method === 'pin' ? 'wrongTabletPin' : 'wrongTabletPassword' })
       } else if (err instanceof DeviceApiError && err.code === 'ELEVATION_LOCKED') {
         setNotice(null)
         setError(
-          `Too many wrong PIN attempts, so the PIN is locked for ${waitText(err.retryAfterSeconds)}. Use the account password instead.`
+          { key: 'tabletPinLocked', retryAfter: err.retryAfterSeconds }
         )
         setStep({ kind: 'password', parent })
       } else if (err instanceof DeviceApiError && err.status === 429) {
-        setError(`Too many attempts on this tablet. Try again in ${waitText(err.retryAfterSeconds)}.`)
+        setError({ key: 'elevationRate', retryAfter: err.retryAfterSeconds })
       } else {
-        setError(genericErrorText(err))
+        setError(genericDeviceFeedback(err))
       }
     } finally {
       setBusy(false)
@@ -139,10 +141,10 @@ export default function ElevationSheet({
 
   const title =
     step.kind === 'pick'
-      ? 'Who is the parent?'
+      ? text('pickParent')
       : step.kind === 'pin'
-        ? `${step.parent.name}, enter your tablet PIN`
-        : `${step.parent.name}, enter your password`
+        ? text('enterParentPin', { name: step.parent.name })
+        : text('enterParentPassword', { name: step.parent.name })
 
   return (
     <Dialog
@@ -151,13 +153,13 @@ export default function ElevationSheet({
       title={title}
       testId="elevation-sheet"
       description={
-        step.kind === 'pick' ? 'Parent mode lets you rename or remove this tablet. It ends on its own after 5 minutes idle.' : undefined
+        step.kind === 'pick' ? text('parentModeHint') : undefined
       }
     >
       {step.kind === 'pick' && (
         <div className="space-y-3">
           {parents.length === 0 && (
-            <p className={noticeTextClass}>No parent in this household can unlock the tablet yet.</p>
+            <p className={noticeTextClass}>{text("noTabletParent")}</p>
           )}
           <ul className="space-y-3">
             {parents.map((parent) => (
@@ -181,7 +183,7 @@ export default function ElevationSheet({
           <div
             ref={padRef}
             role="group"
-            aria-label={`Tablet PIN pad for ${step.parent.name}`}
+            aria-label={text('tabletPinPad', { name: step.parent.name })}
             onKeyDown={onPadKey}
             className="space-y-5"
           >
@@ -197,7 +199,7 @@ export default function ElevationSheet({
               ))}
             </div>
             <p className="sr-only" aria-live="polite" data-testid="pin-progress">
-              {pin.length} of {PIN_LENGTH} digits entered
+              {text('pinProgress', { count: pin.length, total: PIN_LENGTH })}
             </p>
             <div className="mx-auto grid max-w-xs grid-cols-3 gap-3">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
@@ -213,7 +215,7 @@ export default function ElevationSheet({
                 type="button"
                 onClick={backspace}
                 disabled={busy || pin.length === 0}
-                aria-label="Delete last digit"
+                aria-label={text('deletePinDigit')}
                 className={keyClass}
               >
                 <Delete className="h-7 w-7" aria-hidden="true" />
@@ -222,13 +224,11 @@ export default function ElevationSheet({
           </div>
           {busy && (
             <p role="status" className="flex items-center justify-center gap-2 text-[17px] text-label-secondary">
-              <Loader2 className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />
-              Checking
-            </p>
+              <Loader2 className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />{text("checkingParent")}</p>
           )}
           {error && (
             <p role="alert" className={errorTextClass}>
-              {error}
+              {renderDeviceFeedback(error, text)}
             </p>
           )}
           <div className="flex flex-wrap gap-3">
@@ -240,12 +240,8 @@ export default function ElevationSheet({
               }}
               className={neutralButtonClass}
             >
-              <KeyRound className="h-5 w-5" aria-hidden="true" />
-              Use password instead
-            </button>
-            <button type="button" onClick={() => setStep({ kind: 'pick' })} className={neutralButtonClass}>
-              Back
-            </button>
+              <KeyRound className="h-5 w-5" aria-hidden="true" />{text("usePasswordInstead")}</button>
+            <button type="button" onClick={() => setStep({ kind: 'pick' })} className={neutralButtonClass}>{text("back")}</button>
           </div>
         </div>
       )}
@@ -258,10 +254,10 @@ export default function ElevationSheet({
             if (password) void submit(step.parent, 'password', password)
           }}
         >
-          {notice && <p className={noticeTextClass}>{notice}</p>}
+          {notice && <p className={noticeTextClass}>{renderDeviceFeedback(notice, text)}</p>}
           <div>
             <label htmlFor="elevation-password" className={labelClass}>
-              Password for {step.parent.name}
+              {text('passwordFor', { name: step.parent.name })}
             </label>
             {/* Shared tablet: never offer to save a parent's password here. */}
             <input
@@ -276,7 +272,7 @@ export default function ElevationSheet({
           </div>
           {error && (
             <p role="alert" className={errorTextClass}>
-              {error}
+              {renderDeviceFeedback(error, text)}
             </p>
           )}
           <div className="flex flex-wrap gap-3">
@@ -292,13 +288,9 @@ export default function ElevationSheet({
                   setStep({ kind: 'pin', parent: step.parent })
                 }}
                 className={neutralButtonClass}
-              >
-                Use PIN
-              </button>
+              >{text("usePin")}</button>
             )}
-            <button type="button" onClick={() => setStep({ kind: 'pick' })} className={neutralButtonClass}>
-              Back
-            </button>
+            <button type="button" onClick={() => setStep({ kind: 'pick' })} className={neutralButtonClass}>{text("back")}</button>
           </div>
         </form>
       )}
