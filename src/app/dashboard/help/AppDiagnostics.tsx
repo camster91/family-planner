@@ -13,23 +13,37 @@ export default function AppDiagnostics() {
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState("");
   const mounted = React.useRef(true);
+  const readSequence = React.useRef(0);
+  const readLock = React.useRef(false);
+  const activeRead = React.useRef<AbortController | null>(null);
   React.useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      readSequence.current += 1;
+      activeRead.current?.abort();
+      activeRead.current = null;
+      readLock.current = false;
     };
   }, []);
   const load = async () => {
-    if (busy) return;
+    if (readLock.current) return;
+    readLock.current = true;
+    const sequence = ++readSequence.current;
+    const controller = new AbortController();
+    activeRead.current = controller;
     setBusy(true);
     setMessage("");
     try {
-      const next = await readAppDiagnostics();
-      if (mounted.current) setReport(next);
+      const next = await readAppDiagnostics({ signal: controller.signal });
+      if (mounted.current && sequence === readSequence.current) setReport(next);
     } catch {
-      if (mounted.current) setMessage("appDiagnostics.failed");
+      if (mounted.current && sequence === readSequence.current) setMessage("appDiagnostics.failed");
     } finally {
-      if (mounted.current) setBusy(false);
+      if (sequence === readSequence.current) {
+        readLock.current = false; activeRead.current = null;
+        if (mounted.current) setBusy(false);
+      }
     }
   };
   const copy = async () => {
@@ -90,6 +104,12 @@ export default function AppDiagnostics() {
                   ? `${report.server.version} · ${report.server.commit}`
                   : t("appDiagnostics.unavailable")}
               </dd>
+            </div>
+            <div>
+              <dt className="text-label-secondary">{t("appDiagnostics.api")}</dt>
+              <dd className="break-words">{report.capabilities
+                ? t("appDiagnostics.protocols", { members: report.capabilities.memberProtocols.join(", "), queue: report.capabilities.queueContainerVersion })
+                : t("appDiagnostics.unavailable")}</dd>
             </div>
           </dl>
           <details>

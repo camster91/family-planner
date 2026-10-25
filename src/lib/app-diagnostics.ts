@@ -2,12 +2,17 @@ import {
   readNativeClientDetails,
   type NativeClientDetails,
 } from "./native-app";
+import { readApiCapabilities, type ApiCapabilities } from "./api-capabilities";
+import { runOwnedForeground } from "./owned-request-http";
+import { readBoundedJsonResponse } from "./bounded-json-response";
 import type { BuildInfo } from "./build-info";
 
 export type AppDiagnosticsReport = {
   format: 1;
   client: NativeClientDetails;
   server: BuildInfo | null;
+  /** Optional additive metadata; older reports retain format1 without this field. */
+  capabilities?: ApiCapabilities | null;
 };
 
 /** Reject unexpected metadata; never copy raw response/plugin objects into reports. */
@@ -36,22 +41,21 @@ export function publicServerBuild(value: unknown): BuildInfo | null {
 }
 
 /** Called by Help only after a tap. No account data, client report export or persistence. */
-export async function readAppDiagnostics(): Promise<AppDiagnosticsReport> {
-  const client = await readNativeClientDetails();
-  let server: BuildInfo | null = null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3000);
-  try {
-    const response = await fetch("/api/version", {
-      credentials: "omit",
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    if (response.ok) server = publicServerBuild(await response.json());
-  } catch {
-    /* Offline and older servers may not provide this optional endpoint. */
-  } finally {
-    clearTimeout(timer);
-  }
-  return { format: 1, client, server };
+export async function readAppDiagnostics(options: { signal?: AbortSignal; fetcher?: typeof fetch } = {}): Promise<AppDiagnosticsReport> {
+  const fetcher = options.fetcher ?? fetch;
+  const [native, website, capabilities] = await Promise.all([
+    runOwnedForeground(async () => ({ kind: "reply" as const, client: await readNativeClientDetails() }),
+      { signal: options.signal, timeoutMs: 3500 }),
+    runOwnedForeground(async signal => {
+      const response = await fetcher("/api/version", { credentials: "omit", cache: "no-store", signal });
+      if (!response.ok) return { kind: "reply" as const, server: null };
+      const body = await readBoundedJsonResponse(response, signal, 16 * 1024);
+      return { kind: "reply" as const, server: publicServerBuild(body) };
+    }, { signal: options.signal, timeoutMs: 3000 }),
+    readApiCapabilities(fetcher, { signal: options.signal, credentials: "omit", timeoutMs: 3000 }),
+  ]);
+  const unknown: NativeClientDetails = { platform: "unknown", installed: "unavailable", version: "unknown", build: "unknown", id: "unknown",
+    plugins: { App: false, Network: false, Share: false } };
+  return { format: 1, client: native.kind === "reply" ? native.client : unknown,
+    server: website.kind === "reply" ? website.server : null, capabilities };
 }

@@ -173,3 +173,31 @@ explicit foreground phrase experiment and future local wake detector contracts.
 The existing Android prefix parser is not passive wake detection. This definition
 does not enable flags/permissions, establish recognizer readiness or satisfy
 physical-device/old-binary acceptance.
+
+## Bounded on-demand support identity/protocol read — 2026-10-25 (#473/#146)
+
+Help App details now reads native client details, public /api/version and public
+/api/capabilities concurrently after the explicit View/Refresh action. The public
+capability reader reuses shared owned foreground/body helpers, defaults to3s and
+32KiB, returns null for old/failed/stalled/malformed manifests and remains read-only.
+Its default same-origin credential policy remains; diagnostics explicitly omits
+credentials for both public requests. Version read is3s/16KiB; native detail work
+has a3.5s outer bound around its existing3s bridge fallback. External cancellation
+settles the owner even if a bridge ignores AbortSignal. JSON-only bridge size
+checks remain post-allocation; streaming support enforces before complete decode.
+
+Report format1 gains optional capabilities metadata; older reports without it are
+still displayable. API protocol labels are EN/ES and the hint distinguishes public
+metadata/plugin presence from permission, household feature or physical readiness.
+Strict manifest parsing prevents raw response objects/unknown fields being copied;
+existing native/server projections still sanitize fields. No report is uploaded or
+persisted, and clipboard copy remains a separate user action. The panel cancels on
+unmount and rejects late generation replies; a request latch prevents repeated taps.
+
+This is diagnostic visibility, not a queue/member protocol adoption gate, native
+minimum-build policy, supported binary window or evidence that current/previous
+clients interoperate. #473 remains its distinct bounded contract/acceptance issue,
+with hardware/signing/distribution and actual forward/rollback still open. Source
+cases cover ignored-abort headers/body, declared oversize/cancel, partial legacy
+reports, protocol display and unmount. All authored/adapted/unrun. No plugin/device/
+permission/API/provider/browser/build/test/CI/release execution occurred.

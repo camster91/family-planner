@@ -54,20 +54,19 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adopts the note owned journal in the
-web sheet behind server-advertised recovery adoption (#135/#499). Canonical GET
-advertises retained rollback readiness; flags remain off/unmodified. Adopted creates
-stage exact work before sending, restored requests appear as an EN/ES review action,
-and pending/expired/owner/storage failures cannot become a new create. Current
-receipt inspection resolves present/removed; confirmed cleanup uses the shared
-journal, with explicit exact storage repair and retained terminal proof on failure.
-Owner loss clears visible private draft state without deleting owned storage.
-Read-only inspection can resolve older receipts; the24h send window remains.
-Non-adopted servers keep mounted recovery. Snapshot display metadata is stripped
-only at internal intent reconstruction. Injected sheet/storage/client source cases
-authored/adapted but unrun; no QA/test/check/build/browser/CI/API/DB/storage/native/
-provider/push/merge/deploy ran. Actual persistence/reload/retirement/physical device/
-fault/privacy/a11y and full acceptance remain open; no activation claimed.
+Latest bounded source work (2026-10-25) bounds Help App details reads and includes
+public API protocol metadata (#473/#146). Installed identity, website build and
+capabilities are requested concurrently only after a tap; shared owned deadlines
+bound native waiting/public headers+body, with16KiB/32KiB decode caps. Public network
+reads omit credentials. Optional capabilities in format1 remain null/unknown on
+old/malformed/stalled servers, not a support grant. EN/ES labels distinguish the
+manifest from permissions/readiness. The panel owns cancellation, an immediate
+read latch and generation checks so unmounted/late replies do not apply. Native/
+web identities stay separate; copying remains a separate explicit action. Source
+transport/component cases authored/adapted but unrun. #473 remains a distinct
+native compatibility gate; no supported window or device result is invented. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual
+binary/permission/old-client/rollback/hardware and full acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

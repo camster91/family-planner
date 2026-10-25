@@ -1828,3 +1828,13 @@ activated or adopted-failure fallback. Older proof inspection stays read-only an
 send age remains24h. Known owner loss clears visible draft without journal erasure.
 Injected wiring/client cases authored/unrun; no storage/API/DB/QA/build/browser/
 native/provider/release run. Full persistence/fault/retirement/a11y acceptance open.
+
+### App details public compatibility reads — 2026-10-25 (#473/#146)
+
+Help now requests bounded concurrent native identity/version/capabilities only on
+a tap, adds optional public protocol metadata to the existing report and owns
+read cancellation/generation/latching. Public diagnostics omit credentials; copy
+stays explicit, no account content/report upload. Legacy/unknown results remain
+unknown, no new support window or permission. Source cases authored/adapted only,
+no API/DB/browser/test/build/native/provider/release run. Distinct #473 real-device/
+old-client/forward-rollback acceptance remains open.
