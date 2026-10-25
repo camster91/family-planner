@@ -2743,3 +2743,39 @@ never authority/activation. Existing selected Glance and act remains; original
 mockup assets are unavailable in this recovery checkout and no visual proof is
 invented. Full component/state/role/frame/runtime/native acceptance remains open.
 No QA/tests/checks/scanner/build/browser/CI/API/DB/provider/push/merge/deploy ran.
+
+## Household name authority and conflict recovery — 2026-10-25
+
+#499/#136 source: legacy PATCH /api/family and strict PATCH /api/family/name now
+share family-name-http.ts. Both bound bodies to8KiB, keep existing parent/person/
+family checks and use a5second transaction/max-wait. User then household advisory
+locks precede actual User FOR SHARE and Family FOR UPDATE; fresh parent/family/
+original session-generation checks run before family lookup/write. Ordinary role,
+password/session or membership updates are fenced by the row lock. Responses keep
+only the existing display selection, private/no-store; billing/invite/feed/AI
+secrets remain outside the writable/display contract.
+
+The dedicated name route requires name_protocol1, exact observed baseName and
+requested name. It refuses409 FAMILY_NAME_CHANGED when the locked current value
+matches neither base nor request. A matching requested value confirms current
+state without updating again. Legacy callers retain their old stripped-input/
+last-value semantics, now with fresh authority; unknown billing fields cannot
+change plan state. The new web never falls back to that legacy write when an old
+server lacks the strict route. No new schema, epoch, receipt or migration exists.
+This is compare-value conflict protection, not immutable revisions/ABA detection
+or proof of which request originally set an already-matching value.
+
+Household Settings adopts bounded15second reads/writes (256KiB account-read and
+64KiB save replies), abort/retirement on reload/unmount and synchronous read/save
+exclusion. Unknown replies retain the entry and never claim saved. A known name
+conflict requires explicit Check current name; that read preserves the draft,
+shows the actual saved name and enables a deliberate reviewed save. It never
+silently substitutes a different household. Existing typed EN/ES copy gains short
+review/check feedback; profile/account/board subflows remain canonical/separate.
+Full original client actor/session binding, auth-me read semantics, server body-
+read deadlines, SQL/lock/restore and rendered/native acceptance remain separate.
+
+Legacy behavior, strict conflict/no-write convergence, role/family/generation
+change during decoding, required protocol/body bound, retained draft/review and
+stalled reply/late success source cases are authored/adapted UNRUN. No QA/tests/
+checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#136 remain open.

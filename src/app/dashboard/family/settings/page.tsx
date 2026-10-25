@@ -9,6 +9,7 @@ import TodayLayoutEditor from "@/components/fridge/TodayLayoutEditor";
 import { TODAY_SECTIONS } from "@/lib/personal-layout";
 import SettingsDisclosure from "@/app/dashboard/settings/SettingsDisclosure";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 import { useFamilySettingsText } from "@/i18n/family-settings";
 
 type State = "loading" | "ready" | "error" | "empty" | "forbidden";
@@ -16,80 +17,90 @@ export default function FamilySettingsPage() {
   const text = useFamilySettingsText();
   const [familyName, setFamilyName] = useState("");
   const [familyId, setFamilyId] = useState("");
+  const [baseName, setBaseName] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [needsReview, setNeedsReview] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
+  const familyIdRef = useRef(familyId); familyIdRef.current = familyId;
+  const loadController = useRef<AbortController | null>(null);
+  const saveController = useRef<AbortController | null>(null);
   const [state, setState] = useState<State>("loading");
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const loadSequence = useRef(0);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<"failed" | "changed" | "checkFailed" | null>(null);
   const [saved, setSaved] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   usePendingFormNavigationController(saving);
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserve = false) => {
+    if (savingRef.current) return;
     const sequence = ++loadSequence.current;
-    setState("loading");
+    const originalFamilyId = familyIdRef.current;
+    loadController.current?.abort();
+    const controller = new AbortController(); loadController.current = controller;
+    if (preserve) setChecking(true); else setState("loading");
     try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
-      const body = await res.json();
+      const result = await requestOwnedJson("/api/auth/me", { signal: controller.signal }, 256 * 1024);
       if (sequence !== loadSequence.current) return;
-      if (
-        !res.ok ||
-        !body?.user ||
-        !["parent", "teen", "child"].includes(body.user.role)
-      )
-        throw new Error();
-      if (body.user.role !== "parent") {
-        setState("forbidden");
-        return;
-      }
-      if (body.user.family_id === null) {
-        setState("empty");
-        return;
-      }
-      if (
-        typeof body.user.family_id !== "string" ||
-        !body.user.family_id ||
-        typeof body.user.family?.name !== "string"
-      )
-        throw new Error();
+      if (result.kind !== "reply") throw new Error();
+      const res = result.response;
+      const body = result.body as { user?: { role?: string; family_id?: string | null; family?: { name?: string } } } | null;
+      if (!res.ok || !body?.user || !["parent", "teen", "child"].includes(body.user.role ?? "")) throw new Error();
+      if (body.user.role !== "parent") { setState("forbidden"); return; }
+      if (body.user.family_id === null) { setState("empty"); return; }
+      if (typeof body.user.family_id !== "string" || !body.user.family_id || typeof body.user.family?.name !== "string") throw new Error();
+      if (preserve && originalFamilyId !== body.user.family_id) { setState("forbidden"); return; }
       setFamilyId(body.user.family_id);
-      setFamilyName(body.user.family.name);
+      setBaseName(body.user.family.name);
+      if (!preserve) setFamilyName(body.user.family.name);
+      setReviewed(preserve); setNeedsReview(false); setError(null); setSaved(false);
       setState("ready");
     } catch {
-      if (sequence === loadSequence.current) setState("error");
+      if (sequence === loadSequence.current) {
+        if (preserve) { setError("checkFailed"); setNeedsReview(true); }
+        else setState("error");
+      }
+    } finally {
+      if (loadController.current === controller) { loadController.current = null; setChecking(false); }
     }
   }, []);
   useEffect(() => {
     void load();
     return () => {
-      loadSequence.current += 1;
+      loadSequence.current++;
+      loadController.current?.abort(); loadController.current = null;
+      saveController.current?.abort(); saveController.current = null;
     };
   }, [load]);
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = familyName.trim();
-    if (savingRef.current || state !== "ready" || !familyId || !name) return;
-    savingRef.current = true;
-    setSaving(true);
-    setError(false);
-    setSaved(false);
+    if (savingRef.current || loadController.current || checking || needsReview || state !== "ready" || !familyId || !name) return;
+    savingRef.current = true; setSaving(true); setError(null); setSaved(false);
+    const sequence = loadSequence.current;
+    const controller = new AbortController(); saveController.current = controller;
     try {
-      const res = await fetch("/api/family", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ familyId, name }),
-      });
-      const body = await res.json();
-      if (!res.ok || body?.family?.id !== familyId || body.family.name !== name)
-        throw new Error();
-      setFamilyName(body.family.name);
-      setSaved(true);
+      const result = await requestOwnedJson("/api/family/name", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ name_protocol: 1, familyId, name, baseName }),
+      }, 64 * 1024);
+      if (sequence !== loadSequence.current) return;
+      if (result.kind !== "reply") throw new Error();
+      const body = result.body as { code?: string; family?: { id?: string; name?: string } } | null;
+      if (result.response.status === 409 && body?.code === "FAMILY_NAME_CHANGED") {
+        setNeedsReview(true); setError("changed"); return;
+      }
+      if (!result.response.ok || body?.family?.id !== familyId || body.family.name !== name) throw new Error();
+      setFamilyName(body.family.name); setBaseName(body.family.name); setReviewed(false); setSaved(true);
     } catch {
-      setError(true);
+      if (sequence === loadSequence.current) setError("failed");
     } finally {
-      savingRef.current = false;
-      setSaving(false);
+      if (saveController.current === controller) {
+        saveController.current = null; savingRef.current = false; setSaving(false);
+      }
     }
   };
+
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-20">
       <LargeHeader title={text("title")} />
@@ -135,9 +146,12 @@ export default function FamilySettingsPage() {
           >
             {error && (
               <p role="alert" className="text-[var(--danger-text)]">
-                {text("failed")}
+                {text(error)}
               </p>
             )}
+            {(error || needsReview) && <button type="button" className="btn-tinted min-h-[44px]"
+              disabled={saving || checking} onClick={() => void load(true)}>{text(checking ? "checking" : "checkCurrent")}</button>}
+            {reviewed && <p className="text-subhead text-label-secondary">{text("currentName")}: {baseName}</p>}
             {saved && (
               <p role="status" className="text-success-text">
                 {text("saved")}
@@ -163,7 +177,7 @@ export default function FamilySettingsPage() {
             </div>
             <button
               type="submit"
-              disabled={saving || !familyName.trim()}
+              disabled={saving || checking || needsReview || !familyName.trim()}
               className="btn-filled min-h-[44px]"
             >
               {text(saving ? "saving" : "save")}
