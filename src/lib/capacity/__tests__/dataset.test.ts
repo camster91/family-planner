@@ -41,6 +41,16 @@ it("keeps every canonical reference inside its fabricated household", () => {
       expect(family.get(entry.row.added_by)).toBe(family.get(entry.row.list_id));
       if (entry.row.checked_by) expect(family.get(entry.row.checked_by)).toBe(family.get(entry.row.list_id));
     }
+    if (entry.table === "prepSessions") expect(family.get(entry.row.created_by!)).toBe(entry.row.family_id);
+    if (entry.table === "mealBatches") {
+      expect(family.get(entry.row.prep_session_id)).toBe(entry.row.family_id);
+      expect(family.get(entry.row.cook_id!)).toBe(entry.row.family_id);
+    }
+    if (entry.table === "mealBatchConsumption") {
+      expect(family.get(entry.row.batch_id)).toBe(entry.row.family_id);
+      if (entry.row.meal_id) expect(family.get(entry.row.meal_id)).toBe(entry.row.family_id);
+      expect(family.get(entry.row.created_by!)).toBe(entry.row.family_id);
+    }
     if (entry.table === "notes") expect(family.get(entry.row.created_by)).toBe(entry.row.family_id);
     if (entry.table === "wishlistItems") {
       expect(family.get(entry.row.requested_by)).toBe(entry.row.family_id);
@@ -70,7 +80,7 @@ it("keeps every canonical reference inside its fabricated household", () => {
     if (entry.table === "recipeIngredients")
       expect(family.get(entry.row.recipe_id)).toBe(family.get(entry.row.ingredient_id));
     if (entry.table === "familyMeals") {
-      expect(family.get(entry.row.recipe_id!)).toBe(entry.row.family_id);
+      if (entry.row.recipe_id) expect(family.get(entry.row.recipe_id)).toBe(entry.row.family_id);
       expect((entry.row.date instanceof Date ? entry.row.date : new Date(entry.row.date)).getUTCHours()).toBe(0);
     }
   }
@@ -206,4 +216,53 @@ it.each(["ordinary", "calendar", "food", "history"] as const)("builds %s persona
   expect(noticeUsers.size).toBe(4);
   expect(wishStates).toEqual(new Set(["idle", "on_the_way", "received", "denied"]));
   expect(tied).toBe(true);
+});
+
+it.each(["ordinary", "calendar", "food", "history"] as const)("constructs %s multi-dish prep with owned allocation/portion history", profile => {
+  const candidate = capacityPlan({ stage: "reference", profile });
+  const entries: import("../dataset").CapacityDatasetRow[] = [];
+  let firstFamily: string | null = null;
+  outer: for (const batch of capacityDatasetBatches(candidate, anchor)) {
+    for (const entry of batch) {
+      if (entry.table === "families") { if (firstFamily !== null) break outer; firstFamily = entry.row.id; }
+      entries.push(entry);
+    }
+  }
+  const sessions = entries.filter(entry => entry.table === "prepSessions").map(entry => entry.row);
+  const batches = entries.filter(entry => entry.table === "mealBatches").map(entry => entry.row);
+  const meals = entries.filter(entry => entry.table === "familyMeals").map(entry => entry.row);
+  const history = entries.filter(entry => entry.table === "mealBatchConsumption").map(entry => entry.row);
+  const time = (value: Date | string | undefined | null) => value instanceof Date ? value.getTime() : new Date(value ?? 0).getTime();
+  expect(sessions).toHaveLength(CAPACITY_CARDINALITIES[profile].prepSessions);
+  expect(batches).toHaveLength(sessions.length * 3);
+  expect(history).toHaveLength(sessions.filter(session => session.prepared_at).length * 7);
+  const allocations = new Set<string>();
+  for (const batch of batches) {
+    const session = sessions.find(row => row.id === batch.prep_session_id)!;
+    expect(session.family_id).toBe(firstFamily); expect(batch.recipe_id).toBeNull();
+    const allocated = meals.filter(meal => meal.batch_id === batch.id);
+    expect(allocated).toHaveLength(1);
+    expect(time(allocated[0].date)).toBeGreaterThanOrEqual(time(session.prepared_on));
+    const key = allocated[0].batch_allocation_key!;
+    expect(allocations.has(key)).toBe(false); allocations.add(key);
+    const active = history.filter(row => row.batch_id === batch.id && !row.cancelled_at);
+    if (!session.prepared_at) expect(active).toHaveLength(0);
+    for (const row of active) {
+      if (row.meal_id) {
+        expect(row.meal_id).toBe(allocated[0].id); expect(row.allocation_key).toBe(key);
+        expect(time(row.consumed_at)).toBeGreaterThanOrEqual(time(allocated[0].date));
+      } else expect(row.allocation_key).toBeNull();
+    }
+    const eaten = active.reduce((sum, row) => sum + row.servings, 0);
+    const planned = 4 - active.filter(row => row.meal_id === allocated[0].id).reduce((sum, row) => sum + row.servings, 0);
+    expect(eaten + planned).toBeLessThanOrEqual(batch.total_servings);
+    expect(planned).toBeGreaterThanOrEqual(0);
+  }
+  expect(history.some(row => row.cancelled_at)).toBe(true);
+  expect(history.some(row => row.meal_id === null && !row.cancelled_at)).toBe(true);
+  const positions = new Map(entries.map((entry, index) => [entry.row.id, index]));
+  for (const row of history) {
+    expect(positions.get(row.batch_id)!).toBeLessThan(positions.get(row.id)!);
+    if (row.meal_id) expect(positions.get(row.meal_id)!).toBeLessThan(positions.get(row.id)!);
+  }
 });

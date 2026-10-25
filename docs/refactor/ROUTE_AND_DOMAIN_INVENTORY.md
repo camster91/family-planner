@@ -1753,3 +1753,12 @@ response/clamp behavior remains; no web adoption or new permission. Existing
 analytics/private timeline exclusions/masking retained. Pure/route tie/deleted-pivot/
 foreign/legacy source cases authored/unrun. No SQL/schema/index/API/test/build/
 browser/native/provider/release execution; full acceptance and measured plans open.
+
+### Dormant capacity manual prep histories — 2026-10-25 (#137)
+
+Dataset version5 adds declared dated prep sessions, three manual dishes/session,
+existing canonical-meal allocations and live/cancelled/reserve portion histories
+only for prepared sessions. Counts/local refs/keys/date/portion/insertion source
+cases authored/adapted; no execution. Recipe snapshots/review/replay receipts and
+other fixtures/adapters/observed reconciliation remain unsupported; manifest
+incomplete, no runtime/writer/DB/API/provider operation or acceptance claimed.

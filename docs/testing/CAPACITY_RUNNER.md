@@ -70,7 +70,7 @@ Unicode titles/content are fabricated; no publisher, real family or provider dat
 is fetched. Explicit Toronto DST and other semantic edge cases remain unsupported.
 
 The manifest deliberately returns `complete: false`. It names unsupported
-profiles/linking, pairing, inventory reviewed receipts/deleted targets, chores/routines, prep/history,
+profiles/linking, pairing, inventory reviewed receipts/deleted targets, chores/routines, recipe-prep snapshots/receipts,
 project-calendar linked/deleted targets, notification delivery/shared activity and receipt/review/provider
 fixtures. Empty arrays do not substitute for these dimensions. Counts are
 construction expectations, not observations from a seeded/reconciled database.
@@ -195,3 +195,31 @@ shared activity and remaining fixture/adoption/adapter gaps; complete stays fals
 Count/locality/status/tie integrity source is updated but unrun. No builder,
 writer, seed/reset, DB/API/load, test/build/browser/native/provider or release
 was run. Observed reconciliation and #137 full acceptance remain required.
+
+## Manual meal-prep construction — 2026-10-25 (version5, source only)
+
+`herewoven.capacity-rows.v5` adds canonical MealPrepSession/MealBatch/
+MealBatchConsumption shapes with type-only imports. Ordinary/calendar have12
+sessions; food/history have60. Sessions span the rolling UTC year, have three
+manual10-serving dishes each and a next-prep date seven days later. Sessions
+whose prep day is past and whose ordinal is not divisible by three are prepared;
+others remain pending (future sessions never have fabricated consumption).
+
+The first36/180 existing FamilyMeal rows become one4-serving allocation per dish,
+with unique stable allocation keys, no recipe link and a snapshot dish name. These
+rows remain within the existing90/365 meal totals; allocation dates never precede
+prep. Remaining meals retain their existing recipe links. Each prepared dish has
+a live2-serving allocated use and a cancelled1-serving use; its third dish also
+has a live1-serving unallocated reserve use. Thus seven consumption records per
+prepared session. Cancelled rows do not reduce remaining portions. Consumed time
+follows its allocated meal day; active eaten plus outstanding planned portions
+stay within the dish's10 servings. Source request receipts are null.
+
+Manual dishes intentionally have no recipe/snapshot; recipe-linked preparation,
+historical recipe snapshot recovery, review/replay receipts and mutation/Undo API
+outcomes remain unsupported. No fake snapshot is substituted. Parent-before-child
+order covers session/batch/meal/consumption across200-row output batches. Source
+cases cover profile counts, portion arithmetic, keys, date scope, ownership and
+insertion order; all unrun. Manifest remains incomplete with other required fixture
+and adoption/adapter/reconciliation gaps. No generator, DB/API, writer/seed/reset,
+load/QA/build/browser/native/provider/release execution occurred.

@@ -8,16 +8,16 @@ import {
 } from "../fixtures/dataset";
 import { CAPACITY_MODEL_VERSION, type CapacityPlan, type CapacityProfile } from "./model";
 
-export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v4";
+export const CAPACITY_DATASET_VERSION = "herewoven.capacity-rows.v5";
 export const CAPACITY_CARDINALITIES = {
-  ordinary: { notes: 30, wishlist: 30, notifications: 100, audit: 300, projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  calendar: { notes: 30, wishlist: 30, notifications: 100, audit: 300, projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
-  food: { notes: 100, wishlist: 100, notifications: 500, audit: 1000, projects: 6, largestProjectTasks: 40, activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
-  history: { notes: 500, wishlist: 500, notifications: 5000, audit: 10000, projects: 20, largestProjectTasks: 2000, activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
+  ordinary: { prepSessions: 12, notes: 30, wishlist: 30, notifications: 100, audit: 300, projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 100, recurringEvents: 10, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  calendar: { prepSessions: 12, notes: 30, wishlist: 30, notifications: 100, audit: 300, projects: 6, largestProjectTasks: 40, activeStock: 100, adjustments: 300, events: 2400, recurringEvents: 100, lists: 8, largestListItems: 50, recipes: 40, recipeLines: 12, meals: 90 },
+  food: { prepSessions: 60, notes: 100, wishlist: 100, notifications: 500, audit: 1000, projects: 6, largestProjectTasks: 40, activeStock: 2000, adjustments: 10000, events: 100, recurringEvents: 10, lists: 20, largestListItems: 2000, recipes: 200, recipeLines: 40, meals: 365 },
+  history: { prepSessions: 60, notes: 500, wishlist: 500, notifications: 5000, audit: 10000, projects: 20, largestProjectTasks: 2000, activeStock: 500, adjustments: 10000, events: 500, recurringEvents: 100, lists: 8, largestListItems: 250, recipes: 100, recipeLines: 20, meals: 365 },
 } as const;
 export const CAPACITY_UNSUPPORTED_DIMENSIONS = [
   "email-free-profiles-and-links", "paired-shared-devices", "inventory-reviewed-receipts-and-deleted-targets",
-  "chore-roots-occurrences-and-routines", "prep-sessions-and-history", "project-calendar-linked-and-deleted-targets",
+  "chore-roots-occurrences-and-routines", "recipe-prep-snapshots-and-receipt-recovery", "project-calendar-linked-and-deleted-targets",
   "notification-delivery-fanout-and-shared-activity-history", "receipts-review-undo-and-provider-fakes",
   "toronto-dst-and-special-semantic-cases",
 ] as const;
@@ -31,7 +31,10 @@ type CapacityNote = Omit<Prisma.PinnedNoteCreateManyInput, "id"> & { id: string 
 type CapacityWish = Omit<Prisma.WishlistItemCreateManyInput, "id"> & { id: string };
 type CapacityNotification = Omit<Prisma.NotificationCreateManyInput, "id"> & { id: string };
 type CapacityAudit = Omit<Prisma.AuditLogCreateManyInput, "id"> & { id: string };
-type RowMap = { notes: CapacityNote; wishlistItems: CapacityWish; notifications: CapacityNotification; auditLogs: CapacityAudit; projects: CapacityProject; projectTasks: CapacityProjectTask; inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
+type CapacityPrepSession = Omit<Prisma.MealPrepSessionCreateManyInput, "id"> & { id: string };
+type CapacityMealBatch = Omit<Prisma.MealBatchCreateManyInput, "id"> & { id: string };
+type CapacityConsumption = Omit<Prisma.MealBatchConsumptionCreateManyInput, "id"> & { id: string };
+type RowMap = { prepSessions: CapacityPrepSession; mealBatches: CapacityMealBatch; mealBatchConsumption: CapacityConsumption; notes: CapacityNote; wishlistItems: CapacityWish; notifications: CapacityNotification; auditLogs: CapacityAudit; projects: CapacityProject; projectTasks: CapacityProjectTask; inventoryItems: CapacityInventoryItem; inventoryAdjustments: CapacityInventoryAdjustment; families: FixtureFamily; users: FixtureUser; events: FixtureEvent;
   lists: FixtureList; listItems: FixtureListItem; recipes: FixtureRecipe;
   ingredients: FixtureIngredient; recipeIngredients: FixtureRecipeIngredient; familyMeals: FixtureFamilyMeal };
 export type CapacityDatasetRow = { [K in keyof RowMap]: { table: K; row: RowMap[K] } }[keyof RowMap];
@@ -54,6 +57,12 @@ function validatePlan(plan: CapacityPlan) {
     plan.sentinelOrdinals[1] !== plan.households + 1) throw new Error("Invalid capacity dataset plan");
 }
 
+const PREP_DISHES = 3;
+const prepOffset = (sessions: number, index: number) => -182 + Math.floor(365 / sessions) * index;
+const prepIsPrepared = (sessions: number, index: number) => prepOffset(sessions, index) <= 0 && index % 3 !== 0;
+const preparedSessionCount = (sessions: number) => Array.from({ length: sessions }, (_, index) => index)
+  .filter(index => prepIsPrepared(sessions, index)).length;
+
 /** Actual counts are still reconciler work. These are deterministic construction expectations. */
 export function capacityDatasetManifest(plan: CapacityPlan, anchor: string) {
   validatePlan(plan); anchorTime(anchor);
@@ -71,6 +80,8 @@ export function capacityDatasetManifest(plan: CapacityPlan, anchor: string) {
         recipes: count.recipes, ingredients: count.recipeLines,
         recipeIngredients: count.recipes * count.recipeLines, familyMeals: count.meals,
         inventoryItems: count.activeStock + CAPACITY_FINISHED_STOCK, inventoryAdjustments: count.adjustments,
+        prepSessions: count.prepSessions, mealBatches: count.prepSessions * PREP_DISHES,
+        mealBatchConsumption: preparedSessionCount(count.prepSessions) * 7,
         notes: count.notes, wishlistItems: count.wishlist, notifications: count.notifications, auditLogs: count.audit,
         projects: count.projects, projectTasks: count.largestProjectTasks + (count.projects - 2) * 5,
       }, recurringEvents: count.recurringEvents };
@@ -244,13 +255,54 @@ function* householdRows(ordinal: number, profile: CapacityProfile, anchor: strin
     } };
     for (const row of history) yield { table: "inventoryAdjustments", row };
   }
+  for (let index = 0; index < count.prepSessions; index++) {
+    const preparedOn = new Date(dayStart + prepOffset(count.prepSessions, index) * DAY);
+    yield { table: "prepSessions", row: { id: idFor(ordinal, "prep", index), family_id: familyId,
+      prepared_on: preparedOn, next_prep_on: new Date(preparedOn.getTime() + 7 * DAY),
+      prepared_at: prepIsPrepared(count.prepSessions, index) ? new Date(preparedOn.getTime() + 12 * 3_600_000) : null,
+      created_by: parentId, source_request_id: null, created_at: new Date(preparedOn.getTime() - DAY) } };
+    for (let position = 0; position < PREP_DISHES; position++) {
+      yield { table: "mealBatches", row: { id: idFor(ordinal, "meal-batch", index * PREP_DISHES + position),
+        family_id: familyId, prep_session_id: idFor(ordinal, "prep", index), position,
+        name: `Capacity prepared dish ${index}-${position}`, total_servings: 10,
+        reserve_storage: position % 2 === 0 ? "freezer" : "fridge",
+        recipe_id: null, recipe_snapshot_at: null,
+        cook_id: position % 2 === 0 ? parentId : teenId,
+        created_at: new Date(preparedOn.getTime() - DAY) } };
+    }
+  }
   const meal = fixture.familyMeals[0];
   for (let index = 0; index < count.meals; index++) {
     const recipeIndex = index % count.recipes;
+    const batched = index < count.prepSessions * PREP_DISHES;
+    const sessionIndex = Math.floor(index / PREP_DISHES), position = index % PREP_DISHES;
+    const mealDay = batched ? prepOffset(count.prepSessions, sessionIndex) + position : (index % 365) - 182;
     yield { table: "familyMeals", row: { ...meal, id: idFor(ordinal, "meal", index), family_id: familyId,
-      created_by: parentId, cook_id: null, date: new Date(dayStart + ((index % 365) - 182) * DAY),
-      recipe_id: idFor(ordinal, "recipe", recipeIndex), recipe_name: `Capacity recipe ${tiedKey(recipeIndex)} – sopa`,
-      servings: 4, batch_id: null, batch_allocation_key: null } };
+      created_by: parentId, cook_id: batched ? parentId : null, date: new Date(dayStart + mealDay * DAY),
+      recipe_id: batched ? null : idFor(ordinal, "recipe", recipeIndex),
+      recipe_name: batched ? `Capacity prepared dish ${sessionIndex}-${position}` : `Capacity recipe ${tiedKey(recipeIndex)} – sopa`,
+      servings: 4, batch_id: batched ? idFor(ordinal, "meal-batch", index) : null,
+      batch_allocation_key: batched ? idFor(ordinal, "allocation", index) : null } };
+  }
+  // All meal parents precede consumption references; no receipts/outcomes are invented.
+  for (let session = 0; session < count.prepSessions; session++) {
+    if (!prepIsPrepared(count.prepSessions, session)) continue;
+    const at = dayStart + prepOffset(count.prepSessions, session) * DAY + 18 * 3_600_000;
+    for (let position = 0; position < PREP_DISHES; position++) {
+      const batchIndex = session * PREP_DISHES + position;
+      for (let variant = 0; variant < (position === 2 ? 3 : 2); variant++) {
+        const reserve = variant === 2;
+        yield { table: "mealBatchConsumption", row: {
+          id: idFor(ordinal, `batch-consumption${batchIndex}`, variant), family_id: familyId,
+          batch_id: idFor(ordinal, "meal-batch", batchIndex),
+          allocation_key: reserve ? null : idFor(ordinal, "allocation", batchIndex),
+          meal_id: reserve ? null : idFor(ordinal, "meal", batchIndex),
+          servings: variant === 0 ? 2 : 1, created_by: variant === 0 ? parentId : teenId,
+          consumed_at: new Date(at + position * DAY + variant * 1000), cancelled_at: variant === 1 ? new Date(at + position * DAY + 10_000) : null,
+          source_request_id: null,
+        } };
+      }
+    }
   }
 }
 

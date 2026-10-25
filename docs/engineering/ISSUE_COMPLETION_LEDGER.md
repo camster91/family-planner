@@ -52,17 +52,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds opt-in stable activity continuation
-for the legacy all-member endpoint (#134/#135). `paging=keyset-v1` uses bounded
-limit+1 reads, descending timestamp/ascending-ID order and canonical household-
-bound cursors; missing/deleted pivots do not require a lookup. Malformed/duplicate/
-foreign-mode cursors refuse before housekeeping/read queries. Legacy no-mode limit
-clamping, timestamp cursor and activities-only response remain. Existing analytics/
-private-timeline exclusions and marker masking remain, with private/no-store replies.
-No new web/shared-device surface, permission, metadata exposure or schema/index.
-Pure/route regression source authored but unrun; no API/DB/test/check/build/browser/
-CI/provider/native/push/merge/deploy ran. UI adoption, actual SQL/isolation/legacy-
-client and full sync/query acceptance remain open; this is not snapshot paging.
+Latest bounded source work (2026-10-25) adds manual multi-dish prep and portion
+history to the dormant capacity dataset (#137). Version5 constructs12/60 dated
+sessions per profile, three10-serving dishes/session and one4-serving canonical
+meal allocation per dish within the existing meal total. Prepared sessions have
+live/ cancelled allocated-consumption and reserve-use histories; pending/future
+sessions have no consumption. All refs/keys stay household-local and parents
+precede dependents. Recipe-linked snapshots and replay/review receipts remain
+unsupported; no synthetic recipe history is substituted. Manifest stays incomplete.
+Count/portion/locality/order source authored/adapted but unrun. No builder/writer/
+seed/reset, DB/API/load/test/check/build/browser/CI/provider/native/push/merge/deploy
+ran. Other missing dimensions/adapters/reconciliation and full acceptance remain.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
