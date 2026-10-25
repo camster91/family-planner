@@ -54,12 +54,12 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): routine candidate paging retires on
-catalog replacement, validates dates/IDs/cursor consistency and prevents duplicate
-requests/loops. Inline EN/ES recovery retains draft and accepted choices, retrying
-the failed cursor explicitly. Old callbacks cannot release new paging state.
-Source cases authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/push/
-merge/deploy ran; #450/#135 remain open.
+Latest bounded source work (2026-10-25): routine saves keep an earlier unknown
+packet/key after any later retry refusal, including session/access/protocol/
+validation/conflict errors. Draft editing stays locked; only deliberate exact
+retry or valid confirmed success follows. First-attempt refusal semantics remain.
+Six source cases authored UNRUN. No QA/checks/build/browser/CI/API/DB/provider/
+push/merge/deploy ran; #450/#135 remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

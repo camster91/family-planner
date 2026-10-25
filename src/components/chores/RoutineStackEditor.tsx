@@ -980,6 +980,9 @@ export default function RoutineStackEditor({
   const submitPacket = React.useCallback(
     async (packet: SavePacket) => {
       if (savingRef.current) return;
+      const prior = submissionRef.current;
+      const retryingUnknown = prior?.phase === "unknown";
+      if (retryingUnknown && (prior.packet.key !== packet.key || prior.packet.bytes !== packet.bytes)) return;
       savingRef.current = true;
       setSaving(true);
       setSaveError(null);
@@ -1007,7 +1010,12 @@ export default function RoutineStackEditor({
       } catch (error) {
         const requestError =
           error instanceof RoutineEditorRequestError ? error : null;
-        if (
+        if (retryingUnknown) {
+          // A later refusal describes only this attempt. The first attempt may
+          // already have committed; no 4xx/protocol/conflict clears that fact.
+          setSubmissionState({ phase: "unknown", packet });
+          setSaveError(msg("unknownSave"));
+        } else if (
           requestError?.code === "ROUTINE_STACK_CONFLICT" ||
           requestError?.code === "IDENTITY_CONFLICT"
         ) {

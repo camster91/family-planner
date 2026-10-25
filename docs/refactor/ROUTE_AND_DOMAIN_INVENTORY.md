@@ -2492,3 +2492,24 @@ owner/native acceptance remains open. No permission or recurring-history change.
 Wrong-day, duplicate-ID, looping/inconsistent-cursor retained-draft/exact retry
 and late old-day page retirement cases are authored UNRUN. No QA/tests/checks/
 build/browser/CI/API/DB/provider/push/merge/deploy ran. #450/#135 remain open.
+
+## Uncertain routine retry refusal is sticky — 2026-10-25
+
+#450/#135 source: submitPacket captures whether it is retrying an existing unknown
+packet before entering pending. Any failed retry retains unknown state and that
+exact serialized body/key, including401/403, validation errors, explicit identity/
+snapshot conflict, protocol-unavailable and key-reused responses. These describe
+only the later attempt; they cannot establish that an earlier lost response had
+no effect. A different packet cannot replace an unknown packet. Only a valid
+confirmed success takes the normal committed path. No retry is automatic.
+
+First-attempt known refusal semantics are unchanged: a true initial protocol or
+validation refusal remains editable; initial explicit conflict keeps its review
+path. Unknown retries continue using existing EN/ES recovery/locked draft and
+Retry save, rather than minting a new key or exposing Reload as absence evidence.
+Mounted memory remains the existing retention boundary, not a persisted journal,
+receipt-expiry resolution or complete reauthentication/navigation UX.
+
+Six later-refusal paths followed by exact third-attempt success are authored as
+UNRUN source cases. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/
+deploy ran. Full #450/#135 unknown-outcome/native/role acceptance remains open.

@@ -1064,3 +1064,38 @@ it('retires a pending catalog page on a selected-day change without appending la
   expect(screen.queryByText('Late old-day choice')).toBeNull();
   expect(screen.getByText('Next-day choice')).toBeTruthy();
 });
+
+// Authored UNRUN: subsequent rejection is not evidence about an earlier attempt.
+it.each([
+  [401, 'SESSION_CHANGED'], [403, 'FORBIDDEN'], [400, 'INVALID_JSON'],
+  [409, 'IDENTITY_CONFLICT'], [409, 'MEMBER_PROTOCOL_UNAVAILABLE'],
+  [422, 'IDEMPOTENCY_KEY_REUSED'],
+])('keeps the original uncertain packet after retry refusal %s/%s', async (status, code) => {
+  const posts: RequestInit[] = [];
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/candidates')) return response(candidates);
+    posts.push(init!);
+    if (posts.length === 1) return response({ stack_id: 'incomplete-response' });
+    if (posts.length === 2) return response({ error: { code } }, Number(status));
+    return response(saveResponse);
+  });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  await user.click(screen.getByRole('button', { name: 'Save routine' }));
+  await screen.findByText(/could not confirm whether/i);
+  await user.click(screen.getByRole('button', { name: 'Retry save' }));
+  await waitFor(() => expect(posts).toHaveLength(2));
+  await screen.findByRole('button', { name: 'Retry save' });
+  expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+  expect(screen.queryByRole('button', { name: 'Reload latest routine' })).toBeNull();
+  expect(refresh).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Retry save' }));
+  await waitFor(() => expect(posts).toHaveLength(3));
+  expect(posts[1].body).toBe(posts[0].body);
+  expect(posts[2].body).toBe(posts[0].body);
+  expect(posts[1].headers).toEqual(posts[0].headers);
+  expect(posts[2].headers).toEqual(posts[0].headers);
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+});
