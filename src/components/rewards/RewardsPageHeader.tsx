@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Gift } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LargeHeader } from '@/components/ui/large-header'
@@ -39,4 +40,9 @@ export function RewardsNoFamilyState() {
       description={rewardsText('noFamilyDescription')}
     />
   )
+}
+
+export function RewardsPagingFailure() {
+  const text = useRewardsText()
+  return <div role="alert" className="card-apple p-5 space-y-3"><p>{text('pageInvalid')}</p><Link href="/dashboard/rewards" className="btn-tinted min-h-[44px]">{text('newestRewards')}</Link></div>
 }

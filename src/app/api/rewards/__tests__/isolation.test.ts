@@ -64,3 +64,30 @@ describe("rewards — two households", () => {
     expect(writesTo("reward").find((w) => w.op === "create")?.args.data).toMatchObject({ family_id: "family-A" });
   });
 });
+
+describe('opt-in reward pages and exact target inspection (source only)', () => {
+  beforeEach(() => db.reset())
+  it('traverses tied timestamps without duplicates and refuses a foreign household/filter cursor', async () => {
+    const original = db.find('reward', 'reward-a')!
+    for (const id of ['tie-a', 'tie-b', 'tie-c']) db.rows('reward').push({ ...original, id, created_at: new Date('2026-10-25T12:00:00Z') })
+    const first = await (await rewards.GET(req({ as: 'childA', query: { limit: '2' } }))).json()
+    expect(first.rewards.map((row: any) => row.id)).toEqual(['tie-a', 'tie-b'])
+    expect(first.nextCursor).toBeTruthy()
+    const next = await (await rewards.GET(req({ as: 'childA', query: { limit: '2', cursor: first.nextCursor } }))).json()
+    expect(next.rewards.map((row: any) => row.id)).toEqual(['tie-c', 'reward-a'])
+    expect(next.nextCursor).toBeNull()
+    expect((await rewards.GET(req({ as: 'childB', query: { limit: '2', cursor: first.nextCursor } }))).status).toBe(400)
+    expect((await rewards.GET(req({ as: 'childA', query: { limit: '2', status: 'claimed', cursor: first.nextCursor } }))).status).toBe(400)
+    const legacy = await (await rewards.GET(req({ as: 'childA' }))).json()
+    expect(legacy.rewards).toHaveLength(4)
+    expect(legacy).not.toHaveProperty('nextCursor')
+  })
+  it('returns only an owned exact target and does not combine target reads with collection paging', async () => {
+    const own = await (await rewards.GET(req({ as: 'childA', query: { rewardId: 'reward-a' } }))).json()
+    expect(own.rewards.map((row: any) => row.id)).toEqual(['reward-a'])
+    const foreign = await (await rewards.GET(req({ as: 'childA', query: { rewardId: 'reward-b' } }))).json()
+    expect(foreign.rewards).toEqual([])
+    expect((await rewards.GET(req({ as: 'childA', query: { rewardId: 'reward-a', limit: '24' } }))).status).toBe(400)
+    expect(db.writes).toHaveLength(0)
+  })
+})

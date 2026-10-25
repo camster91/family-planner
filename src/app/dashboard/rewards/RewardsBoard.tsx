@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { requestOwnedJson } from '@/lib/owned-request-http'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Gift } from 'lucide-react'
@@ -101,6 +102,7 @@ export default function RewardsBoard({
   isParent,
   currentUserId,
   canViewAnalytics,
+  pageInfo,
 }: {
   rewards: RewardCard[]
   userXp: number
@@ -108,6 +110,7 @@ export default function RewardsBoard({
   currentUserId: string
   /** Effective server-side role + feature permission. */
   canViewAnalytics: boolean
+  pageInfo?: { older: boolean; nextCursor: string | null }
 }) {
   const router = useRouter()
   const { addToast } = useMaybeToast()
@@ -165,9 +168,9 @@ export default function RewardsBoard({
 
   const checkStatus = async (target: Recovery) => {
     try {
-      const response = await fetch('/api/rewards', { headers: { Accept: 'application/json' } })
-      if (!response.ok) throw new Error('status')
-      const parsed = parseRewardList(await response.json().catch(() => null))
+      const result = await requestOwnedJson(`/api/rewards?rewardId=${encodeURIComponent(target.reward.id)}`, { method: 'GET', headers: { Accept: 'application/json' } }, 256 * 1024)
+      if (result.kind === 'unknown' || !result.response.ok) throw new Error('status')
+      const parsed = parseRewardList(result.body)
       const current = parsed?.find((reward) => reward.id === target.reward.id)
       if (!current) throw new Error('status')
       applyReward(current)
@@ -183,13 +186,17 @@ export default function RewardsBoard({
           ))
           return
         }
+        approveKeys.current.delete(target.reward.id)
         clearRecovery(target.kind, target.reward.id)
         addToast({ type: 'success', title: rewardsText('givenToast', { name: current.name }) })
         return
       }
+      // Still available is not proof an in-flight original claim rolled back.
+      if (current.status === 'available') return
+      claimKeys.current.delete(target.reward.id)
       clearRecovery(target.kind, target.reward.id)
-      if (current.status !== 'available') setConfirming(null)
-      addToast({ type: 'success', title: current.status === 'available' ? rewardsText('available') : rewardsText('claimed') })
+      setConfirming(null)
+      addToast({ type: 'success', title: rewardsText('claimed') })
     } catch {
       setRecoveries((current) => current.map((item) => item.kind === target.kind && item.reward.id === target.reward.id
         ? { ...item, message: rewardsText('statusError') }
@@ -230,6 +237,7 @@ export default function RewardsBoard({
       setLocalXp(parsed.xp)
       addToast({ type: 'success', title: rewardsText('claimedToast', { name: reward.name }), message: isParent ? undefined : rewardsText('claimedToastMessage') })
       setConfirming(null)
+      claimKeys.current.delete(reward.id)
       clearRecovery('claim', reward.id)
       router.refresh()
     } catch {
@@ -268,6 +276,7 @@ export default function RewardsBoard({
       }
       applyReward(parsed)
       addToast({ type: 'success', title: rewardsText('givenToast', { name: reward.name }) })
+      approveKeys.current.delete(reward.id)
       clearRecovery('approve', reward.id)
       router.refresh()
     } catch {
@@ -290,7 +299,6 @@ export default function RewardsBoard({
     if (claiming) return
     setConfirming(null)
     setClaimError(null)
-    if (confirming) clearRecovery('claim', confirming.id)
   }
 
   const claimRecovery = confirming ? recoveryFor('claim', confirming.id) : null
@@ -304,6 +312,7 @@ export default function RewardsBoard({
           </Link>
         </div>
       )}
+      {pageInfo && <p role="status" className="text-footnote text-label-secondary">{rewardsText('pageScope', { count: localRewards.length })}</p>}
       <section aria-labelledby="rewards-balance-heading" className="card-apple p-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <Glyph color="rewards" size="lg"><span className="text-2xl" aria-hidden="true">⭐</span></Glyph>
@@ -324,7 +333,8 @@ export default function RewardsBoard({
               return <article key={reward.id} className="card-apple p-5 flex flex-col gap-4 min-w-0" data-testid="claimable-reward">
                 <Glyph color="rewards" size="lg"><span className="text-2xl" aria-hidden="true">{rewardIcon(reward.icon)}</span></Glyph>
                 <div className="min-w-0"><h3 className="text-title-3 text-label-primary font-semibold [overflow-wrap:anywhere]">{reward.name}</h3>{reward.description && <p className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">{reward.description}</p>}<p className="text-subhead text-rewards font-medium mt-2">{reward.cost} {pointsUnit(reward.cost)}</p></div>
-                <button type="button" disabled={!canClaim} onClick={() => { setConfirming(reward); setClaimError(null); clearRecovery('claim', reward.id) }} aria-label={canClaim ? `${rewardsText('claim')} ${reward.name}` : undefined} className={cn('btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold', canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed')}>{canClaim ? rewardsText('claimReward') : rewardsText('needMore', { points: reward.cost - localXp, unit: pointsUnit(reward.cost - localXp) })}</button>
+                <button type="button" disabled={!canClaim} onClick={() => { setConfirming(reward); setClaimError(null) }} aria-label={canClaim ? `${rewardsText('claim')} ${reward.name}` : undefined} className={cn('btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold', canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed')}>{canClaim ? rewardsText('claimReward') : rewardsText('needMore', { points: reward.cost - localXp, unit: pointsUnit(reward.cost - localXp) })}</button>
+                {recoveryFor('claim', reward.id) && confirming?.id !== reward.id && <RecoveryNotice recovery={recoveryFor('claim', reward.id)!} rewardsText={rewardsText} onRetry={() => void retryRecovery(recoveryFor('claim', reward.id)!)} onCheckStatus={() => void checkStatus(recoveryFor('claim', reward.id)!)} />}
               </article>
             })}
           </div>
@@ -333,7 +343,20 @@ export default function RewardsBoard({
 
       {pendingReview.length > 0 && <section aria-labelledby="pending-rewards-heading" className="space-y-3"><div><h2 id="pending-rewards-heading" className="section-header">{rewardsText('claimed')}</h2><p className="text-footnote text-label-secondary">{isParent ? rewardsText('reviewHint') : rewardsText('waiting')}</p></div><ul className="space-y-3">{pendingReview.map((reward) => { const recovery = recoveryFor('approve', reward.id); return <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery} onRetry={() => recovery && void retryRecovery(recovery)} onCheckStatus={() => recovery ? void checkStatus(recovery) : undefined} /> })}</ul></section>}
 
-      <section aria-labelledby="family-rewards-heading"><div className="mb-3"><h2 id="family-rewards-heading" className="section-header">{rewardsText('allFamily')}</h2></div>{localRewards.length === 0 ? <EmptyState icon={Gift} glyphColor="rewards" illustration={ILLUSTRATIONS.rewards} headingLevel="h3" title={rewardsText('noRewards')} description={isParent ? rewardsText('createFirst') : rewardsText('askParent')} action={isParent ? <Link href="/dashboard/rewards/create" className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium">{rewardsText('createReward')}</Link> : undefined} /> : familyRewards.length > 0 ? <ul className="space-y-3">{familyRewards.map((reward) => { const recovery = recoveryFor('approve', reward.id); return <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery} onRetry={() => recovery && void retryRecovery(recovery)} onCheckStatus={() => recovery ? void checkStatus(recovery) : undefined} /> })}</ul> : null}</section>
+      <section aria-labelledby="family-rewards-heading"><div className="mb-3"><h2 id="family-rewards-heading" className="section-header">{rewardsText(pageInfo ? 'shownFamily' : 'allFamily')}</h2></div>{localRewards.length === 0 ? <EmptyState icon={Gift} glyphColor="rewards" illustration={ILLUSTRATIONS.rewards} headingLevel="h3" title={rewardsText(pageInfo?.older ? 'pageEmpty' : 'noRewards')} description={pageInfo?.older ? rewardsText('pageEmptyHint') : isParent ? rewardsText('createFirst') : rewardsText('askParent')} action={isParent ? <Link href="/dashboard/rewards/create" className="btn-tinted bg-tint-rewards text-white min-h-[44px] px-5 py-2 text-base font-medium">{rewardsText('createReward')}</Link> : undefined} /> : familyRewards.length > 0 ? <ul className="space-y-3">{familyRewards.map((reward) => { const recovery = recoveryFor('approve', reward.id); return <RewardRow key={reward.id} reward={reward} currentUserId={currentUserId} isParent={isParent} approving={approving === reward.id} onApprove={() => approve(reward)} rewardsText={rewardsText} recovery={recovery} onRetry={() => recovery && void retryRecovery(recovery)} onCheckStatus={() => recovery ? void checkStatus(recovery) : undefined} /> })}</ul> : null}</section>
+
+      {recoveries.filter(recovery => recovery.kind === 'claim'
+        ? confirming?.id !== recovery.reward.id && !claimable.some(row => row.id === recovery.reward.id)
+        : ![...pendingReview, ...familyRewards].some(row => row.id === recovery.reward.id)
+      ).map(recovery => <RecoveryNotice key={`${recovery.kind}:${recovery.reward.id}`} recovery={recovery} rewardsText={rewardsText} onRetry={() => void retryRecovery(recovery)} onCheckStatus={() => void checkStatus(recovery)} />)}
+
+      {pageInfo && (pageInfo.older || pageInfo.nextCursor) && (
+        <nav aria-label={rewardsText('pageNavigation')} className="flex flex-wrap items-center gap-3">
+          {pageInfo.older && <Link href="/dashboard/rewards" aria-disabled={claiming || approving !== null || confirming !== null || recoveries.length > 0} onClick={event => { if (claiming || approving !== null || confirming !== null || recoveries.length > 0) event.preventDefault() }} className="btn-tinted min-h-[44px] aria-disabled:opacity-50">{rewardsText('newestRewards')}</Link>}
+          {pageInfo.nextCursor && <Link href={`/dashboard/rewards?cursor=${encodeURIComponent(pageInfo.nextCursor)}`} aria-disabled={claiming || approving !== null || confirming !== null || recoveries.length > 0} onClick={event => { if (claiming || approving !== null || confirming !== null || recoveries.length > 0) event.preventDefault() }} className="btn-tinted min-h-[44px] aria-disabled:opacity-50">{rewardsText('olderRewards')}</Link>}
+          {(claiming || approving !== null || confirming !== null || recoveries.length > 0) && <p role="status" className="text-footnote text-label-secondary">{rewardsText('pageHeld')}</p>}
+        </nav>
+      )}
 
       <Dialog open={confirming !== null} onClose={closeClaim} title={confirming ? rewardsText('claimTitle', { name: confirming.name }) : rewardsText('claimReward')} description={confirming ? rewardsText('claimDescription', { cost: confirming.cost, costUnit: pointsUnit(confirming.cost), balance: localXp, balanceUnit: pointsUnit(localXp), suffix: isParent ? '' : rewardsText('parentWillGive') }) : undefined} testId="claim-reward-dialog">
         {claimError && <p role="alert" className="mb-3 rounded-xl border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-4 py-3 text-subhead text-[var(--danger-text)]">{claimError}</p>}

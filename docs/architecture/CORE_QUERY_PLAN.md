@@ -30,6 +30,7 @@ provider, scheduler, index, infrastructure or destructive migration is authorize
 | AI reporting | reservation-before-dispatch, fixed content-free usage fields and bounded reports | Reservation concurrency/cost uncertainty, current authority, opt-out/erasure/export; real provider observations remain separate |
 | Shared Activity | Optional paging=keyset-v1, default30/max100+1, household timestamp/ID cursor; private timeline/analytics exclusions retained | Legacy timestamp paging can skip tied rows; no new web consumer/current-previous migration or SQL/isolation acceptance claimed |
 | Private feedback |25 own-user/household reports; optional summary-v1 selects five display fields; exact report-request receipt checks retained | No continuation or complete-history claim; legacy full representation stays compatible, UI/transport/privacy acceptance unrun |
+| Rewards | Optional24-web/max100-API timestamp/ID pages bound to household/status, one-row exact recovery read, legacy unpaged API retained | Relation SQL/first/deep-page plans, status/tie/role/old-client and mutation recovery/navigation acceptance unrun; compound indexes are proposals only |
 | Account erasure/removal | Identifier-only ownership discovery and sorted historical household locks; relation-derived ListItem/ProjectTask ownership; per-household successor/clear predicates | Complete discovery is not a bounded request-work guarantee; FK/transaction/rollback/concurrency and query plans remain unmeasured; no live deletion performed |
 
 A returned-row bound is not a bound on scanned rows, SQL round trips, relation
@@ -246,7 +247,7 @@ and complete legacy representations when adding opt-in continuation.
 
 | Current route | Inspected source behavior | Next bounded contract work |
 | --- | --- | --- |
-| `/api/rewards` | Complete household reward collection ordered by created_at; creator/claimer name relations | Define stable timestamp/ID continuation with exact status filter and explicit partial totals; do not truncate installed-client reward selection |
+| `/api/rewards` | Optional limit1..100 keysets/nextCursor, household+status bound; exact rewardId inspection at most1; no-limit original full response retained. Web uses24-row replacement pages | Accept status/tie/old-client/role/relations and recovery/navigation behavior; no complete-total claim or implicit absence proof |
 | `/api/anniversaries` | Complete household dates; computes next occurrence/days from UTC day and returns source dates | Preserve local annual-date semantics and permission DTOs; define view position before paging, not a naive calendar-year slice |
 | `/api/allowance` | At most100 status/date rows; parent household versus own-recipient child/teen policy | Make latest/partial coverage explicit and define status/date/ID continuation before claiming complete history |
 | `/api/messages` | Default50/max100 timestamp-before messages plus complete current account roster; sender/attachment projection | Preserve roster/recipient authorization; opt-in tie-safe continuation and explicit client adoption, never silently omit equal-time messages |

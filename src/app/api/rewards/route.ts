@@ -1,3 +1,4 @@
+import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -22,6 +23,21 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    // Exact target inspection is separate from collection absence. Legacy
+    // servers may ignore this opt-in filter; the client still matches the ID.
+    if (searchParams.has('rewardId')) {
+      const id = searchParams.get('rewardId')!
+      if (searchParams.getAll('rewardId').length !== 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(id) || ['limit', 'cursor', 'status'].some(key => searchParams.has(key)))
+        return NextResponse.json({ error: 'Invalid reward target', code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+      const rewards = await prisma!.reward.findMany({
+        where: { family_id: auth.user.family_id, id }, take: 1,
+        include: { creator: { select: { id: true, name: true } }, claimer: { select: { id: true, name: true } } },
+      })
+      return NextResponse.json({ rewards }, { headers: { 'Cache-Control': 'private, no-store' } })
+    }
+    const paging = parseRewardPaging(searchParams, auth.user.family_id)
+    if (!paging.ok) return NextResponse.json({ error: paging.error, code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+    if (paging.paged) return NextResponse.json(await readRewardPage(prisma!, auth.user.family_id, paging), { headers: { 'Cache-Control': 'private, no-store' } })
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status

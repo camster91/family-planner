@@ -1,43 +1,39 @@
+import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
 import { Suspense } from 'react'
 import { getServerUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import RewardsBoard, { type RewardCard } from './RewardsBoard'
-import { RewardsNoFamilyState, RewardsPageHeader } from '@/components/rewards/RewardsPageHeader'
+import { RewardsNoFamilyState, RewardsPageHeader, RewardsPagingFailure } from '@/components/rewards/RewardsPageHeader'
 
 export const dynamic = 'force-dynamic'
 
 interface RewardsPageProps {
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; cursor?: string | string[] }>
 }
 
 async function RewardsContent({
   userId,
   familyId,
   canViewAnalytics,
+  cursor,
 }: {
   userId: string;
   familyId: string;
   canViewAnalytics: boolean;
+  cursor?: string | string[];
 }) {
   const sessionUser = await getServerUser()
-  if (!sessionUser) return null
-
-  const [rewards, user] = await Promise.all([
-    prisma!.reward.findMany({
-      where: { family_id: familyId },
-      include: {
-        creator: { select: { name: true } },
-        claimer: { select: { name: true } },
-      },
-      orderBy: { created_at: 'desc' }
-    }),
-    prisma!.user.findUnique({
-      where: { id: userId },
-      select: { xp: true, role: true },
-    }),
-  ])
+  if (!sessionUser || sessionUser.id !== userId) return null
+  const params = new URLSearchParams({ limit: '24' })
+  if (Array.isArray(cursor)) return <RewardsPagingFailure />
+  if (cursor !== undefined) params.set('cursor', cursor)
+  const paging = parseRewardPaging(params, familyId)
+  if (!paging.ok || !paging.paged) return <RewardsPagingFailure />
+  const user = await prisma!.user.findUnique({ where: { id: userId }, select: { xp: true, role: true, family_id: true } })
+  if (!user || user.family_id !== familyId) return null
+  const { rewards, nextCursor } = await readRewardPage(prisma!, familyId, paging)
 
   const userXp = user?.xp || 0
   const isParent = user?.role === 'parent'
@@ -61,7 +57,8 @@ async function RewardsContent({
         userXp={userXp}
         isParent={isParent}
         currentUserId={userId}
-        canViewAnalytics={canViewAnalytics}
+        canViewAnalytics={canViewAnalytics && user.role === 'parent'}
+        pageInfo={{ older: cursor !== undefined, nextCursor }}
       />
     </div>
   )
@@ -128,7 +125,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
       />
       <div className="mx-auto mt-6 w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">
         <Suspense fallback={<RewardsSkeleton />}>
-          <RewardsContent userId={sessionUser.id} familyId={familyId} canViewAnalytics={canViewAnalytics} />
+          <RewardsContent userId={sessionUser.id} familyId={familyId} canViewAnalytics={canViewAnalytics} cursor={params.cursor} />
         </Suspense>
       </div>
     </div>

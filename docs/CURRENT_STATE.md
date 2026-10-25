@@ -54,15 +54,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded planning follow-through (2026-10-25) reconciles the core query
-plan (#134). It replaces the stale2,000-event feed entry with actual200-row
-snapshot traversal/10,000-event/16MiB/30s limits, adds shared Activity/feedback/
-historical-erasure contracts and records ten concrete supporting-route gaps.
-The plan distinguishes complete selectors, partial histories, nested medical
-sets, transport bytes and complete lifecycle discovery. Original compatibility,
-privacy and measured query/locking acceptance remain open. No code changed or
-QA/test/check/build/browser/CI/API/DB/EXPLAIN/load/native/provider/push/merge/deploy
-ran. No criterion was checked or issue closed from an unmeasured source inventory.
+Latest bounded source work (2026-10-25) adds reward collection continuation
+(#134/#499). A shared API/SSR timestamp/ID reader returns24 web rows or up to100
+opt-in API rows with one lookahead, household/status-bound cursor and no pivot
+lookup. No-limit legacy responses remain complete. EN/ES Older/Newest/invalid/
+page-only copy is wired; current identity/family and analytics role are renewed
+before SSR serialization. Recovery inspects one exact owned reward through an
+optional target filter and bounded transport; absent targets never prove an
+outcome. Closed/off-page uncertain claims retain original keys and accessible
+review, still-available reads keep recovery, and page links hold during actions/
+review. Source parser/API/UI cases authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Query/index/compatibility/race/
+rendered/navigation and full reward acceptance remain open; no new DDL applied.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

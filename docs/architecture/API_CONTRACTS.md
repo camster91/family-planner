@@ -1599,3 +1599,22 @@ when locale changes. No former household name/ID is exposed. Existing older
 clients retain the generic server-text fallback. Locale/draft/no-replay source
 case authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
 merge/deploy ran. Runtime rollback/compatibility/rendered and full acceptance open.
+
+### Reward collection continuation and exact status inspection — 2026-10-25 (#134/#499)
+
+Rewards API/SSR/web source adds reward collection continuation
+(#134/#499). A shared API/SSR timestamp/ID reader returns24 web rows or up to100
+opt-in API rows with one lookahead, household/status-bound cursor and no pivot
+lookup. No-limit legacy responses remain complete. EN/ES Older/Newest/invalid/
+page-only copy is wired; current identity/family and analytics role are renewed
+before SSR serialization. Recovery inspects one exact owned reward through an
+optional target filter and bounded transport; absent targets never prove an
+outcome. Closed/off-page uncertain claims retain original keys and accessible
+review, still-available reads keep recovery, and page links hold during actions/
+review. Source parser/API/UI cases authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Query/index/compatibility/race/
+rendered/navigation and full reward acceptance remain open; no new DDL applied.
+
+Protocol: GET /api/rewards?limit=24[&status=available|claimed|approved|redeemed][&cursor=...] returns rewards plus nullable nextCursor. Duplicate/invalid paging and foreign household/status positions refuse400 REWARDS_INVALID_PAGE. GET ?rewardId=<id> is an exclusive exact-target filter returning the same rewards array shape with zero/one own-household row; it cannot combine with paging/status. Older servers may ignore the filter; clients still match the target and hold on absent/unreadable replies. This is not a write receipt or deletion tombstone. Legacy no-limit/no-target calls retain prior representation and ordering.
+
+Index follow-up is measured planning only: compare existing Reward family/status indexes with proposed family+created_at+id and family+status+created_at+id paths. No index/migration or latency result is implied. Reward history follows canonical erasure/retention; no time-based pruning is introduced.
