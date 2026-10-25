@@ -1124,3 +1124,31 @@ it('holds an aged uncertain save locally without dispatching or minting a new pa
     expect(refresh).not.toHaveBeenCalled();
   } finally { clock.mockRestore(); }
 });
+
+// Inspection is a separate read-only request, never another save dispatch.
+it.each(['confirmed', 'unknown'])('checks original uncertain status as %s without resubmitting the save', async state => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input); calls.push({ url, init });
+    if (url.includes('/candidates')) return response(candidates);
+    if (url.endsWith('/receipt')) return response(state === 'confirmed' ? { state, stackId: 'stack-new' } : { state });
+    return response({ stack_id: 'incomplete-response' });
+  });
+  const user = userEvent.setup(); renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  await user.click(screen.getByRole('button', { name: 'Save routine' }));
+  await screen.findByText(/could not confirm whether/i);
+  await user.click(screen.getByRole('button', { name: 'Check saved status' }));
+  if (state === 'confirmed') await waitFor(() => expect(refresh).toHaveBeenCalled());
+  else {
+    await screen.findByText(/The original save is still unconfirmed/);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+  }
+  const saves = calls.filter(call => call.url === '/api/chores/stacks');
+  const inspections = calls.filter(call => call.url.endsWith('/receipt'));
+  expect(saves).toHaveLength(1); expect(inspections).toHaveLength(1);
+  expect(inspections[0].init?.body).toBe(saves[0].init?.body);
+  expect((inspections[0].init?.headers as Record<string, string>)['Idempotency-Key']).toBe((saves[0].init?.headers as Record<string, string>)['Idempotency-Key']);
+});

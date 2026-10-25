@@ -1,3 +1,4 @@
+import { compactResponseSchema } from "@/lib/routine-stack-response-contract";
 import { ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
 import { parseDateOnly } from "@/lib/dates";
 import {
@@ -101,7 +102,7 @@ export type RoutineStackCandidateDb = {
 };
 
 export type RoutineStackWriteDb = {
-  $transaction<T>(callback: (tx: any) => Promise<T>): Promise<T>;
+  $transaction<T>(callback: (tx: any) => Promise<T>, options?: { timeout?: number; maxWait?: number }): Promise<T>;
 };
 
 type ParentStep = {
@@ -808,4 +809,40 @@ export async function saveParentRoutineStack(
         : {}),
     });
   });
+}
+
+/** Read the exact original atomic receipt; never create/expire/replay effects. */
+export async function inspectParentRoutineStack(
+  db: RoutineStackWriteDb, input: unknown, actor: ParentRoutineStackActor, key: string,
+): Promise<RoutineStackMutationResult> {
+  const draft = normalizeRoutineStackDraft(input);
+  const unknown = () => ({ status: 200, body: { state: "unknown" } });
+  if (draft.family_id !== actor.familyId) return mutationError(403, "FORBIDDEN", "Parent access is required.");
+  const requestHash = hashIdempotentRequest(ROUTINE_STACK_ACTION, draft);
+  return db.$transaction(async tx => {
+    await lockUser(tx, actor.userId);
+    await lockHousehold(tx, actor.familyId);
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE`;
+    const current = await tx.user.findUnique({ where: { id: actor.userId }, select: { family_id: true, role: true, token_version: true } });
+    if (!current || current.family_id !== actor.familyId || current.role !== "parent")
+      return mutationError(403, "FORBIDDEN", "Parent access is required.");
+    if (actor.tokenVersion !== undefined && current.token_version !== actor.tokenVersion)
+      return mutationError(401, "SESSION_CHANGED", "Sign in again before checking this routine.");
+    const receipt = await tx.idempotencyRecord.findUnique({
+      where: { scope_key: { scope: `user:${actor.userId}`, key } },
+      select: { family_id: true, user_id: true, action: true, request_hash: true,
+        response_status: true, response_body: true, expires_at: true },
+    });
+    if (!receipt || receipt.family_id !== actor.familyId || receipt.user_id !== actor.userId ||
+      receipt.action !== ROUTINE_STACK_ACTION || receipt.request_hash !== requestHash ||
+      !(receipt.expires_at instanceof Date) || !Number.isFinite(receipt.expires_at.getTime()) || receipt.expires_at.getTime() <= Date.now() ||
+      receipt.response_status !== 200) return unknown();
+    const serialized = JSON.stringify(receipt.response_body);
+    if (typeof serialized !== "string" || Buffer.byteLength(serialized, "utf8") > 8192) return unknown();
+    const parsed = compactResponseSchema.safeParse(receipt.response_body);
+    if (!parsed.success || (draft.stack_id !== null && parsed.data.stack_id !== draft.stack_id)) return unknown();
+    // No member names, old step content, stored receipt body or raw IDs beyond
+    // the confirmed stack are disclosed; this is commit evidence, not existence.
+    return { status: 200, body: { state: "confirmed", stackId: parsed.data.stack_id } };
+  }, { timeout: 5000, maxWait: 5000 });
 }

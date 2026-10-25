@@ -10,6 +10,7 @@ import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { toDateOnlyLocal } from "@/lib/dates";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { ROUTINE_STACK_ISSUED_AT_HEADER, ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
+import { compactResponseSchema } from "@/lib/routine-stack-response-contract";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
 import {
   routineStackMessages,
@@ -212,20 +213,6 @@ const readStepSchema = z
   })
   .strict();
 
-const compactResponseSchema = z
-  .object({
-    stack_id: z.string().min(1),
-    version: z.number().int(),
-    steps: z.array(
-      z.tuple([z.string().min(1), z.number().int(), z.number().int()]),
-    ),
-    assignments: z.array(
-      z.tuple([z.string().min(1).nullable(), z.string().nullable()]),
-    ),
-    members: z.array(z.tuple([z.string().min(1), z.string()])),
-    fingerprint: z.string(),
-  })
-  .strict();
 
 const readResponseSchema = z
   .object({
@@ -1067,6 +1054,37 @@ export default function RoutineStackEditor({
     [clearDirty, msg, navigateAway, router, setSubmissionState],
   );
 
+  const inspectSave = async (packet: SavePacket) => {
+    if (savingRef.current || submissionRef.current?.packet !== packet) return;
+    const generation = catalogGeneration.current;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await requestJson("/api/chores/stacks/receipt", {
+        method: "POST", signal: lifetimeController.current?.signal,
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: packet.key },
+        body: packet.bytes,
+      }, msg("inspectUnknown"), body => z.discriminatedUnion("state", [
+        z.object({ state: z.literal("confirmed"), stackId: z.string().min(1) }).strict(),
+        z.object({ state: z.literal("unknown") }).strict(),
+      ]).parse(body));
+      if (generation !== catalogGeneration.current || submissionRef.current?.packet !== packet) return;
+      if (result.state === "confirmed") {
+        setSubmissionState(null);
+        idempotencyKeyRef.current = null;
+        clearDirty();
+        router.refresh();
+        navigateAway();
+      } else setSaveError(msg("inspectUnknown"));
+    } catch {
+      if (generation === catalogGeneration.current && submissionRef.current?.packet === packet)
+        setSaveError(msg("inspectUnknown"));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
   const save = (event: React.FormEvent) => {
     event.preventDefault();
     if (savingRef.current || submissionRef.current) return;
@@ -1508,6 +1526,7 @@ export default function RoutineStackEditor({
             >
               <p>{saveError}</p>
               {submission?.phase === "unknown" && (
+                <>
                 <button
                   type="button"
                   className="btn-tinted mt-3 min-h-[44px]"
@@ -1516,6 +1535,9 @@ export default function RoutineStackEditor({
                 >
                   {msg("retrySave")}
                 </button>
+                <button type="button" className="btn-tinted ml-2 mt-3 min-h-[44px]" disabled={saving}
+                  onClick={() => void inspectSave(submission.packet)}>{msg("inspectSave")}</button>
+                </>
               )}
               {submission?.phase === "conflict" && (
                 <button

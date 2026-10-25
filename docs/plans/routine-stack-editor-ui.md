@@ -123,3 +123,37 @@ writer refusal before receipts and aged mounted draft/no second dispatch cases
 are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/
 deploy ran. Receipt expiry, native restart, old-client, actual clock/lock races and
 full #450/#135 acceptance remain open.
+
+## Read-only original routine receipt inspection — 2026-10-25
+
+#450/#135 source: unknown/aged mounted routine saves now offer a44px Check saved
+status action using existing EN/ES typed recovery. It privately posts the same
+original serialized draft and idempotency key to POST /api/chores/stacks/receipt;
+this route only reads and never submits the mutation, creates/deletes/expires a
+receipt, expands recurrence or recreates chores. Missing/old servers retain
+uncertainty with no save fallback. Response/transport bounds and lifetime abort
+apply; catalog generation/packet ownership prevents a retired inspection from
+refreshing/navigating a replacement editor. Checking itself does not refresh the
+packet time or release the unknown draft.
+
+The server requires a current real parent, chores access, valid original key and
+bounded2MiB body, then normalizes/hashes the same canonical draft/action as the
+writer. Under User/household advisory locks and actual User FOR SHARE it renews
+family/parent/session, reads only that person's scope/key, and requires exact
+family/user/action/hash, unexpired complete200 receipt and shared strict compact
+body validation within8KiB. The5second/max-wait5second transaction performs no
+receipt/domain writes. The response contains only confirmed stack ID or unknown;
+old member names, step content and stored receipt JSON are not disclosed.
+
+A valid original committed receipt can confirm after the24hour send window but
+before receipt expiry; the UI then follows its existing successful refresh/close
+path. Missing/expired/incomplete/malformed/mismatched receipts and request failure
+remain unknown. No absence proof, automatic fresh key, current-stack existence,
+Undo or rollback is inferred. Full original-actor/session UI ownership, erasure/
+restore semantics, persistent restart recovery and manual restart after expired
+receipt remain separate work. No existing retention/schema/flags change.
+
+Reader exact/missing/expired/foreign/hash/incomplete/malformed cases, role/body
+route guards and mounted confirmed/unknown inspection-without-resave cases are
+authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy
+ran. Original #450/#135/#136 acceptance remains open.
