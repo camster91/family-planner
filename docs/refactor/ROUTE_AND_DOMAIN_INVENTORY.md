@@ -2817,3 +2817,31 @@ promotion/FIN-1–7, native/wake delivery and unavailable original visual eviden
 separate from deferred QA. #557 field-ownership answer is still pending; no
 policy follows from silence. No new tracker/closure, runtime or acceptance claim.
 No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran.
+
+## Rotation identity preflight and profile namespace boundary — 2026-10-25
+
+#134/#450 source: applyRotationEditInTx now resolves each distinct required
+canonical account/member mapping once, before any template/order/assignee write,
+instead of repeating the same eligibility queries for every future occurrence.
+The existing household lifecycle lock remains held. Targets are visited in
+stable ID order; normal accepted rotation inputs contain at most8 participants.
+Legacy account-only rows still receive account-only assignment updates, while
+canonical rows receive the same resolved account/member pair. Missing/contradictory
+identity rejects before any rotation effect. Existing turn sequence, pending/
+manual-override filtering, history and clearing rules stay unchanged.
+
+The future pending-row read and per-row updates remain unbounded total work;
+this removes repeated identity queries, not all transaction cost or concurrency
+proof. Existing canonical lifecycle locking is relied on, not newly expanded or
+claimed verified. No schema, profile capability or account credit rule changes.
+Three source cases cover24 turns/two identity resolutions, pre-effect refusal and
+legacy-row preservation; all UNRUN. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #134/#450/#480 remain open.
+
+Current rotation_member_ids are User IDs: rotationMembersInHousehold queries the
+User delegate, and profile actions explicitly refuse nonempty legacy rotations.
+They must not be reinterpreted as HouseholdMember IDs because their strings look
+similar. Profile rotation still requires additive/versioned storage and strict
+capability/read/write/rollback handling with explicit active stable-member
+eligibility. It is not delivered by this query optimization. The unanswered
+standalone-unlink retention decision remains independent and unresolved.

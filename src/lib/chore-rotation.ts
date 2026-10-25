@@ -100,18 +100,30 @@ export async function applyRotationEditInTx(
       : row.rotation_index != null && oldRotation[row.rotation_index] === row.assigned_to
   )
 
+  const turns = planRotationTurns(rotation, null, future.length)
+  // Identity checks are per distinct canonical participant, not per occurrence.
+  // The existing household lifecycle lock stays held across preflight/effects.
+  // Resolve every required canonical mapping before touching the template/rows.
+  const requiredCanonical = new Set<string>()
+  for (let index = 0; index < future.length; index++) {
+    const assignee = turns[index]?.assignee
+    if (future[index].assigned_member_id && assignee) requiredCanonical.add(assignee)
+  }
+  const canonicalAssignees = new Map<string, { assigned_to: string; assigned_member_id: string }>()
+  for (const userId of [...requiredCanonical].sort())
+    canonicalAssignees.set(userId, await canonicalChoreAssigneeInTx(tx, familyId, userId))
+
   await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: [...rotation] } })
   await tx.chore.updateMany({
     where: { family_id: familyId, recurrence_id: template.id },
     data: { rotation_index: null },
   })
   if (rotation.length === 0) return true
-  const turns = planRotationTurns(rotation, null, future.length)
   for (let i = 0; i < future.length; i++) {
     const turn = turns[i]
     const assignee = turn.assignee
       ? future[i].assigned_member_id
-        ? await canonicalChoreAssigneeInTx(tx, familyId, turn.assignee)
+        ? canonicalAssignees.get(turn.assignee)!
         : { assigned_to: turn.assignee }
       : {}
     await tx.chore.update({
