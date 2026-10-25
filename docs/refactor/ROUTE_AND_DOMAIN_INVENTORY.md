@@ -1801,3 +1801,11 @@ or cached content. Mounted retries inspect before reusing original create bytes;
 present/removed settle without recreation, pending/expired/unknown hold. Paired
 devices refused; inventory/source cases updated, all unrun. Persistent/restore-era
 recovery and full PG/fault/isolation/native/QA acceptance remain open; no execution.
+
+### Final-candidate tracker consolidation — 2026-10-25 (#377, retired #105)
+
+The complete original #105 body and full imported #364 smoke packet were copied
+into [canonical #377](https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982) and read back before #105 duplicate/not-planned
+closure. Every unmet criterion remains open; #139 reusable QA infrastructure is
+separate. No application source, test/check/build/browser/CI/DB/API/provider/native
+or release operation ran. Original issue histories and named backups retained.

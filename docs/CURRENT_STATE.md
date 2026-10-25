@@ -21,7 +21,9 @@ ran. Authored regression source is not a passing result.
 
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
-its complete planning deliverable only, leaving **40 genuine open issues**.
+its complete planning deliverable only and consolidated the full #105 final-
+candidate packet into #377 as duplicate tracking, leaving **39 open issues**.
+#105 closure does not mark any acceptance item done.
 Eleven documentation-only criteria are now reconciled in #134/#140/#146/#254/#563; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
@@ -52,18 +54,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds read-only note-create receipt
-inspection and connects mounted recovery (#134/#135/#499). The new personal route
-renews current authority/original owner, locks a scoped key, validates action/hash/
-expiry and exposes only receipt state plus minimal note ID/current presence. No
-cached title/body, replay, pruning or write. Explicit uncertain retry first inspects:
-present confirms, removed clears with EN/ES terminal explanation and no recreation;
-unissued may use the original keyed create within its retry window. Pending/
-expired/malformed/failed inspection holds. Device sessions stay refused. Server/
-client/mounted/device-inventory source cases authored/adapted but unrun. Persistent
-journal/reload/native restart and restore-era exactly-once recovery remain open.
-No QA/test/check/build/browser/CI/API/database/provider/native/push/merge/deploy ran.
-Actual PG/fault/owner/lifecycle/isolation and original acceptance remain unverified.
+Latest bounded source work (2026-10-25) consolidates final-candidate acceptance
+tracker #105 into canonical launch tracker #377. The complete original #105 body
+and full imported #364 live-smoke packet are preserved, read back and linked at
+https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982.
+#105 is closed as duplicate/not-planned tracking only; #377 and every unfinished
+parent/teen/child/privacy/notification/viewport/a11y/Android/live-smoke/offline/theme/
+screenshot/log/P0-P1 criterion remain open. #139 still owns reusable QA infrastructure.
+No code/runtime acceptance was inferred from this metadata closure. Named issue
+body/packet backups and a read-back receipt sit beside this checkout. No QA/tests/
+checks/build/browser/CI/API application/database/provider/native/push/merge/deploy
+ran. Remaining issue count is39; genuine implementation/owner/acceptance work remains.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

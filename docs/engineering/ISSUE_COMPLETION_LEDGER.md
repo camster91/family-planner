@@ -21,7 +21,9 @@ ran. Authored regression source is not a passing result.
 
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
-its complete planning deliverable only, leaving **40 genuine open issues**.
+its complete planning deliverable only and consolidated the full #105 final-
+candidate packet into #377 as duplicate tracking, leaving **39 open issues**.
+#105 closure does not mark any acceptance item done.
 Eleven documentation-only criteria are now reconciled in #134/#140/#146/#254/#563; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
@@ -52,18 +54,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) adds read-only note-create receipt
-inspection and connects mounted recovery (#134/#135/#499). The new personal route
-renews current authority/original owner, locks a scoped key, validates action/hash/
-expiry and exposes only receipt state plus minimal note ID/current presence. No
-cached title/body, replay, pruning or write. Explicit uncertain retry first inspects:
-present confirms, removed clears with EN/ES terminal explanation and no recreation;
-unissued may use the original keyed create within its retry window. Pending/
-expired/malformed/failed inspection holds. Device sessions stay refused. Server/
-client/mounted/device-inventory source cases authored/adapted but unrun. Persistent
-journal/reload/native restart and restore-era exactly-once recovery remain open.
-No QA/test/check/build/browser/CI/API/database/provider/native/push/merge/deploy ran.
-Actual PG/fault/owner/lifecycle/isolation and original acceptance remain unverified.
+Latest bounded source work (2026-10-25) consolidates final-candidate acceptance
+tracker #105 into canonical launch tracker #377. The complete original #105 body
+and full imported #364 live-smoke packet are preserved, read back and linked at
+https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982.
+#105 is closed as duplicate/not-planned tracking only; #377 and every unfinished
+parent/teen/child/privacy/notification/viewport/a11y/Android/live-smoke/offline/theme/
+screenshot/log/P0-P1 criterion remain open. #139 still owns reusable QA infrastructure.
+No code/runtime acceptance was inferred from this metadata closure. Named issue
+body/packet backups and a read-back receipt sit beside this checkout. No QA/tests/
+checks/build/browser/CI/API application/database/provider/native/push/merge/deploy
+ran. Remaining issue count is39; genuine implementation/owner/acceptance work remains.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -116,7 +117,7 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #460 — Explore online recipes, import readable previews and save household recipe box | Recipe source; acceptance pending | Codex | Reconcile the complete search/parse/save/reuse/grocery/prep journey with existing recovery and curation paths. |
 | #450 — Chores and routines: weekly schedules, recurring series and habit stacks | Routine source; acceptance pending | Codex | Own weekly days, repeat grouping and routine lifecycle together while preserving per-occurrence actions/history. |
 | #448 — Fix unreadable native dropdown options in dark mode app-wide | Distinct readability defect retained | Codex | Keep native dropdown light/dark/platform acceptance explicit; do not bury it as completed UI polish. |
-| #377 — Web launch and beta acceptance — consolidated release checklist | Launch acceptance; not a new QA run | Codex + Cameron | Use the current protected-main/Coolify route and preserve email, household, beta and recovery gates. |
+| #377 — Web launch and beta acceptance — consolidated release checklist | Launch acceptance; not a new QA run | Codex + Cameron | Use the current protected-main/Coolify route and preserve email, household, beta, recovery and full original #105/#364 final-candidate gates. |
 | #372 — Finish the Herewoven rename: legal pages, emails, Settings and the sender name | Legal/brand choice pending | Cameron | Choose legal entity/copyright and mail sender identity before modifying legal or sender copy. |
 | #363 — [Owner] Decide on Coolify Auto Deploy | Deployment policy choice pending | Cameron/operator | Record whether the existing Auto Deploy policy remains enabled; no setting change in this goal. |
 | #254 — [Data] Contract legacy meal/shopping tables (ADR-0007) — gated | Deferred destructive cleanup | Codex; Cameron approval | Wait for zero legacy use and retained recovery evidence before requesting explicit destructive cleanup approval. |
@@ -126,7 +127,7 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #142 — Localization: Settings, shared-device setup, dates, units and layouts | Localization source; acceptance pending | Codex | Own the transferred Settings and device-pairing locale matrix with original date/unit/native requirements. |
 | #141 — [Notifications] Build useful, restrained reminders, deep links and background delivery | Notification delivery work retained | Codex | Reconcile restrained reminders/deep links/background behavior; do not activate a scheduler here. |
 | #140 — [Analytics & Growth] Define privacy-safe activation, retention, experimentation and product learning | Schema/prohibited-data policy documented; expansion gated | Codex + Cameron | Use existing opted-in counts only; new collectors, consent, denominators and real learning remain explicit work. |
-| #139 — [QA & Accessibility] Build automated journey, visual, accessibility and device-quality gates | Reusable quality programme retained | Codex | Keep reusable accessibility/visual/device infrastructure distinct from the final-candidate gate #105. |
+| #139 — [QA & Accessibility] Build automated journey, visual, accessibility and device-quality gates | Reusable quality programme retained | Codex | Keep reusable accessibility/visual/device infrastructure distinct from the final-candidate section under #377 (retired duplicate #105). |
 | #138 — Android and fridge app: lifecycle, shared sessions, builds and store readiness | Android release prerequisites retained | Codex; Cameron hardware/signing | Own transferred appliance/session/build requirements; unsigned CI is not hardware/store acceptance. |
 | #137 — [Reliability] Define SLOs, observability, performance budgets and scale tests for millions-ready growth | Reliability programme retained | Codex/operator | Keep observability/SLO/performance/scale acceptance distinct from ordinary release health. |
 | #136 — [Security & Privacy] Build a consumer-grade trust model for households, children and shared devices | Security/privacy programme retained | Codex | Keep direct authorization and private/shared boundaries explicit, including the separate #470 privacy defect. |
@@ -139,11 +140,15 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #110 — [P2][Commercial] Validate packaging and price before implementing billing | Deferred commercial decision | Cameron/product | Use real beta evidence before pricing/provider/billing decisions; do not add billing code now. |
 | #108 — [P1][Beta] Run four weekly scorecards and five exit interviews | Waiting for beta cohort | Cameron + operations | Start four weekly scorecards and exit interviews only after the consented cohort exists. |
 | #107 — [P1][Beta] Recruit, consent, and onboard five design-partner households | Recruitment/consent input pending | Cameron | Separately authorize and consent five independent households; no external recruitment in this goal. |
-| #105 — Final release acceptance: privacy, notifications, mobile and live household smoke | Acceptance deferred; no QA in this goal | Codex/release owner | Retain the imported live-smoke checklist and original final-candidate criteria for the separately resumed acceptance phase. |
 | #104 — [P0][Migration] Reconcile approved ChoreChamps, Meal Planner, and Budget exports | Export/identity input pending | Cameron + Codex | Provide approved legacy exports/identity maps or explicitly record their disposition; never fabricate source data. |
 | #103 — [P0][Email] Configure and prove verification and password recovery delivery | Email provider/delivery input pending | Cameron/operator + Codex | Approve sender/domain/secret/test inbox and later prove real verification/recovery delivery through the runbook. |
 
 ### Retired tracker map
+
+#105 was additionally consolidated into #377 on2026-10-25, with both its full
+original body and the imported #364 packet retained at [the canonical packet](https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982).
+It is duplicate/not-planned closure, not passed acceptance. The historical #364→#105
+map below is retained; its current owner is now #377.
 
 | Retired tracker | Canonical issue | Preserved requirements |
 | --- | --- | --- |
@@ -395,9 +400,9 @@ The GitHub inventory contains **82 open issues** (re-read 2026-10-22: all82 have
 | [#108 [P1][Beta] Run four weekly scorecards and five exit interviews](https://github.com/camster91/family-planner/issues/108) | External customer evidence | docs/product/BETA_OPERATIONS.md | Prepare scorecards and interviews; complete four weeks with real consenting households. |
 | [#107 [P1][Beta] Recruit, consent, and onboard five design-partner households](https://github.com/camster91/family-planner/issues/107) | External household recruitment | docs/product/BETA_OPERATIONS.md | Prepare consent/onboarding packet; Cameron authorizes and owns invitations to real households. |
 | [#106 [P0][Release] Approve, merge, and promote the exact Family Planner candidate](https://github.com/camster91/family-planner/issues/106) | Deferred release gate | docs/engineering/CI_AND_RELEASE.md | After implementation freeze, perform consolidated QA, normal protected merge and exact-source deployment verification. |
-| [#105 [P0][QA] Validate notifications, privacy controls, and mobile journeys on the final candidate](https://github.com/camster91/family-planner/issues/105) | Deferred consolidated QA | docs/engineering/DEFINITION_OF_DONE.md | Run final notifications/privacy/mobile journeys against the integrated candidate, not repeated partial batches. |
+| [#105 Final release acceptance](https://github.com/camster91/family-planner/issues/105) | Duplicate tracker retired into #377; acceptance remains open | [Full original and imported #364 packet](https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982) | #377 owns every original final-candidate/live-smoke criterion. No QA or completion claimed; #139 retains reusable infrastructure. |
 | [#85 P0: Restore required release validation for calendar, task, and database changes](https://github.com/camster91/family-planner/issues/85) | Current main policy read; missing DB suite wiring authored; execution deferred | docs/engineering/RELEASE_VALIDATION_RECONCILIATION.md; .github/workflows/release.yml | Historical master issue is mapped to current main. Read-only GitHub policy currently requires strict Build & Test with admins enforced and force/deletion off; no settings changed. Eighteen omitted existing DB suites join the required job; three catalog/backfill suites get independent disposable migrated databases with post-suite drift and cleanup. No new cases, hosted dispatch or QA run. Exact integrated-head local/hosted/E2E/native/image proof remains required before acceptance. |
-| [#84 [Shipping Plan] Consolidate Family Planner into a reliable family release](https://github.com/camster91/family-planner/issues/84) | Original beta/release plan reconciled; no customer evidence inferred from code | docs/CONSOLIDATION_PLAN.md; docs/LAUNCH_CHECKLIST.md; docs/product/BETA_OPERATIONS.md; docs/engineering/CI_AND_RELEASE.md | Keep original north-star parent → invite → plan → assign → youth complete → parent verify → reward criteria. #85/#102 source and later QA, #103 delivery/operator evidence, #104 exact approved import reconciliation and #105 final journeys remain distinct. Historical master/immutable-promotion language follows current protected-main/existing Coolify source-build policy; no dormant SSH dispatch or policy change. Five independent consenting households, four weekly scorecards/interviews and pricing demand are genuine external #107/#108/#110 work, not generated fixtures or a code-complete claim. Native/provider/store gates remain separate. |
+| [#84 [Shipping Plan] Consolidate Family Planner into a reliable family release](https://github.com/camster91/family-planner/issues/84) | Original beta/release plan reconciled; no customer evidence inferred from code | docs/CONSOLIDATION_PLAN.md; docs/LAUNCH_CHECKLIST.md; docs/product/BETA_OPERATIONS.md; docs/engineering/CI_AND_RELEASE.md | Keep original north-star parent → invite → plan → assign → youth complete → parent verify → reward criteria. #85/#102 source and later QA, #103 delivery/operator evidence and #104 exact approved import reconciliation remain distinct; final-candidate journeys now live under #377 (retired #105). Historical master/immutable-promotion language follows current protected-main/existing Coolify source-build policy; no dormant SSH dispatch or policy change. Five independent consenting households, four weekly scorecards/interviews and pricing demand are genuine external #107/#108/#110 work, not generated fixtures or a code-complete claim. Native/provider/store gates remain separate. |
 
 ## Consolidated QA handoff
 

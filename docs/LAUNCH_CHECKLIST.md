@@ -5,6 +5,16 @@ live #377/issue/PR records. [Archived dated refreshes](archive/execution-refresh
 The original contract/checklist/source requirements below remain unchanged; source completion does not
 establish production, provider, native/device or household acceptance.
 
+## Canonical final-candidate acceptance — 2026-10-25
+
+#377 now also owns the complete original #105 final-candidate checklist and the
+full #364 live-smoke packet: [retained work packet](https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982).
+#105 is closed as a duplicate tracker, not as passed QA. All original role/privacy/
+notification/viewport/orientation/keyboard/44px/reduced-motion/zoom/reflow, Android
+installation, live smoke/offline/theme, privacy-safe screenshot/log and P0/P1
+promotion-blocking requirements remain open there. #139 separately owns reusable
+QA infrastructure. This consolidation ran no QA or release operations.
+
 ## Must do before the first family signs up
 
 | # | Item | Who | How | Status |
