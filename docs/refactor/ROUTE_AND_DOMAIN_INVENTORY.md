@@ -2011,3 +2011,15 @@ when locale changes. No former household name/ID is exposed. Existing older
 clients retain the generic server-text fallback. Locale/draft/no-replay source
 case authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
 merge/deploy ran. Runtime rollback/compatibility/rendered and full acceptance open.
+
+### Core query plan reconciliation — 2026-10-25 (#134)
+
+Latest bounded planning follow-through (2026-10-25) reconciles the core query
+plan (#134). It replaces the stale2,000-event feed entry with actual200-row
+snapshot traversal/10,000-event/16MiB/30s limits, adds shared Activity/feedback/
+historical-erasure contracts and records ten concrete supporting-route gaps.
+The plan distinguishes complete selectors, partial histories, nested medical
+sets, transport bytes and complete lifecycle discovery. Original compatibility,
+privacy and measured query/locking acceptance remain open. No code changed or
+QA/test/check/build/browser/CI/API/DB/EXPLAIN/load/native/provider/push/merge/deploy
+ran. No criterion was checked or issue closed from an unmeasured source inventory.

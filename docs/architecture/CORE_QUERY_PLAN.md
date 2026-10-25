@@ -1,6 +1,6 @@
 # Core collection query and compatibility plan — #134
 
-Source checkpoint2026-10-24 (including unverified recovery-branch follow-through). This is an execution plan and source inventory,
+Source checkpoint2026-10-25 (including unverified recovery-branch follow-through). This is an execution plan and source inventory,
 not measured SQL counts, an N+1 pass, a capacity result or production acceptance.
 Use together with OBSERVABILITY.md, API_CONTRACTS.md, SLO_AND_PERFORMANCE.md,
 the accepted modular-monolith ADR and the current web handoff. No new service,
@@ -24,10 +24,13 @@ provider, scheduler, index, infrastructure or destructive migration is authorize
 | Project detail | Recovery source SSR40+1 task keysets, grouped full-project progress and opt-in API continuation | Legacy API remains unbounded; index source unapplied; position/time/ID ties, database plans, rendered/compatibility/concurrency acceptance remain |
 | Project send to calendar | Recovery source 200-task and candidate-match batches inside one locked transaction; modern count-only summary, legacy full event-array response | Total work/lock time and legacy result memory remain unbounded within prior timeout; indexes unapplied; atomicity/authority/rollback acceptance unrun |
 | Pinned Notes | Recovery source web24-note replacement pages; opt-in household timestamp/ID keysets, exact retry and fetch/body deadline | Legacy API remains complete/unbounded; index source unapplied; original compatibility/isolation/permission/SQL/rendered acceptance unrun |
-| Read-only calendar feed | Family token resolves household; recovery source reads2,001 rows and refuses overflow above prior2,000-event capacity before emitting ICS | Supported-size format retained; large complete delivery unavailable. Refusal/provider/parser/compatibility acceptance unrun; no full export or deletion-safety claim |
+| Read-only calendar feed | Family token resolves household; complete RepeatableRead snapshot in200-row keyset batches, at most10,000 events/16MiB within30s; overflow or invalid supported recurrence refuses503 before ICS | Actual SQL/transaction, format/recurrence, supported-size/overflow/refusal and old-client/provider acceptance unrun; no unlimited export or deletion-safety claim |
 | Calendar subscription reconcile | Recovery source200-row immutable-ID history reads/deletes/creates inside one RepeatableRead transaction; incoming feed capped3,000 | Total history traversal and30s transaction budget remain; additive index unapplied; real conflict/rollback/removal/metadata/SQL acceptance unrun |
 | Grounded planning | bounded canonical source loaders and explicit incomplete/unknown holds | All-source coverage, locks/versions, allocations/timing, no model-invented identities, exact atomic outcomes/recovery |
 | AI reporting | reservation-before-dispatch, fixed content-free usage fields and bounded reports | Reservation concurrency/cost uncertainty, current authority, opt-out/erasure/export; real provider observations remain separate |
+| Shared Activity | Optional paging=keyset-v1, default30/max100+1, household timestamp/ID cursor; private timeline/analytics exclusions retained | Legacy timestamp paging can skip tied rows; no new web consumer/current-previous migration or SQL/isolation acceptance claimed |
+| Private feedback |25 own-user/household reports; optional summary-v1 selects five display fields; exact report-request receipt checks retained | No continuation or complete-history claim; legacy full representation stays compatible, UI/transport/privacy acceptance unrun |
+| Account erasure/removal | Identifier-only ownership discovery and sorted historical household locks; relation-derived ListItem/ProjectTask ownership; per-household successor/clear predicates | Complete discovery is not a bounded request-work guarantee; FK/transaction/rollback/concurrency and query plans remain unmeasured; no live deletion performed |
 
 A returned-row bound is not a bound on scanned rows, SQL round trips, relation
 queries, lock waits, memory in unrelated helpers or request duration. Prisma may
@@ -233,3 +236,43 @@ query-plan work must compare current `(family_id,created_at)` with a possible
 no performance/index or snapshot claim follows from source. No schema/migration,
 query-plan execution or database change. Pure/route cases authored/unrun; full
 N+1/query/isolation/legacy/offline acceptance remains open.
+
+## Supporting collection follow-through — 2026-10-25
+
+Source inspection narrows the earlier generic supporting-screen exception. This
+is API source inventory only; it does not establish rendered behavior or a
+measured N+1 pass. Preserve existing account/role/feature/paired-device policies
+and complete legacy representations when adding opt-in continuation.
+
+| Current route | Inspected source behavior | Next bounded contract work |
+| --- | --- | --- |
+| `/api/rewards` | Complete household reward collection ordered by created_at; creator/claimer name relations | Define stable timestamp/ID continuation with exact status filter and explicit partial totals; do not truncate installed-client reward selection |
+| `/api/anniversaries` | Complete household dates; computes next occurrence/days from UTC day and returns source dates | Preserve local annual-date semantics and permission DTOs; define view position before paging, not a naive calendar-year slice |
+| `/api/allowance` | At most100 status/date rows; parent household versus own-recipient child/teen policy | Make latest/partial coverage explicit and define status/date/ID continuation before claiming complete history |
+| `/api/messages` | Default50/max100 timestamp-before messages plus complete current account roster; sender/attachment projection | Preserve roster/recipient authorization; opt-in tie-safe continuation and explicit client adoption, never silently omit equal-time messages |
+| `/api/budget/transactions` | Parent-only default50/max200 offset pages with separate total and current filters | Inspect tie ordering, offset churn and count snapshot; maintain parent-only aggregate/privacy and ordinary create/recovery paths |
+| `/api/budget/categories` | Complete household categories with transaction relations | Separate selector completeness from budget reporting; inspect relation projection/aggregate strategy before page adoption |
+| `/api/sick-days` | Active household/own-subject cases with active medication relation | Bound case and nested medication contracts separately; never imply a partial medication set is the complete treatment view |
+| `/api/medications` | Complete active household/own-subject medications with person projection | Define explicit complete/continued view without losing next-dose visibility or own-subject isolation |
+| `/api/emergency-contacts` | Complete authorized household contacts ordered by created_at | Preserve emergency access and permission semantics; define complete contact access before imposing a cap |
+| `/api/locations` | Complete authorized household locations, primary-first then label | Keep primary/navigation/role access explicit; design stable complete/continued selection before a cap |
+
+Current Notes/Wishlist/Notifications and assistant/feedback transport bounds are
+separate client contracts, not SQL scan bounds. Notes reads2MiB/edit256KiB/delete32KiB;
+Wishlist list/target2MiB/account32KiB/writes256KiB; notification read512KiB/write32KiB.
+These use15-second foreground deadlines. Assistant chat allows45seconds/256KiB
+above the existing30-second provider limit; report read512KiB/write64KiB uses15seconds.
+Streaming decoding bounds transferred bytes; JSON-only bridges remain post-parse
+bounded. Unknown write outcomes preserve their domain recovery and never prove
+rollback, free provider use or a fresh safe create.
+
+The new household-local erasure discovery intentionally enumerates all matching
+household identifiers, deriving list/project children through their parent. It
+must remain complete or fail, not silently page away data before User cascades.
+That lifecycle operation needs separate plan/scan/lock-duration evidence; it is
+not a normal page reader or a claim that deletion work is constant-time.
+
+No tests/QA/build/browser/CI/API/DB/EXPLAIN/load/native/provider/activation/push/
+merge/deployment ran for this reconciliation. #134's full audit/index/isolation/
+rolling-migration criteria remain open. The next source work is explicit per-flow
+continuation/client semantics, not a default cap or a fabricated measurement.
