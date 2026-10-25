@@ -1,5 +1,6 @@
 'use client'
 
+import { requestOwnedJson } from '@/lib/owned-request-http'
 import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Heart, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -103,6 +104,13 @@ async function readWishlistResponse(url: string) {
     if (timer) clearTimeout(timer)
     controller.abort()
   }
+}
+// Reuse the shared whole-request deadline. A missing reply is not a refusal
+// or rollback: the existing action-specific paths keep their original keys.
+async function writeWishlistResponse(url: string, init: RequestInit) {
+  const result = await requestOwnedJson(url, init, 256 * 1024)
+  if (result.kind === 'unknown') throw new Error('Wishlist write outcome unknown')
+  return result
 }
 function wishlistPage(data: unknown) {
   const items = responseWishlistItems(data)
@@ -223,8 +231,7 @@ function responseMatchesCreatedItem(
   return sameWishlistDraft(item, draft) ? item : null
 }
 
-async function serverErrorDetails(res: Response): Promise<ServerErrorDetails> {
-  const data = await res.json().catch(() => null)
+function serverErrorDetails(data: unknown): ServerErrorDetails {
   if (!isRecord(data)) {
     return { message: null, code: null, retryable: null }
   }
@@ -607,9 +614,9 @@ function WishlistContent() {
     })
     const mutationKey = getMutationKey('add', body)
     try {
-      let res: Response
+      let reply: Awaited<ReturnType<typeof writeWishlistResponse>>
       try {
-        res = await fetch('/api/wishlist', {
+        reply = await writeWishlistResponse('/api/wishlist', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -623,9 +630,9 @@ function WishlistContent() {
         setModalError(t('wishlist.writeUncertain'))
         return
       }
-      if (!res.ok) {
-        const details = await serverErrorDetails(res)
-        if (!isDefinitiveRefusal(res.status, details)) {
+      if (!reply.response.ok) {
+        const details = serverErrorDetails(reply.body)
+        if (!isDefinitiveRefusal(reply.response.status, details)) {
           setModalError(t('wishlist.writeUncertain'))
         } else {
           clearMutationKey('add')
@@ -634,7 +641,7 @@ function WishlistContent() {
         return
       }
       const confirmed = responseMatchesCreatedItem(
-        await res.json().catch(() => null),
+        reply.body,
         userId,
         JSON.parse(body) as Pick<
           WishlistItem,
@@ -728,9 +735,9 @@ function WishlistContent() {
     const scope = `status:${id}`
     const mutationKey = getMutationKey(scope, body)
     try {
-      let res: Response
+      let reply: Awaited<ReturnType<typeof writeWishlistResponse>>
       try {
-        res = await fetch(`/api/wishlist/${id}/status`, {
+        reply = await writeWishlistResponse(`/api/wishlist/${id}/status`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -753,9 +760,9 @@ function WishlistContent() {
           reportStatusError(id, t('wishlist.statusUncertain'), errorTarget)
         return confirmed
       }
-      if (!res.ok) {
-        const details = await serverErrorDetails(res)
-        if (!isDefinitiveRefusal(res.status, details)) {
+      if (!reply.response.ok) {
+        const details = serverErrorDetails(reply.body)
+        if (!isDefinitiveRefusal(reply.response.status, details)) {
           const confirmed = await reconcileStatus(
             id,
             status,
@@ -775,7 +782,7 @@ function WishlistContent() {
         return false
       }
 
-      const payload = await res.json().catch(() => null)
+      const payload = reply.body
       if (
         !currentItem ||
         !responseMatchesStatus(payload, currentItem, status, normalizedReason)
@@ -859,9 +866,9 @@ function WishlistContent() {
     const scope = `delete:${item.id}`
     const mutationKey = getMutationKey(scope, '')
     try {
-      let res: Response
+      let reply: Awaited<ReturnType<typeof writeWishlistResponse>>
       try {
-        res = await fetch(`/api/wishlist/${item.id}`, {
+        reply = await writeWishlistResponse(`/api/wishlist/${item.id}`, {
           method: 'DELETE',
           headers: { 'Idempotency-Key': mutationKey },
         })
@@ -869,9 +876,9 @@ function WishlistContent() {
         setModalError(t('wishlist.writeUncertain'))
         return
       }
-      if (!res.ok) {
-        const details = await serverErrorDetails(res)
-        if (!isDefinitiveRefusal(res.status, details))
+      if (!reply.response.ok) {
+        const details = serverErrorDetails(reply.body)
+        if (!isDefinitiveRefusal(reply.response.status, details))
           setModalError(t('wishlist.writeUncertain'))
         else {
           clearMutationKey(scope)
@@ -879,7 +886,7 @@ function WishlistContent() {
         }
         return
       }
-      const payload = await res.json().catch(() => null)
+      const payload = reply.body
       if (!isRecord(payload) || payload.success !== true) {
         setModalError(t('wishlist.writeUncertain'))
         return
@@ -937,9 +944,9 @@ function WishlistContent() {
     const scope = `edit:${editingItem.id}`
     const mutationKey = getMutationKey(scope, body)
     try {
-      let res: Response
+      let reply: Awaited<ReturnType<typeof writeWishlistResponse>>
       try {
-        res = await fetch(`/api/wishlist/${editingItem.id}`, {
+        reply = await writeWishlistResponse(`/api/wishlist/${editingItem.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -951,9 +958,9 @@ function WishlistContent() {
         setModalError(t('wishlist.writeUncertain'))
         return
       }
-      if (!res.ok) {
-        const details = await serverErrorDetails(res)
-        if (!isDefinitiveRefusal(res.status, details))
+      if (!reply.response.ok) {
+        const details = serverErrorDetails(reply.body)
+        if (!isDefinitiveRefusal(reply.response.status, details))
           setModalError(t('wishlist.writeUncertain'))
         else {
           clearMutationKey(scope)
@@ -962,7 +969,7 @@ function WishlistContent() {
         return
       }
       const confirmed = responseMatchesDraft(
-        await res.json().catch(() => null),
+        reply.body,
         editingItem,
         payload,
       )
