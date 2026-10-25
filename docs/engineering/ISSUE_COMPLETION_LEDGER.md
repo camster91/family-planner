@@ -51,18 +51,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work localizes PairScreen, ElevationSheet and
-ElevatedBanner (#142): 56 added typed EN/ES device-dictionary keys plus existing
-shared labels. Error/notice state now stores semantic DeviceFeedback keys,
-params and retry seconds, translated at render. Generic device feedback keeps
-its prior English string helper for unmigrated consumers. Actual names, codes,
-PIN digits/progress counts, secrets, countdown/expiry math, polling, focus,
-elevation callbacks and API/native metadata remain canonical. Locale/text never
-enter existing effect dependencies. Thirty-six owned copy inventory records
-removed without a scanner. No new copy-only tests; existing cases remain unrun.
-No QA/check/build/browser/native/permission/provider/API/database/household or
-release ran. DeviceToday/other copy and full shared-device/runtime/layout/
-locale-data/native acceptance remain open.
+Latest bounded source work localizes DeviceTodayScreen and snapshot recovery
+(#142): 16 typed EN/ES keys plus reused device labels. Loading/cache/actor/
+parent/rename/remove copy and snapshot errors follow locale at render; semantic
+feedback preserves the hook's string-or-null error interface. Actual names,
+labels, requests, metadata, secrets, cache/protocol/authorization gates, purge,
+expiry and all existing effect/memo dependencies remain unchanged. Elevated
+server/validation text stays literal; the board-settings transport preserves
+its prior English string error interface without a locale-driven identity change.
+Seventeen owned inventory records removed without a scanner. No new copy-only
+tests; existing cases unrun. No QA/check/build/browser/native/provider/permission/
+API/database/household/release ran. Remaining tablet/transport copy and original
+cache/device/native/privacy/layout/locale-data/runtime acceptance stay open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

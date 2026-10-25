@@ -2,6 +2,23 @@
 import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 export const deviceManagementEnglish = {
+  todayLoadFailed: "Today's board could not load",
+  loadingTodayBoard: "Loading today's board",
+  parentButton: "Parent",
+  tabletCacheUnavailable: "This plan could not be saved on this device. Keep the app open during an outage.",
+  tabletCachedPlan: "Showing a saved plan. Connect to update it. Parent controls and changes need a fresh connection.",
+  parentModeEnded: "Parent mode ended.",
+  tickingAs: "Ticking off as {name}",
+  notActor: "Not {name}?",
+  thisTablet: "this tablet",
+  parentUnlockAgain: "Parent mode ended. Tap Parent to unlock again.",
+  renameThisTablet: "Rename this tablet",
+  removeNowDescription: "It stops showing your family's information right away. A parent can pair it again later.",
+  compatibleTabletSession: "This family plan needs a compatible tablet session.",
+  refreshTabletPlan: "Refresh this tablet before viewing the family plan.",
+  reconnectTabletPlan: "Reconnect to see today's plan.",
+  tabletWasRemoved: "This tablet was removed.",
+
   tabletNetwork: "Could not reach {brand}. Check the Wi-Fi and try again.",
   tabletRate: "Too many tries. Wait {wait}, then try again.",
   tabletBusy: "{brand} is busy right now. Trying again shortly.",
@@ -198,6 +215,23 @@ export const deviceManagementEnglish = {
 } as const;
 export type DeviceMessage = keyof typeof deviceManagementEnglish;
 export const deviceManagementSpanish: Record<DeviceMessage, string> = {
+  todayLoadFailed: "No se pudo cargar el panel de Hoy",
+  loadingTodayBoard: "Cargando el panel de Hoy",
+  parentButton: "Progenitor",
+  tabletCacheUnavailable: "No se pudo guardar este plan en el dispositivo. Mantén la app abierta si se pierde la conexión.",
+  tabletCachedPlan: "Se muestra un plan guardado. Conéctate para actualizarlo. Los controles de progenitor y los cambios necesitan una conexión actual.",
+  parentModeEnded: "El modo progenitor ha terminado.",
+  tickingAs: "Marcando como {name}",
+  notActor: "¿No eres {name}?",
+  thisTablet: "esta tableta",
+  parentUnlockAgain: "El modo progenitor ha terminado. Toca Progenitor para volver a desbloquearlo.",
+  renameThisTablet: "Cambiar el nombre de esta tableta",
+  removeNowDescription: "Dejará de mostrar la información de tu familia de inmediato. Un progenitor puede volver a vincularla más tarde.",
+  compatibleTabletSession: "Este plan familiar necesita una sesión de tableta compatible.",
+  refreshTabletPlan: "Actualiza esta tableta antes de ver el plan familiar.",
+  reconnectTabletPlan: "Vuelve a conectarte para ver el plan de Hoy.",
+  tabletWasRemoved: "Se ha quitado esta tableta.",
+
   tabletNetwork: "No se pudo conectar con {brand}. Comprueba la conexión wifi y vuelve a intentarlo.",
   tabletRate: "Demasiados intentos. Espera {wait} y vuelve a intentarlo.",
   tabletBusy: "{brand} está ocupado ahora. Se volverá a intentar en breve.",

@@ -1,5 +1,23 @@
 # Route and domain inventory (#148)
 
+### Device Today and snapshot feedback copy — 2026-10-24 (#142)
+
+DeviceTodayScreen and its rename/remove dialogs now use typed EN/ES device copy,
+with 16 added keys and reused labels. Semantic parent-ended/renamed/dialog errors
+follow locale; actor/tablet names remain literal. The snapshot hook stores
+DeviceFeedback and still returns `error: string | null`, formatting protocol,
+reconnect, removed and generic messages at render. No text/locale dependency is
+added to existing read/poll/cache/elevation effects or transport memoization.
+Cache snapshots/keys/schema, protocol1/2 gates, freshness/expiry/epoch/purge,
+parent credentials, native lifecycle and API/effect callbacks remain canonical.
+Raw server/validation text remains literal, as before; the elevated settings
+transport retains its English string error contract so language changes cannot
+restart its load. No raw secret/error objects enter feedback state. Seventeen
+owned copy inventory records removed without a scanner; no new copy-only tests.
+Existing cases unrun; no QA/check/build/browser/native/provider/permission/API/
+database/household/release ran. Remaining tablet/transport copy and original
+cache/shared-device/privacy/native/layout/locale-data/runtime acceptance stay open.
+
 ### Paired-tablet entry/parent-mode copy source — 2026-10-24 (#142)
 
 PairScreen, ElevationSheet and ElevatedBanner now use the existing typed device

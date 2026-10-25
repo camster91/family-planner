@@ -14,7 +14,8 @@ import {
   writeDeviceBoardCache,
   type BoardCacheStorage,
 } from "@/lib/device-board-cache";
-import { genericErrorText } from "./use-device-client";
+import { genericDeviceFeedback, renderDeviceFeedback } from "./use-device-client";
+import { useDeviceText, type DeviceFeedback } from "@/i18n/device-management";
 
 function storage(): BoardCacheStorage | null {
   try {
@@ -74,8 +75,9 @@ export function useDeviceBoardSnapshot({
   memberProtocol?: 1 | 2;
   loadIdentity: () => Promise<string | null>;
 }) {
+  const text = useDeviceText();
   const [data, setData] = React.useState<TodayBoardData | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<DeviceFeedback | null>(null);
   const [cached, setCached] = React.useState(false);
   const [cacheUnavailable, setCacheUnavailable] = React.useState(false);
   const [protocolError, setProtocolError] = React.useState(false);
@@ -98,7 +100,7 @@ export function useDeviceBoardSnapshot({
     setCached(false);
     setCacheUnavailable(false);
     setProtocolError(true);
-    setError("This family plan needs a compatible tablet session.");
+    setError({ key: "compatibleTabletSession" });
   }, [invalidate]);
 
   const load = React.useCallback((): Promise<void> => {
@@ -130,7 +132,7 @@ export function useDeviceBoardSnapshot({
         if (!current()) return;
         if (!isBoardCompatible(board, memberProtocol)) {
           clearForProtocolError();
-          setError("Refresh this tablet before viewing the family plan.");
+          setError({ key: "refreshTabletPlan" });
           return;
         }
         const now = Date.now();
@@ -181,7 +183,7 @@ export function useDeviceBoardSnapshot({
           if (memberProtocol === 2) {
             clearStoredBoardCache();
             setCacheUnavailable(false);
-            setError(genericErrorText(err));
+            setError(genericDeviceFeedback(err));
             return;
           }
           const store = storage();
@@ -207,19 +209,15 @@ export function useDeviceBoardSnapshot({
             const incompatibleProfileCache =
               memberProtocol === 1 && snapshot.board.memberProtocol === 2;
             setProtocolError(incompatibleProfileCache);
-            setError(
-              incompatibleProfileCache
-                ? "Refresh this tablet before viewing the family plan."
-                : "Reconnect to see today's plan.",
-            );
+            setError({ key: incompatibleProfileCache ? "refreshTabletPlan" : "reconnectTabletPlan" });
             return;
           }
           if (snapshot.state === "expired") {
-            setError("Reconnect to see today's plan.");
+            setError({ key: "reconnectTabletPlan" });
             return;
           }
         }
-        setError(genericErrorText(err));
+        setError(genericDeviceFeedback(err));
       }
     })().finally(() => {
       if (flightEpoch.current === requestedEpoch) flight.current = null;
@@ -261,7 +259,7 @@ export function useDeviceBoardSnapshot({
       setCached(false);
       setCacheUnavailable(false);
       setProtocolError(false);
-      setError("This tablet was removed.");
+      setError({ key: "tabletWasRemoved" });
     };
     const unsubscribe = client.subscribe((event) => {
       if (event === "purge") clear();
@@ -318,7 +316,7 @@ export function useDeviceBoardSnapshot({
         cachedRef.current = false;
         setData(null);
         setCached(false);
-        setError("Reconnect to see today's plan.");
+        setError({ key: "reconnectTabletPlan" });
         const store = storage();
         const id = knownDeviceId(store);
         if (id) clearDeviceBoardCache(store, id);
@@ -342,7 +340,7 @@ export function useDeviceBoardSnapshot({
 
   return {
     data,
-    error,
+    error: error ? renderDeviceFeedback(error, text) : null,
     protocolError,
     cached,
     cacheUnavailable,
