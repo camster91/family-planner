@@ -1,3 +1,4 @@
+import { ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
 import { parseDateOnly } from "@/lib/dates";
 import {
   afterChoreCursor,
@@ -39,6 +40,8 @@ export const ROUTINE_STACK_ACTION = "routine-stack.mutate";
 export type ParentRoutineStackActor = RoutineStackActor & {
   /** Original verified HTTP generation; optional only for existing internal callers. */
   tokenVersion?: number;
+  /** Original optional HTTP issue time; omitted only by legacy/internal callers. */
+  issuedAt?: string;
   familyId: string;
   userId: string;
   memberProtocol?: MemberProtocol;
@@ -725,6 +728,9 @@ export async function saveParentRoutineStack(
 
     if (actor.tokenVersion !== undefined && currentActor.token_version !== actor.tokenVersion)
       return mutationError(401, "SESSION_CHANGED", "Sign in again before saving this routine.");
+
+    if (actor.issuedAt !== undefined && !routineStackRetryWindowOpen(actor.issuedAt))
+      return mutationError(409, ROUTINE_STACK_WINDOW_CLOSED, "Check the saved routine before starting again.");
 
     let receipt = await tx.idempotencyRecord.findUnique({
       where: { scope_key: { scope, key } },

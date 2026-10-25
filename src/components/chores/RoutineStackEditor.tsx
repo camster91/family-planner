@@ -9,6 +9,7 @@ import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { toDateOnlyLocal } from "@/lib/dates";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { ROUTINE_STACK_ISSUED_AT_HEADER, ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
 import {
   routineStackMessages,
@@ -265,7 +266,7 @@ type SaveBody = {
   remove_chore_ids: string[];
   expected_fingerprint: string;
 };
-type SavePacket = Readonly<{ key: string; bytes: string }>;
+type SavePacket = Readonly<{ key: string; bytes: string; issuedAt: string }>;
 type Submission = Readonly<{
   phase: "pending" | "unknown" | "conflict";
   packet: SavePacket;
@@ -982,7 +983,12 @@ export default function RoutineStackEditor({
       if (savingRef.current) return;
       const prior = submissionRef.current;
       const retryingUnknown = prior?.phase === "unknown";
-      if (retryingUnknown && (prior.packet.key !== packet.key || prior.packet.bytes !== packet.bytes)) return;
+      if (retryingUnknown && (prior.packet.key !== packet.key || prior.packet.bytes !== packet.bytes || prior.packet.issuedAt !== packet.issuedAt)) return;
+      if (!routineStackRetryWindowOpen(packet.issuedAt)) {
+        setSubmissionState({ phase: "unknown", packet });
+        setSaveError(msg("retryWindowClosed"));
+        return;
+      }
       savingRef.current = true;
       setSaving(true);
       setSaveError(null);
@@ -996,6 +1002,7 @@ export default function RoutineStackEditor({
             headers: {
               "Content-Type": "application/json",
               [IDEMPOTENCY_HEADER]: packet.key,
+              [ROUTINE_STACK_ISSUED_AT_HEADER]: packet.issuedAt,
             },
             body: packet.bytes,
           },
@@ -1010,7 +1017,10 @@ export default function RoutineStackEditor({
       } catch (error) {
         const requestError =
           error instanceof RoutineEditorRequestError ? error : null;
-        if (retryingUnknown) {
+        if (requestError?.code === ROUTINE_STACK_WINDOW_CLOSED) {
+          setSubmissionState({ phase: "unknown", packet });
+          setSaveError(msg("retryWindowClosed"));
+        } else if (retryingUnknown) {
           // A later refusal describes only this attempt. The first attempt may
           // already have committed; no 4xx/protocol/conflict clears that fact.
           setSubmissionState({ phase: "unknown", packet });
@@ -1096,6 +1106,7 @@ export default function RoutineStackEditor({
     const packet: SavePacket = Object.freeze({
       key,
       bytes: JSON.stringify(body),
+      issuedAt: new Date().toISOString(),
     });
     setSubmissionState({ phase: "pending", packet });
     void submitPacket(packet);

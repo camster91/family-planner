@@ -1099,3 +1099,28 @@ it.each([
   expect(posts[2].headers).toEqual(posts[0].headers);
   await waitFor(() => expect(refresh).toHaveBeenCalled());
 });
+
+// Authored UNRUN: mounted drafts cannot renew their issue time after uncertainty.
+it('holds an aged uncertain save locally without dispatching or minting a new packet', async () => {
+  const posts: RequestInit[] = [];
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/candidates')) return response(candidates);
+    posts.push(init!);
+    return response({ stack_id: 'incomplete-response' });
+  });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  await user.click(screen.getByRole('button', { name: 'Save routine' }));
+  await screen.findByText(/could not confirm whether/i);
+  const originalTime = (posts[0].headers as Record<string, string>)['X-Herewoven-Routine-Issued-At'];
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.parse(originalTime) + 25 * 60 * 60 * 1000);
+  try {
+    await user.click(screen.getByRole('button', { name: 'Retry save' }));
+    expect(await screen.findByText(/This save is too old to retry safely/)).toBeTruthy();
+    expect(posts).toHaveLength(1);
+    expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+    expect(refresh).not.toHaveBeenCalled();
+  } finally { clock.mockRestore(); }
+});

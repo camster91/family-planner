@@ -394,3 +394,21 @@ it('refuses a session generation changed while waiting for lifecycle/row locks',
   expect(tx.idempotencyRecord.delete).not.toHaveBeenCalled();
   expect(tx.householdMember.findMany).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: the window is rechecked after lifecycle/row-lock waits.
+it('refuses an expired original issue time before inspecting even a stored receipt', async () => {
+  const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+    user: { findUnique: jest.fn().mockResolvedValue({ family_id: 'family-a', role: 'parent', token_version: 0 }) },
+    idempotencyRecord: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
+  };
+  const db = { $transaction: <T,>(callback: (value: unknown) => Promise<T>) => callback(tx) };
+  const result = await saveParentRoutineStack(db, {
+    family_id: 'family-a', occurrence_date: '2026-10-11', label: 'Morning',
+    steps: [], remove_chore_ids: [], expected_fingerprint: '',
+  }, { ...actor, tokenVersion: 0, issuedAt: '2020-01-01T00:00:00.000Z' }, 'original-key');
+  expect(result).toMatchObject({ status: 409, body: { error: { code: 'ROUTINE_STACK_WINDOW_CLOSED' } } });
+  expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.create).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.delete).not.toHaveBeenCalled();
+});

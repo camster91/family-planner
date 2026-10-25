@@ -2513,3 +2513,31 @@ receipt-expiry resolution or complete reauthentication/navigation UX.
 Six later-refusal paths followed by exact third-attempt success are authored as
 UNRUN source cases. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/
 deploy ran. Full #450/#135 unknown-outcome/native/role acceptance remains open.
+
+## Routine original-issue retry window — 2026-10-25
+
+#450/#135 source: every new mounted save packet freezes a canonical ISO issue
+time alongside its original serialized bytes/key. The client checks it before
+initial/retry dispatch and sends X-Herewoven-Routine-Issued-At unchanged. A24hour
+window (also capped at one quarter of canonical7day receipt retention) and5minute
+future-clock tolerance refuse stale/rolled-back-clock attempts. Expiry never
+refreshes the issue time/key or dispatches a new write. Existing unknown state,
+locked draft and EN/ES review guidance remain; canonical saved-state inspection
+and full recovery/reauthentication UX are still separate work.
+
+The current HTTP route validates supplied issue time before body decoding and
+passes it internally to the canonical writer. After lifecycle/actual User locks
+and current parent/session checks, the writer rechecks real current time before
+any receipt lookup/expiry deletion/create or effects. WINDOW_CLOSED409 is an
+explicit review hold even on the first response; a prior uncertain outcome is
+not disproved. Existing absent-header legacy/internal callers remain compatible,
+and old servers may ignore this additive header; the new mounted client still
+applies its local guard. This is a request-age precondition, not a signed/server-
+issued timestamp, immutable receipt/source proof or arbitrary caller deduplication
+guarantee. No schema, retention, provider, scheduler or feature flag changes.
+
+Pure boundary/canonical-time/future-clock cases, route refusal before decoding,
+writer refusal before receipts and aged mounted draft/no second dispatch cases
+are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/
+deploy ran. Receipt expiry, native restart, old-client, actual clock/lock races and
+full #450/#135 acceptance remain open.

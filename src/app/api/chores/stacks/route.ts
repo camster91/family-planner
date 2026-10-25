@@ -1,3 +1,4 @@
+import { ROUTINE_STACK_ISSUED_AT_HEADER, ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, logRouteError } from "@/lib/api-error";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
@@ -171,6 +172,10 @@ export async function POST(request: NextRequest) {
     if (keyError) return keyError;
     if (!key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
 
+    const issuedAt = request.headers.get(ROUTINE_STACK_ISSUED_AT_HEADER);
+    if (issuedAt !== null && !routineStackRetryWindowOpen(issuedAt))
+      return error(409, ROUTINE_STACK_WINDOW_CLOSED, "Check the saved routine before starting again.", requestId);
+
     let body: unknown;
     try {
       body = await request.json();
@@ -181,7 +186,8 @@ export async function POST(request: NextRequest) {
     const result = await saveParentRoutineStack(
       prisma! as unknown as RoutineStackWriteDb,
       body,
-      { ...routineStackActor(request, auth.user), tokenVersion: auth.payload.tv ?? 0 },
+      { ...routineStackActor(request, auth.user), tokenVersion: auth.payload.tv ?? 0,
+        ...(issuedAt !== null ? { issuedAt } : {}) },
       key,
     );
     const response = NextResponse.json(result.body, { status: result.status });

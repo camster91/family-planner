@@ -355,3 +355,15 @@ it('carries a nonzero original session generation to routine persistence', async
   expect(saveParentRoutineStack).toHaveBeenCalledWith(expect.anything(), draft,
     expect.objectContaining({ tokenVersion: 7, userId: 'parent-a', familyId: 'family-a' }), 'key-a');
 });
+
+// Authored UNRUN: an expired timestamp refuses before source decoding/writer.
+it('refuses a supplied expired issue-time header before body/receipt work', async () => {
+  const input = request('https://family.test/api/chores/stacks', draft, 'key-a');
+  input.headers.set('X-Herewoven-Routine-Issued-At', '2020-01-01T00:00:00.000Z');
+  input.json = jest.fn(async () => draft);
+  const result = await POST(input);
+  expect(result.status).toBe(409);
+  expect(await responseBody(result as any)).toMatchObject({ error: { code: 'ROUTINE_STACK_WINDOW_CLOSED' } });
+  expect(input.json).not.toHaveBeenCalled();
+  expect(saveParentRoutineStack).not.toHaveBeenCalled();
+});
