@@ -1,0 +1,1014 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "sourceCommit": "393a95594ff0dc838f0c982bebed61cefa54e887",
+  "issue": 499,
+  "scope": "Documentation-only source enumeration; no application imports, QA, scanner, runtime or rendered acceptance.",
+  "designDirection": "Selected Glance and act. Original mockup image assets and earlier unpublished checkout were not recovered.",
+  "acceptance": "All entries unverified/unreleased. Source presence does not prove flow, auth, feature availability, view coverage or supported native capability.",
+  "rolePolicySources": [
+    "src/app/dashboard/layout.tsx",
+    "src/lib/kid-access.ts",
+    "docs/architecture/AUTHORIZATION.md"
+  ],
+  "requiredRoles": [
+    "parent",
+    "teen",
+    "child",
+    "paired shared device",
+    "parent elevation"
+  ],
+  "requiredViewports": [
+    [
+      390,
+      844
+    ],
+    [
+      430,
+      932
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      800,
+      1280
+    ],
+    [
+      1280,
+      800
+    ],
+    [
+      1366,
+      768
+    ],
+    [
+      1920,
+      1200
+    ]
+  ],
+  "requiredStates": [
+    "empty",
+    "loading",
+    "error",
+    "offline",
+    "pending",
+    "unknown outcome",
+    "conflict",
+    "success",
+    "long text",
+    "EN",
+    "ES",
+    "light",
+    "dark",
+    "keyboard and focus"
+  ],
+  "featureKeys": [
+    {
+      "key": "chores",
+      "entryRoute": "/dashboard/chores",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "calendar",
+      "entryRoute": "/dashboard/calendar",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "lists",
+      "entryRoute": "/dashboard/lists",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "family",
+      "entryRoute": "/dashboard/family",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "meals",
+      "entryRoute": "/dashboard/meals",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "inventory",
+      "entryRoute": "/dashboard/inventory",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "notes",
+      "entryRoute": "/dashboard/notes",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "anniversaries",
+      "entryRoute": "/dashboard/anniversaries",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "gamification",
+      "entryRoute": "/dashboard/analytics",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "rewards",
+      "entryRoute": "/dashboard/rewards",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "budget",
+      "entryRoute": "/dashboard/budget",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "projects",
+      "entryRoute": "/dashboard/projects",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "messages",
+      "entryRoute": "/dashboard/messages",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "analytics",
+      "entryRoute": "/dashboard/analytics",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "wishlist",
+      "entryRoute": "/dashboard/wishlist",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "emergency",
+      "entryRoute": "/dashboard/emergency",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "locations",
+      "entryRoute": "/dashboard/locations",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "pickups",
+      "entryRoute": "/dashboard/pickups",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "allowance",
+      "entryRoute": "/dashboard/allowance",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "travel",
+      "entryRoute": "/dashboard/travel",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "handoff",
+      "entryRoute": "/dashboard/handoff",
+      "definition": "src/lib/features.ts"
+    },
+    {
+      "key": "sick-days",
+      "entryRoute": "/dashboard/sick-days",
+      "definition": "src/lib/features.ts"
+    }
+  ],
+  "pageSources": [
+    {
+      "source": "src/app/(auth)/forgot-password/page.tsx",
+      "route": "/forgot-password",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "forgot-password"
+    },
+    {
+      "source": "src/app/(auth)/login/page.tsx",
+      "route": "/login",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "login"
+    },
+    {
+      "source": "src/app/(auth)/register/page.tsx",
+      "route": "/register",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "register"
+    },
+    {
+      "source": "src/app/(auth)/reset-password/page.tsx",
+      "route": "/reset-password",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "reset-password"
+    },
+    {
+      "source": "src/app/(auth)/verify-email/page.tsx",
+      "route": "/verify-email",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "verify-email"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)allowance/create/page.tsx",
+      "route": "/dashboard/allowance/create",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "allowance"
+      ],
+      "screenFamily": "dashboard/allowance"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)calendar/create/page.tsx",
+      "route": "/dashboard/calendar/create",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "calendar"
+      ],
+      "screenFamily": "dashboard/calendar"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)calendar/edit/page.tsx",
+      "route": "/dashboard/calendar/edit",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "calendar"
+      ],
+      "screenFamily": "dashboard/calendar"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)chores/create/page.tsx",
+      "route": "/dashboard/chores/create",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)chores/edit/page.tsx",
+      "route": "/dashboard/chores/edit",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)chores/routines/page.tsx",
+      "route": "/dashboard/chores/routines",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)lists/create/page.tsx",
+      "route": "/dashboard/lists/create",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "lists"
+      ],
+      "screenFamily": "dashboard/lists"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)projects/create/page.tsx",
+      "route": "/dashboard/projects/create",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "projects"
+      ],
+      "screenFamily": "dashboard/projects"
+    },
+    {
+      "source": "src/app/dashboard/@forms/(.)rewards/create/page.tsx",
+      "route": "/dashboard/rewards/create",
+      "presentation": "intercepted-sheet",
+      "featureKeys": [
+        "rewards"
+      ],
+      "screenFamily": "dashboard/rewards"
+    },
+    {
+      "source": "src/app/dashboard/@forms/[...rest]/page.tsx",
+      "route": null,
+      "presentation": "parallel-slot-reset",
+      "featureKeys": [],
+      "screenFamily": "form-slot-reset"
+    },
+    {
+      "source": "src/app/dashboard/@forms/page.tsx",
+      "route": null,
+      "presentation": "parallel-slot-reset",
+      "featureKeys": [],
+      "screenFamily": "form-slot-reset"
+    },
+    {
+      "source": "src/app/dashboard/allowance/create/page.tsx",
+      "route": "/dashboard/allowance/create",
+      "presentation": "page",
+      "featureKeys": [
+        "allowance"
+      ],
+      "screenFamily": "dashboard/allowance"
+    },
+    {
+      "source": "src/app/dashboard/allowance/page.tsx",
+      "route": "/dashboard/allowance",
+      "presentation": "page",
+      "featureKeys": [
+        "allowance"
+      ],
+      "screenFamily": "dashboard/allowance"
+    },
+    {
+      "source": "src/app/dashboard/analytics/page.tsx",
+      "route": "/dashboard/analytics",
+      "presentation": "page",
+      "featureKeys": [
+        "gamification",
+        "analytics"
+      ],
+      "screenFamily": "dashboard/analytics"
+    },
+    {
+      "source": "src/app/dashboard/anniversaries/page.tsx",
+      "route": "/dashboard/anniversaries",
+      "presentation": "page",
+      "featureKeys": [
+        "anniversaries"
+      ],
+      "screenFamily": "dashboard/anniversaries"
+    },
+    {
+      "source": "src/app/dashboard/budget/imported/page.tsx",
+      "route": "/dashboard/budget/imported",
+      "presentation": "page",
+      "featureKeys": [
+        "budget"
+      ],
+      "screenFamily": "dashboard/budget"
+    },
+    {
+      "source": "src/app/dashboard/budget/page.tsx",
+      "route": "/dashboard/budget",
+      "presentation": "page",
+      "featureKeys": [
+        "budget"
+      ],
+      "screenFamily": "dashboard/budget"
+    },
+    {
+      "source": "src/app/dashboard/calendar/create/page.tsx",
+      "route": "/dashboard/calendar/create",
+      "presentation": "page",
+      "featureKeys": [
+        "calendar"
+      ],
+      "screenFamily": "dashboard/calendar"
+    },
+    {
+      "source": "src/app/dashboard/calendar/edit/page.tsx",
+      "route": "/dashboard/calendar/edit",
+      "presentation": "page",
+      "featureKeys": [
+        "calendar"
+      ],
+      "screenFamily": "dashboard/calendar"
+    },
+    {
+      "source": "src/app/dashboard/calendar/page.tsx",
+      "route": "/dashboard/calendar",
+      "presentation": "page",
+      "featureKeys": [
+        "calendar"
+      ],
+      "screenFamily": "dashboard/calendar"
+    },
+    {
+      "source": "src/app/dashboard/chores/create/page.tsx",
+      "route": "/dashboard/chores/create",
+      "presentation": "page",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/chores/edit/page.tsx",
+      "route": "/dashboard/chores/edit",
+      "presentation": "page",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/chores/page.tsx",
+      "route": "/dashboard/chores",
+      "presentation": "page",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/chores/routines/page.tsx",
+      "route": "/dashboard/chores/routines",
+      "presentation": "page",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/chores/schedules/independent/page.tsx",
+      "route": "/dashboard/chores/schedules/independent",
+      "presentation": "page",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/chores/schedules/page.tsx",
+      "route": "/dashboard/chores/schedules",
+      "presentation": "page",
+      "featureKeys": [
+        "chores"
+      ],
+      "screenFamily": "dashboard/chores"
+    },
+    {
+      "source": "src/app/dashboard/emergency/page.tsx",
+      "route": "/dashboard/emergency",
+      "presentation": "page",
+      "featureKeys": [
+        "emergency"
+      ],
+      "screenFamily": "dashboard/emergency"
+    },
+    {
+      "source": "src/app/dashboard/family/create/page.tsx",
+      "route": "/dashboard/family/create",
+      "presentation": "page",
+      "featureKeys": [
+        "family"
+      ],
+      "screenFamily": "dashboard/family"
+    },
+    {
+      "source": "src/app/dashboard/family/invite/page.tsx",
+      "route": "/dashboard/family/invite",
+      "presentation": "page",
+      "featureKeys": [
+        "family"
+      ],
+      "screenFamily": "dashboard/family"
+    },
+    {
+      "source": "src/app/dashboard/family/more/page.tsx",
+      "route": "/dashboard/family/more",
+      "presentation": "page",
+      "featureKeys": [
+        "family"
+      ],
+      "screenFamily": "dashboard/family"
+    },
+    {
+      "source": "src/app/dashboard/family/page.tsx",
+      "route": "/dashboard/family",
+      "presentation": "page",
+      "featureKeys": [
+        "family"
+      ],
+      "screenFamily": "dashboard/family"
+    },
+    {
+      "source": "src/app/dashboard/family/settings/page.tsx",
+      "route": "/dashboard/family/settings",
+      "presentation": "page",
+      "featureKeys": [
+        "family"
+      ],
+      "screenFamily": "dashboard/family"
+    },
+    {
+      "source": "src/app/dashboard/features/page.tsx",
+      "route": "/dashboard/features",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/features"
+    },
+    {
+      "source": "src/app/dashboard/handoff/page.tsx",
+      "route": "/dashboard/handoff",
+      "presentation": "page",
+      "featureKeys": [
+        "handoff"
+      ],
+      "screenFamily": "dashboard/handoff"
+    },
+    {
+      "source": "src/app/dashboard/help/page.tsx",
+      "route": "/dashboard/help",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/help"
+    },
+    {
+      "source": "src/app/dashboard/inventory/page.tsx",
+      "route": "/dashboard/inventory",
+      "presentation": "page",
+      "featureKeys": [
+        "inventory"
+      ],
+      "screenFamily": "dashboard/inventory"
+    },
+    {
+      "source": "src/app/dashboard/lists/[listId]/page.tsx",
+      "route": "/dashboard/lists/[listId]",
+      "presentation": "page",
+      "featureKeys": [
+        "lists"
+      ],
+      "screenFamily": "dashboard/lists"
+    },
+    {
+      "source": "src/app/dashboard/lists/create/page.tsx",
+      "route": "/dashboard/lists/create",
+      "presentation": "page",
+      "featureKeys": [
+        "lists"
+      ],
+      "screenFamily": "dashboard/lists"
+    },
+    {
+      "source": "src/app/dashboard/lists/groceries/page.tsx",
+      "route": "/dashboard/lists/groceries",
+      "presentation": "page",
+      "featureKeys": [
+        "lists"
+      ],
+      "screenFamily": "dashboard/lists"
+    },
+    {
+      "source": "src/app/dashboard/lists/page.tsx",
+      "route": "/dashboard/lists",
+      "presentation": "page",
+      "featureKeys": [
+        "lists"
+      ],
+      "screenFamily": "dashboard/lists"
+    },
+    {
+      "source": "src/app/dashboard/lists/type/[type]/page.tsx",
+      "route": "/dashboard/lists/type/[type]",
+      "presentation": "page",
+      "featureKeys": [
+        "lists"
+      ],
+      "screenFamily": "dashboard/lists"
+    },
+    {
+      "source": "src/app/dashboard/locations/page.tsx",
+      "route": "/dashboard/locations",
+      "presentation": "page",
+      "featureKeys": [
+        "locations"
+      ],
+      "screenFamily": "dashboard/locations"
+    },
+    {
+      "source": "src/app/dashboard/meals/explore/page.tsx",
+      "route": "/dashboard/meals/explore",
+      "presentation": "page",
+      "featureKeys": [
+        "meals"
+      ],
+      "screenFamily": "dashboard/meals"
+    },
+    {
+      "source": "src/app/dashboard/meals/page.tsx",
+      "route": "/dashboard/meals",
+      "presentation": "page",
+      "featureKeys": [
+        "meals"
+      ],
+      "screenFamily": "dashboard/meals"
+    },
+    {
+      "source": "src/app/dashboard/meals/recipes/[id]/page.tsx",
+      "route": "/dashboard/meals/recipes/[id]",
+      "presentation": "page",
+      "featureKeys": [
+        "meals"
+      ],
+      "screenFamily": "dashboard/meals"
+    },
+    {
+      "source": "src/app/dashboard/meals/review/page.tsx",
+      "route": "/dashboard/meals/review",
+      "presentation": "page",
+      "featureKeys": [
+        "meals"
+      ],
+      "screenFamily": "dashboard/meals"
+    },
+    {
+      "source": "src/app/dashboard/messages/page.tsx",
+      "route": "/dashboard/messages",
+      "presentation": "page",
+      "featureKeys": [
+        "messages"
+      ],
+      "screenFamily": "dashboard/messages"
+    },
+    {
+      "source": "src/app/dashboard/notes/page.tsx",
+      "route": "/dashboard/notes",
+      "presentation": "page",
+      "featureKeys": [
+        "notes"
+      ],
+      "screenFamily": "dashboard/notes"
+    },
+    {
+      "source": "src/app/dashboard/notifications/page.tsx",
+      "route": "/dashboard/notifications",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/notifications"
+    },
+    {
+      "source": "src/app/dashboard/page.tsx",
+      "route": "/dashboard",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard",
+      "requiredVariants": [
+        "no-family onboarding",
+        "parent Today redirect",
+        "teen own home",
+        "child own home"
+      ]
+    },
+    {
+      "source": "src/app/dashboard/pickups/page.tsx",
+      "route": "/dashboard/pickups",
+      "presentation": "page",
+      "featureKeys": [
+        "pickups"
+      ],
+      "screenFamily": "dashboard/pickups"
+    },
+    {
+      "source": "src/app/dashboard/profile-link/page.tsx",
+      "route": "/dashboard/profile-link",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/profile-link"
+    },
+    {
+      "source": "src/app/dashboard/projects/[id]/page.tsx",
+      "route": "/dashboard/projects/[id]",
+      "presentation": "page",
+      "featureKeys": [
+        "projects"
+      ],
+      "screenFamily": "dashboard/projects"
+    },
+    {
+      "source": "src/app/dashboard/projects/create/page.tsx",
+      "route": "/dashboard/projects/create",
+      "presentation": "page",
+      "featureKeys": [
+        "projects"
+      ],
+      "screenFamily": "dashboard/projects"
+    },
+    {
+      "source": "src/app/dashboard/projects/page.tsx",
+      "route": "/dashboard/projects",
+      "presentation": "page",
+      "featureKeys": [
+        "projects"
+      ],
+      "screenFamily": "dashboard/projects"
+    },
+    {
+      "source": "src/app/dashboard/review/page.tsx",
+      "route": "/dashboard/review",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/review"
+    },
+    {
+      "source": "src/app/dashboard/rewards/create/page.tsx",
+      "route": "/dashboard/rewards/create",
+      "presentation": "page",
+      "featureKeys": [
+        "rewards"
+      ],
+      "screenFamily": "dashboard/rewards"
+    },
+    {
+      "source": "src/app/dashboard/rewards/page.tsx",
+      "route": "/dashboard/rewards",
+      "presentation": "page",
+      "featureKeys": [
+        "rewards"
+      ],
+      "screenFamily": "dashboard/rewards"
+    },
+    {
+      "source": "src/app/dashboard/search/page.tsx",
+      "route": "/dashboard/search",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/search"
+    },
+    {
+      "source": "src/app/dashboard/settings/activity/page.tsx",
+      "route": "/dashboard/settings/activity",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/settings"
+    },
+    {
+      "source": "src/app/dashboard/settings/devices/page.tsx",
+      "route": "/dashboard/settings/devices",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/settings"
+    },
+    {
+      "source": "src/app/dashboard/settings/imports/page.tsx",
+      "route": "/dashboard/settings/imports",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/settings"
+    },
+    {
+      "source": "src/app/dashboard/settings/page.tsx",
+      "route": "/dashboard/settings",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/settings"
+    },
+    {
+      "source": "src/app/dashboard/sick-days/page.tsx",
+      "route": "/dashboard/sick-days",
+      "presentation": "page",
+      "featureKeys": [
+        "sick-days"
+      ],
+      "screenFamily": "dashboard/sick-days"
+    },
+    {
+      "source": "src/app/dashboard/today/page.tsx",
+      "route": "/dashboard/today",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dashboard/today",
+      "requiredVariants": [
+        "personal board",
+        "person-session fridge mode",
+        "enabled-feature combinations"
+      ]
+    },
+    {
+      "source": "src/app/dashboard/travel/page.tsx",
+      "route": "/dashboard/travel",
+      "presentation": "page",
+      "featureKeys": [
+        "travel"
+      ],
+      "screenFamily": "dashboard/travel"
+    },
+    {
+      "source": "src/app/dashboard/wishlist/page.tsx",
+      "route": "/dashboard/wishlist",
+      "presentation": "page",
+      "featureKeys": [
+        "wishlist"
+      ],
+      "screenFamily": "dashboard/wishlist"
+    },
+    {
+      "source": "src/app/dev/design-system/page.tsx",
+      "route": "/dev/design-system",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "dev/design-system"
+    },
+    {
+      "source": "src/app/device/page.tsx",
+      "route": "/device",
+      "presentation": "redirect",
+      "featureKeys": [],
+      "screenFamily": "device",
+      "redirectTo": "/device/today"
+    },
+    {
+      "source": "src/app/device/pair/page.tsx",
+      "route": "/device/pair",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "device/pair"
+    },
+    {
+      "source": "src/app/device/removed/page.tsx",
+      "route": "/device/removed",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "device/removed"
+    },
+    {
+      "source": "src/app/device/today/page.tsx",
+      "route": "/device/today",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "device/today",
+      "requiredVariants": [
+        "paired shared board",
+        "no paired session",
+        "revoked device",
+        "parent elevation/profile-safe projections"
+      ]
+    },
+    {
+      "source": "src/app/handoff/[token]/page.tsx",
+      "route": "/handoff/[token]",
+      "presentation": "page",
+      "featureKeys": [
+        "handoff"
+      ],
+      "screenFamily": "handoff/[token]"
+    },
+    {
+      "source": "src/app/join/page.tsx",
+      "route": "/join",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "join"
+    },
+    {
+      "source": "src/app/page.tsx",
+      "route": "/",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "landing"
+    },
+    {
+      "source": "src/app/privacy/page.tsx",
+      "route": "/privacy",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "privacy"
+    },
+    {
+      "source": "src/app/terms/page.tsx",
+      "route": "/terms",
+      "presentation": "page",
+      "featureKeys": [],
+      "screenFamily": "terms"
+    }
+  ],
+  "embeddedSurfaces": [
+    {
+      "screen": "onboarding",
+      "source": "src/components/onboarding/OnboardingFlow.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "assistant-help-review-feedback",
+      "source": "src/components/assistant/AssistantHost.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/*"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "capture-review",
+      "source": "src/components/capture/CaptureSheet.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/*"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "command-search",
+      "source": "src/components/layout/CommandPaletteHost.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/*"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "recipe-create-edit",
+      "source": "src/components/meals/RecipeEditor.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/meals",
+        "/dashboard/meals/recipes/[id]",
+        "/dashboard/meals/explore"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "recipe-curation",
+      "source": "src/components/meals/RecipeCuration.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/meals/recipes/[id]",
+        "/dashboard/meals/explore"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "recipe-collections",
+      "source": "src/components/meals/RecipeCollections.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/meals/explore"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "multi-dish-prep",
+      "source": "src/components/meals/BulkCookingPanel.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/meals"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "routine-schedule",
+      "source": "src/components/chores/RoutineScheduleEditor.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/chores/schedules"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "calendar-subscriptions",
+      "source": "src/app/dashboard/settings/CalendarSubscriptionsSection.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/settings"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "calendar-oauth-sync",
+      "source": "src/app/dashboard/settings/CalendarSyncSection.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/settings"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "notification-preferences",
+      "source": "src/components/account/NotificationPreferences.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/settings"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "notification-snooze",
+      "source": "src/app/dashboard/notifications/page.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/notifications"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "board-customization",
+      "source": "src/components/fridge/BoardSettings.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/today",
+        "/dashboard/family/settings"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    },
+    {
+      "screen": "account-settings-export-erasure",
+      "source": "src/app/dashboard/settings/SettingsClient.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/settings"
+      ],
+      "mapping": "Review entry/context, not a claim that every entry renders the component for every role."
+    }
+  ],
+  "remaining": [
+    "Recover or replace original approved visual assets through explicit design work; no fabricated frame links.",
+    "Map and inspect actual role/device/state/locale frames when QA resumes.",
+    "Direct-link/intercepted/back/draft-recovery and canonical API checks remain required.",
+    "Verify source coverage again if pages/features change; this file is a dated handoff, not a runtime registry."
+  ]
+}

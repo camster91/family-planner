@@ -2731,3 +2731,15 @@ recipe consumers retain their existing contracts. No schema/provider activation.
 Pure marker, mixed/missing pair, frozen uncertain refresh/write-header and server
 pre-decode refusal cases are authored/adapted UNRUN. No QA/tests/checks/build/
 browser/CI/API/DB/provider/push/merge/deploy ran. #460/#136 remain open.
+
+## Recovered screen source directory — 2026-10-25
+
+#499 now has docs/product/SCREEN_ROUTE_MANIFEST.md and JSON against source
+393a9559:82 physical page files,71 distinct URL patterns,22 feature keys and15
+embedded surfaces. Intercepted forms retain canonical routes; parallel-slot null
+pages are not exposed URLs, and conditional dashboard/onboarding/kid home is kept
+separate from the parent Today redirect. Feature attachment is classification,
+never authority/activation. Existing selected Glance and act remains; original
+mockup assets are unavailable in this recovery checkout and no visual proof is
+invented. Full component/state/role/frame/runtime/native acceptance remains open.
+No QA/tests/checks/scanner/build/browser/CI/API/DB/provider/push/merge/deploy ran.
