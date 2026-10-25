@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProgressRing } from '@/components/ui/progress-ring'
@@ -309,13 +310,14 @@ interface BudgetDashboardProps {
   userId: string
   /** Only parents may edit or delete transactions (the API requires a parent). */
   canEdit?: boolean
+  archiveReviewEnabled?: boolean
 }
 
 // -----------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------
 
-export default function BudgetDashboard({ initialData, userId, canEdit = true }: BudgetDashboardProps) {
+export default function BudgetDashboard({ initialData, userId, canEdit = true, archiveReviewEnabled = false }: BudgetDashboardProps) {
   const displayLocale = useDisplayLocale()
   const [data, setData] = React.useState(initialData)
   const [showForm, setShowForm] = React.useState(false)
@@ -471,6 +473,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true }:
       />
 
       <div className="space-y-5 px-4">
+        {canEdit && archiveReviewEnabled && <Link href="/dashboard/budget/imported" className="btn-tinted inline-flex min-h-[44px] items-center">{text('importedData')}</Link>}
         {refreshError && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--tint-rewards)] bg-[var(--tint-rewards)]/10 px-4 py-3">
             <p className="text-subhead text-label-primary">

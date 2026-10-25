@@ -1,3 +1,4 @@
+import { financeArchiveReviewEnabled } from '@/lib/finance-archive-read'
 import { HouseholdPageState } from '@/components/layout/DashboardRecoveryCopy'
 import { getServerActor } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
@@ -247,7 +248,7 @@ export default async function BudgetPage() {
 
   return (
     <div>
-      <BudgetDashboard initialData={data} userId={user.id} canEdit={user.role === 'parent'} />
+      <BudgetDashboard initialData={data} userId={user.id} canEdit={user.role === 'parent'} archiveReviewEnabled={financeArchiveReviewEnabled()} />
     </div>
   )
 }

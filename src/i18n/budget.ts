@@ -2,6 +2,7 @@
 import { useTranslation } from "@/i18n";
 
 export const budgetEnglish = {
+  importedData: "Imported data",
   pageTitle: "Budget",
   pageEyebrow: "Family budget",
   pageSubtitle: "See household spending at a glance.",
@@ -82,6 +83,7 @@ export const budgetEnglish = {
 export type BudgetMessage = keyof typeof budgetEnglish;
 
 export const budgetSpanish: Record<BudgetMessage, string> = {
+  importedData: "Datos importados",
   pageTitle: "Presupuesto",
   pageEyebrow: "Presupuesto familiar",
   pageSubtitle: "Consulta los gastos del hogar de un vistazo.",

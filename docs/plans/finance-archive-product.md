@@ -15,7 +15,7 @@ provider or live-data action was performed.
 | `src/components/budget/BudgetDashboard.tsx` | Monthly summary, category limits, recent transactions, manual transaction forms | Display locale changes number formatting, not denomination: existing denomination is USD |
 | `src/lib/imports/budget-app.ts` | Category/transaction/wishlist normalization; integer source cents retained in metadata and converted to current major-unit values | Source archive records are passthrough JSON with required ID, not a validated native domain schema. Unknown currency/relationships are not resolved |
 | `src/lib/imports/persist-budget-app.ts` | Default dry run; explicit persist uses ImportJob/ImportedRecord, native category/transaction/wishlist targets and FinancialArchiveRecord | Existing mapping reuses targets on repeated source IDs; no claim of automatic source-update merge or concurrent-import reconciliation |
-| `FinancialArchiveRecord` | Household + source app/model/ID unique identity, JSON payload, creation time | No product CRUD, validated amounts/currency/date projection, balance calculation or archive promotion UI |
+| `FinancialArchiveRecord` | Household + source app/model/ID unique identity, JSON payload, creation time | Default-off local FIN-0 metadata API/list/sheet source now authored; no accepted CRUD, validated money/date projection, balance calculation or archive promotion UI |
 | `src/app/api/admin/imports/[source]/route.ts` | Parent imports through the canonical family/import path | Production import execution remains separate from this plan |
 | `src/app/api/users/export/route.ts` | Parents receive household finance archive rows and import-job summaries | Native future entities must be added to portability deliberately; archive inclusion is not native feature coverage |
 | `src/lib/account-deletion.ts` | Household deletion inventory includes financialArchiveRecord | Future finance tables/media must enter the same erasure plan; records must not survive household erasure |
@@ -173,3 +173,54 @@ identity/currency/date interpretation, provider/bank/account permissions and
 explicit production migration/backfill/rollout decisions. Bank sync, OCR/spend,
 billing, new schedulers, production imports and destructive cleanup remain
 outside #566. No real finance data was read, copied or changed in this pass.
+
+## FIN-0 metadata browser source — 2026-10-25
+
+A first read-only vertical slice is now authored, unverified and unreleased:
+Budget's parent-only Imported data link, `/dashboard/budget/imported` and
+GET `/api/budget/archive`. All require the private default-off
+`FINANCE_ARCHIVE_REVIEW_ENABLED=1` acknowledgement and existing Budget feature;
+no actual environment setting changed. This is partial FIN-0 source, not FIN-0's
+money bridge/mapping/checksum/reconciliation completion or source-export approval.
+
+The server page captures the original verified person/account generation and
+renews current parent/household/feature before rendering only the private owner
+precondition. The API refuses paired devices and non-parents before parsing that
+bounded strict header; it compares it to authenticated authority, not to names
+or client-selected roles. The shared reader takes original User then household
+locks and rechecks current role/family/generation/feature before archive reads.
+Responses, including denials, are private/no-store. Neither a page cursor nor
+owner header grants authority. No finance data is added to shared/AI surfaces.
+
+The source-model count query returns at most12 groups by construction (eleven
+known model keys plus explicit other). Counts are decimal strings; they are
+record counts, never monetary totals. The collection selects24 metadata rows
+plus one lookahead, ordered created_at DESC/id ASC, with canonical household/
+model-bound cursor positions. No raw payload is selected. Source display labels
+are clipped in SQL to80/80/160 Unicode codepoints with an explicit shortened-label
+notice; source raw originals remain in existing private export. The preservation
+created_at label is not a source transaction/due date. SQL scan cost and index/
+lock/latency behavior still require real measurement; bounded output is not a
+query-plan or complete-household read-performance claim.
+
+English/Spanish uses one list, type/count selector, exact-page retry/newest/older
+controls and the existing rounded Dialog for source details. Source identifiers
+remain verbatim. Request/body consumption is bounded to15seconds/128KiB; effect
+replacement/unmount aborts, stale replies cannot repaint a new owner/filter/page,
+and an owner/access refusal masks rows and the open sheet. Filter/cursor recovery
+never silently loads another household. No polling, provider, import, mapping,
+ledger write, balance/FX, automatic URL/media fetch or promotion is introduced.
+The source supplies empty/loading/error/stale/unavailable states and existing
+keyboard/focus primitives; no rendered/native Back/scroll/accessibility acceptance
+is claimed. Source regressions for scope/cursor/ties, disabled gates, fresh role/
+family/generation, metadata projection, original-owner transport, sheet masking
+and exact page retry are authored/adapted, UNRUN.
+
+Remaining FIN-0: approved #104 export/identity/count reports for every source
+model; explicit source version/checksum and per-record schema/disposition;
+validated money/date semantics and mapping/review, existing-Float compatibility
+bridge, additive promotion receipt/provenance design; actual layout/frame,
+private/shared/old-client, query-plan/isolation/concurrency, export/erasure and
+rollback acceptance. FIN-1–FIN-7 and source activation remain separate. No QA,
+tests, checks, scanner, browser, build, CI, API/DB request, migration, native,
+provider, push, merge or deployment ran.

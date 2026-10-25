@@ -2231,3 +2231,16 @@ changed authority, authority changes during aggregates and feature disable.
 They are authored/adapted, unrun. No QA/tests/checks/build/browser/CI/API/DB/native/
 provider/push/merge/deploy ran; direct HTTP/role/generation/race/renderer acceptance
 and full #136 remain open.
+Latest bounded source work (2026-10-25) adds a default-off read-only FIN-0
+archive metadata browser (#134/#499): parent-only Budget entry, bounded API and
+EN/ES list/details sheet. Original person/family/generation is frozen and renewed
+under User -> household locks; paired/child/foreign context refuses. Twelve count
+groups and24 metadata rows plus lookahead use household/model-bound keysets;
+raw payload/money is never selected/interpreted. Reads have15second/128KiB client
+bounds, exact-page recovery and owner-change masking. No environment flag was
+enabled. This is partial FIN-0: approved source, checksum/version/mapping/money
+bridge and all acceptance remain open. Source regression cases are authored/
+adapted, UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/
+push/merge/deploy ran.39 issues remain open; #566 planning closure is unchanged.
+
+Full FIN-0 source/remaining contract: docs/plans/finance-archive-product.md.

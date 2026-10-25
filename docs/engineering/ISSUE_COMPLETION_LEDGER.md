@@ -54,18 +54,17 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) gives Budget SSR its own parent-person
-read boundary (#136), independent of middleware/layout path inference. The page
-captures getServerActor's verified generation, refuses non-parent sessions before
-queries, checks fresh role/household/generation before finance reads, and renews
-the same authority/feature before serializing data. It never adopts a newer
-session generation or reads a replacement household. Source role/household/revoke/
-feature-change cases are authored/adapted only. This is a final authority check,
-not a locked multi-query snapshot or runtime concurrency proof. Existing UTC/USD
-budget semantics and API contracts remain unchanged. No QA/test/check/build/
-scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.39 issues remain
-open. The existing copy inventory is mostly legal/technical residuals; #372's
-legal decisions and #142's full localization/rendered acceptance stay open.
+Latest bounded source work (2026-10-25) adds a default-off read-only FIN-0
+archive metadata browser (#134/#499): parent-only Budget entry, bounded API and
+EN/ES list/details sheet. Original person/family/generation is frozen and renewed
+under User -> household locks; paired/child/foreign context refuses. Twelve count
+groups and24 metadata rows plus lookahead use household/model-bound keysets;
+raw payload/money is never selected/interpreted. Reads have15second/128KiB client
+bounds, exact-page recovery and owner-change masking. No environment flag was
+enabled. This is partial FIN-0: approved source, checksum/version/mapping/money
+bridge and all acceptance remain open. Source regression cases are authored/
+adapted, UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/
+push/merge/deploy ran.39 issues remain open; #566 planning closure is unchanged.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
