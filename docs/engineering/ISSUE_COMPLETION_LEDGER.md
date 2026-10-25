@@ -54,17 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25) extends default-off FIN-0 with one-record
-current-copy SHA-256 and recorded source-version details (#134/#499). The private
-reader renews the same parent owner, sizes/locks the exact archive row, transfers
-at most256KiB stored JSON text to Node for hashing, and never returns raw payload.
-Version tracing requires exact scoped source/target mapping and one completed
-non-dry-run same-household/app import job; unknown/ambiguous provenance is explicit.
-The EN/ES sheet loads details on demand with15second/32KiB bounds and exact-record/
-owner masking/retry. The fingerprint is not original-file proof or promotion
-approval; immutable source/money/date/receipt contracts remain open. Source cases
-are authored/adapted UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/
-provider/push/merge/deploy ran.39 issues remain open; no flag/storage was activated.
+Latest bounded source work (2026-10-25) renews FIN-0 archive authority on locked
+User and Family rows (#136/#134), after the original User -> household advisory
+locks. Both metadata and exact-record detail readers now hold FOR SHARE rows
+through their existing five-second transaction, covering ordinary role/token/
+feature UPDATEs that bypass advisory locks. Changed owner, missing household or
+disabled Budget refuses before any archive read. Source fixtures/cases are
+adapted/authored UNRUN; actual PostgreSQL wait/deadlock/timeout/rollback/query-plan
+behavior and wider finance/SSR acceptance remain open. No QA/test/check/build/
+scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.39 issues remain
+open; the archive view is still default-off in source and unverified/unreleased.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -32,13 +32,18 @@ export function parseArchivePaging(params: URLSearchParams, familyId: string): A
 export function archiveCursor(familyId: string, model: FinanceArchiveModel | null, row: { created_at: Date; id: string }) {
   return Buffer.from(JSON.stringify(position.parse([FINANCE_ARCHIVE_PROTOCOL, familyId, model, row.created_at.toISOString(), row.id])), 'utf8').toString('base64url')
 }
+/** Advisory lifecycle order first, then row locks for ordinary SQL UPDATEs too. */
 async function requireFinanceArchiveOwnerInTx(tx: Prisma.TransactionClient, owner: FinanceArchiveOwner) {
-    await lockUser(tx, owner.userId)
-    await lockHousehold(tx, owner.familyId)
-    const user = await tx.user.findUnique({ where: { id: owner.userId }, select: { family_id: true, role: true, token_version: true, family: { select: { features: true } } } })
-    if (!user || user.family_id !== owner.familyId || user.token_version !== owner.generation || user.role !== 'parent') throw new FinanceArchiveReadError('OWNER_CHANGED')
-    if (!isFeatureEnabled(normalizeFeatures(user.family?.features), 'budget') || !financeArchiveReviewEnabled()) throw new FinanceArchiveReadError('UNAVAILABLE')
- }
+  await lockUser(tx, owner.userId)
+  await lockHousehold(tx, owner.familyId)
+  const users = await tx.$queryRaw<{ family_id: string | null; role: string; token_version: number }[]>`
+    SELECT "family_id", "role", "token_version" FROM "User" WHERE "id" = ${owner.userId} FOR SHARE`
+  const user = users.length === 1 ? users[0] : null
+  if (!user || user.family_id !== owner.familyId || user.token_version !== owner.generation || user.role !== 'parent') throw new FinanceArchiveReadError('OWNER_CHANGED')
+  const families = await tx.$queryRaw<{ features: Prisma.JsonValue | null }[]>`
+    SELECT "features" FROM "Family" WHERE "id" = ${owner.familyId} FOR SHARE`
+  if (families.length !== 1 || !isFeatureEnabled(normalizeFeatures(families[0].features), 'budget') || !financeArchiveReviewEnabled()) throw new FinanceArchiveReadError('UNAVAILABLE')
+}
 
 /** Original actor is server-authenticated; client context is only a precondition. */
 export async function readFinanceArchivePage(db: Pick<PrismaClient, '$transaction'>, owner: FinanceArchiveOwner, page: ArchivePaging) {

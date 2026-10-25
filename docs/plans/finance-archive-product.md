@@ -278,3 +278,33 @@ ran. Full FIN-0 still needs immutable original source/version evidence, approved
 Float/minor-unit compatibility and promotion provenance/receipt design, plus
 all actual frame/role/isolation/race/query-plan/serialization/rollback/export/
 erasure/native acceptance. The private gate remains default-off in source.
+
+## Archive authority row-lock refinement — 2026-10-25
+
+Both collection and exact-record read transactions now share the same authority
+helper, with existing User advisory lock then household advisory lock, followed
+by `SELECT ... FROM User ... FOR SHARE` and then the exact Family feature row
+`FOR SHARE`. The locked User role, household and token generation must still
+match the original verified person before family/archive data is read. Missing
+or disabled Family refuses before archive counts, rows, payload sizing/hashing
+or import-provenance lookup. No new account generation/household is adopted.
+
+The explicit row locks address ordinary SQL role/token/feature UPDATEs that do
+not acquire the advisory lifecycle locks. The intended transaction boundary is:
+an earlier committed change is observed/refused after the wait; a later UPDATE
+waits for the authorized read transaction to end. These are shared read locks,
+not role/permission/data writes. Existing User -> household advisory acquisition
+order is preserved; no additional participant User lock is acquired afterward.
+Five-second transaction limits remain unchanged, and no lock spans a provider
+or client-network call. The reader does not lock all archive rows into a global
+repeatable-read snapshot. It cannot revoke data already served or prove private
+cache clearing on an inactive client.
+
+Source fixtures now provide locked User/Family rows explicitly and preserve the
+existing scope/cursor/projection/fingerprint/provenance cases. New authored cases
+assert row-lock read order and refusal before archive reads for missing/disabled
+households and changed authority. They do not simulate PostgreSQL update waits,
+deadlock detection, rollback, timeout release, role/feature churn or actual query
+plans. All those acceptance cases remain open. No QA/tests/checks/scanner/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran, and no gate was enabled.
+This scoped refinement does not claim a full audit of other budget/SSR readers.

@@ -2258,3 +2258,16 @@ are authored/adapted UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/nat
 provider/push/merge/deploy ran.39 issues remain open; no flag/storage was activated.
 
 Full current-copy and provenance limitations: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) renews FIN-0 archive authority on locked
+User and Family rows (#136/#134), after the original User -> household advisory
+locks. Both metadata and exact-record detail readers now hold FOR SHARE rows
+through their existing five-second transaction, covering ordinary role/token/
+feature UPDATEs that bypass advisory locks. Changed owner, missing household or
+disabled Budget refuses before any archive read. Source fixtures/cases are
+adapted/authored UNRUN; actual PostgreSQL wait/deadlock/timeout/rollback/query-plan
+behavior and wider finance/SSR acceptance remain open. No QA/test/check/build/
+scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.39 issues remain
+open; the archive view is still default-off in source and unverified/unreleased.
+
+Exact archive row-lock boundary/limitations: docs/plans/finance-archive-product.md.
