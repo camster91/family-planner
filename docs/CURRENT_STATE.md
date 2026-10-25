@@ -52,17 +52,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded planning work defines a fabricated capacity model (#134/#137):
-ordinary/skewed cardinalities, weighted household/event/grocery/inventory/task/AI
-traffic, role/device mixes, local stages, correctness/abort rules and required
-content-free evidence. The sequential baseline is explicitly not the mixed
-runner. Model definition completes only #134's load-model criterion; guarded
-builder/runner/reconciliation and actual reproducibility/capacity evidence remain
-unfinished. SLO notes now reflect existing default-off core-route wrappers rather
-than claiming source instrumentation is missing. No new telemetry or provider
-activation, QA/test/check/build/browser/CI/API/database/native/infrastructure/
-release action ran. All runtime, measured-bottleneck, recovery and original
-broader #134/#137 criteria remain open.
+Latest bounded source work prevents capped calendar data becoming a successful
+partial source (#124). Export reads2,001 rows and returns503/no-store overflow
+instead of emitting a prefix above its original2,000-event capacity. Import
+refuses truncated expansion before reconciliation, preserving event rows and last
+complete ETag/Last-Modified while recording an owned error/attempt time. Existing
+supported feed formats, ownership/window and complete-parse semantics remain.
+Boundary/overflow and occurrence/iteration-cap regression source authored/unrun.
+No QA/check/build/browser/API/database/native/provider/permission/release ran.
+Large complete export, parser-skipped invalid series, historical partial-import
+recovery and full provider/concurrency/compatibility acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

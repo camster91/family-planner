@@ -16,10 +16,14 @@ UIDs, timestamps, recurrence grammar, date range and cache headers are unchanged
 Multibyte/emoji, newline-escaping and ASCII-boundary cases are authored/unrun.
 No provider access, sync, QA/build/browser/API/database or release ran.
 
-The export's existing2,000-row cap can still truncate a dense matching feed. It
-has no continuation/overflow contract; correct Unicode formatting does not prove
-complete synchronization or safe deletion semantics. Complete large-feed delivery,
-query/format/parser/native/provider acceptance and all original #124 gates remain.
+The export now reads2,001 rows to detect overflow beyond its prior2,000-event
+capacity. Overflow returns503/no-store with `CALENDAR_FEED_TOO_LARGE` and no partial
+ICS; supported feeds retain their successful format/cache contract. Subscription
+imports refuse capped parse results before reconciliation and retain existing
+events plus last-complete ETag/Last-Modified. These changes are authored/unrun.
+Oversized complete export remains unavailable. Parser-skipped invalid series,
+historical partial imports, query/format/native/provider/error behavior and all
+original #124 acceptance still require implementation/recovery or evidence.
 
 ## Product modes and actual ownership
 

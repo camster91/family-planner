@@ -54,8 +54,9 @@ receipt, proof, stock or credit invariants to obtain large counts. Preserve fixt
 version and row-count manifest, without storing tokens or private request bodies.
 
 Calendar-heavy feeds intentionally exceed the current 2,000-event export cap.
-Record its incomplete delivery as a known failure; never call that a passing
-complete export. A separate complete-feed design/implementation remains needed.
+Current recovery source refuses overflow rather than emitting a successful
+partial feed. Record that refusal as unavailable large-feed delivery, never a
+passing complete export; provider-specific error handling remains unverified. A separate complete-feed design/implementation remains needed.
 
 ## Traffic mix
 

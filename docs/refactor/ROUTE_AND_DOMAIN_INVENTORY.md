@@ -1,5 +1,21 @@
 # Route and domain inventory (#148)
 
+### Capped calendar-source integrity — 2026-10-24 (#124)
+
+The export route reads2,001 rows and refuses overflow above its existing2,000
+capacity with503, private/no-store and fixed content-minimal JSON. It emits no
+partial ICS. Supported-size results retain token/family/time/window/UID/cache
+behavior. Subscription sync now checks `parsed.truncated` before reconciliation:
+occurrence or iteration caps produce only scoped error/attempt metadata, leaving
+events and the prior complete ETag/Last-Modified unchanged. Complete parses use
+the existing write/reconcile path. Boundary, overflow, content omission and both
+capped-import cases are authored/unrun. Oversized complete export remains
+unavailable; parser-skipped malformed series and previously accepted truncated
+imports require separate work. Actual provider HTTP-error behavior, concurrent
+refresh/deletion, parser/compatibility/rollback/runtime acceptance remain open.
+No QA/tests/check/build/browser/API/database/native/provider/permission/release
+ran; no existing household event or validator was changed by this source edit.
+
 ### Fabricated capacity-model definition — 2026-10-24 (#134/#137)
 
 `docs/testing/CAPACITY_MODEL.md` defines ordinary and three skewed datasets,

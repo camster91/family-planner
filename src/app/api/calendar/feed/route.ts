@@ -4,6 +4,7 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
 export const dynamic = 'force-dynamic'
+const FEED_MAX_EVENTS = 2000
 
 function escapeIcs(value: string): string {
   return value
@@ -74,8 +75,17 @@ export async function GET(request: NextRequest) {
         ],
       },
       orderBy: { start_time: 'asc' },
-      take: 2000,
+      take: FEED_MAX_EVENTS + 1,
     })
+
+    // A partial successful calendar can make subscribers interpret omitted
+    // events as deletions. Refuse before emitting any ICS instead of truncating.
+    if (events.length > FEED_MAX_EVENTS) {
+      return NextResponse.json({
+        code: 'CALENDAR_FEED_TOO_LARGE',
+        error: 'This calendar is too large to export completely right now.',
+      }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     const lines: string[] = [
       'BEGIN:VCALENDAR',

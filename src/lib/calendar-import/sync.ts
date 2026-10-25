@@ -320,6 +320,15 @@ export async function syncSubscription(
     return recordError("parse_failed", "Feed is not a valid calendar");
   }
 
+  // A bounded expansion is not a complete source of truth. Never reconcile
+  // its prefix: unseen existing occurrences must not become deletion candidates.
+  if (parsed.truncated) {
+    return recordError(
+      "feed_too_large",
+      "Calendar feed is too large to refresh safely. Existing events were kept.",
+    );
+  }
+
   let counts;
   try {
     counts = await reconcileOccurrences(db, sub, parsed.occurrences, window);
@@ -335,9 +344,7 @@ export async function syncSubscription(
     data: {
       last_fetched_at: now,
       last_status: "ok",
-      last_error: parsed.truncated
-        ? "Some events were skipped because the feed is very large"
-        : null,
+      last_error: null,
       etag: fetched.etag,
       last_modified: fetched.lastModified,
     },

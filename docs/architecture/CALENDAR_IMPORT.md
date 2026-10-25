@@ -2,6 +2,24 @@
 
 Status: implemented for #232 (scope approved from the #124 calendar-sync contract). Covers **read-only** import of public/private ICS feed links. CalDAV is out of scope. Two-way Google/Outlook sync over OAuth is a separate feature (#264): [`CALENDAR_SYNC.md`](CALENDAR_SYNC.md).
 
+## Unverified bounded-feed integrity follow-through — 2026-10-24
+
+The export route reads one lookahead beyond its existing2,000-event capacity.
+Above that capacity it returns503 `CALENDAR_FEED_TOO_LARGE` with private/no-store
+JSON and no partial ICS. Supported-size responses retain their prior calendar,
+UID/time/range/cache contract. Large complete export remains unavailable;
+provider-specific behavior on HTTP errors is unverified.
+
+The subscription sync now refuses `parsed.truncated` before reconciliation, for
+both occurrence and per-series iteration caps. It updates only the owned error
+status/attempt time and leaves event rows and last complete conditional validators
+unchanged. Complete parses retain the existing reconcile/delete semantics. A
+malformed series silently skipped by the parser is a separate completeness gap;
+this cap guard does not establish full semantic-feed validation. Historical
+already-truncated imports require separate reconciliation/recovery; no live data
+repair or forced refresh is performed. Boundary/overflow and capped-import cases
+are authored/unrun. No QA/test/build/browser/API/database/provider/release ran.
+
 ## Summary
 
 A parent pastes an `https://` or `webcal://` calendar link in **Settings → Subscribed calendars**. The server fetches it (guarded), expands it within a bounded window and stores each occurrence as an `Event` tagged with its source. Imported events show on the family calendar with a "From <name>" badge and cannot be edited or deleted in the app. Removing the subscription removes its events.
@@ -35,7 +53,7 @@ An imported occurrence is identified by **(subscription, iCalendar UID, original
 
 ## Recurrence and window
 
-Occurrences are expanded in the window **now − 30 days to now + 180 days**. Only occurrences overlapping the window are stored. Guards: at most 3,000 occurrences per feed and 25,000 iterations per series (unbounded `FREQ=DAILY` from years ago still reaches the window; `FREQ=SECONDLY` abuse cannot spin). When a cap is hit the sync still succeeds and `last_error` says some events were skipped. `STATUS:CANCELLED` events or instances are not imported. An override whose master is missing is imported as a single event. `RANGE=THISANDFUTURE` is not supported and is treated as a single-instance override.
+Occurrences are expanded in the window **now − 30 days to now + 180 days**. Only occurrences overlapping the window are stored. Guards: at most 3,000 occurrences per feed and 25,000 iterations per series (unbounded `FREQ=DAILY` from years ago still reaches the window; `FREQ=SECONDLY` abuse cannot spin). Current recovery source refuses capped expansion before reconciliation: `last_status` becomes `error` and a fixed message explains that existing events were kept. No occurrence create/update/delete or new ETag/Last-Modified is committed from a partial parse. This source change is unverified; previously accepted partial imports are not repaired automatically. `STATUS:CANCELLED` events or instances are not imported. An override whose master is missing is imported as a single event. `RANGE=THISANDFUTURE` is not supported and is treated as a single-instance override.
 
 ## Time zones and DST
 

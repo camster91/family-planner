@@ -7,7 +7,7 @@ jest.mock("@/lib/session", () => require("@/__tests__/helpers/two-household").se
 jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-household").fakePrisma }));
 
 import { GET } from "../route";
-import { db, req, FOREIGN } from "@/__tests__/helpers/two-household";
+import { db, req, FOREIGN, fakePrisma } from "@/__tests__/helpers/two-household";
 
 describe("GET /api/calendar/feed", () => {
   beforeEach(() => db.reset());
@@ -69,6 +69,42 @@ describe("GET /api/calendar/feed", () => {
     const original = "X-WR-CALNAME:" + "a".repeat(150);
     const expected = original.slice(0, 74) + "\r\n " + original.slice(74, 147) + "\r\n " + original.slice(147);
     expect(ics).toContain(expected + "\r\n");
+  });
+
+  // Authored/unrun: the existing output cap must never produce a successful
+  // partial source that a calendar subscriber could reconcile as deletions.
+  it("refuses an overflowing feed before emitting calendar content", async () => {
+    const read = jest.spyOn(fakePrisma.event, "findMany").mockResolvedValueOnce(
+      Array.from({ length: 2001 }, (_, i) => ({ id: `synthetic-${i}`, title: "Synthetic private title" })),
+    );
+    try {
+      const res = await GET(req({ query: { token: "feed-token-a" } }));
+      expect(res.status).toBe(503);
+      expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+      const body = await res.json();
+      expect(body.code).toBe("CALENDAR_FEED_TOO_LARGE");
+      expect(JSON.stringify(body)).not.toMatch(/BEGIN:VCALENDAR|synthetic-|private title|feed-token/);
+      expect(read).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ family_id: "family-A" }), take: 2001,
+      }));
+      expect(db.writes).toHaveLength(0);
+    } finally { read.mockRestore(); }
+  });
+
+  it("exports every event at the supported boundary, including the last UID", async () => {
+    const original = db.find("event", "event-a")!;
+    const read = jest.spyOn(fakePrisma.event, "findMany").mockResolvedValueOnce(
+      Array.from({ length: 2000 }, (_, i) => ({ ...original, id: `synthetic-${i}` })),
+    );
+    try {
+      const res = await GET(req({ query: { token: "feed-token-a" } }));
+      expect(res.status).toBe(200);
+      const ics = await res.text();
+      expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2000);
+      expect(ics).toContain("UID:synthetic-1999@family.ashbi.ca");
+      expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
+      expect(res.headers.get("Cache-Control")).toBe("private, max-age=300");
+    } finally { read.mockRestore(); }
   });
 
 });

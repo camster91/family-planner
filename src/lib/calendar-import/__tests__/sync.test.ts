@@ -230,6 +230,43 @@ describe("syncSubscription", () => {
     });
   });
 
+  // Authored/unrun. Both bounded expansion exits must preserve the last
+  // complete import and validators; no partial create/update/delete is allowed.
+  it.each([
+    { label: "occurrence cap", body: () => ics(...Array.from({ length: 3001 }, (_, i) => [
+      "BEGIN:VEVENT", `UID:synthetic-${i}@fixture.test`,
+      "DTSTART:20260918T090000Z", "DTEND:20260918T100000Z",
+      "SUMMARY:Synthetic capped event", "END:VEVENT",
+    ]).flat()) },
+    { label: "iteration cap", body: () => ics(
+      "BEGIN:VEVENT", "UID:synthetic-fast@fixture.test", "DTSTART:20200101T000000Z",
+      "DTEND:20200101T000001Z", "RRULE:FREQ=SECONDLY;COUNT=30000",
+      "SUMMARY:Synthetic capped series", "END:VEVENT",
+    ) },
+  ])("keeps all events when a feed hits its $label", async ({ body }) => {
+    await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(FEED_V1, { etag: '"complete-feed"', "last-modified": "Tue, 15 Sep 2026 10:00:00 GMT" }),
+      assertUrl: allowAll, now: NOW,
+    });
+    const before = JSON.stringify(db.rows("event"));
+    const eventWrites = writesTo("event").length;
+    const oldSub = { ...db.find("calendarSubscription", "sub-a")! };
+    const result = await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(body(), { etag: '"partial-feed"', "last-modified": "Tue, 15 Sep 2026 11:00:00 GMT" }),
+      assertUrl: allowAll, now: new Date(NOW.getTime() + 60_000),
+    });
+    expect(result).toMatchObject({ status: "error", created: 0, updated: 0, deleted: 0 });
+    expect(result?.error).toContain("Existing events were kept");
+    expect(JSON.stringify(db.rows("event"))).toBe(before);
+    expect(writesTo("event")).toHaveLength(eventWrites);
+    expect(db.find("calendarSubscription", "sub-a")).toMatchObject({
+      last_status: "error", etag: oldSub.etag, last_modified: oldSub.last_modified,
+    });
+    expect(loggedText()).toContain("feed_too_large");
+    expect(loggedText()).not.toContain(SECRET_URL_A);
+    expect(loggedText()).not.toContain("Synthetic capped");
+  });
+
   it("stores an error status for fetch failures (HTTP, SSRF) without the URL", async () => {
     const r1 = await syncSubscription("sub-a", FAMILY_A, {
       fetchImpl: async () => new Response("nope", { status: 403 }),
