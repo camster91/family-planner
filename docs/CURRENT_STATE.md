@@ -54,14 +54,13 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): photo scan preparation/upload/body
-now share a60-second foreground deadline and256KiB reply cap. Late image work
-cannot start an upload; stalled/oversized replies reach existing retry UI without
-creating stock. Current access refusals skip bodies; sheet retirement suppresses
-late results. Source cases authored/unrun. Physical cancellation, image CPU/memory,
-provider/role/native/rendered acceptance remain separate. Photo save retirement
-and retained counts are also authored. No QA, database, build, browser, push,
-merge or deployment ran.
+Latest bounded source work (2026-10-25): opportunistic generic receipt
+cleanup selects at most500 expired IDs in expiry/ID order and rechecks expiry
+when deleting that set. Existing TTL, prune probability, exact-key expiry/replay
+and best-effort failure policy remain. Backlog continues on later selected
+requests; no scheduler or live cleanup ran. Source case authored/unrun; SQL plans,
+concurrency, bounded latency and action-specific recovery acceptance remain
+unverified. No QA, database, build, browser, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -95,7 +95,7 @@ export interface IdempotencyContext {
   action: string
 }
 
-type RecordDelegate = Pick<PrismaClient['idempotencyRecord'], 'create' | 'findFirst' | 'update' | 'updateMany' | 'deleteMany'>
+type RecordDelegate = Pick<PrismaClient['idempotencyRecord'], 'create' | 'findFirst' | 'findMany' | 'update' | 'updateMany' | 'deleteMany'>
 export type IdempotencyDb = { idempotencyRecord: RecordDelegate }
 
 /**
@@ -137,7 +137,17 @@ function storableBody(body: unknown): unknown {
 async function maybePrune(db: IdempotencyDb, now: Date): Promise<void> {
   if (idempotencyRuntime.random() >= IDEMPOTENCY_PRUNE_PROBABILITY) return
   try {
-    await db.idempotencyRecord.deleteMany({ where: { expires_at: { lt: now } } })
+    // Housekeeping must not put the entire expired backlog on one request.
+    // Recheck expiry at deletion: a concurrently renewed row must survive.
+    const expired = await db.idempotencyRecord.findMany({
+      where: { expires_at: { lt: now } },
+      orderBy: [{ expires_at: 'asc' }, { id: 'asc' }],
+      take: 500,
+      select: { id: true },
+    })
+    if (expired.length) await db.idempotencyRecord.deleteMany({
+      where: { id: { in: expired.map(row => row.id) }, expires_at: { lt: now } },
+    })
   } catch (error) {
     // Pruning is housekeeping; it must never fail the request.
     logRouteError('idempotency.prune', error, undefined)

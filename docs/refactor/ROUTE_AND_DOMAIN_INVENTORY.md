@@ -2999,3 +2999,28 @@ continue physically and synchronous CPU/allocations are not preempted. JSON-only
 bridge protection is post-parse. No promise of provider cancellation, raw media
 retention proof, stock save, native hardware or full identity acceptance is made.
 No QA, app/database/provider execution or release ran. #125/#135 remain open.
+
+
+### Bounded lazy generic receipt cleanup — 2026-10-25 (#134/#135)
+
+`idempotency.ts` previously issued a whole-backlog expired-row delete on a
+probabilistically selected keyed request. It now reads only500 IDs ordered by
+expires_at/id and deletes only that set with the same strict expires_at < now
+predicate rechecked. A renewed row is not removed solely because it appeared in
+the earlier candidate list. Remaining expired rows wait for later selected
+requests; an empty candidate batch produces no delete. The existing expiry index
+is a source fact, not an accepted deep-backlog/tie/lock query plan.
+
+TTL, probability, full request hash/scope/replay, action-specific expiry and
+single-key expiry handling remain unchanged. This introduces neither scheduler
+nor new retention/deletion policy. Cleanup failure remains best effort and cannot
+refuse the main mutation. The internal DB delegate now also requires findMany;
+Prisma and the existing fake delegate supply it, while custom consumers must
+implement that read. No schema or external API change. The bound covers cleanup
+candidate/output rows and delete target count, not total scanned rows, SQL work,
+FK effects or request duration. Overlapping concurrent passes may select the same
+expired IDs; no claim of exactly500 deletions per pass or backlog completion.
+An unrun501-expired-row source case checks that one pass leaves a remainder and
+a later pass drains it while retaining live receipts. PostgreSQL renewal/races,
+real query plans, full offline/receipt semantics and all QA remain unverified.
+No database/cleanup invocation, test/build/browser/CI or release ran.
