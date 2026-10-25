@@ -1,5 +1,20 @@
 # Route and domain inventory (#148)
 
+### Recent changes presentation localization — 2026-10-24 (#142)
+
+`ActivityClient.tsx` now uses 20 route-scoped typed EN/ES keys for history UI,
+recovery/status/empty states, page controls, relative day headings and actor
+fallback/tablet descriptions. Shared `useDisplayLocale` formats dates, times
+and loaded counts; `dayKey` retains local-calendar grouping independently of
+language, and stored timestamps remain canonical. Actual audit summaries and
+actor names are never translated or parsed to infer actions/identity. No locale
+or text callback is added to the existing read-effect dependencies; pending,
+retry cursor, generation, cancellation and deadline state remain unchanged.
+Eleven owned copy inventory records removed without a scanner. No new copy-only
+tests or QA/check/build/browser/API/database/household/release actions ran.
+Existing cases remain unrun. Full localization/layout/locale-data acceptance
+and the read-recovery behavior's original runtime evidence remain open.
+
 ### Project calendar send authority renewal — 2026-10-24 (#134)
 
 Send to Calendar now acquires user/household advisory locks, then current User/

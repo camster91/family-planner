@@ -60,61 +60,6 @@
     "count": 1
   },
   {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Loading…",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "No changes yet",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Older changes didn&apos;t load. Try again.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Recent changes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Settings",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Show older changes",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "That&apos;s everything from the last 12 months.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Try again",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "When a parent turns a feature on or off, sends an invite or sets up a tablet, it shows up here.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "Who changed household settings, and when: features, invites, new members, the Today board and family tablets. Only parents can see this. Changes are kept for 12 months.",
-    "count": 1
-  },
-  {
-    "file": "src/app/dashboard/settings/activity/ActivityClient.tsx",
-    "text": "You&apos;re offline. Recent changes need a connection.",
-    "count": 1
-  },
-  {
     "file": "src/app/dashboard/settings/activity/page.tsx",
     "text": "Join or create a household to see its recent changes.",
     "count": 1
