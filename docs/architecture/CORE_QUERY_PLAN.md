@@ -173,3 +173,29 @@ owns any separately approved infrastructure/provider/production policy change.
 Keep every source gap, compatibility exception and failed/unrun check visible in
 #134 and the web QA report. Architecture acceptance remains open until that exact
 record supports the original criteria.
+
+## Chores board streak projection — 2026-10-24 (#134/#137, local source)
+
+`chore-streak-read.ts` replaces the board's unbounded seven-day `findMany` of
+completion rows/titles. It requests only account assignees present in the loaded
+board, deduplicated in200-ID batches. Each SQL query pins the household, requested
+account IDs, completed/verified status and the exact seven badge-day keys, with a
+half-open TIMESTAMP(3) UTC storage range. PostgreSQL groups account/day, returning
+at most1,400 markers per batch regardless of the number of same-day completions.
+Unexpected scope/duplicates/overflow fail without a partial badge map. Profile-only
+rows remain outside account streaks; gamification-off pages skip the helper.
+
+Preserved: consecutive days beginning today, minimum3 to show, maximum7; existing
+server-local-midnight converted to UTC-day keys. One captured clock is reused for
+all batches. This does not redefine household-timezone/DST semantics or credit,
+verification, recurrence, lifetime streaks or history. No new shared-device field.
+
+Payload/statement growth now follows displayed assignees; database scan/grouping
+cost still follows matching completions. Existing `Chore(family_id, assigned_to)`
+index is relevant but no plan or latency claim follows. Later fixture EXPLAIN must
+compare the existing index with a candidate partial composite
+`(family_id, assigned_to, completed_at) WHERE status IN ('completed','verified')`
+and its write/storage cost before any index migration. Cross-batch consistency is
+not a new snapshot guarantee. No index/schema/migration or database operation ran.
+Authored pure and guarded PostgreSQL source cases are unrun; real grouping/date/
+scoping equivalence and the broader N+1/capacity acceptance remain open.

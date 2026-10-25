@@ -52,17 +52,18 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work surfaces the existing summary notification destination
-in the personal inbox (#141). A shared exact destination mapper permits only the
-currently emitted canonical Today path; arbitrary origins, protocols, query/fragment
-variants, private routes and unsupported object URLs stay inactive. EN/ES Open links
-have44px targets and title-specific accessible names; rendering a link does not
-mark read or navigate. Existing rows without recognized destinations remain usable.
-No sender, API, permission, provider or schema change. Task/object-specific links
-remain unfinished and need original-household binding plus current role/feature/
-record checks and a useful unavailable fallback. Regression source authored/unrun;
-no QA/test/check/build/browser/CI/API/database/provider/native/push/merge/deploy ran.
-Original cold/warm/deleted-target/device/delivery acceptance stays open.
+Latest bounded source work replaces the chores board's unbounded completion
+history preload with a grouped streak projection (#134/#137). Only displayed
+account assignees are queried in200-ID batches, returning at most seven distinct
+day markers per account with no chore title/body hydration. Parent/teen/child
+board data, profile-only exclusion, completed/verified status policy, consecutive
+count,3-day display threshold,7-day cap and existing server-local/UTC-key behavior
+remain. A single captured clock prevents a cross-midnight key shift within this
+read. Dense-day/database aggregation scan cost and across-batch snapshots are not
+claimed bounded or proved. Pure/guarded disposable-PostgreSQL source authored but
+unrun. No schema/index activation, QA/test/check/build/browser/CI/API/database/
+provider/native/push/merge/deploy ran. Full query audit/plans/capacity and original
+isolation/runtime acceptance remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

@@ -1,3 +1,4 @@
+import { readChoreStreaks } from "@/lib/chore-streak-read";
 import {
   hiddenRoutineOccurrenceIds,
   scheduledOnceRoutineOccurrenceIds,
@@ -104,55 +105,11 @@ export default async function ChoresPage() {
     : null;
   const chores = [...historyPage, ...current].sort(compareChoreOrder);
 
-  // Compute streak per assignee: count of consecutive days with completed chores in last 7 days
-  const streakMap: Record<string, number> = {};
-  if (familyId && gamification) {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-
-    const completedChores = await prisma!.chore.findMany({
-      where: {
-        family_id: familyId,
-        status: { in: ["completed", "verified"] },
-        completed_at: { gte: sevenDaysAgo },
-      },
-      select: { assigned_to: true, completed_at: true, title: true },
-      orderBy: { completed_at: "asc" },
-    });
-
-    // Group by assignee
-    const byAssignee: Record<string, Date[]> = {};
-    for (const c of completedChores) {
-      // Profile-only chores intentionally have no account assignee. They can
-      // still appear on the board, but must not be counted in account streaks.
-      if (!c.assigned_to || !c.completed_at) continue;
-      if (!byAssignee[c.assigned_to]) byAssignee[c.assigned_to] = [];
-      byAssignee[c.assigned_to].push(new Date(c.completed_at));
-    }
-
-    for (const [assigneeId, dates] of Object.entries(byAssignee)) {
-      // Get unique days
-      const daySet = new Set<string>();
-      for (const d of dates) daySet.add(d.toISOString().split("T")[0]);
-      const sortedDays = Array.from(daySet).sort();
-      // Count consecutive days from today backwards
-      let streak = 0;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      for (let i = 0; i < 7; i++) {
-        const checkDate = new Date(today);
-        checkDate.setDate(today.getDate() - i);
-        const dayStr = checkDate.toISOString().split("T")[0];
-        if (daySet.has(dayStr)) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-      streakMap[assigneeId] = streak >= 3 ? streak : 0;
-    }
-  }
+  // Badge-only projection for displayed account assignees; no full completion history.
+  // Profiles retain their own subject policy and never inherit an account streak.
+  const streakMap = familyId && gamification
+    ? await readChoreStreaks(prisma!, familyId, chores.map(chore => chore.assigned_to))
+    : {};
 
   // Get family members for assignment
   const familyMembers = familyId

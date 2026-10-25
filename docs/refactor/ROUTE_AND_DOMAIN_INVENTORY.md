@@ -1694,3 +1694,14 @@ values do not navigate or invalidate the row. No API/sender/write/schema/provide
 change. Object-specific original-household/record/role/deletion resolution remains
 unfinished; source-backed next contract is in NOTIFICATION_SNOOZE.md. Pure/mounted
 cases authored/unrun; actual link/navigation/native acceptance remains open.
+
+### Chores board streak payload — 2026-10-24 (#134/#137)
+
+The SSR board now calls `readChoreStreaks` only for loaded account assignees when
+gamification is enabled. Household/account/status/exact-day-scoped SQL groups day
+markers in200-assignee batches; maximum7 markers/account, no titles/completion-row
+hydration. Existing3-day threshold/7-day maximum/profile exclusion and date-key
+policy remain. Whole-history preload is removed; database scan cost/snapshots are
+not claimed bounded. Index-plan next evidence is recorded in CORE_QUERY_PLAN.md;
+no index/schema/DB activation. Pure/disposable-PG source cases authored/unrun; full
+query/isolation/date/runtime/capacity acceptance stays open.
