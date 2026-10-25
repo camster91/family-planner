@@ -1593,3 +1593,18 @@ concurrency or an idempotent receipt. Regression source authored but unrun; fake
 transactions prove no PG locks/rollback. No QA/test/check/build/browser/CI/API/
 database/provider/push/merge/deploy ran. Broader repeat editing and original calendar/
 isolation/native/release acceptance remain open.
+
+## Event create/replay lifecycle authority — 2026-10-24 (source only)
+
+Latest bounded source work shares current User/household/session/known-role
+calendar authority across create, completed-create replay and edit (#134/#124).
+Normal creation now renews lifecycle authority before event/activity effects or
+private receipt reads, and normal keyed replay has the same renewal as AI-backed
+recovery. Parent/teen/child create and parent-only edit policy, key/hash/receipt
+semantics and optional beta counting remain. AI first effects retain source/lease
+verification; completed replay renews ownership without requiring fresh source.
+Outer idempotency claim/refusal ledger writes can precede the effect check. No new
+permissions, provider/offline action or activation. Regression/integration source
+authored/adapted but unrun; fake transactions prove no PG concurrency/rollback.
+No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy ran.
+Original isolation/calendar/native/release acceptance remains open.

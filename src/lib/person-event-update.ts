@@ -2,24 +2,17 @@
 import type { PrismaClient } from "@prisma/client";
 import type { z } from "zod";
 import type { updateEventSchema } from "./validations";
-import { lockUser, lockHousehold } from "./household-lock";
+import { authorizePersonEventInTx, type PersonEventActor } from "./person-event-authority";
+import type { EffectResult } from "./idempotency";
 import { EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from "./calendar-import/source";
 export async function updatePersonEvent(
   db: Pick<PrismaClient, "$transaction">,
-  actor: { userId: string; familyId: string; tokenVersion: number },
+  actor: PersonEventActor,
   input: z.infer<typeof updateEventSchema>,
-) {
+): Promise<EffectResult> {
   return db.$transaction(async tx => {
-    await lockUser(tx, actor.userId);
-    await lockHousehold(tx, actor.familyId);
-    const user = await tx.user.findUnique({ where: { id: actor.userId },
-      select: { family_id: true, role: true, token_version: true } });
-    if (!user || user.token_version !== actor.tokenVersion)
-      return { status: 401, body: { error: "Unauthorized" } };
-    if (user.family_id !== actor.familyId || user.role !== "parent")
-      return { status: 403, body: { error: "Only parents in this household can edit events" } };
-    const family = await tx.family.findUnique({ where: { id: actor.familyId }, select: { id: true } });
-    if (!family) return { status: 404, body: { error: "Household not found" } };
+    const refused = await authorizePersonEventInTx(tx, actor, "edit");
+    if (refused) return refused;
     await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id"=${input.eventId} AND "family_id"=${actor.familyId} FOR UPDATE`;
     const event = await tx.event.findFirst({ where: { id: input.eventId, family_id: actor.familyId },
       select: { start_time: true, end_time: true, recurrence: true, source_subscription_id: true } });

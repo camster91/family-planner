@@ -5,7 +5,6 @@ import {
 } from "@/lib/person-record-delete";
 import {
   assistantSourceGuard,
-  authorizeAssistantSourceReplay,
   AssistantSourceRefused,
 } from "@/lib/assistant-source-proof";
 import { guardReviewDocumentSubmission } from "@/lib/review-document-submit-server";
@@ -27,7 +26,7 @@ import {
 } from "@/lib/calendar-import/source";
 import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
 import { updatePersonEvent } from "@/lib/person-event-update";
-import { createPersonEvent } from "@/lib/person-event-create";
+import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import {
@@ -220,6 +219,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const actor = {
+      familyId: auth.user.family_id, userId: auth.user.id,
+      tokenVersion: auth.payload.tv ?? 0, name: auth.user.name,
+    };
     const sourceGuard = assistantSourceGuard(
       request,
       {
@@ -244,17 +247,13 @@ export async function POST(request: NextRequest) {
         createPersonEvent(
           prisma!,
           parsed.data,
-          {
-            familyId: auth.user.family_id,
-            userId: auth.user.id,
-            name: auth.user.name,
-          },
+          actor,
           recordId,
           sourceGuard,
         ),
       {
         beforeReplay: () =>
-          authorizeAssistantSourceReplay(prisma!, sourceGuard),
+          authorizePersonEventCreationReplay(prisma!, actor, sourceGuard),
       },
     );
     response.headers.set("Cache-Control", "private, no-store");

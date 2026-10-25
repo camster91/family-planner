@@ -138,6 +138,39 @@ locking/rollback, cross-household concurrency or native/rendered acceptance. No
 API, DB, test, build, browser, provider or deployment was executed. Broader rule
 editing, complete semantic validation and all original #124 criteria remain open.
 
+## Event creation and completed-response authority — 2026-10-24, source only
+
+`person-event-authority.ts` now supplies the shared User-then-household lock and
+fresh session-generation/membership/known-role/household-existence check for
+creation, completed-create replay and editing. Existing role policy remains:
+parent/teen/child may create via the canonical API; only parents edit. UI role
+allowlists are unchanged. Unknown roles and changed household/session refuse.
+
+Normal and assistant-backed creation both renew authority inside the transaction
+before event/activity effects or an in-transaction private receipt read. The API
+also supplies a replay guard for **all** completed keyed responses, including
+normal captures without assistant proof. An actor who left the original family
+cannot recover its old private event response through a request authenticated
+before the membership change. Input hash/key/expiry, canonical event/activity and
+receipt writes, and opt-in post-commit beta counting remain unchanged. An outer
+idempotency claim/refusal record can still be created before the effect check;
+this is not a promise of zero ledger writes on an authority refusal.
+
+Assistant ownership authorization is retained; uncommitted effects still verify
+current source/lease. Completed replay renews ownership without re-verifying an
+expired or changed source, preserving recovery of an already committed event.
+No proof, old name or client family value supplies current household authority.
+No new create/edit permission, feature activation, provider dispatch, scheduler,
+offline action, migration or separate event store is added.
+
+Regression source includes all three allowed create roles, changed household/
+session/unknown role, absent household, normal replay refusal, assistant replay
+without second source verification, and no repeated event/activity/beta effects.
+Existing opt-in assistant integration source is adapted to the new actor/replay
+contract; nothing was run. Fake transactions do not prove real lock ordering,
+concurrency, rollback or lifecycle/native acceptance. Full #124/#134/#136 gates
+remain open.
+
 ## Product modes and actual ownership
 
 | Mode | Current source behavior | Explicit limit |
