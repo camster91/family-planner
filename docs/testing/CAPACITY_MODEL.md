@@ -55,10 +55,12 @@ Build relations through canonical fixture/domain constructors; do not bypass
 receipt, proof, stock or credit invariants to obtain large counts. Preserve fixture
 version and row-count manifest, without storing tokens or private request bodies.
 
-Calendar-heavy feeds intentionally exceed the current 2,000-event export cap.
-Current recovery source refuses overflow rather than emitting a successful
-partial feed. Record that refusal as unavailable large-feed delivery, never a
-passing complete export; provider-specific error handling remains unverified. A separate complete-feed design/implementation remains needed.
+The2,400-event calendar-heavy profile now fits the authored10,000-event ICS
+count limit (formerly2,000); assembled output is also capped at16MiB. Bounded
+snapshot assembly source is not a completed export/provider result. Larger count
+or byte fixtures must record a whole-feed refusal as unavailable delivery, never
+a successful partial source. Provider-specific handling and snapshot/query/memory
+behavior remain unverified. See `../product/CALENDAR_INTEROPERABILITY.md`.
 
 ## Traffic mix
 

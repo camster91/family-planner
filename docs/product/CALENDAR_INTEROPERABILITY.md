@@ -16,12 +16,20 @@ UIDs, timestamps, recurrence grammar, date range and cache headers are unchanged
 Multibyte/emoji, newline-escaping and ASCII-boundary cases are authored/unrun.
 No provider access, sync, QA/build/browser/API/database or release ran.
 
-The export now reads2,001 rows to detect overflow beyond its prior2,000-event
-capacity. Overflow returns503/no-store with `CALENDAR_FEED_TOO_LARGE` and no partial
-ICS; supported feeds retain their successful format/cache contract. Subscription
+The export now assembles a complete feed with200-row `(start_time,id)` keyset
+reads inside one30-second RepeatableRead transaction, including token/household
+resolution. The former2,000-event refusal is replaced by explicit10,000-event
+and16MiB assembled-wire limits. One-row lookahead detects the count boundary.
+No successful ICS bytes are returned until all pages and the final END marker
+are assembled. Overflow still returns503/no-store with
+`CALENDAR_FEED_TOO_LARGE`; supported feeds retain the successful format/cache
+contract and stable UID/timestamps. Only feed fields are selected. This does not
+prove database/JS peak memory, serialization cost, concurrency/snapshot behavior,
+query plans or provider handling; unusually wide legacy DB rows can still incur
+read allocation before the output budget is enforced. Subscription
 imports refuse capped parse results before reconciliation and retain existing
 events plus last-complete ETag/Last-Modified. These changes are authored/unrun.
-Oversized complete export remains unavailable. Identified malformed series now
+Export above the new count/byte limits remains unavailable. Identified malformed series now
 refuse the whole parse before reconciliation; concatenated calendar documents
 also refuse instead of silently reading the first. Existing cancellation/no-UID
 rules remain. The parser normalizes library errors and rejects invalid coverage

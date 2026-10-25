@@ -1534,3 +1534,18 @@ object overhead, lock duration or query plans. No unlink writer/endpoint/UI or
 account activation is connected. Regression source authored/adapted but unrun.
 No QA/test/check/build/browser/CI/API/database/native/provider/push/merge/deploy
 ran. Full unlink/provenance/domain/credit/Undo and original acceptance remain open.
+
+## Complete bounded ICS assembly — 2026-10-24 (source only)
+
+Latest bounded source work replaces the2,000-event ICS refusal with complete
+snapshot assembly (#124/#134). Token/household resolution and projected200-row
+(start_time,id) keyset reads share one30-second RepeatableRead transaction.
+Successful output is assembled only after complete traversal; explicit10,000-event
+and16MiB wire limits retain whole-feed503/no-store refusal. Stable UID/timestamps,
+UTF-8 folding, range/recurrence and successful cache behavior remain. Wider legacy
+DB rows still allocate before the wire budget; total DB/JS memory, query plans,
+snapshot/concurrency and provider behavior are unmeasured. Regression source for
+2,400/exact-limit equal-date traversal, count/byte refusal and transaction options
+is authored/adapted but unrun; fake transactions prove no PG isolation. No QA/test/
+check/build/browser/CI/API/database/provider/push/merge/deploy ran. Original calendar/
+role/isolation/native and all release acceptance remain open.
