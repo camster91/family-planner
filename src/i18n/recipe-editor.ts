@@ -60,8 +60,19 @@ export const recipeEditorEnglish = {
   revisionConflict:
     "This recipe changed elsewhere. Your edits are kept here. Close and reload the saved recipe before applying them again.",
   uncertainCreate:
-    "The recipe may have been saved. Check the same save to confirm it without creating a second recipe. These fields stay locked until confirmed; closing keeps the server result unchanged.",
-  retryCreate: "Check the same save",
+    "The recipe may have been saved. Check its original status without sending it again. These fields stay locked; closing keeps the server result unchanged.",
+  retryCreate: "Retry original save",
+  inspectCreate: "Check original save",
+  moreRecovery: "More recovery options",
+  openRecipeBox: "Open recipe box",
+  receiptPresent: "Your original save is confirmed. Open your recipe box to find it.",
+  receiptRemoved: "Your original save committed, but its recipe is no longer available here.",
+  receiptUnknown: "A save was recorded, but the original recipe cannot be confirmed. Keep this request.",
+  receiptAbsent: "No matching receipt was found. This does not confirm whether the recipe saved; your original request stays locked.",
+  receiptPending: "The original save is still being confirmed. Check again in a moment.",
+  receiptExpired: "The receipt has expired. Check your recipe box; do not repeat this old request as a new save.",
+  receiptRefused: "This check could not confirm the original save. Your request stays locked.",
+  receiptUnavailable: "Could not check the original save. Your request is kept; try checking again.",
   expiredCreate:
     "This save is too old to retry safely. Close and check your recipe box before making a separate new recipe.",
   contentTooLong:
@@ -161,8 +172,19 @@ export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
   revisionConflict:
     "La receta cambió en otro lugar. Tus cambios se conservan aquí. Cierra y vuelve a cargar la receta antes de aplicarlos de nuevo.",
   uncertainCreate:
-    "La receta puede haberse guardado. Comprueba el mismo guardado para confirmarlo sin crear otra receta. Los campos quedan bloqueados hasta confirmarlo; cerrar no cambia el resultado del servidor.",
-  retryCreate: "Comprobar el mismo guardado",
+    "La receta puede haberse guardado. Comprueba su estado original sin enviarla de nuevo. Los campos siguen bloqueados; cerrar no cambia el resultado del servidor.",
+  retryCreate: "Reintentar guardado original",
+  inspectCreate: "Comprobar guardado original",
+  moreRecovery: "Más opciones de recuperación",
+  openRecipeBox: "Abrir recetas guardadas",
+  receiptPresent: "El guardado original está confirmado. Búscalo en tus recetas guardadas.",
+  receiptRemoved: "El guardado original se completó, pero la receta ya no está disponible aquí.",
+  receiptUnknown: "Se registró un guardado, pero no se puede confirmar la receta original. Conserva esta solicitud.",
+  receiptAbsent: "No se encontró el comprobante. Esto no confirma si se guardó la receta; la solicitud original sigue bloqueada.",
+  receiptPending: "El guardado original aún se está confirmando. Vuelve a comprobarlo en un momento.",
+  receiptExpired: "El comprobante caducó. Revisa tus recetas; no repitas esta solicitud antigua como un guardado nuevo.",
+  receiptRefused: "No se pudo confirmar el guardado original. La solicitud sigue bloqueada.",
+  receiptUnavailable: "No se pudo comprobar el guardado original. La solicitud se conserva; vuelve a comprobarlo.",
   expiredCreate:
     "Este guardado es demasiado antiguo para repetirlo con seguridad. Cierra y revisa las recetas guardadas antes de crear otra receta.",
   contentTooLong:

@@ -13,6 +13,7 @@ import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import { RecipeDraftBoundary } from "./RecipeDraftBoundary";
 import type { RecipeEditableDocument } from "@/lib/review-document-contract";
+import type { ReviewReceiptState } from "@/lib/review-document-store";
 import type { RecipeOption } from "./RecipePicker";
 import type { RecipeDetailData } from "./RecipeDetail";
 
@@ -226,6 +227,15 @@ function RecipeEditorForm({
   const [error, setError] = React.useState<string | null>(null);
   const [uncertain, setUncertain] = React.useState(false);
   const uncertainRef = React.useRef(false);
+  const [receiptState, setReceiptState] = React.useState<ReviewReceiptState | null>(null);
+  const [receiptFailed, setReceiptFailed] = React.useState(false);
+  const receiptLive = React.useRef(true);
+  const receiptEpoch = React.useRef(0);
+  const receiptController = React.useRef<AbortController | null>(null);
+  React.useEffect(() => {
+    receiptLive.current = true;
+    return () => { receiptLive.current = false; receiptEpoch.current++; receiptController.current?.abort(); };
+  }, []);
   const creationAttempt = React.useRef<{
     key: string;
     body: string;
@@ -444,10 +454,48 @@ function RecipeEditorForm({
       });
   }
 
+  async function inspectCreation() {
+    const attempt = creationAttempt.current;
+    if (initialRecipe || !attempt || mutationPending.current || disabled || isMutationPending?.()) return;
+    mutationPending.current = true;
+    const own = ++receiptEpoch.current;
+    const abort = new AbortController();
+    receiptController.current = abort;
+    setSaving(true);
+    onSavingChange?.(true);
+    setError(null);
+    setReceiptFailed(false);
+    try {
+      const result = await runOwnedForeground(async signal => {
+        const { inspectRecipeCreateReceipt } = await import("@/lib/review-document-receipts");
+        if (signal.aborted) return { kind: "unknown" as const };
+        try {
+          return { kind: "receipt" as const, state: await inspectRecipeCreateReceipt(
+            { key: attempt.key, body: attempt.body }, originalRecipeOwner.current ?? undefined, signal) };
+        } catch (error) {
+          if (error && typeof error === "object" && "reason" in error && error.reason === "OWNER_CHANGED")
+            return { kind: "owner-held" as const };
+          throw error;
+        }
+      }, { signal: abort.signal, timeoutMs: 15_000 });
+      if (!receiptLive.current || own !== receiptEpoch.current) return;
+      if (result.kind === "owner-held") { onOwnerHold?.(); return; }
+      if (result.kind === "receipt") setReceiptState(result.state);
+      else setReceiptFailed(true);
+    } finally {
+      if (receiptLive.current && own === receiptEpoch.current) {
+        mutationPending.current = false;
+        setSaving(false);
+        onSavingChange?.(false);
+      }
+    }
+  }
+
   async function retryCreation() {
     if (
       initialRecipe ||
       !creationAttempt.current ||
+      receiptState?.state === "committed" || receiptState?.state === "expired" ||
       mutationPending.current ||
       disabled ||
       isMutationPending?.()
@@ -655,6 +703,11 @@ function RecipeEditorForm({
       if (!initialRecipe) void submit();
     }
   };
+
+  const receiptMessage = receiptFailed ? "receiptUnavailable" : receiptState?.state === "committed"
+    ? ({ present: "receiptPresent", removed: "receiptRemoved", unknown: "receiptUnknown" } as const)[receiptState.current]
+    : receiptState ? ({ absent: "receiptAbsent", pending: "receiptPending", expired: "receiptExpired",
+        "duplicate-source": "receiptRefused", refused: "receiptRefused" } as const)[receiptState.state] : null;
 
   return (
     <fieldset
@@ -926,13 +979,16 @@ function RecipeEditorForm({
         </Link>
       )}
       {uncertain && !initialRecipe && (
-        <button
-          type="button"
-          className="btn-tinted min-h-[44px]"
-          onClick={() => void retryCreation()}
-        >
-          {text("retryCreate")}
-        </button>
+        <div className="space-y-2">
+          {receiptMessage && <p role={receiptFailed ? "alert" : "status"} className="text-footnote">{text(receiptMessage)}</p>}
+          <button type="button" className="btn-tinted min-h-[44px]" onClick={() => void inspectCreation()}>{text("inspectCreate")}</button>
+          {receiptState?.state === "committed" && <Link href="/dashboard/meals/explore" className="btn-plain min-h-[44px] inline-flex items-center">{text("openRecipeBox")}</Link>}
+          <details>
+            <summary className="min-h-[44px] flex items-center cursor-pointer">{text("moreRecovery")}</summary>
+            <button type="button" className="btn-plain min-h-[44px]" disabled={receiptState?.state === "committed" || receiptState?.state === "expired"}
+              onClick={() => void retryCreation()}>{text("retryCreate")}</button>
+          </details>
+        </div>
       )}
       <div className="flex gap-2">
         <button

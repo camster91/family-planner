@@ -116,3 +116,19 @@ export async function inspectChoreCreateReceipt(
     "Idempotency-Key": original.key, "X-Chore-Create-Action": original.action, "X-Chore-Request-Hash": hash,
   }), signal);
 }
+
+/** Ordinary create inspection uses the same canonical state-only receipt path. */
+export async function inspectRecipeCreateReceipt(
+  original: { key: string; body: string },
+  expectedRecipeOwner?: RecipeOwner,
+  signal?: AbortSignal,
+): Promise<ReviewReceiptState> {
+  const parsed = createRecipeSchema.parse(JSON.parse(original.body));
+  if (expectedRecipeOwner && parsed.creation_owner && !sameRecipeOwner(parsed.creation_owner, expectedRecipeOwner))
+    throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+  const hash = await hashBrowserIdempotentRequest("recipe.create", parsed);
+  if (signal?.aborted || !/^[a-f0-9]{64}$/.test(hash)) throw new OwnedRequestRecoveryError("UNAVAILABLE");
+  const headers = new Headers({ "Idempotency-Key": original.key, "X-Recipe-Request-Hash": hash });
+  if (expectedRecipeOwner) headers.set(RECIPE_OWNER_HEADER, JSON.stringify(expectedRecipeOwner));
+  return readReceiptAt("/api/recipes/receipt", headers, signal, expectedRecipeOwner);
+}
