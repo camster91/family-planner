@@ -512,7 +512,8 @@ export async function createProfileOnlyChoreInTx(
     { kind: "chore", id: chore.id },
     now,
   );
-  const body = options.compactReceipt ? { choreId: chore.id } : { chore: dto };
+  const identity = { choreId: chore.id, choreGeneration: chore.responsibility_generation };
+  const body = options.compactReceipt ? identity : { chore: dto, ...identity };
   if (recordId) {
     await tx.idempotencyRecord.update({
       where: { id: recordId },

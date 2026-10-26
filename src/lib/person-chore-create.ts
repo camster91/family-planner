@@ -153,7 +153,7 @@ export async function createPersonChore(
         new Date(chore.created_at.getTime() + notificationWindowMs));
       deliveredInTransaction.add(chore.id);
     }
-    const body = { choreId: chore.id };
+    const body = { choreId: chore.id, choreGeneration: chore.responsibility_generation };
     if (recordId)
       await tx.idempotencyRecord.update({
         where: { id: recordId },
