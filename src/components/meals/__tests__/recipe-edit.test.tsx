@@ -582,3 +582,37 @@ it.each(['missing', 'changed', 'denied'] as const)('holds a bound edit with %s o
   expect(onSaved).not.toHaveBeenCalled();
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
+
+// Authored UNRUN: editor containment does not depend on its parent reacting.
+it.each(['absent', 'throws'] as const)('masks its own private fields when the owner callback %s', async callback => {
+  const json = jest.fn();
+  const onOwnerHold = callback === 'throws' ? jest.fn(() => { throw new Error('Parent handoff failed') }) : undefined;
+  global.fetch = jest.fn(async () => ({ ok:false, status:403, json }) as unknown as Response) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
+    onOwnerHold={onOwnerHold} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target:{ value:'Private draft' } });
+  const retainedSave = clickHandler(screen.getByRole('button', { name:'Save recipe' }));
+  fireEvent.click(screen.getByRole('button', { name:'Save recipe' }));
+  await screen.findByText('Your account or household context changed. Reload before continuing with recipes.');
+  expect(screen.queryByLabelText('Recipe name')).toBeNull();
+  expect(screen.queryByRole('button', { name:'Save recipe' })).toBeNull();
+  expect(screen.getByRole('button', { name:'Reload' })).toBeTruthy();
+  await act(async () => { retainedSave() });
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(json).not.toHaveBeenCalled();
+});
+
+it('does not forward the old recipe draft to a new owner callback after a prop change', async () => {
+  const originalDraft = jest.fn();
+  const newDraft = jest.fn();
+  global.fetch = jest.fn() as typeof fetch;
+  const view = render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
+    onDraftChange={originalDraft} onCancel={jest.fn()} />);
+  expect(originalDraft).toHaveBeenCalled();
+  view.rerender(<RecipeEditor initialRecipe={RECIPE}
+    expectedRecipeOwner={{ ...originalOwner, familyId:'family-b' }} onDraftChange={newDraft} onCancel={jest.fn()} />);
+  await screen.findByRole('button', { name:'Reload' });
+  expect(screen.queryByLabelText('Recipe name')).toBeNull();
+  expect(newDraft).not.toHaveBeenCalled();
+  expect(global.fetch).not.toHaveBeenCalled();
+});

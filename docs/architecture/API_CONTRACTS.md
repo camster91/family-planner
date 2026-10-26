@@ -2131,3 +2131,26 @@ changed-owner and denied-access responses; the decoder must remain uncalled.
 They are UNRUN. No conclusion about server commit/rollback, body transport
 cancellation, exact receipt recovery or durable pending state follows from
 this response hold. No QA/checks/build/browser/DB/CI/push/merge/deploy ran.
+
+
+### Recipe editor local owner containment — 2026-10-26 source candidate
+
+The form now owns a sticky original-owner hold in addition to notifying its
+containing page. A changed/missing owner prop masks private fields during the
+render; the effect retires the request epoch, aborts local foreground work and
+releases busy state. Response/receipt owner refusals use the same local hold.
+Optional missing/throwing parent callbacks cannot restore fields or prevent
+containment. Reload guidance is typed EN/ES and receives focus when appropriate.
+
+Retained submit/retry/inspection/confirmation handlers refuse held work, and
+write preflight compares the current owner ref rather than a dispatch closure's
+old prop. The draft-change effect does not forward old private content to a
+changed-owner callback. The original pending request body/key remain untouched;
+no journal is purged, ownership reassigned, retry inferred or server rollback
+asserted. Same-owner draft editing outside these signals is unchanged.
+
+Three fixture cases describe absent/throwing callbacks and a prop-only owner
+change without writes or forwarding the old draft. They are UNRUN. Durable
+restore/cross-tab ownership, actual effect outcomes, full session identity and
+role/native/rendered acceptance remain separate. No QA/checks/build/browser/
+DB/CI/push/merge/deploy or activation ran.
