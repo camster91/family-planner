@@ -54,17 +54,15 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): default-off atomic reward approval
-is connected to the canonical conditional transition and receipt, using a stored
-approval UUID and the shared original-session/household/feature participant locks.
-Changed claimant candidates hold before effects; departed/deleted claimants receive
-no content. Explicit suppressed empty recipient slots now seal approval and empty
-claim rosters against later recipient adoption. No second approval/XP engine or
-legacy double send. Additive schema/migration and regression sources authored,
-unrun; both identity migrations and Prisma generation remain prerequisites even
-for flag-off deployment. Durable recovery/wider producer and all runtime/rollout/
-restore/role/device acceptance remain open. No QA, activation, push, merge or
-deployment ran.
+Latest bounded source work (2026-10-25): reward create/update/claim/approve
+HTTP paths now carry original session generation through shared role/household/
+Rewards authorization. Canonical mutations authorize before internal receipt
+replay, actual User/Family rows are fenced before source/receipt reads, and a
+shared final-success guard renews access after effect/notification/replay waits
+before disclosing reward/XP data. Late loss/unknown holds do not claim rollback;
+known refusals retain their original reason. Regression source authored/unrun.
+Collection/SSR/client recovery and wider notification/rollout/restore/runtime/
+role/device acceptance remain. No QA, activation, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

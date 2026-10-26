@@ -772,3 +772,35 @@ role/quiet-hour/erasure/export/runtime/rendered/provider/device acceptance is
 claimed. Durable dispatch/recovery, manual/new-reward/reassignment/summary source
 coverage and original #141 acceptance remain unfinished. No QA, DB, migration,
 generation, build/browser/CI, provider/scheduler/native activation or release ran.
+
+
+## Reward original-access receipt and response boundaries — 2026-10-25
+
+All four HTTP reward writers (create/update/claim/approve) now forward the
+original authenticated session generation. Their shared actor check requires
+that original generation and role as well as household, effective Rewards and
+parent-only policy where applicable. User and Family FOR SHARE locks follow
+ordered User/household lifecycle locks before source or receipt reads. Internal
+legacy callers without session context keep their existing compatibility path;
+no current HTTP writer silently reconstructs a missing original generation from
+later DB state. Atomic notification cohorts already own stronger participant
+locks and continue to use the same shared actor check.
+
+All four canonical mutations now authorize before reading a completed internal
+receipt; previously that internal branch could return the cached private body
+first. The outer withIdempotency beforeReplay guard uses the same original-access
+check. After successful mutation/replay and any legacy notification/metric waits,
+a shared response guard renews original access again before disclosing reward/XP
+content. Late loss returns private/no-store REWARD_ACCESS_CHANGED, while an
+unavailable renewal returns503 REWARD_ACCESS_UNCONFIRMED. Both explicitly say a
+request may already have saved: this is no rollback claim. Known non-success
+refusals preserve their original status/reason and receive no-store headers.
+No generic idempotency engine, lease, retention window or retry key is changed.
+
+Authored unrun cases cover actual-row locking, revoked generation before receipt,
+changed original role even on non-parent-only operations, late successful-body
+withholding, unavailable renewal and preserving known refusals. No actual SQL,
+concurrency/session/feature/receipt/interleaving/device/rendered acceptance ran.
+Normal reward collection/SSR authority and client uncertain-key retirement remain
+separate source/acceptance concerns; no whole-Rewards privacy certification.
+No schema/migration/generation, QA/build/browser/CI, flag activation or release ran.

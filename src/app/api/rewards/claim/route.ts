@@ -1,3 +1,4 @@
+import { protectRewardResponse } from "@/lib/reward-response"
 import { rewardNotificationDestination } from "@/lib/notification-destination"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return response
+    return protectRewardResponse(prisma!, actor, false, response)
   } catch (error) {
     if (error instanceof InsufficientRewardXpError) {
       return NextResponse.json({ error: 'Not enough points for this reward' }, { status: 400 })

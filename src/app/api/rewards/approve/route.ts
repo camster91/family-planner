@@ -1,3 +1,4 @@
+import { protectRewardResponse } from "@/lib/reward-response"
 import { rewardNotificationDestination } from "@/lib/notification-destination"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return response
+    return protectRewardResponse(prisma!, actor, true, response)
   } catch (error) {
     logRouteError('POST /api/rewards/approve', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

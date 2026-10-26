@@ -27,7 +27,7 @@ type UpdateRewardInput = z.infer<typeof updateRewardSchema>;
 type ClaimRewardInput = z.infer<typeof claimRewardSchema>;
 
 export type RewardActor = {
-  /** Required by the explicitly enabled atomic claim cohort; never renewed from DB. */
+  /** Original HTTP session generation; never renewed from a later DB value. */
   tokenVersion?: number;
   familyId: string;
   userId: string;
@@ -81,7 +81,7 @@ async function authorizeRewardActorLocked(
   const [currentActor, family] = await Promise.all([
     tx.user.findUnique({
       where: { id: actor.userId },
-      select: { id: true, role: true, family_id: true },
+      select: { id: true, role: true, family_id: true, token_version: true },
     }),
     tx.family.findUnique({
       where: { id: actor.familyId },
@@ -89,6 +89,10 @@ async function authorizeRewardActorLocked(
     }),
   ]);
 
+  if (actor.tokenVersion !== undefined && (!Number.isSafeInteger(actor.tokenVersion) || actor.tokenVersion < 0
+      || !currentActor || currentActor.token_version !== actor.tokenVersion || currentActor.role !== actor.role)) {
+    return { status: 401, body: { error: "Unauthorized", code: "REWARD_ACCESS_CHANGED" } };
+  }
   if (!family || !currentActor || currentActor.family_id !== actor.familyId) {
     return { status: 400, body: { error: "No family" } };
   }
@@ -106,6 +110,12 @@ async function authorizeRewardActorLocked(
 async function lockRewardMembership(tx: RewardTx, actor: RewardActor): Promise<void> {
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
+  if (actor.tokenVersion !== undefined) {
+    // Actual rows fence ordinary token/role/feature updates that do not use an
+    // advisory lifecycle lock. Never replace the original cookie generation.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE`;
+    await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
+  }
 }
 
 async function receiptResult(
@@ -156,10 +166,10 @@ export async function createReward(
 ): Promise<RewardMutation> {
   return db.$transaction(async (tx) => {
     await lockRewardMembership(tx, actor);
-    const replay = await receiptResult(tx, actor, recordId);
-    if (replay) return { result: replay, applied: false };
     const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
+    const replay = await receiptResult(tx, actor, recordId);
+    if (replay) return { result: replay, applied: false };
 
     const reward = await tx.reward.create({
       data: {
@@ -187,10 +197,10 @@ export async function updateReward(
 ): Promise<RewardMutation> {
   return db.$transaction(async (tx) => {
     await lockRewardMembership(tx, actor);
-    const replay = await receiptResult(tx, actor, recordId);
-    if (replay) return { result: replay, applied: false };
     const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
+    const replay = await receiptResult(tx, actor, recordId);
+    if (replay) return { result: replay, applied: false };
 
     const current = await tx.reward.findUnique({
       where: { id: input.rewardId },
@@ -239,10 +249,10 @@ export async function claimReward(
   return db.$transaction(async (tx) => {
     if (notificationPlan) await lockRewardClaimNotificationPlan(tx, notificationPlan);
     else await lockRewardMembership(tx, actor);
-    const replay = await receiptResult(tx, actor, recordId);
-    if (replay) return { result: replay, applied: false };
     const denied = await authorizeRewardActorLocked(tx, actor, false);
     if (denied) return { result: denied, applied: false };
+    const replay = await receiptResult(tx, actor, recordId);
+    if (replay) return { result: replay, applied: false };
 
     const current = await tx.reward.findUnique({
       where: { id: input.rewardId },
@@ -342,10 +352,10 @@ export async function approveReward(
   return db.$transaction(async (tx) => {
     const recipientId = notificationPlan ? await lockRewardApprovalNotificationPlan(tx, notificationPlan) : null;
     if (!notificationPlan) await lockRewardMembership(tx, actor);
-    const replay = await receiptResult(tx, actor, recordId);
-    if (replay) return { result: replay, applied: false };
     const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
+    const replay = await receiptResult(tx, actor, recordId);
+    if (replay) return { result: replay, applied: false };
 
     const current = await tx.reward.findUnique({
       where: { id: input.rewardId },

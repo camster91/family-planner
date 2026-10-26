@@ -1,3 +1,4 @@
+import { protectRewardResponse } from "@/lib/reward-response"
 import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
-    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     let applied = false
     const response = await withIdempotency(
       prisma!,
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return response
+    return protectRewardResponse(prisma!, actor, true, response)
   } catch (error) {
     logRouteError('POST /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -167,8 +168,8 @@ export async function PATCH(request: NextRequest) {
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
-    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
-    return await withIdempotency(
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
+    const response = await withIdempotency(
       prisma!,
       key,
       { scope: `user:${actor.userId}`, familyId: actor.familyId, userId: actor.userId, action: 'reward.update' },
@@ -176,6 +177,7 @@ export async function PATCH(request: NextRequest) {
       ({ recordId }) => updateReward(prisma!, parsed.data, actor, recordId).then((mutation) => mutation.result),
       { beforeReplay: () => authorizeRewardReplay(prisma!, actor, true) },
     )
+    return protectRewardResponse(prisma!, actor, true, response)
   } catch (error) {
     logRouteError('PATCH /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
