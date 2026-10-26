@@ -43,3 +43,9 @@ it("preserves existing notification category semantics for accepted chore checks
   expect(NOTIFICATION_EVENT_IN_APP_TYPE["chore.returned"]).toBe("chore");
   expect(NOTIFICATION_EVENT_IN_APP_TYPE["chore.assignment"]).toBe("chore");
 });
+
+it("adds the actual reward birth kind without admitting arbitrary future events", () => {
+  expect(notificationEventEnvelope.safeParse({ ...event, kind: "reward.created", sourceId: "fixture-reward", transitionId: "created" }).success).toBe(true);
+  expect(NOTIFICATION_EVENT_IN_APP_TYPE["reward.created"]).toBe("reward");
+  expect(notificationEventEnvelope.safeParse({ ...event, kind: "reward.dynamic-future" }).success).toBe(false);
+});

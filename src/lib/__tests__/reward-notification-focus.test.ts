@@ -13,11 +13,11 @@ it("reads one current household claim without unrelated names/history/balance", 
   expect(await readRewardNotificationFocus(db as any, owner, row.id)).toEqual({ id: row.id, sourceGeneration: row.notification_generation, name: row.name, description: null, cost: 10, icon: "gift", status: "claimed", active: true, claimedById: row.claimed_by, claimedByName: null });
   expect(tx.reward.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: row.id, family_id: owner.familyId }) }));
 });
-it("restricts child and teen focus to their own account claims", async () => {
+it("allows active choices but restricts child and teen history to their own claims", async () => {
   for (const role of ["child", "teen"]) {
     const { tx, db } = setup(role);
     await readRewardNotificationFocus(db as any, { ...owner, role }, row.id);
-    expect(tx.reward.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ claimed_by: owner.userId }) }));
+    expect(tx.reward.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ OR: expect.arrayContaining([{ claimed_by: owner.userId }]) }) }));
   }
 });
 it("holds a revoked original session before target reads", async () => {
@@ -30,4 +30,11 @@ it("gives malformed, missing, foreign or disabled targets the same neutral resul
   expect(await readRewardNotificationFocus(missing.db as any, owner, row.id)).toBeNull(); expect(missing.tx.reward.findFirst).not.toHaveBeenCalled();
   const disabled = setup(); disabled.tx.$queryRaw.mockReset().mockResolvedValueOnce([{ family_id: owner.familyId, role: owner.role, token_version: 2 }]).mockResolvedValueOnce([{ features: { rewards: false } }]);
   expect(await readRewardNotificationFocus(disabled.db as any, owner, row.id)).toBeNull(); expect(disabled.tx.reward.findFirst).not.toHaveBeenCalled();
+});
+
+it("admits an active available household choice and withholds a retired choice", async () => {
+  const available = setup("child"); available.tx.reward.findFirst.mockResolvedValue({ ...row, status: "available", claimed_by: null } as any);
+  expect(await readRewardNotificationFocus(available.db as any, { ...owner, role: "child" }, row.id)).toMatchObject({ status: "available", active: true });
+  const retired = setup("child"); retired.tx.reward.findFirst.mockResolvedValue({ ...row, status: "available", is_active: false, claimed_by: null } as any);
+  expect(await readRewardNotificationFocus(retired.db as any, { ...owner, role: "child" }, row.id)).toBeNull();
 });

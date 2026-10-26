@@ -1,3 +1,4 @@
+import { prepareRewardCreationNotifications, lockRewardCreationNotificationPlan, recordRewardCreationNotificationsInTx } from "@/lib/reward-create-notification-event";
 import { checkRewardActionSourceInTx, rewardActionTimeRefusal, type RewardActionCommand } from "@/lib/reward-action-command";
 import { prepareRewardApprovalNotifications, lockRewardApprovalNotificationPlan, recordRewardApprovalNotificationInTx } from "@/lib/reward-approval-notification-event";
 import { randomUUID } from "node:crypto";
@@ -169,8 +170,10 @@ export async function createReward(
   actor: RewardActor,
   recordId: string | null,
 ): Promise<RewardMutation> {
+  const notificationPlan = await prepareRewardCreationNotifications(db, actor);
   return db.$transaction(async (tx) => {
-    await lockRewardMembership(tx, actor);
+    if (notificationPlan) await lockRewardCreationNotificationPlan(tx, notificationPlan);
+    else await lockRewardMembership(tx, actor);
     const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
     const replay = await receiptResult(tx, actor, recordId);
@@ -189,8 +192,9 @@ export async function createReward(
       include: { creator: { select: { id: true, name: true } } },
     });
     const result: EffectResult = { status: 200, body: { reward } };
+    if (notificationPlan) await recordRewardCreationNotificationsInTx(tx, notificationPlan, reward);
     await storeReceipt(tx, recordId, result);
-    return { result, applied: true };
+    return { result, applied: true, notificationHandled: notificationPlan !== null };
   });
 }
 

@@ -1054,3 +1054,62 @@ Reopening an uncertain claim uses its original reward display snapshot, so a
 current price/name refresh cannot visually imply that the retained old packet
 was replaced. Deliberate replacement review is still separate unfinished work;
 current-state inspection never silently clears the original uncertainty.
+
+
+## New reward birth producer source contract — 2026-10-25 (source authored; unverified)
+
+Add closed event kind reward.created (existing in-app category reward) for a fresh
+canonical available Reward birth. Source identity is actual DB generation/id and
+created_at, fixed created transition; never infer historical births from titles
+or caller keys. Default-off REWARD_CREATE_NOTIFICATION_EVENTS_ENABLED plus the
+existing admission acknowledgement and explicit REWARD_CREATE_NOTIFICATION_DISPATCH_MS
+select adoption. Bound/freeze the entire current household account roster except
+the creator at100; overflow/unsupported roles or roster drift hold before effects.
+Reuse ordered actual participant locks and central preference/quiet-hour sender.
+
+The same transaction creates Reward, event, every terminal slot and existing
+HTTP receipt, or throws for rollback. Seal an empty accepted roster explicitly.
+Skip legacy postcommit fanout only after atomic handling. Older envelope readers
+must hold the unfamiliar kind; do not activate before supported-client/rollback
+acceptance. Extend exact focus to currently active available household rewards
+with existing deliberate claim confirmation, while child/teen claimed history
+remains own-claim only. No new reward/points engine, provider or scheduler.
+
+
+Canonical createReward now composes fresh birth admission and all original
+recipient decisions before its existing receipt. Its HTTP route skips the old
+postcommit fanout only when that atomic handling completed; disabled mode keeps
+the previous behavior. Birth and claim producers share one bounded roster
+preflight/lock/recheck primitive (creator-excluded household versus parent-only
+claim audience), plus the existing actual principal/feature locks. Recipient IDs
+are frozen; a changed/oversized/unsupported roster holds before the new Reward
+exists. Central policy still owns the only inbox create, quiet hours/preferences
+and terminal dedupe. A suppressed/empty roster never falls back to a later send.
+
+The closed reward.created kind maps to the same existing reward category. Old
+readers hold the unfamiliar envelope; storing it requires later supported-reader/
+rollback acceptance. Existing JSONB event/decision storage, scalar Reward birth,
+parent export and household/recipient erasure contracts are reused; no new schema
+or User FK. Prior additive migrations and generated client remain prerequisites,
+unperformed. This deduplicates a particular accepted birth/recipient, not every
+new key or unkeyed create: legacy optional-key command semantics and receipt
+expiry/process-death still require their own recovery acceptance. A fresh new
+Reward is a different deliberate source, never title-based global deduplication.
+
+Exact focus now admits an active available household reward for personal parent/
+teen/child viewers under original role/session/feature and source locks. Other
+claim history stays parent or own-claim only; inactive available, missing/foreign
+or unsupported targets are neutral. Focus and shelf share one claim control and
+the existing deliberate confirmation/owned-or-legacy action handler, points
+availability, uncertainty and recovery. Same-ID loaded focus is deduplicated.
+No automatic claim, navigation grant, shared-tablet auth or extra XP engine.
+
+Authored unrun cases cover source-kind closure/category, own readiness flags,
+whole/empty recipient roster composition, hold rollback propagation, roster
+bounds/drift, available/retired focus and opening one canonical confirmation
+without writing. Existing claim source cases follow the shared roster primitive.
+No real PG/source/receipt/FK/concurrency/role/quiet-hour/expiry/export/latency,
+provider/native/device/rendered or full #141 acceptance.100-recipient latency is
+unmeasured and may hit the retained transaction timeout. No QA, DB/schema/
+migration/generation, flags/providers/schedulers/native activation, build/browser/
+CI, push/merge or deployment ran. All activation flags remain default-off source.

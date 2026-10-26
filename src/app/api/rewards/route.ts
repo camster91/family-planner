@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
     if (keyError) return keyError
     const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     let applied = false
+    let notificationHandled = false
     const response = await withIdempotency(
       prisma!,
       key,
@@ -103,13 +104,14 @@ export async function POST(request: NextRequest) {
       async ({ recordId }) => {
         const mutation = await createReward(prisma!, parsed.data, actor, recordId)
         applied = mutation.applied
+        notificationHandled = mutation.notificationHandled === true
         return mutation.result
       },
       { beforeReplay: () => authorizeRewardReplay(prisma!, actor, true) },
     )
 
     // Notify family members about new reward
-    if (applied) {
+    if (applied && !notificationHandled) {
       try {
         const members = await prisma!.user.findMany({
           where: { family_id: auth.user.family_id, id: { not: auth.user.id } },

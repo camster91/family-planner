@@ -13,14 +13,14 @@ const instant = z.string().length(24).refine(value => {
 });
 export const notificationEventKind = z.enum([
   "chore.assignment", "chore.verification", "chore.returned",
-  "reward.claim", "reward.approval", "household.announcement",
+  "reward.created", "reward.claim", "reward.approval", "household.announcement",
 ]);
 /** Preserve the current central category: parent verification is a reward notice
  * (still controlled by chores preferences), while assignment/return are chores.
  */
 export const NOTIFICATION_EVENT_IN_APP_TYPE = {
   "chore.assignment": "chore", "chore.verification": "reward", "chore.returned": "chore",
-  "reward.claim": "reward", "reward.approval": "reward", "household.announcement": "system",
+  "reward.created": "reward", "reward.claim": "reward", "reward.approval": "reward", "household.announcement": "system",
 } as const satisfies Record<z.infer<typeof notificationEventKind>, import("@/lib/notification-policy").InAppNotificationType>;
 export const notificationEventEnvelope = z.object({
   protocol: z.literal(NOTIFICATION_EVENT_PROTOCOL),

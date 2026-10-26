@@ -576,3 +576,12 @@ it('does not resolve an owned approval from a recreated reward with the same ID'
   await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
   expect(refresh).not.toHaveBeenCalled(); expect(urls).toEqual(['/api/rewards/approve/owned', '/api/rewards/owned?rewardId=r_ice']);
 });
+
+// Authored UNRUN: focused active reward reuses canonical claim confirmation.
+it('offers one deliberate claim control for an available reward from a notification', async () => {
+  const user = userEvent.setup(); global.fetch = jest.fn() as typeof fetch;
+  renderBoard({ rewards: [MOVIE], notificationFocus: { target: MOVIE } });
+  expect(screen.getAllByRole('button', { name: 'Claim Movie night' })).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  expect(screen.getByRole('dialog')).toBeTruthy(); expect(global.fetch).not.toHaveBeenCalled();
+});

@@ -442,6 +442,11 @@ function RewardsBoardContent({ rewards, ownedActions, notificationFocus, userXp,
     setClaimError(null)
   }
 
+  const claimChoice = (reward: RewardCard) => {
+    const canClaim = localXp >= reward.cost
+    return <button type="button" disabled={!canClaim || pending} onClick={() => { setConfirming(recoveryFor('claim', reward.id)?.reward ?? reward); setClaimError(null) }} aria-label={canClaim ? `${rewardsText('claim')} ${reward.name}` : undefined} className={cn('btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold', canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed')}>{canClaim ? rewardsText('claimReward') : rewardsText('needMore', { points: reward.cost - localXp, unit: pointsUnit(reward.cost - localXp) })}</button>
+  }
+
   const claimRecovery = confirming ? recoveryFor('claim', confirming.id) : null
   if (accessHeld) return <div role="alert" className="card-apple p-5 space-y-3">
     <p>{rewardsText('accessHeld')}</p>
@@ -460,6 +465,7 @@ function RewardsBoardContent({ rewards, ownedActions, notificationFocus, userXp,
           recovery={recoveryFor('approve', focusedReward.id)}
           onRetry={() => { const recovery = recoveryFor('approve', focusedReward.id); if (recovery) void retryRecovery(recovery) }}
           onCheckStatus={() => { const recovery = recoveryFor('approve', focusedReward.id); if (recovery) void checkStatus(recovery) }} /></ul>}
+        {focusedReward?.status === 'available' && focusedReward.active !== false && claimChoice(focusedReward)}
         <Link href="/dashboard/rewards" className="btn-plain inline-flex min-h-[44px] items-center"
           aria-disabled={pending || recoveries.length > 0}
           onClick={event => { if (workBusy.current || recoveries.length > 0) event.preventDefault() }}>{rewardsText('focusAll')}</Link>
@@ -488,11 +494,10 @@ function RewardsBoardContent({ rewards, ownedActions, notificationFocus, userXp,
           <div className="mb-3"><h2 id="claimable-rewards-heading" className="section-header">{rewardsText('claimable')}</h2><p className="text-footnote text-label-secondary">{rewardsText('claimableHint')}</p></div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {claimable.map((reward) => {
-              const canClaim = localXp >= reward.cost
               return <article key={reward.id} className="card-apple p-5 flex flex-col gap-4 min-w-0" data-testid="claimable-reward">
                 <Glyph color="rewards" size="lg"><span className="text-2xl" aria-hidden="true">{rewardIcon(reward.icon)}</span></Glyph>
                 <div className="min-w-0"><h3 className="text-title-3 text-label-primary font-semibold [overflow-wrap:anywhere]">{reward.name}</h3>{reward.description && <p className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">{reward.description}</p>}<p className="text-subhead text-rewards font-medium mt-2">{reward.cost} {pointsUnit(reward.cost)}</p></div>
-                <button type="button" disabled={!canClaim || pending} onClick={() => { setConfirming(recoveryFor('claim', reward.id)?.reward ?? reward); setClaimError(null) }} aria-label={canClaim ? `${rewardsText('claim')} ${reward.name}` : undefined} className={cn('btn-tinted w-full min-h-[44px] py-2.5 text-base font-semibold', canClaim ? 'bg-tint-rewards text-white' : 'bg-muted text-label-tertiary cursor-not-allowed')}>{canClaim ? rewardsText('claimReward') : rewardsText('needMore', { points: reward.cost - localXp, unit: pointsUnit(reward.cost - localXp) })}</button>
+                {claimChoice(reward)}
                 {recoveryFor('claim', reward.id) && confirming?.id !== reward.id && <RecoveryNotice busy={pending} recovery={recoveryFor('claim', reward.id)!} rewardsText={rewardsText} onRetry={() => void retryRecovery(recoveryFor('claim', reward.id)!)} onCheckStatus={() => void checkStatus(recoveryFor('claim', reward.id)!)} />}
               </article>
             })}

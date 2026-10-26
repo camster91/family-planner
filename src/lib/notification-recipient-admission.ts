@@ -45,7 +45,7 @@ export async function admitNotificationRecipientInTx(
       || (actor.role !== "parent" && parsed.data.kind !== "reward.claim")) return { kind: "held" };
   // Explicit empty accepted reward roster is terminal; never invent a User or
   // infer that an absent decision is safe to populate from a later roster.
-  if (input.userId === null && !["reward.claim", "reward.approval"].includes(parsed.data.kind)) return { kind: "held" };
+  if (input.userId === null && !["reward.created", "reward.claim", "reward.approval"].includes(parsed.data.kind)) return { kind: "held" };
   const expectedType = NOTIFICATION_EVENT_IN_APP_TYPE[parsed.data.kind];
   if (input.content.type !== expectedType || !await sourceGuard(tx, parsed.data)) return { kind: "held" };
   // Canonical source locks precede the event lock, matching producer admission.

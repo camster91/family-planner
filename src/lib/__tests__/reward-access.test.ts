@@ -1,3 +1,4 @@
+jest.mock("@/lib/reward-create-notification-event", () => ({ prepareRewardCreationNotifications: async () => null }));
 // Authored UNRUN: authority/receipt ordering, not PG or live session proof.
 jest.mock("@/lib/household-lock", () => ({ lockUser: jest.fn(), lockHousehold: jest.fn() }));
 jest.mock("@/lib/reward-claim-notification-event", () => ({ prepareRewardClaimNotifications: async () => null }));

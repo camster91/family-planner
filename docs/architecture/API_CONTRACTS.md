@@ -1833,3 +1833,13 @@ packets keep reviewed birth/cost/claimant/issue time/key across retries; no auto
 fallback or current-read renewal. Source replacement cannot resolve the original
 request. All source and cases remain unrun; flags, schema/client-generation and
 old-client/restore/runtime/device rollout acceptance remain separate and open.
+
+
+The private notification source envelope candidate additionally recognizes
+`reward.created` for a fresh canonical Reward birth. The default-off create cohort
+captures the creator-excluded bounded account roster, then atomically stores
+Reward/event/terminal inbox-or-suppression decisions/receipt through the existing
+sender. Old envelope readers hold the new kind; this is no activation or universal
+keyless-create dedupe claim. Exact active-available focus uses existing personal
+claim confirmation. All source/rollback/client/runtime acceptance remains open;
+see the dated notification-delivery plan. No new schema or provider.
