@@ -14,8 +14,11 @@ export async function protectRewardResponse(
   if (!response.ok) return response;
   try {
     const refused = await authorizeRewardReplay(db, actor, parentOnly);
-    if (refused) return NextResponse.json({ error: message, code: "REWARD_ACCESS_CHANGED" },
-      { status: refused.status, headers: { "Cache-Control": "private, no-store" } });
+    if (refused) {
+      const body = refused.body && typeof refused.body === "object" ? refused.body as Record<string, unknown> : null;
+      const code = typeof body?.code === "string" && body.code.startsWith("REWARD_COMMAND_") ? body.code : "REWARD_ACCESS_CHANGED";
+      return NextResponse.json({ error: message, code }, { status: refused.status, headers: { "Cache-Control": "private, no-store" } });
+    }
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch {

@@ -1,3 +1,4 @@
+import { checkRewardActionSourceInTx, rewardActionTimeRefusal, type RewardActionCommand } from "@/lib/reward-action-command";
 import { prepareRewardApprovalNotifications, lockRewardApprovalNotificationPlan, recordRewardApprovalNotificationInTx } from "@/lib/reward-approval-notification-event";
 import { randomUUID } from "node:crypto";
 import { prepareRewardClaimNotifications, lockRewardClaimNotificationPlan, recordRewardClaimNotificationsInTx } from "@/lib/reward-claim-notification-event";
@@ -27,6 +28,7 @@ type UpdateRewardInput = z.infer<typeof updateRewardSchema>;
 type ClaimRewardInput = z.infer<typeof claimRewardSchema>;
 
 export type RewardActor = {
+  originalCommand?: RewardActionCommand;
   /** Original HTTP session generation; never renewed from a later DB value. */
   tokenVersion?: number;
   familyId: string;
@@ -70,7 +72,9 @@ export async function authorizeRewardActorInTx(
   parentOnly: boolean,
 ): Promise<EffectResult | null> {
   await lockRewardMembership(tx, actor);
-  return authorizeRewardActorLocked(tx, actor, parentOnly);
+  const refusal = await authorizeRewardActorLocked(tx, actor, parentOnly);
+  if (refusal) return refusal;
+  return actor.originalCommand ? checkRewardActionSourceInTx(tx, actor.originalCommand, actor) : null;
 }
 
 async function authorizeRewardActorLocked(
@@ -252,7 +256,15 @@ export async function claimReward(
     else await lockRewardMembership(tx, actor);
     const denied = await authorizeRewardActorLocked(tx, actor, false);
     if (denied) return { result: denied, applied: false };
+    if (actor.originalCommand) {
+      if (actor.originalCommand.kind !== "claim" || actor.originalCommand.rewardId !== input.rewardId)
+        return { result: { status: 409, body: { code: "REWARD_COMMAND_SOURCE_CHANGED", error: "Reward review changed" } }, applied: false };
+      const sourceRefusal = await checkRewardActionSourceInTx(tx, actor.originalCommand, actor);
+      if (sourceRefusal) return { result: sourceRefusal, applied: false };
+    }
     const replay = await receiptResult(tx, actor, recordId);
+    const expired = actor.originalCommand ? rewardActionTimeRefusal(actor.originalCommand) : null;
+    if (expired) return { result: expired, applied: false };
     if (replay) return { result: replay, applied: false };
 
     const current = await tx.reward.findUnique({
@@ -287,6 +299,7 @@ export async function claimReward(
       where: {
         id: input.rewardId,
         status: "available",
+        ...(actor.originalCommand ? { notification_generation: actor.originalCommand.sourceGeneration } : {}),
         is_active: true,
         family_id: actor.familyId,
       },
@@ -339,6 +352,9 @@ export async function claimReward(
       await recordRewardClaimNotificationsInTx(tx, notificationPlan, { rewardId: input.rewardId, transitionId, claimedAt, cost });
     }
     await storeReceipt(tx, recordId, result);
+    // A wait after effects must throw for rollback, never return a held result
+    // that accidentally commits the state/XP/notification/receipt changes.
+    if (actor.originalCommand && rewardActionTimeRefusal(actor.originalCommand)) throw new Error("Reward command window expired");
     return { result, applied: true, cost, notificationHandled: notificationPlan !== null };
   });
 }
@@ -355,7 +371,15 @@ export async function approveReward(
     if (!notificationPlan) await lockRewardMembership(tx, actor);
     const denied = await authorizeRewardActorLocked(tx, actor, true);
     if (denied) return { result: denied, applied: false };
+    if (actor.originalCommand) {
+      if (actor.originalCommand.kind !== "approve" || actor.originalCommand.rewardId !== input.rewardId)
+        return { result: { status: 409, body: { code: "REWARD_COMMAND_SOURCE_CHANGED", error: "Reward review changed" } }, applied: false };
+      const sourceRefusal = await checkRewardActionSourceInTx(tx, actor.originalCommand, actor);
+      if (sourceRefusal) return { result: sourceRefusal, applied: false };
+    }
     const replay = await receiptResult(tx, actor, recordId);
+    const expired = actor.originalCommand ? rewardActionTimeRefusal(actor.originalCommand) : null;
+    if (expired) return { result: expired, applied: false };
     if (replay) return { result: replay, applied: false };
 
     const current = await tx.reward.findUnique({
@@ -396,6 +420,7 @@ export async function approveReward(
         id: input.rewardId,
         family_id: actor.familyId,
         status: "claimed",
+        ...(actor.originalCommand ? { notification_generation: actor.originalCommand.sourceGeneration } : {}),
       },
       data: {
         status: "redeemed",
@@ -428,6 +453,9 @@ export async function approveReward(
       await recordRewardApprovalNotificationInTx(tx, notificationPlan, { rewardId: input.rewardId, transitionId, approvedAt, recipientId });
     }
     await storeReceipt(tx, recordId, result);
+    // A wait after effects must throw for rollback, never return a held result
+    // that accidentally commits the state/XP/notification/receipt changes.
+    if (actor.originalCommand && rewardActionTimeRefusal(actor.originalCommand)) throw new Error("Reward command window expired");
     return {
       result,
       applied: true,

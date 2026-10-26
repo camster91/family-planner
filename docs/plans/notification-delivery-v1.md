@@ -939,3 +939,64 @@ concurrent role/token/feature/family/XP changes, cursors, multi-household/privac
 load/timeout and rendered/device acceptance remain. No QA, schema/DB/migration/
 generation, flags/providers/schedulers/native activation, build/browser/CI or
 release ran.
+
+
+## Owned reward action endpoint contract — 2026-10-25 (source authored; unverified)
+
+Separate default-off `/api/rewards/claim/owned` and `/approve/owned` wrappers
+select strict mode on shared legacy handlers. No duplicated claim/approval/XP/
+receipt engine or fallback to an unversioned endpoint. Require bounded strict
+JSON and a valid idempotency key: fixed protocol, explicit kind, original account/
+household/role/session, immutable Reward source generation, original issue time
+and reward ID. Claim also binds reviewed cost; approval binds original claimant
+(including explicit null). These are preconditions, not authentication or owner
+proof. Auth/current parent policy precedes target access.
+
+Bind the entire owned packet into the existing key hash. Under actual principal/
+household locks, before internal/outer receipt replay or effects, require original
+session/role/features, original7-day server-checked issue window and exact Reward
+birth/cost or claimant under source row lock. Current source change holds, never
+silently reprices or selects a replacement claimant. Existing conditional status
+write adds the source generation. Cached outcomes may replay only while original
+access/source/window still holds; late response refusal is not rollback proof.
+Legacy routes keep established shapes/optional-key behavior. Schema expansion/
+client generation are existing rollout prerequisites. Flag activation, SSR/client
+negotiation, owned read/recovery and all actual acceptance remain separate.
+
+
+Both strict POST endpoints now call the same extracted reward-claim-http and
+reward-approve-http handlers used by original legacy route wrappers. Owned mode
+requires REWARD_ACTION_COMMANDS_ENABLED (default off),8KiB strict JSON, matching
+original authenticated owner, correct fixed kind and a required existing valid
+Idempotency-Key. Foreign/missing preflight targets both404. Responses are private/
+no-store and acknowledge the fixed protocol header; no automatic fallback route.
+The entire canonical parsed packet, not just rewardId, binds the existing key hash.
+
+Canonical claim/approval and outer/internal replay now check that strict packet
+under principal/household and source locks. Birth generation plus reviewed cost
+(claim) or original claimant including null (approval) must still match before
+cache or effects; conditional writes include generation too. Server checks the
+original issue time before target access, after source/receipt waits and after
+all effect/receipt writes. Expiry after possible effects THROWS for enclosing
+rollback; returning an ordinary refusal there would have committed changes.
+Late final disclosure renewal retains source/time command codes separately from
+actual access-loss codes. A held response still is not proof that an earlier
+attempt failed or that a prior committed action rolled back.
+
+No schema/version counter is added by these endpoints: they require the already
+authored Reward generation migrations/client generation before deployment. Claim
+price changes hold rather than charge an unreviewed price in this owned mode;
+legacy current-price behavior remains compatible. This protocol binds birth/cost/
+claimant, not every text/material field or a complete signed server preview.
+Current browser remains on existing paths until explicit SSR capability, frozen
+owned-packet transport and owned current-state recovery are connected. No flag
+is enabled and no minimum supported native client is changed. Restore/old-client
+retirement remain separate actual rollout gates.
+
+Authored unrun cases cover strict schema/owner/time, locked source predicate,
+shared-handler canonical mutation, missing key, owner/source refusal, disabled/
+unversioned refusal and current-parent enforcement. Mocks do not prove actual
+SQL, competing requests/prices/claimants, committed receipt replay, rollback or
+clock/arrival/restore safety. All API/client/native/role/device/rendered and full
+#135/#136/#141 acceptance remain. No QA, DB/schema/migration/generation,
+build/browser/CI, provider/scheduler/native activation or release ran.

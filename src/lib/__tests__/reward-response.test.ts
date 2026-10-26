@@ -28,3 +28,9 @@ it("does not imply a write occurred when a readonly response loses access", asyn
   const response = await protectRewardResponse({} as any, actor, false, NextResponse.json({ rewards: [{ name: "Private fixture" }] }), "read");
   const body = await response.json(); expect(body.error).not.toContain("saved"); expect(JSON.stringify(body)).not.toContain("Private fixture");
 });
+
+it("preserves a source-review hold without calling it account-access loss", async () => {
+  renew.mockResolvedValue({ status: 409, body: { code: "REWARD_COMMAND_SOURCE_CHANGED" } });
+  const response = await protectRewardResponse({} as any, actor, false, NextResponse.json({ reward: { name: "Private fixture" } }));
+  expect(await response.json()).toMatchObject({ code: "REWARD_COMMAND_SOURCE_CHANGED" });
+});

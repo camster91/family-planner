@@ -1808,3 +1808,19 @@ This is bounded personal transport and local audience retirement, not full serve
 owner echo, compare-and-set setting updates, unknown upload reconciliation,
 native physical cancellation or rendered/role acceptance. No QA/tests/checks/
 build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#135 remain open.
+
+
+### Owned reward action source candidate (#135/#136/#141, 2026-10-25)
+
+Default-off `REWARD_ACTION_COMMANDS_ENABLED` exposes strict POST claim/approve
+`/owned` wrappers sharing canonical handlers. `herewoven.reward-action.v1` binds
+original owner/session, reward birth, reviewed claim cost or approval claimant,
+issue time and required existing idempotency key; unknown fields/missing context
+hold, with no legacy fallback. Exact packet participates in the existing receipt
+hash. Source/authority/time checks precede replay/effects; late expiry after
+writes throws for rollback. Protocol acknowledgement and every result are private/
+no-store. Original endpoints retain optional-key/representation compatibility.
+Schema expansion/Prisma generation are prerequisites, not performed. Browser
+capability/adoption/owned reads and real acceptance remain unfinished; do not
+activate from authored mocks. Detailed source/rollout limits are in
+`docs/plans/notification-delivery-v1.md`. No new provider or scheduler.
