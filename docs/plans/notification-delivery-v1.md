@@ -1000,3 +1000,57 @@ SQL, competing requests/prices/claimants, committed receipt replay, rollback or
 clock/arrival/restore safety. All API/client/native/role/device/rendered and full
 #135/#136/#141 acceptance remain. No QA, DB/schema/migration/generation,
 build/browser/CI, provider/scheduler/native activation or release ran.
+
+
+## Owned reward browser negotiation and current-state read — 2026-10-25
+
+The Rewards SSR now negotiates original account/family/role/session context only
+when the existing private command flag is enabled. It renews original authority
+before serializing that feature-specific precondition. The full internal actor
+DTO/credential is never sent. Reward cards and exact notification focus include
+the canonical immutable birth generation, never a fabricated default. A held
+capability or missing source generation cannot create a legacy request.
+
+Browser-safe protocol constants/types are separated from server schema/Prisma
+code. Owned intents freeze original owner, birth, reviewed cost/claimant, action,
+body/key/issue time. Claim and approval use only their strict endpoints once
+selected; protocol acknowledgement and matching returned household/birth are
+required before success. Existing request bounds, lifecycle epochs, synchronous
+latch, uncertainty preservation and receipt-age hold remain. Selection is
+monotonic within the mounted owner: a later absent capability does not downgrade
+an owned packet. Old frames never selecting strict mode retain compatibility.
+An in-memory legacy packet cannot silently become a newly owned packet on upgrade.
+
+New default-off GET `/api/rewards/owned?rewardId=...` requires a bounded strict
+original-owner header and exactly one canonical target query. Authentication and
+owner match precede target access; the shared locked read scope and final original
+access renewal apply. Success echoes protocol/owner and only one minimal current
+reward projection (no related names, creator or XP balance). Absent/foreign is an
+empty result; unsupported/disabled/owner refusal holds, never a legacy read/write
+fallback. Expired write age does not prevent an explicit current-state read.
+
+The board requires protocol acknowledgement, exact owner/household/target,
+supported lifecycle and birth evidence before admitting current read data. A
+recreated same-ID reward cannot resolve the old packet. Reads do not renew the
+old expected cost/claimant/source/time/key, or automatically create a replacement
+review. Source changes use typed EN/ES guidance, not protocol codes in product UI.
+Deliberate new-review/reload after a held price/claimant/source remains distinct
+from evidence that an earlier attempt rolled back. No persistent journal or
+process-death guarantee is introduced.
+
+Authored unrun cases cover immutable owned packets, missing context, protocol/
+owner/scope/future-status refusal, matching read/owner mismatch, owned-only retry,
+held capability and same-ID replacement after unknown approval. They do not prove
+runtime, actual PG/clock/receipt/price/claimant/concurrency/old-client/restore,
+Back/role/device/rendered behavior. Command and notification flags remain default-off in source; none were activated.
+Additive schema/Prisma generation prerequisites remain unperformed. No QA, DB,
+schema/migration/generation, build/browser/CI, provider/scheduler/native activation,
+push/merge or deployment ran. #135/#136/#141 remain open.
+
+
+Uncertain actions now route through their explicit Recovery controls: ordinary
+Mark as given and duplicate Claim submits disable while a recovery exists.
+Reopening an uncertain claim uses its original reward display snapshot, so a
+current price/name refresh cannot visually imply that the retained old packet
+was replaced. Deliberate replacement review is still separate unfinished work;
+current-state inspection never silently clears the original uncertainty.

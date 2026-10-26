@@ -6,12 +6,14 @@ import type { Prisma } from "@prisma/client";
 import type { EffectResult } from "@/lib/idempotency";
 import { IDEMPOTENCY_TTL_MS } from "@/lib/idempotency-key";
 import { memberIdentityIdSchema as id } from "@/lib/member-subject-contract";
-export const REWARD_ACTION_PROTOCOL = "herewoven.reward-action.v1" as const;
+import { REWARD_ACTION_PROTOCOL } from "@/lib/reward-action-shared";
+export { REWARD_ACTION_PROTOCOL } from "@/lib/reward-action-shared";
+export const rewardActionOwnerSchema = z.object({ userId: id, familyId: id, role: z.enum(["parent", "teen", "child"]), generation: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }).strict();
 export const rewardActionCommandsEnabled = () => process.env.REWARD_ACTION_COMMANDS_ENABLED === "1";
 const common = {
   protocol: z.literal(REWARD_ACTION_PROTOCOL), rewardId: id, sourceGeneration: z.string().uuid(),
   issuedAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-  owner: z.object({ userId: id, familyId: id, role: z.enum(["parent", "teen", "child"]), generation: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }).strict(),
+  owner: rewardActionOwnerSchema,
 };
 export const rewardActionCommandSchema = z.discriminatedUnion("kind", [
   z.object({ ...common, kind: z.literal("claim"), expectedCost: z.number().int().min(1).max(100000) }).strict(),

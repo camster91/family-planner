@@ -6,7 +6,7 @@ import { MEMBER_ID_PATTERN } from "@/lib/member-identity-schema";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
 import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 export type RewardNotificationFocus = {
-  id: string; name: string; description: string | null; cost: number; icon: string | null;
+  id: string; sourceGeneration: string; name: string; description: string | null; cost: number; icon: string | null;
   status: "claimed" | "approved" | "redeemed"; active: boolean;
   claimedById: string | null; claimedByName: null;
 };
@@ -38,11 +38,11 @@ export async function readRewardNotificationFocus(
       where: { id: target, family_id: owner.familyId,
         ...(owner.role === "parent" ? {} : { claimed_by: owner.userId }),
         status: { in: ["claimed", "approved", "redeemed"] } },
-      select: { id: true, name: true, description: true, cost: true, icon: true, status: true, is_active: true, claimed_by: true },
+      select: { id: true, notification_generation: true, name: true, description: true, cost: true, icon: true, status: true, is_active: true, claimed_by: true },
     });
     if (!row || !Number.isSafeInteger(row.cost) || row.cost < 0
         || !["claimed", "approved", "redeemed"].includes(row.status)) return null;
-    return { id: row.id, name: row.name, description: row.description, cost: row.cost, icon: row.icon,
+    return { id: row.id, sourceGeneration: row.notification_generation, name: row.name, description: row.description, cost: row.cost, icon: row.icon,
       status: row.status as RewardNotificationFocus["status"], active: row.is_active,
       claimedById: row.claimed_by, claimedByName: null };
   }, { timeout: 5000, maxWait: 5000 });

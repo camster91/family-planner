@@ -1,4 +1,4 @@
-import { REWARD_ACTION_PROTOCOL } from "@/lib/reward-action-command";
+import { REWARD_ACTION_PROTOCOL, REWARD_ACTION_PROTOCOL_HEADER } from "@/lib/reward-action-shared";
 import type { NextRequest } from "next/server";
 import { handleRewardApprovalRequest } from "@/lib/reward-approve-http";
 export const dynamic = "force-dynamic";
@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const response = await handleRewardApprovalRequest(request, "owned");
   response.headers.set("Cache-Control", "private, no-store");
-  response.headers.set("X-Herewoven-Reward-Protocol", REWARD_ACTION_PROTOCOL);
+  response.headers.set(REWARD_ACTION_PROTOCOL_HEADER, REWARD_ACTION_PROTOCOL);
   return response;
 }

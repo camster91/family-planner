@@ -19,3 +19,16 @@ it("does not equate changed action/body/time with an original uncertain request"
   expect(sameRewardRetryIntent(intent, { ...intent, kind: "approve" })).toBe(false);
   expect(rewardRetryWithinWindow({ ...intent, body: '{"rewardId":"other-reward"}' }, start)).toBe(false);
 });
+
+// Authored UNRUN: owned packet remains independent of changing display/context.
+it("freezes original owner/birth/review terms in the exact owned body", () => {
+  const owner = { userId: "fixture-child", familyId: "fixture-family", role: "child" as const, generation: 2 };
+  const intent = createRewardRetryIntent("fixture-reward", "claim", start, { owner, sourceGeneration: "5b58743a-1f01-40fe-adb1-4628148495cb", expectedCost: 10 });
+  owner.generation = 3;
+  expect(JSON.parse(intent.body)).toMatchObject({ protocol: "herewoven.reward-action.v1", owner: { generation: 2 }, expectedCost: 10, issuedAt: start });
+  expect(rewardRetryWithinWindow(intent, start + 1)).toBe(true);
+  expect(Object.isFrozen(intent.command?.owner)).toBe(true);
+});
+it("refuses incomplete owned context instead of making a legacy request", () => {
+  expect(() => createRewardRetryIntent("fixture-reward", "claim", start, { owner: { userId: "fixture-child", familyId: "fixture-family", role: "child", generation: 2 }, sourceGeneration: "unknown", expectedCost: 10 })).toThrow("unavailable");
+});

@@ -3,14 +3,14 @@ jest.mock("@/lib/household-lock", () => ({ lockUser: jest.fn(), lockHousehold: j
 jest.mock("@/lib/features", () => ({ normalizeFeatures: (x: unknown) => x, isFeatureEnabled: (x: Record<string, boolean>) => x?.rewards === true }));
 import { readRewardNotificationFocus } from "../reward-notification-focus";
 const owner = { userId: "fixture-parent", familyId: "fixture-family", role: "parent", tokenVersion: 2 };
-const row = { id: "fixture-reward", name: "Fixture reward", description: null, cost: 10, icon: "gift", status: "claimed", is_active: true, claimed_by: "fixture-child" };
+const row = { id: "fixture-reward", notification_generation: "5b58743a-1f01-40fe-adb1-4628148495cb", name: "Fixture reward", description: null, cost: 10, icon: "gift", status: "claimed", is_active: true, claimed_by: "fixture-child" };
 function setup(role = owner.role) {
   const tx = { $queryRaw: jest.fn().mockResolvedValueOnce([{ family_id: owner.familyId, role, token_version: 2 }]).mockResolvedValueOnce([{ features: { rewards: true } }]).mockResolvedValueOnce([{ id: row.id }]), reward: { findFirst: jest.fn(async () => row) } };
   return { tx, db: { $transaction: jest.fn(async (work: (tx: any) => unknown) => work(tx)) } };
 }
 it("reads one current household claim without unrelated names/history/balance", async () => {
   const { tx, db } = setup();
-  expect(await readRewardNotificationFocus(db as any, owner, row.id)).toEqual({ id: row.id, name: row.name, description: null, cost: 10, icon: "gift", status: "claimed", active: true, claimedById: row.claimed_by, claimedByName: null });
+  expect(await readRewardNotificationFocus(db as any, owner, row.id)).toEqual({ id: row.id, sourceGeneration: row.notification_generation, name: row.name, description: null, cost: 10, icon: "gift", status: "claimed", active: true, claimedById: row.claimed_by, claimedByName: null });
   expect(tx.reward.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: row.id, family_id: owner.familyId }) }));
 });
 it("restricts child and teen focus to their own account claims", async () => {

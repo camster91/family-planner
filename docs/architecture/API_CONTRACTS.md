@@ -1824,3 +1824,12 @@ Schema expansion/Prisma generation are prerequisites, not performed. Browser
 capability/adoption/owned reads and real acceptance remain unfinished; do not
 activate from authored mocks. Detailed source/rollout limits are in
 `docs/plans/notification-delivery-v1.md`. No new provider or scheduler.
+
+
+The owned reward source candidate now includes default-off SSR browser selection
+and GET `/api/rewards/owned` current-state recovery with strict original-owner
+header, protocol acknowledgement/echo and minimal same-household target. Client
+packets keep reviewed birth/cost/claimant/issue time/key across retries; no automatic
+fallback or current-read renewal. Source replacement cannot resolve the original
+request. All source and cases remain unrun; flags, schema/client-generation and
+old-client/restore/runtime/device rollout acceptance remain separate and open.

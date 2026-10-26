@@ -402,7 +402,8 @@ it('settles an abort-ignoring claim deadline and retries with the original key/b
     await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     await act(async () => { jest.advanceTimersByTime(15_001) })
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }).hasAttribute('disabled')).toBe(false)
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Try again' }).hasAttribute('disabled')).toBe(false)
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }).hasAttribute('disabled')).toBe(true)
     expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('true')
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
@@ -528,4 +529,50 @@ it('holds an original approval past receipt retention without issuing a new POST
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
   } finally { now.mockRestore() }
+});
+
+// Authored UNRUN: negotiated strict mode never retries through a legacy URL.
+it('freezes owned claim context and retries only the owned endpoint', async () => {
+  const generation = '5b58743a-1f01-40fe-adb1-4628148495cb';
+  const owner = { userId: 'kid_1', familyId: 'family-one', role: 'child' as const, generation: 2 };
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  global.fetch = jest.fn(async (url, init) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    if (calls.length === 1) throw new Error('fixture offline');
+    return { ok: true, status: 200, headers: new Headers({ 'X-Herewoven-Reward-Protocol': 'herewoven.reward-action.v1' }),
+      json: async () => ({ ...CLAIMED_MOVIE, reward: { ...CLAIMED_MOVIE.reward, family_id: owner.familyId, notification_generation: generation } }) } as Response;
+  }) as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [{ ...MOVIE, sourceGeneration: generation }], familyId: owner.familyId, viewerRole: owner.role, sessionGeneration: 2, ownedActions: { owner } });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  await user.click(await screen.findByRole('button', { name: 'Try again' }));
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(calls.map(call => call.url)).toEqual(['/api/rewards/claim/owned', '/api/rewards/claim/owned']);
+  expect(calls[1].init.body).toBe(calls[0].init.body); expect(calls[1].init.headers).toEqual(calls[0].init.headers);
+  expect(JSON.parse(String(calls[0].init.body))).toMatchObject({ protocol: 'herewoven.reward-action.v1', owner, expectedCost: 50, sourceGeneration: generation });
+});
+it('holds missing owned capability instead of posting an unversioned claim', async () => {
+  global.fetch = jest.fn() as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [MOVIE], ownedActions: { owner: null } });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  await screen.findByText('This reward request could not be prepared. Reload rewards and try again.');
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+it('does not resolve an owned approval from a recreated reward with the same ID', async () => {
+  const original = '5b58743a-1f01-40fe-adb1-4628148495cb';
+  const replaced = '5860e58e-8fbf-441b-a416-b8de07de13dc';
+  const owner = { userId: 'parent_1', familyId: 'family-one', role: 'parent' as const, generation: 2 };
+  const urls: string[] = [];
+  global.fetch = jest.fn(async (url) => {
+    urls.push(String(url));
+    const read = String(url).startsWith('/api/rewards/owned?');
+    return { ok: read, status: read ? 200 : 500, headers: new Headers({ 'X-Herewoven-Reward-Protocol': 'herewoven.reward-action.v1' }),
+      json: async () => read ? { protocol: 'herewoven.reward-action.v1', owner, rewards: [{ id: ICE_CREAM.id, family_id: owner.familyId, notification_generation: replaced, name: ICE_CREAM.name, cost: 20, status: 'redeemed', is_active: true, claimed_by: 'kid_1' }] } : { error: 'Outcome unknown' } } as Response;
+  }) as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [{ ...ICE_CREAM, sourceGeneration: original }], isParent: true, currentUserId: owner.userId, familyId: owner.familyId, viewerRole: owner.role, sessionGeneration: 2, ownedActions: { owner } });
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  await user.click(await screen.findByRole('button', { name: 'Check status' }));
+  await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
+  expect(refresh).not.toHaveBeenCalled(); expect(urls).toEqual(['/api/rewards/approve/owned', '/api/rewards/owned?rewardId=r_ice']);
 });

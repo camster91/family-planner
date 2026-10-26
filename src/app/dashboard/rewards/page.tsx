@@ -1,3 +1,5 @@
+import { rewardActionCommandsEnabled } from "@/lib/reward-action-command"
+import { validRewardActionOwner } from "@/lib/reward-action-shared"
 import { withRewardReadAccess } from "@/lib/reward-read-access"
 import { authorizeRewardReplay, type RewardActor } from "@/lib/reward-mutations"
 import { readRewardNotificationFocus } from "@/lib/reward-notification-focus"
@@ -51,6 +53,7 @@ async function RewardsContent({
 
   const cards: RewardCard[] = rewards.map(r => ({
     id: r.id,
+    sourceGeneration: r.notification_generation,
     name: r.name,
     description: r.description,
     icon: r.icon,
@@ -70,9 +73,13 @@ async function RewardsContent({
   if (notificationFocus && !notificationFocus.target) return <RewardNotificationUnavailable />
   if (await authorizeRewardReplay(prisma!, original, false).catch(() => ({ status: 503, body: {} }))) return unavailable
 
+  const candidateOwner = { userId, familyId, role: user.role, generation: sessionUser.tokenVersion }
+  const ownedActions = rewardActionCommandsEnabled() ? { owner: validRewardActionOwner(candidateOwner) ? candidateOwner : null } : undefined
+
   return (
     <div className="space-y-8">
       <RewardsBoard
+        ownedActions={ownedActions}
         notificationFocus={notificationFocus}
         rewards={cards}
         userXp={userXp}
