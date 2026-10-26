@@ -2,6 +2,7 @@
 
 import type { ReactNode, Ref } from "react";
 import { useTranslation } from "@/i18n";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import {
   calendarFormMessages,
   type CalendarFormMessage,
@@ -21,7 +22,8 @@ export function EventFormDetails({
   end?: string;
   sectionRef: Ref<HTMLDetailsElement>;
 }) {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
+  const locale = useDisplayLocale();
   const message = (
     key: CalendarFormMessage,
     params?: Record<string, string | number>,

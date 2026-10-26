@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { cn } from '@/lib/utils'
-import { useTranslation } from '@/i18n'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { useMessagesText } from '@/i18n/messages'
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
 import { mergeLatest, prependEarlier } from './thread'
@@ -128,7 +128,7 @@ function isPickupOption(value: unknown): value is PickupOption {
 }
 
 function formatPickupDate(date: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -171,7 +171,7 @@ function parseMessagesResponse(value: unknown): { messages: ChatMessage[]; membe
 }
 
 function formatMessageDate(date: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -191,7 +191,7 @@ export default function MessagesPage() {
 }
 
 function MessagesContent() {
-  const { locale } = useTranslation()
+  const locale = useDisplayLocale()
   const messageText = useMessagesText()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')

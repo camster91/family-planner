@@ -1,4 +1,5 @@
 "use client";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -33,7 +34,8 @@ export default function ProfileAccountLinkManager({
 }: {
   onLinked?: () => void | Promise<void>;
 }) {
-  const { text, locale } = useProfileLinkText();
+  const { text } = useProfileLinkText();
+  const locale = useDisplayLocale();
   const [supported, setSupported] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
   const [profiles, setProfiles] = useState<HouseholdProfile[]>([]);
