@@ -11,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, useTranslation } from "@/i18n";
 import CalendarSubscriptionsSection from "../CalendarSubscriptionsSection";
+import { readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
 import { settingsMessages } from "@/i18n/settings";
 jest.mock("@/components/fridge/sync-status", () => ({
   useNow: () => 1792497600000,
@@ -104,7 +105,7 @@ it("keeps drafts and failed/read-pending identity through mounted locale change;
     fireEvent.click(button);
     fireEvent.click(button);
   });
-  expect(fetch).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   expect(
     screen.getByText(settingsMessages.es.loadingEllipsis),
   ).toBeInTheDocument();
@@ -129,4 +130,26 @@ it("keeps drafts and failed/read-pending identity through mounted locale change;
       ([path, init]) => path === "/api/calendar/subscriptions" && !init?.method,
     ),
   ).toBe(true);
+});
+
+// Authored UNRUN: an invalid list cannot become a usable empty household.
+it("admits only bounded, unique subscription summaries and projects away extras", () => {
+  const row = { id: "sub-1", name: "School", color: null, last_fetched_at: null, last_status: "pending", last_error: null };
+  expect(readCalendarSubscriptionList({ subscriptions: [row, row] })).toBeNull();
+  expect(readCalendarSubscriptionList({ subscriptions: Array.from({ length: 11 }, (_, index) => ({ ...row, id: String(index) })) })).toBeNull();
+  expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, last_fetched_at: "invalid-date" }] })).toBeNull();
+  expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, name: null }] })).toBeNull();
+  expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, url_enc: "fixture-private-extra" }] })).toEqual([row]);
+});
+it("aborts the list read on unmount and ignores a late bridge response", async () => {
+  let finish!: (value: unknown) => void; let signal: AbortSignal | undefined;
+  global.fetch = jest.fn((_path, init) => {
+    signal = init?.signal;
+    return new Promise(resolve => { finish = resolve });
+  }) as unknown as typeof fetch;
+  const { unmount } = render(<I18nProvider locale="en"><CalendarSubscriptionsSection /></I18nProvider>);
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  unmount(); expect(signal?.aborted).toBe(true);
+  await act(async () => finish({ ok: true, json: async () => ({ subscriptions: [] }) }));
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

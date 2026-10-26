@@ -275,3 +275,12 @@ copying and pasting. Nothing below exists in code; it needs Cameron's decisions 
    `POST /api/events` and marks the rows added; expired rows are deleted when the list is next read (no cron).
 5. **Off until configured**, like the rest: without the inbound secret and domain the route is 404 and no address is
    shown. Privacy page and runbook must describe the stored pending suggestions before it is enabled.
+
+
+### 2026-10-25 — bounded subscription settings reads (local source only)
+
+`CalendarSubscriptionsSection` now loads its list through the shared foreground transport: 15-second whole-request deadline, 128-KiB response limit, no-store/same-origin requests and abort on unmount. A read epoch prevents abort-ignoring late bridge completions from publishing into a retired screen. The existing synchronous read latch still serializes explicit retries; mounted locale changes relabel semantic failure state without another read. This is retirement of this read instance, not original-owner/session server admission.
+
+A browser-safe summary contract shares the existing ten-subscription limit with the server sync module. List admission rejects oversized arrays, duplicate/invalid IDs, invalid scalar fields/dates and unsupported lifecycle status. Only the existing public fields are projected into component state; unknown extras are ignored. Malformed/oversized/unknown responses use the existing failed-read UI, keep Add disabled and retain entered drafts rather than announcing no calendars. The older JSON-only bridge fallback is post-parse size enforcement, not pre-allocation streaming proof.
+
+Regression sources for validation/projection and late-read retirement were authored; the existing explicit retry fixture was adapted for deferred request start. All are UNRUN. Add/rename/remove/refresh write transport and uncertain outcomes are unchanged and remain separate work; server role/session renewal, cross-household races, provider credentials, sync correctness, calendar/device/rendered acceptance are unverified. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #124/#135 remain open.

@@ -29,21 +29,15 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { requestOwnedJson } from "@/lib/owned-request-http";
+import { readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
 import { describeCalendarSync } from "@/lib/calendar-sync-status";
 import { useNow } from "@/components/fridge/sync-status";
 
 // Canonical protocol example stays literal in ordinary and expanded copy.
 const SUBSCRIPTION_URL_EXAMPLE = "webcal://example.com/calendar.ics";
 
-interface Subscription {
-  id: string;
-  name: string;
-  color: string | null;
-  url_hint?: string;
-  last_fetched_at: string | null;
-  last_status: string;
-  last_error: string | null;
-}
+type Subscription = import("@/lib/calendar-subscription-list").CalendarSubscriptionSummary;
 
 const COLORS: Array<{ value: string; label: SettingsMessage }> = [
   { value: "#2563eb", label: "blue" },
@@ -80,6 +74,9 @@ export default function CalendarSubscriptionsSection() {
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const loadInFlight = useRef(false);
+  const live = useRef(true);
+  const loadEpoch = useRef(0);
+  const readController = useRef<AbortController | null>(null);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [color, setColor] = useState(COLORS[0].value);
@@ -92,28 +89,44 @@ export default function CalendarSubscriptionsSection() {
   );
 
   const load = useCallback(async () => {
-    if (loadInFlight.current) return;
+    if (!live.current || loadInFlight.current) return;
     loadInFlight.current = true;
+    const epoch = ++loadEpoch.current;
+    const controller = new AbortController();
+    readController.current = controller;
+    const current = () => live.current && loadEpoch.current === epoch;
     setLoaded(false);
     setLoadFailed(false);
     try {
-      const res = await fetch("/api/calendar/subscriptions");
-      const data = await res.json();
-      if (!res.ok || !data || !Array.isArray(data.subscriptions))
-        throw new Error("Subscription list unavailable");
-      setSubs(data.subscriptions);
+      const result = await requestOwnedJson("/api/calendar/subscriptions", { signal: controller.signal }, 128 * 1024);
+      if (!current()) return;
+      const subscriptions = result.kind === "reply" && result.response.ok
+        ? readCalendarSubscriptionList(result.body) : null;
+      if (!subscriptions) throw new Error("Subscription list unavailable");
+      setSubs(subscriptions);
     } catch {
       // A failed read is not evidence that the household has no calendars.
       // Store semantic state so a mounted language change needs no new read.
-      setLoadFailed(true);
+      if (current()) setLoadFailed(true);
     } finally {
-      loadInFlight.current = false;
-      setLoaded(true);
+      if (current()) {
+        readController.current = null;
+        loadInFlight.current = false;
+        setLoaded(true);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
+    live.current = true;
+    void load();
+    return () => {
+      live.current = false;
+      loadEpoch.current++;
+      readController.current?.abort();
+      readController.current = null;
+      loadInFlight.current = false;
+    };
   }, [load]);
 
   const replace = (sub: Subscription | null | undefined) => {

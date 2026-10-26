@@ -5,6 +5,7 @@
 // Local events (source_subscription_id = null) are never read or written here.
 // See docs/architecture/CALENDAR_IMPORT.md.
 
+import { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/secret-box";
 import { checkRateLimit } from "@/lib/rate-limit-db";
@@ -21,7 +22,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const IMPORT_WINDOW_PAST_DAYS = 30;
 export const IMPORT_WINDOW_FUTURE_DAYS = 180;
 export const STALE_AFTER_MS = 15 * 60 * 1000;
-export const MAX_SUBSCRIPTIONS_PER_FAMILY = 10;
+export { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
 
 export type SubscriptionStatus = "pending" | "ok" | "error";
 
