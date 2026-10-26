@@ -56,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded planning work reconciles the live37-issue directory with the current ledger and consolidates the roadmap's repeated status text. The full52,606-character source history and15,354-character previous directory are preserved verbatim in linked canonical #128 comments, including their historical counts and caveats. The current summary replaces stale40-issue status and retired current rows without changing original programme requirements or unchecked acceptance. No issue is newly closed and no code is declared accepted. All source remains local/unverified; QA and release stay deferred.
+Latest bounded planning work consolidates localization issue #142. The complete old execution/status prose is preserved verbatim in a linked history comment, while the original locale architecture, resilience/data/QA/rollout requirements, one checked and four unchecked acceptance items remain intact. The current issue separates partial typed EN/ES source from unperformed layout/timezone/data/native/store acceptance. This changes issue organization, not code or criterion status;37 issues remain open. No QA or release ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -104,6 +104,12 @@ Named original-body and live issue snapshots remain beside the recovery checkout
 The current roadmap uses this canonical37-issue directory and source-versus-
 acceptance boundaries; its original programme/unchecked criteria remain intact.
 This changes task organization only, with no issue closure or runtime acceptance.
+
+Localization #142 received the same status/history separation: [full prior
+execution prose](https://github.com/camster91/family-planner/issues/142#issuecomment-6408517339)
+is preserved verbatim, and the original requirements plus one checked/four
+unchecked criteria remain in the issue body. Older acceptance applies only to
+its recorded candidates, not the current unverified source. No issue closed.
 
 ## Current canonical issue directory
 
