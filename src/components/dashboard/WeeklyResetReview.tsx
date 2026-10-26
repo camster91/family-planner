@@ -11,6 +11,7 @@ import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import * as React from "react";
 import { MealPlanningReviewLinks } from "@/components/meals/planning/MealPlanningReviewLinks";
 import { ResponsibilityReviewEntry } from "@/components/responsibility/ResponsibilityProvider";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
@@ -60,6 +61,7 @@ export default function WeeklyResetReview({
     locale = useDisplayLocale();
   const preparationActive = usePreparationActive();
   const scheduleReviewActive = useScheduleReviewActive() || preparationActive;
+  const router = useDraftAwareRouter();
   const [store] = React.useState(() =>
     browserWeeklyResetRecovery({ userId, familyId }),
   );
@@ -88,6 +90,40 @@ export default function WeeklyResetReview({
     [summaryLoading, setSummaryLoading] = React.useState(false),
     [summaryAttempt, setSummaryAttempt] = React.useState(0);
   const step = view?.steps[index];
+  const canNavigateToDomain = () =>
+    !busy &&
+    !operation.current &&
+    !pendingRef.current &&
+    storageAction.current === null &&
+    !storageError;
+  const domainLink = (href: string, label: string) => {
+    const blocked = !canNavigateToDomain();
+    return (
+      <Link
+        href={href}
+        className={`${plain} inline-flex items-center`}
+        aria-disabled={blocked || undefined}
+        tabIndex={blocked ? -1 : undefined}
+        onClick={(event) => {
+          if (!canNavigateToDomain()) {
+            event.preventDefault();
+            return;
+          }
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          event.preventDefault();
+          void router.push(href);
+        }}
+      >
+        {label}
+      </Link>
+    );
+  };
   React.useEffect(() => {
     const refresh = () => setSummaryAttempt((value) => value + 1);
     window.addEventListener(CALENDAR_CHANGED_EVENT, refresh);
@@ -671,12 +707,10 @@ export default function WeeklyResetReview({
                                 {copy.groups[group.kind]}
                               </h4>
                               {group.kind === "gaps" && (
-                                <Link
-                                  href="/dashboard/meals"
-                                  className={`${plain} inline-flex items-center`}
-                                >
-                                  {copy.mealPlanReview}
-                                </Link>
+                                domainLink(
+                                  "/dashboard/meals",
+                                  copy.mealPlanReview,
+                                )
                               )}
                               {group.total !== undefined && (
                                 <p className="text-callout">
@@ -726,12 +760,7 @@ export default function WeeklyResetReview({
                                           </p>
                                         )}
                                         {row.href && (
-                                          <Link
-                                            href={row.href}
-                                            className={`${plain} inline-flex items-center`}
-                                          >
-                                            {copy.recipeReview}
-                                          </Link>
+                                          domainLink(row.href, copy.recipeReview)
                                         )}
                                         <p className="text-callout text-label-secondary">
                                           {row.dateKind
@@ -800,12 +829,7 @@ export default function WeeklyResetReview({
                         </>
                       )}
                       {step && (
-                        <Link
-                          className={`${plain} inline-flex items-center`}
-                          href={step.href}
-                        >
-                          {copy.openSection}
-                        </Link>
+                        domainLink(step.href, copy.openSection)
                       )}
                     </>
                   )}

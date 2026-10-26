@@ -369,6 +369,11 @@ export default function RoutineScheduleManager({
   }
   const initialOpened = React.useRef(false);
   React.useEffect(() => {
+    // The schedules page can stay mounted while a handoff changes only
+    // `stack_id`; allow the new deep link to open exactly once.
+    initialOpened.current = false;
+  }, [initialStackId]);
+  React.useEffect(() => {
     if (
       authorized &&
       available &&
