@@ -68,8 +68,12 @@ export function parseRewardCard(value: unknown): RewardCard | null {
 function rewardFailureMessage(value: unknown, fallback: string) {
   return isRecord(value) && typeof value.error === 'string' && value.error.trim() ? value.error : fallback
 }
-function uncertainRewardStatus(status: number) {
+function uncertainRewardStatus(status: number, body: unknown) {
+  // A late access hold can follow a committed transaction. Status alone cannot
+  // turn that result into a known refusal or permit a new request key.
+  const code = isRecord(body) ? body.code : null
   return status >= 500 || [408, 409, 425, 429].includes(status)
+    || code === 'REWARD_ACCESS_CHANGED' || code === 'REWARD_ACCESS_UNCONFIRMED'
 }
 
 function parseRewardResponse(value: unknown): RewardCard | null {
@@ -136,6 +140,7 @@ export default function RewardsBoard({
   const [recoveries, setRecoveries] = React.useState<Recovery[]>([])
   const claimKeys = React.useRef(new Map<string, string>())
   const approveKeys = React.useRef(new Map<string, string>())
+  const uncertainRequests = React.useRef(new Set<string>())
 
   React.useEffect(() => setLocalRewards(rewards), [rewards])
   React.useEffect(() => setLocalXp(userXp), [userXp])
@@ -171,6 +176,8 @@ export default function RewardsBoard({
     recoveries.find((item) => item.kind === kind && item.reward.id === rewardId) ?? null
 
   const putRecovery = (next: Recovery) => {
+    // Synchronous evidence survives a same-tick retry before React state commits.
+    uncertainRequests.current.add(`${next.kind}:${next.reward.id}`)
     setRecoveries((current) => [
       ...current.filter((item) => !(item.kind === next.kind && item.reward.id === next.reward.id)),
       next,
@@ -178,6 +185,7 @@ export default function RewardsBoard({
   }
 
   const clearRecovery = (kind: Recovery['kind'], rewardId: string) => {
+    uncertainRequests.current.delete(`${kind}:${rewardId}`)
     setRecoveries((current) => current.filter((item) => !(item.kind === kind && item.reward.id === rewardId)))
   }
 
@@ -206,8 +214,15 @@ export default function RewardsBoard({
         addToast({ type: 'success', title: rewardsText('givenToast', { name: current.name }) })
         return
       }
-      // Still available is not proof an in-flight original claim rolled back.
+      // Resource state is only sufficient to resolve our claim when the actual
+      // claimant is this account in a supported terminal lifecycle. Another
+      // person's claim or a missing claimant says nothing about our XP outcome.
       if (current.status === 'available') return
+      if (current.claimedById !== currentUserId || !['claimed', 'approved', 'redeemed'].includes(current.status)) {
+        setRecoveries(items => items.map(item => item.kind === target.kind && item.reward.id === target.reward.id
+          ? { ...item, message: rewardsText('statusUnconfirmed') } : item))
+        return
+      }
       claimKeys.current.delete(target.reward.id)
       clearRecovery(target.kind, target.reward.id)
       setConfirming(null)
@@ -236,7 +251,7 @@ export default function RewardsBoard({
       if (!response.ok) {
         const message = rewardFailureMessage(body, rewardsText('claimErrorDescription'))
         setClaimError(message)
-        if (uncertainRewardStatus(response.status)) {
+        if (uncertainRewardStatus(response.status, body) || uncertainRequests.current.has(`claim:${reward.id}`)) {
           putRecovery({ kind: 'claim', reward, key, message })
         } else {
           claimKeys.current.delete(reward.id)
@@ -280,7 +295,7 @@ export default function RewardsBoard({
       const { response, body } = result
       if (!response.ok) {
         const message = rewardFailureMessage(body, rewardsText('claimErrorDescription'))
-        if (uncertainRewardStatus(response.status)) {
+        if (uncertainRewardStatus(response.status, body) || uncertainRequests.current.has(`approve:${reward.id}`)) {
           putRecovery({ kind: 'approve', reward, key, message })
         } else {
           approveKeys.current.delete(reward.id)
@@ -306,6 +321,13 @@ export default function RewardsBoard({
   }
 
   const retryRecovery = async (target: Recovery) => {
+    const keys = target.kind === 'claim' ? claimKeys : approveKeys
+    const existing = keys.current.get(target.reward.id)
+    if (existing && existing !== target.key) {
+      putRecovery({ ...target, message: rewardsText('statusUnconfirmed') })
+      return
+    }
+    keys.current.set(target.reward.id, target.key)
     if (target.kind === 'claim') {
       setConfirming(target.reward)
       await claim(target.reward)

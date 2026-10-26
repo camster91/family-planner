@@ -804,3 +804,28 @@ concurrency/session/feature/receipt/interleaving/device/rendered acceptance ran.
 Normal reward collection/SSR authority and client uncertain-key retirement remain
 separate source/acceptance concerns; no whole-Rewards privacy certification.
 No schema/migration/generation, QA/build/browser/CI, flag activation or release ran.
+
+
+## Reward uncertain retry retention — 2026-10-25
+
+The claim/approval board now tracks unresolved attempts synchronously as well as
+in displayed recovery state. After an unknown response, a later400/401/403/etc.
+refusal preserves the same original key/recovery instead of deleting it. A first
+REWARD_ACCESS_CHANGED/UNCONFIRMED response is also uncertain regardless of HTTP
+status, because final access withdrawal may follow commit. Explicit retry restores
+the recovery's exact key and refuses a conflicting active key; it never silently
+converts that recovery to a new request. Bodies remain the same reward ID/action.
+
+A claim current-state read now resolves only for the original account claimant
+in known claimed/approved/redeemed states. Another claimant, a cleared identity,
+or an unsupported lifecycle keeps the original recovery and does not report a
+successful own claim or adjust XP. Still available remains unresolved. Approval's
+existing desired-state observation remains distinct from proof of which request
+performed it. Typed EN/ES recovery copy no longer promises all retry ages are safe.
+
+Authored unrun cases cover unknown→refusal→original-key retry, first late-access
+hold and another person's claim after an uncertain own action. This in-memory
+follow-through does not add disk recovery, original-session HTTP owner commands,
+receipt-age retirement, request cancellation or account/unmount retirement. Those
+source/acceptance gaps and real concurrency/receipt/role/device/rendered evidence
+remain open. No QA, schema/migration/generation, flag activation or release ran.

@@ -62,10 +62,11 @@ export const rewardsEnglish = {
   claimedCelebration: '🎉 Claimed!',
   gotIt: 'You got it!',
   recoveryTitle: 'The connection dropped before we could confirm.',
-  recoveryDescription: 'Your action is safe to retry. We will reuse the same request.',
+  recoveryDescription: 'The result is not confirmed. Try again with the original request, or check the current reward.',
   tryAgain: 'Try again',
   checkStatus: 'Check status',
   statusError: 'We could not check the current rewards.',
+  statusUnconfirmed: 'The current reward does not confirm your original request. Keep this recovery and check again.',
 } as const
 
 export const rewardsSpanish: Record<keyof typeof rewardsEnglish, string> = {
@@ -128,10 +129,11 @@ export const rewardsSpanish: Record<keyof typeof rewardsEnglish, string> = {
   claimedCelebration: '🎉 ¡Reclamada!',
   gotIt: '¡Lo lograste!',
   recoveryTitle: 'La conexión se interrumpió antes de confirmar.',
-  recoveryDescription: 'Puedes reintentarlo sin duplicar la solicitud.',
+  recoveryDescription: 'El resultado no está confirmado. Reintenta la solicitud original o consulta la recompensa actual.',
   tryAgain: 'Intentar de nuevo',
   checkStatus: 'Comprobar estado',
   statusError: 'No se pudieron comprobar las recompensas actuales.',
+  statusUnconfirmed: 'La recompensa actual no confirma tu solicitud original. Conserva esta recuperación y consulta de nuevo.',
 }
 
 export const rewardsMessages: Record<Locale, Record<keyof typeof rewardsEnglish, string>> = {
