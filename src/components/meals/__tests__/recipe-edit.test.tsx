@@ -562,3 +562,23 @@ it('projects a validated edit reply before handing it to its parent', async () =
   expect(onSaved.mock.calls[0][0]).toEqual({ ...RECIPE, title: 'Saved soup' });
   expect(onSaved.mock.calls[0][0]).not.toHaveProperty('privateExtra');
 });
+
+// Authored UNRUN: owner/header refusal precedes any private body decoder.
+it.each(['missing', 'changed', 'denied'] as const)('holds a bound edit with %s owner admission without decoding its body', async condition => {
+  const onSaved = jest.fn();
+  const onOwnerHold = jest.fn();
+  const json = jest.fn(() => new Promise(() => undefined));
+  const headers = condition === 'missing' ? new Headers() : condition === 'changed'
+    ? new Headers({ 'X-Herewoven-Recipe-Owner': JSON.stringify({ ...originalOwner, familyId: 'family-b' }) })
+    : ownerHeaders();
+  global.fetch = jest.fn(async () => ({ ok: condition !== 'denied', status: condition === 'denied' ? 403 : 200,
+    headers, json }) as unknown as Response) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
+    onSaved={onSaved} onOwnerHold={onOwnerHold} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Bound save' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(onOwnerHold).toHaveBeenCalledTimes(1));
+  expect(json).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});

@@ -361,12 +361,18 @@ function RecipeEditorForm({
             signal,
           },
         );
+        // Admit the original owner before decoding a successful private body.
+        // Access refusals may be proxy HTML or oversized/slow JSON; their body
+        // is not needed to retire this household view.
+        if (expectedOwner && ([401, 403].includes(response.status) ||
+          (response.ok && !sameRecipeOwner(expectedOwner, readRecipeOwner(response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))))
+          return { kind: "reply" as const, response, reply: null, ownerRefused: true };
         const reply = await readBoundedJsonResponse(
           response,
           signal,
           1024 * 1024,
         );
-        return { kind: "reply" as const, response, reply };
+        return { kind: "reply" as const, response, reply, ownerRefused: false };
       },
       { timeoutMs: 30_000, signal: abort.signal },
     );
@@ -379,9 +385,8 @@ function RecipeEditorForm({
       return;
     }
     const res = result.response;
-    if (expectedOwner && ([401, 403].includes(res.status) ||
-        (result.reply as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
-        (res.ok && !sameRecipeOwner(expectedOwner, readRecipeOwner(res.headers?.get(RECIPE_OWNER_HEADER) ?? null))))) {
+    if (expectedOwner && (result.ownerRefused ||
+        (result.reply as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED")) {
       markUncertain();
       callbacks.current.onOwnerHold?.();
       return;

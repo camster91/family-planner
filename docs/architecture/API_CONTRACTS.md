@@ -2114,3 +2114,20 @@ assertions missed in the prior owner/revision changes are also adapted. All
 are UNRUN. Durable recovery, source birth continuity, exact edit retries and
 real client/DB/concurrency/rendered acceptance remain separate. No QA/checks/
 build/browser/DB/CI/push/merge/deploy or activation ran.
+
+
+### Ordinary bound recipe response admission before decoding — 2026-10-26
+
+The ordinary editor create/edit transport now checks401/403 and successful
+original-owner metadata immediately after receiving headers, before decoding
+the body. Missing/changed successful metadata or access refusal retires the
+owner view without waiting on proxy HTML or oversized/stalled JSON. Matching
+replies retain the shared body/deadline bounds and detail projection. A
+structured409 still uses the bounded decoder to distinguish revision conflict
+from explicit owner refusal. The adopted draft transport remains separate.
+
+Three source cases use a never-settling decoder to describe missing-owner,
+changed-owner and denied-access responses; the decoder must remain uncalled.
+They are UNRUN. No conclusion about server commit/rollback, body transport
+cancellation, exact receipt recovery or durable pending state follows from
+this response hold. No QA/checks/build/browser/DB/CI/push/merge/deploy ran.
