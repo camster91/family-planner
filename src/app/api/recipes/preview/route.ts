@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
-import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { canEditRecipe } from "@/lib/recipes";
@@ -20,6 +20,8 @@ async function preview(request: NextRequest) {
     actorId: auth.user.id, familyId: auth.user.family_id,
     role: auth.user.role, generation: auth.payload.tv ?? 0,
   });
+  const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+  if (ownerRefusal) return ownerRefusal;
   const gate = await featureGate(auth.user.family_id, "meals");
   if (gate) return gate;
   if (!canEditRecipe(auth.user.role))
@@ -81,7 +83,7 @@ async function preview(request: NextRequest) {
       );
     return NextResponse.json(
       { recipe },
-      { headers: { "Cache-Control": "private, no-store" } },
+      { headers: recipeReadOwnerHeaders(original) },
     );
   } catch {
     return NextResponse.json(

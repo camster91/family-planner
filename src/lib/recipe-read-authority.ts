@@ -1,3 +1,4 @@
+import { RECIPE_OWNER_HEADER, RECIPE_OWNER_PROTOCOL, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { featureGate } from "@/lib/feature-gate-server";
@@ -31,3 +32,16 @@ export async function renewRecipeReadAuthority(
   );
   return featureGate(original.familyId, "meals");
 }
+
+/** Optional browser continuity claim; only compare with server-captured authority. */
+export function recipeExpectedReadOwnerRefusal(request: NextRequest, original: RecipeReadAuthority): NextResponse | null {
+  const expected = request.headers.get(RECIPE_OWNER_HEADER);
+  if (expected === null || sameRecipeOwner(readRecipeOwner(expected), { protocol: RECIPE_OWNER_PROTOCOL, ...original })) return null;
+  return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, {
+    status: 409, headers: { "Cache-Control": "private, no-store" },
+  });
+}
+export const recipeReadOwnerHeaders = (original: RecipeReadAuthority) => ({
+  "Cache-Control": "private, no-store",
+  [RECIPE_OWNER_HEADER]: JSON.stringify({ protocol: RECIPE_OWNER_PROTOCOL, ...original }),
+});

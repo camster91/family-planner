@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "@/lib/api-auth";
-import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { fetchFeed } from "@/lib/calendar-import/fetch";
@@ -25,6 +25,8 @@ async function discover(request: NextRequest) {
     actorId: auth.user.id, familyId: auth.user.family_id,
     role: auth.user.role, generation: auth.payload.tv ?? 0,
   });
+  const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+  if (ownerRefusal) return ownerRefusal;
   const gate = await featureGate(auth.user.family_id, "meals");
   if (gate) return gate;
   const limit = await checkRateLimit(
@@ -122,7 +124,7 @@ async function discover(request: NextRequest) {
       searchUrl: selected.length === 1 ? reads[0].searchUrl : null,
       sources: reads.map(({ results: _results, ...source }) => source),
     },
-    { status: unavailable ? 422 : 200 },
+    { status: unavailable ? 422 : 200, headers: recipeReadOwnerHeaders(original) },
   );
 }
 export async function POST(request: NextRequest) {

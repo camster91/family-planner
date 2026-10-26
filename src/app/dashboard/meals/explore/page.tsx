@@ -26,8 +26,9 @@ import {
 } from "@/lib/recipe-discovery";
 
 import { requestOwnedJson } from "@/lib/owned-request-http";
+import { requestRecipeCurationJson } from "@/lib/recipe-curation-client";
 import { RecipeLibraryOwnerChanged, readRecipeLibraryPage, type RecipeLibrarySummary as SavedRecipe } from "@/lib/recipe-library-client";
-import type { RecipeOwner } from "@/lib/recipe-owner-contract";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
 type RecipeSearchResult = { title: string; url: string; source?: string };
 
@@ -105,6 +106,9 @@ export default function RecipeExplorePage() {
       try {
         const data = await readRecipeLibraryPage(libraryFilters, next, abort.signal, fetch, libraryOwner.current);
         if (!abort.signal.aborted) {
+          // An online request may have pinned the owner while this first
+          // library request was still in flight. Never merge bootstrap races.
+          if (libraryOwner.current && !sameRecipeOwner(libraryOwner.current, data.owner)) { holdLibraryOwner(); return; }
           if (!libraryOwner.current) libraryOwner.current = data.owner;
           setCanSave(["parent", "teen"].includes(data.owner.role));
           setRecipes((previous) => next === 0 ? data.recipes :
@@ -151,9 +155,21 @@ export default function RecipeExplorePage() {
     };
   }, [loadLibrary]);
 
+  const admitOnlineOwner = (response: Response) => {
+    if ([401, 403, 409].includes(response.status)) { holdLibraryOwner(); return false; }
+    if (!response.ok) return true;
+    const received = readRecipeOwner(response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+    if (!received || (libraryOwner.current && !sameRecipeOwner(libraryOwner.current, received))) {
+      holdLibraryOwner(); return false;
+    }
+    if (!libraryOwner.current) libraryOwner.current = received;
+    setCanSave(["parent", "teen"].includes(received.role));
+    return true;
+  };
+
   const readRecipe = async (event?: React.FormEvent, selectedUrl = url) => {
     event?.preventDefault();
-    if (!canSave || importBusy.current) return;
+    if (libraryHeld.current || !canSave || importBusy.current) return;
     const link = publicRecipeUrl(selectedUrl.trim());
     if (!link) {
       setError(text("invalidLink"));
@@ -167,14 +183,15 @@ export default function RecipeExplorePage() {
     const abort = new AbortController();
     controller.current = abort;
     try {
-      const result = await requestOwnedJson("/api/recipes/preview", {
+      const result = await requestRecipeCurationJson("/api/recipes/preview", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(libraryOwner.current ? { [RECIPE_OWNER_HEADER]: JSON.stringify(libraryOwner.current) } : {}) },
         body: JSON.stringify({ url: link }),
         signal: abort.signal,
       }, 512 * 1024);
       if (result.kind !== "reply") throw new Error("Recipe preview unavailable");
       const { response } = result;
+      if (!current() || abort.signal.aborted || !admitOnlineOwner(response)) return;
       const data = result.body as { recipe?: unknown } | null;
       const parsed = onlineRecipeSchema.safeParse(data?.recipe);
       if (!response.ok || !parsed.success) {
@@ -201,6 +218,7 @@ export default function RecipeExplorePage() {
 
   const searchOnline = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (libraryHeld.current) return;
     searchController.current?.abort();
     const own = ++searchGeneration.current;
     const current = () => own === searchGeneration.current;
@@ -213,14 +231,15 @@ export default function RecipeExplorePage() {
     setSearched(false);
     setIncompleteSearch(false);
     try {
-      const result = await requestOwnedJson("/api/recipes/discover", {
+      const result = await requestRecipeCurationJson("/api/recipes/discover", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(libraryOwner.current ? { [RECIPE_OWNER_HEADER]: JSON.stringify(libraryOwner.current) } : {}) },
         body: JSON.stringify({ query: query.trim(), source }),
         signal: abort.signal,
       }, 512 * 1024);
       if (result.kind !== "reply") throw new Error("Recipe search unavailable");
       const { response } = result;
+      if (!current() || abort.signal.aborted || !admitOnlineOwner(response)) return;
       const parsed = recipeDiscoveryResponse.safeParse(result.body);
       if (!response.ok || !parsed.success) {
         if (current() && !abort.signal.aborted)
@@ -692,6 +711,7 @@ export default function RecipeExplorePage() {
                   {text("reviewBeforeSaving")}
                 </p>
                 <RecipeEditor
+                  recoveryIdentity={libraryOwner.current ? { userId: libraryOwner.current.actorId, familyId: libraryOwner.current.familyId } : undefined}
                   initialDraft={{
                     source_url: preview.source,
                     source_copy: copyImport,

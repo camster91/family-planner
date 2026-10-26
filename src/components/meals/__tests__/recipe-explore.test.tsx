@@ -32,7 +32,7 @@ const preview = {
   cook_time: 30,
 };
 const response = (body: unknown, ok = true, role = "parent") => ({
-  headers: new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ protocol: "herewoven.recipe-owner.v1", actorId: role === "child" ? "child-a" : "parent-a", familyId: "family-a", role, generation: 0 }) }),
+  headers: new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ protocol: "herewoven.recipe-owner.v1", actorId: role === "child" ? "child-a" : "fixture-parent", familyId: "fixture-family", role, generation: 0 }) }),
   ok,
   status: ok ? 200 : 422,
   json: async () => body,
@@ -226,5 +226,23 @@ it('masks the containing recipe library when its collection catalog changes hous
   expect(screen.queryByRole('link', { name: 'Fixture pasta' })).toBeNull();
   expect(screen.queryByText('Other private collection')).toBeNull();
   expect(screen.queryByLabelText('Recipe link')).toBeNull();
+  expect(saves).toHaveLength(0);
+});
+
+// Authored UNRUN: public preview data cannot adopt another page owner.
+it('masks the original library instead of opening a preview from another session', async () => {
+  const saves = setup();
+  const baseFetch = fetch;
+  global.fetch = jest.fn((url, init) => String(url) === '/api/recipes/preview'
+    ? Promise.resolve({ ok: true, status: 200, headers: new Headers({ 'X-Herewoven-Recipe-Owner': JSON.stringify({
+        protocol: 'herewoven.recipe-owner.v1', actorId: 'fixture-parent', familyId: 'fixture-family', role: 'parent', generation: 9,
+      }) }), json: async () => ({ recipe: preview }) }) : baseFetch(url, init)) as jest.Mock;
+  render(<Explore />);
+  await screen.findByRole('link', { name: 'Fixture pasta' });
+  fireEvent.change(screen.getByLabelText('Recipe link'), { target: { value: preview.source } });
+  fireEvent.submit(screen.getByRole('button', { name: 'Read recipe' }).closest('form')!);
+  await screen.findByRole('button', { name: 'Reload page' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Fixture pasta' })).toBeNull();
   expect(saves).toHaveLength(0);
 });

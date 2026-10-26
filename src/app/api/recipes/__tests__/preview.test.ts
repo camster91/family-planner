@@ -207,3 +207,16 @@ it('does not contact a publisher after the original role changes during rate lim
   expect(response.status).toBe(409);
   expect(mockFetch).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: optional owner continuity rejects before outbound traffic.
+it.each([['preview', POST, { url: 'https://example.org/soup' }],
+  ['discover', discover, { query: 'soup', source: 'BBC Good Food' }]] as const)(
+  'refuses a foreign expected %s owner before publisher requests', async (_kind, handle, body) => {
+    const response = await handle(req({ as: 'parentA', method: 'POST', body, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-b', familyId: 'family-B', role: 'parent', generation: 0 }),
+    } }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } });
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });

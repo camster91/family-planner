@@ -18,7 +18,7 @@ jest.mock("@/components/ui/feature-gate", () => ({
 }));
 
 const response = (body: unknown, ok = true, role = "parent") => ({
-  headers: new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ protocol: "herewoven.recipe-owner.v1", actorId: role === "child" ? "child-a" : "parent-a", familyId: "family-a", role, generation: 0 }) }),
+  headers: new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ protocol: "herewoven.recipe-owner.v1", actorId: role === "child" ? "child-a" : "fixture-parent", familyId: "fixture-family", role, generation: 0 }) }),
   ok,
   status: ok ? 200 : 503,
   json: async () => body,
