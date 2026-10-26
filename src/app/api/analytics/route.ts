@@ -27,9 +27,29 @@ export async function GET(request: NextRequest) {
 
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
-
-    const gate = await featureGate(auth.user.family_id, 'analytics')
-    if (gate) return gate
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 })
+    const privateResponse = (response: NextResponse) => {
+      response.headers.set('Cache-Control', 'private, no-store')
+      return response
+    }
+    const gate = await featureGate(original.familyId, 'analytics')
+    if (gate) return privateResponse(gate)
+    // Reads below may wait on the database. Renew feature access, then the
+    // original principal after that wait, before returning either private
+    // summary data or the household's size-limit result. This is a point-in-
+    // time HTTP check, not membership/feature serialization or a DB snapshot.
+    const reply = async (body: unknown, status = 200) => {
+      const currentGate = await featureGate(original.familyId, 'analytics')
+      const [current, refused] = await authenticateWithFamily(request)
+      if (refused) return privateResponse(refused)
+      if (current.user.id !== original.actorId || current.user.family_id !== original.familyId ||
+        current.user.role !== original.role || (current.payload.tv ?? 0) !== original.generation)
+        return privateResponse(NextResponse.json({ code: 'ANALYTICS_SCOPE_CHANGED',
+          error: 'Your account or household changed. Reload progress.' }, { status: 409 }))
+      if (currentGate) return privateResponse(currentGate)
+      return privateResponse(NextResponse.json(body, { status }))
+    }
 
     const query = new URL(request.url).searchParams
     if (query.has('projection') && (query.getAll('projection').length !== 1 || query.get('projection') !== ANALYTICS_SUMMARY_PROJECTION))
@@ -42,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
     const dayKey = dayKeyFor(zone)
 
-    const familyId = auth.user.family_id
+    const familyId = original.familyId
     const now = new Date()
     const oneMonthAgo = new Date(now.getTime() - 30 * DAY_MS)
     // Bounded window: the last 90 days, never the future.
@@ -93,8 +113,7 @@ export async function GET(request: NextRequest) {
     // from a truncated one. Never turn an incomplete compact read into totals.
     // Legacy requests retain their established cap/body pending compatibility work.
     if (summaryOnly && (allChores.length > MAX_ANALYTICS_CHORES || recentCompletedChores.length > MAX_ANALYTICS_CHORES))
-      return NextResponse.json({ code: ANALYTICS_SUMMARY_LIMIT_CODE, error: 'This progress window exceeds the supported summary size.' },
-        { status: 422, headers: { 'Cache-Control': 'private, no-store' } })
+      return await reply({ code: ANALYTICS_SUMMARY_LIMIT_CODE, error: 'This progress window exceeds the supported summary size.' }, 422)
 
     // Completed chores by the viewer's local day.
     const completedByDay = new Map<string, { count: number; points: number }>()
@@ -219,7 +238,7 @@ export async function GET(request: NextRequest) {
       hard: allChores.filter(c => c.difficulty === 'hard').length,
     }
 
-    return NextResponse.json({
+    return await reply({
       ...(summaryOnly ? { coverage: ANALYTICS_SUMMARY_COVERAGE } : {}),
       summary: {
         totalChores,
@@ -245,7 +264,7 @@ export async function GET(request: NextRequest) {
           userName: a.user.name,
         })),
       } : {}),
-    }, { headers: { 'Cache-Control': 'private, no-store' } })
+    })
   } catch (error) {
     logRouteError('GET /api/analytics', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

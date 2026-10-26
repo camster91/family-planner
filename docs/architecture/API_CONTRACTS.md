@@ -2254,3 +2254,17 @@ fixtures are adapted as source only, UNRUN. Later checks must cover4999/5000/500
 in either collection, successful empty collections, strict selector admission,
 known/unknown/oversized/stalled error bodies, absent/invalid coverage, legacy
 response preservation and localized nonnumeric limit presentation.
+
+
+Analytics GET also freezes its original authenticated account/household/role/
+token generation before any feature/query wait and uses that household for all
+reads. Before returning either legacy/compact data or compact size-limit422,
+it reads the original feature gate again, then reauthenticates the request and
+compares all four original fields. Auth refusal is propagated privately; drift
+returns private/no-store409 `ANALYTICS_SCOPE_CHANGED`; a feature refusal is
+returned only after the original principal still matches. The async response
+helper is awaited inside the existing route error boundary. These are point-
+in-time checks, not a transactional snapshot or membership/feature serialization;
+related-person projection and browser original-owner/session-ID continuity
+remain separate. No runtime authority/concurrency/feature-flip/legacy acceptance
+was run in this no-QA pass.
