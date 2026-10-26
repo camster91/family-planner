@@ -33,8 +33,12 @@ export async function GET(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, 'analytics')
     if (gate) return gate
 
+    const query = new URL(request.url).searchParams
+    if (query.has('projection') && (query.getAll('projection').length !== 1 || query.get('projection') !== 'summary-v1'))
+      return NextResponse.json({ error: 'Invalid analytics projection' }, { status: 400 })
+    const summaryOnly = query.get('projection') === 'summary-v1'
     // Without `tz`/`tzOffset` (older clients), UTC days as before.
-    const zone = parseLocalZone(new URL(request.url).searchParams)
+    const zone = parseLocalZone(query)
     if (!zone) {
       return NextResponse.json({ error: 'Invalid time zone' }, { status: 400 })
     }
@@ -78,7 +82,7 @@ export async function GET(request: NextRequest) {
         orderBy: { completed_at: 'desc' },
         take: MAX_ANALYTICS_CHORES,
       }),
-      prisma!.activity.findMany({
+      summaryOnly ? Promise.resolve([]) : prisma!.activity.findMany({
         // Legacy page-view/click rows are not household activity (#136).
         where: { family_id: familyId, NOT: { type: legacyAnalyticsTypeFilter() }, type: {notIn: [...PRIVATE_TIMELINE_ACTIONS]} },
         include: { user: { select: { name: true } } },
@@ -112,21 +116,28 @@ export async function GET(request: NextRequest) {
     })
 
     // Member participation
+    // Count each bounded chore once; do not rescan the full window for each
+    // member. Unassigned/former-member chores still count in family totals.
+    const countsByMember = new Map<string, { total: number; completed: number }>()
+    for (const chore of allChores) {
+      if (!chore.assigned_to) continue
+      const counts = countsByMember.get(chore.assigned_to) ?? { total: 0, completed: 0 }
+      counts.total++
+      if (DONE_STATUSES.includes(chore.status)) counts.completed++
+      countsByMember.set(chore.assigned_to, counts)
+    }
     const memberParticipation = familyMembers.map(member => {
-      const memberChores = allChores.filter(chore => chore.assigned_to === member.id)
-      const completedChores = memberChores.filter(chore => DONE_STATUSES.includes(chore.status))
-
+      const counts = countsByMember.get(member.id) ?? { total: 0, completed: 0 }
       return {
         id: member.id,
         name: member.name,
         role: member.role,
-        totalChores: memberChores.length,
-        completedChores: completedChores.length,
-        completionRate: memberChores.length > 0
-          ? Math.round((completedChores.length / memberChores.length) * 100)
-          : 0,
+        totalChores: counts.total,
+        completedChores: counts.completed,
+        completionRate: counts.total > 0 ? Math.round((counts.completed / counts.total) * 100) : 0,
       }
     })
+    const participationById = new Map(memberParticipation.map(member => [member.id, member]))
 
     // Family statistics
     const totalChores = allChores.length
@@ -177,7 +188,7 @@ export async function GET(request: NextRequest) {
     const gamification = await isGamificationOn(familyId)
     const members = familyMembers
       .map((m) => {
-        const participation = memberParticipation.find((p) => p.id === m.id)
+        const participation = participationById.get(m.id)
         const base = {
           id: m.id,
           name: m.name,
@@ -209,24 +220,26 @@ export async function GET(request: NextRequest) {
         completedChores,
         completionRate,
         currentStreak,
-        mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null,
+        ...(!summaryOnly ? { mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null } : {}),
       },
       weeklyTrend: weeklyData,
       weeklyCompletion,
       gamification,
       members,
-      memberParticipation,
-      topPerformers,
-      difficultyDistribution,
-      recentActivity: recentActivities.map(a => ({
-        id: a.id,
-        type: a.type,
-        title: a.title,
-        description: a.description,
-        createdAt: a.created_at,
-        userName: a.user.name,
-      })),
-    })
+      ...(!summaryOnly ? {
+        memberParticipation,
+        topPerformers,
+        difficultyDistribution,
+        recentActivity: recentActivities.map(a => ({
+          id: a.id,
+          type: a.type,
+          title: a.title,
+          description: a.description,
+          createdAt: a.created_at,
+          userName: a.user.name,
+        })),
+      } : {}),
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/analytics', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

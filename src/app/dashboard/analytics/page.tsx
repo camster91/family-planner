@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { useAnalyticsText } from '@/i18n/analytics'
 
-import { parseAnalyticsPayload, type AnalyticsData } from '@/lib/analytics-presentation'
+import type { AnalyticsData } from '@/lib/analytics-presentation'
+import { readHouseholdAnalytics } from '@/lib/analytics-read-client'
 
 function formatWeekday(date: string, locale: string): string {
   const parsed = new Date(`${date}T12:00:00Z`)
@@ -29,33 +30,49 @@ function AnalyticsPageContent() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
 
-  useEffect(() => {
-    void loadAnalytics()
-  }, [])
-
-  const loadAnalytics = async () => {
+  const live = useRef(false)
+  const readSerial = useRef(0)
+  const activeRead = useRef<AbortController | null>(null)
+  const loadAnalytics = useCallback(async () => {
+    if (!live.current) return
+    activeRead.current?.abort()
+    const controller = new AbortController()
+    activeRead.current = controller
+    const serial = ++readSerial.current
+    const current = () => live.current && !controller.signal.aborted && serial === readSerial.current
     setLoading(true)
     setLoadError(false)
     try {
-      // O-31: the server counts days in the viewer's local zone.
+      // O-31: canonical day counts use the viewer's zone, independent of locale.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
       const zoneParam = tz
         ? `tz=${encodeURIComponent(tz)}`
         : `tzOffset=${new Date().getTimezoneOffset()}`
-      const res = await fetch(`/api/analytics?${zoneParam}`)
-      const payload: unknown = await res.json()
-      const parsed = res.ok ? parseAnalyticsPayload(payload) : null
-      if (!parsed) {
-        setLoadError(true)
-        return
-      }
-      setData(parsed)
+      const data = await readHouseholdAnalytics(zoneParam, controller.signal)
+      if (current()) setData(data)
     } catch {
-      setLoadError(true)
+      if (current()) {
+        setData(null)
+        setLoadError(true)
+      }
     } finally {
-      setLoading(false)
+      if (current()) {
+        activeRead.current = null
+        setLoading(false)
+      }
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    live.current = true
+    void loadAnalytics()
+    return () => {
+      live.current = false
+      ++readSerial.current
+      activeRead.current?.abort()
+      activeRead.current = null
+    }
+  }, [loadAnalytics])
 
   const members = data?.members ?? []
   const gamification = data?.gamification === true
