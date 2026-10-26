@@ -130,6 +130,8 @@ export const choreFormsEnglish = {
   seriesHint:
     "This chore is part of a repeating series. Changing how often changes the whole series.",
   uploadFailed: "Failed to upload photo",
+  uploadTooLarge: "Choose a photo up to 5 MB. Your previous picture is kept.",
+  uploadUnconfirmed: "The photo upload could not be confirmed. Your previous picture is kept. Choose the photo again to retry; an uploaded file may already exist.",
   takeTurns: "Take turns",
   takeTurnsDescription: "Each time it repeats, the next person does it.",
   on: "On",
@@ -274,6 +276,8 @@ export const choreFormsSpanish: Record<ChoreFormMessage, string> = {
   seriesHint:
     "Esta tarea forma parte de una serie repetitiva. Cambiar la frecuencia cambia toda la serie.",
   uploadFailed: "No se pudo subir la foto",
+  uploadTooLarge: "Elige una foto de hasta 5 MB. Se conserva la imagen anterior.",
+  uploadUnconfirmed: "No se pudo confirmar la subida. Se conserva la imagen anterior. Elige la foto de nuevo para reintentar; el archivo puede haberse subido ya.",
   takeTurns: "Turnarse",
   takeTurnsDescription:
     "Cada vez que se repite, le toca a la siguiente persona.",

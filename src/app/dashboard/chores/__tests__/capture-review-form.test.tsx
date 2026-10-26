@@ -156,3 +156,18 @@ it("serializes ordinary submits and holds an interrupted create before any repla
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
   expect(jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
 });
+
+// Authored UNRUN: a successful upload reply must still name a canonical private chore photo.
+it("keeps the previous captured-task picture when an upload reply has an invalid path", async () => {
+  const old = "/api/files/chores/0123456789abcdef.jpg";
+  const read = global.fetch;
+  global.fetch = jest.fn(async (path, init) => path === "/api/upload"
+    ? { ok: true, status: 200, json: async () => ({ url: "/api/files/chores/invalid-file" }) }
+    : read(path, init)) as typeof fetch;
+  render(<CreateChoreForm inSheet review={{ initial: { ...initial, photoUrl: old }, onChange: jest.fn(), onReview: jest.fn(), submitLabel: "Use reviewed task" }} />);
+  const input = screen.getByLabelText("Photo") as HTMLInputElement;
+  fireEvent.change(input, { target: { files: [new File(["fixture"], "photo.jpg", { type: "image/jpeg" })] } });
+  await screen.findByText("The photo upload could not be confirmed. Your previous picture is kept. Choose the photo again to retry; an uploaded file may already exist.");
+  expect(screen.getByAltText("Preview")).toHaveAttribute("src", old);
+  expect(jest.mocked(fetch).mock.calls.filter(([path]) => path === "/api/upload")).toHaveLength(1);
+});

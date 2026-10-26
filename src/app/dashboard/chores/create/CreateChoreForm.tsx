@@ -1,4 +1,5 @@
 "use client";
+import { CHORE_PHOTO_MAX_BYTES, isChorePhotoPath } from "@/lib/chore-photo-contract";
 import { requestOwnedJson } from "@/lib/owned-request-http";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
 import { useTodayKey } from "@/components/ui/use-hydrated";
@@ -164,8 +165,11 @@ export default function CreateChoreForm({
     review?.initial.photoUrl ?? null,
   );
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoError, setPhotoError] = useState(false);
+  const [photoError, setPhotoError] = useState<ChoreFormMessage | null>(null);
+  const photoEpoch = useRef(0);
+  const photoController = useRef<AbortController | null>(null);
   const photoUploadPending = useRef(false);
+  useEffect(() => () => { photoEpoch.current++; photoController.current?.abort(); photoUploadPending.current = false; }, []);
   const busy = loading || photoUploading;
   const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
@@ -1068,34 +1072,35 @@ export default function CreateChoreForm({
                 onChange={async (e) => {
                   const input = e.currentTarget;
                   const file = input.files?.[0];
-                  if (!file || photoUploadPending.current || loading) return;
+                  if (!file || !live.current || photoUploadPending.current || submitPending.current || accountSaveState !== "editing") return;
+                  if (file.size > CHORE_PHOTO_MAX_BYTES) {
+                    input.value = ""; setPhotoError("uploadTooLarge"); return;
+                  }
                   photoUploadPending.current = true;
-                  setPhotoError(false);
+                  const epoch = ++photoEpoch.current;
+                  const controller = new AbortController(); photoController.current = controller;
+                  const current = () => live.current && photoEpoch.current === epoch;
+                  setPhotoError(null);
                   markProfileDraftEdited();
                   setPhotoUploading(true);
                   try {
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const res = await fetch("/api/upload", {
-                      method: "POST",
-                      body: fd,
-                    });
-                    const data = await res.json();
-                    if (!res.ok)
-                      throw new Error(data.error || message("uploadFailed"));
-                    if (
-                      typeof data?.url !== "string" ||
-                      !data.url.startsWith("/api/files/chores/")
-                    )
-                      throw new Error(message("uploadFailed"));
-                    setPhotoUrl(data.url);
-                    setPhotoPreview(data.url);
+                    const fd = new FormData(); fd.append("file", file);
+                    const result = await requestOwnedJson("/api/upload", {
+                      method: "POST", body: fd, signal: controller.signal,
+                    }, 64 * 1024);
+                    if (!current()) return;
+                    if (result.kind !== "reply") { setPhotoError("uploadUnconfirmed"); return; }
+                    const data = result.body && typeof result.body === "object" ? result.body as { url?: unknown } : null;
+                    if (!result.response.ok) { setPhotoError(result.response.status >= 500 || [401, 403, 408, 409, 425, 429].includes(result.response.status) ? "uploadUnconfirmed" : "uploadFailed"); return; }
+                    if (!isChorePhotoPath(data?.url)) { setPhotoError("uploadUnconfirmed"); return; }
+                    setPhotoUrl(data.url); setPhotoPreview(data.url);
                   } catch {
-                    setPhotoError(true);
+                    if (current()) setPhotoError("uploadUnconfirmed");
                   } finally {
-                    input.value = "";
-                    photoUploadPending.current = false;
-                    setPhotoUploading(false);
+                    if (current()) {
+                      input.value = ""; photoController.current = null;
+                      photoUploadPending.current = false; setPhotoUploading(false);
+                    }
                   }
                 }}
               />
@@ -1132,7 +1137,7 @@ export default function CreateChoreForm({
                   role="alert"
                   className="mt-2 text-body text-[var(--danger-text)]"
                 >
-                  {message("uploadFailed")}
+                  {message(photoError)}
                 </p>
               )}
               {photoPreview && (
@@ -1146,8 +1151,10 @@ export default function CreateChoreForm({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!live.current || photoUploadPending.current || submitPending.current) return;
+                      photoEpoch.current++;
                       markProfileDraftEdited();
-                      setPhotoError(false);
+                      setPhotoError(null);
                       setPhotoUrl(null);
                       setPhotoPreview(null);
                     }}
