@@ -251,3 +251,49 @@ still declares profile chores, scheduled routines, credit history and other requ
 dimensions unsupported, and complete:false. No generator, DB/API, writer/seed/reset,
 load/test/build/browser/native/provider or release execution occurred. #137 actual
 recurrence/clean-environment/capacity and broader #450/#480 acceptance remain open.
+
+
+## Dormant bounded read transport and owned stage inputs — 2026-10-26
+
+`src/lib/capacity/read-transport.ts` supplies the next adapter primitive. Factory
+creation checks explicit CAPACITY adoption plus the existing loopback performance
+and disposable-fixture target guards. It snapshots environment/normalized origin,
+one caller-supplied fabricated session cookie and the fetch implementation.
+Neither import nor factory creation makes an HTTP/database/provider call.
+Explicit reads accept only a fixed allowlist of existing canonical GET routes,
+construct query parameters within key/value/URL limits and cannot supply another
+origin, method, credential or route. Requests use no-store, omit ambient browser
+credentials, carry the captured cookie explicitly and set redirect:error.
+
+One15-second foreground boundary covers fetch and JSON decode; the shared body
+reader admits at most8MiB. Redirected/cross-origin returned responses are refused.
+A transport/fetch/decode/timeout/abort failure produces unknown; a complete HTTP
+reply still contains unknown JSON for the canonical scenario adapter to validate.
+A200 alone never becomes a confirmed CapacityResult. No cookie, database URL,
+raw query, payload or exception string is logged/reported by this primitive.
+Returned private fabricated data must remain transient inside the adapter.
+
+Metrics are explicitly elapsed request/decode time and **re-encoded admitted JSON
+bytes**, not compressed/wire bytes or bytes from partial/failed responses. The
+existing engine's responseBytes field must not silently relabel this as network
+measurement. Arbitrary injected fetch/adapter code is not sandboxed: redirect
+admission cannot recall credentials sent by an incompatible implementation, and
+declared local targets do not prove the server uses the isolated database.
+Session provenance, fake-provider isolation, actual fetch enforcement, source/
+schema binding and before/after reconciliation remain mandatory adoption work.
+
+The stage engine now snapshots nested traffic/sentinel lists, declared source
+commit, environment, callbacks and external abort signal before waits. Later
+caller mutation cannot redirect its callback/abort/report references or rewrite
+reported source identity. This preserves the original declaration; it does not
+attest that the supplied source SHA was actually built or measure a running app.
+
+The primitive is deliberately **not wired to a CLI, scenario or stage**. All
+eight canonical mixed adapters, session pools/poll cadence, mutation receipts,
+reconciler/resource sampling, full dataset/adoption and actual clean-environment
+reproducibility are still unfinished. No placeholder adapter reports success.
+No QA/tests/checks/build/browser/DB/HTTP/provider/CI/release action ran. Later
+checks must cover refusal before dispatch, original target/cookie/input capture,
+route/query/redirect limits, streaming/legacy body bounds, stalled and abort-
+ignoring reads, unknown vs confirmed outcomes, metric naming, input mutation
+through every awaited phase and clean callback/signal retirement.

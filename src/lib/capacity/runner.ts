@@ -36,13 +36,20 @@ export async function runCapacityStage(input: {
   reconcile: (phase: "before" | "after", signal: AbortSignal) => Promise<boolean>;
   resourceLimitReached: (signal: AbortSignal) => Promise<boolean>;
 }) {
-  const plan = { ...input.plan };
+  const plan = { ...input.plan,
+    trafficHouseholds: input.plan.trafficHouseholds.map(row => ({ ...row })),
+    sentinelOrdinals: [...input.plan.sentinelOrdinals],
+  };
   const adapters = { ...input.adapters };
-  const env = input.env ?? process.env;
+  const env = { ...(input.env ?? process.env) };
+  const sourceCommit = input.sourceCommit;
+  const reconcile = input.reconcile;
+  const resourceLimitReached = input.resourceLimitReached;
+  const externalSignal = input.signal;
   if (env.CAPACITY_ALLOW !== "local-fabricated-v1") throw new Error("Capacity adoption required");
   assertLocalPerfTarget(env.PERF_BASE_URL, env);
   assertFixtureTargetAllowed(env);
-  if (!/^[a-f0-9]{40}$/.test(input.sourceCommit)) throw new Error("Exact source identity required");
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit)) throw new Error("Exact source identity required");
   const configured = CAPACITY_STAGES[plan.stage];
   if (!configured || plan.version !== CAPACITY_MODEL_VERSION ||
     plan.sessions !== configured.sessions || plan.households !== configured.households ||
@@ -57,8 +64,8 @@ export async function runCapacityStage(input: {
     if (!controller.signal.aborted) { reason = why; controller.abort(); }
   };
   const externalStop = () => stop("cancelled");
-  input.signal?.addEventListener("abort", externalStop, { once: true });
-  if (input.signal?.aborted) externalStop();
+  externalSignal?.addEventListener("abort", externalStop, { once: true });
+  if (externalSignal?.aborted) externalStop();
   const rows = Object.fromEntries(CAPACITY_SCENARIOS.map(({ name }) => [name, {
     started: 0, confirmed: 0, refused: 0, unknown: 0, failed: 0, unsafe: 0,
     requests: 0, responseBytes: 0, samples: [] as number[],
@@ -102,7 +109,7 @@ export async function runCapacityStage(input: {
   });
   const streams = Array.from({ length: plan.sessions }, (_, worker) => capacityIntents(plan, worker));
   try {
-    reconciledBefore = await boundary(() => input.reconcile("before", controller.signal), 60_000, "reconciliation") === true;
+    reconciledBefore = await boundary(() => reconcile("before", controller.signal), 60_000, "reconciliation") === true;
     if (!reconciledBefore) stop("reconciliation");
     for (const phase of ["warmup", "measured"] as const) {
       if (controller.signal.aborted) break;
@@ -111,7 +118,7 @@ export async function runCapacityStage(input: {
       await Promise.all(Array.from({ length: plan.sessions }, (_, worker) => (async () => {
         const next = streams[worker];
         while (!controller.signal.aborted && performance.now() - began < duration) {
-          const limited = await boundary(() => input.resourceLimitReached(controller.signal), 15_000, "resource-limit");
+          const limited = await boundary(() => resourceLimitReached(controller.signal), 15_000, "resource-limit");
           if (limited !== false) { stop("resource-limit"); break; }
           const intent = next();
           if (phase === "measured" && rows[intent.scenario].started >= 100_000) {
@@ -150,11 +157,11 @@ export async function runCapacityStage(input: {
     // An abort-ignoring timed-out adapter can still be running. Never reconcile
     // concurrently with that unknown work or claim the final database is stable.
     if (!controller.signal.aborted) {
-      reconciledAfter = await boundary(() => input.reconcile("after", controller.signal), 60_000, "reconciliation") === true;
+      reconciledAfter = await boundary(() => reconcile("after", controller.signal), 60_000, "reconciliation") === true;
       if (!reconciledAfter) stop("reconciliation");
     }
   } finally {
-    input.signal?.removeEventListener("abort", externalStop);
+    externalSignal?.removeEventListener("abort", externalStop);
   }
   const timings = Object.fromEntries(CAPACITY_SCENARIOS.map(({ name }) => {
     const { samples, ...counts } = rows[name];
@@ -166,7 +173,7 @@ export async function runCapacityStage(input: {
     }];
   }));
   return {
-    model: plan.version, sourceCommit: input.sourceCommit, stage: plan.stage,
+    model: plan.version, sourceCommit, stage: plan.stage,
     stopReason: reason, reconciledBefore, reconciledAfter,
     warmupStarted, measuredStarted, measuredElapsedMs, maxInFlightScenarios: maxInFlight,
     startsPerSecond: measuredElapsedMs ? measuredStarted / (measuredElapsedMs / 1000) : null,
