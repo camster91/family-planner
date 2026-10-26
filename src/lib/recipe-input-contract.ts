@@ -64,8 +64,12 @@ export const createRecipeSchema = z
     message: "Recipe owner and original issue time require the create protocol",
   });
 
+export const RECIPE_EDIT_PROTOCOL = "herewoven.recipe-edit.v1";
 export const updateRecipeSchema = z
   .object({
+    // The previous strict schema rejects these fields before any edit effects.
+    edit_protocol: z.literal(RECIPE_EDIT_PROTOCOL).optional(),
+    edit_owner: recipeOwnerSchema.optional(),
     base_revision: z.number().int().nonnegative().optional(),
     base_updated_at: z.string().datetime().optional(),
     title: z.string().trim().min(1).max(200).optional(),
@@ -77,4 +81,8 @@ export const updateRecipeSchema = z
     /** When present, replaces the recipe's whole ingredient set. */
     ingredients: ingredients.optional(),
   })
-  .strict();
+  .strict()
+  .refine(value => (value.edit_protocol === undefined && value.edit_owner === undefined) ||
+    (value.edit_protocol !== undefined && value.edit_owner !== undefined), {
+    message: "Recipe edit owner and protocol must be supplied together",
+  });

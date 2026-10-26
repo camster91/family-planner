@@ -15,6 +15,7 @@ import {
 } from "@/lib/recipes";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { RECIPE_OWNER_PROTOCOL, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { recipeWriteAuthority, readCreatedRecipe } from "@/lib/recipe-write";
 
 export const dynamic = "force-dynamic";
@@ -108,8 +109,13 @@ export async function PATCH(request: NextRequest, context: Context) {
         { status: 400 },
       );
     }
-    const { ingredients, base_revision, base_updated_at, ...fields } =
+    const { ingredients, base_revision, base_updated_at, edit_protocol: _editProtocol, edit_owner, ...fields } =
       parsed.data;
+    void _editProtocol; // Validated command metadata is never a Recipe column.
+    if (edit_owner && !sameRecipeOwner(edit_owner, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
+      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, {
+        status: 409, headers: { "Cache-Control": "private, no-store" },
+      });
     const familyId = auth.user.family_id;
     const { id } = await context.params;
 

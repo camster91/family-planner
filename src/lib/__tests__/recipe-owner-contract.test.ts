@@ -40,3 +40,17 @@ it('holds missing/future timing and refuses the exact one-day boundary', async (
   expect(command.creation_issued_at).toBe(1000);
   expect(refuse({}, 1000)).toBeNull();
 });
+
+// Authored UNRUN: owner-bound edits retain strict version metadata, never a fallback body.
+it('pairs edit protocol with original owner while retaining legacy edit requests', async () => {
+  const { updateRecipeSchema, RECIPE_EDIT_PROTOCOL } = await import('../recipe-input-contract');
+  const command = { title:'Updated soup', edit_protocol:RECIPE_EDIT_PROTOCOL, edit_owner:owner };
+  expect(updateRecipeSchema.parse(command)).toEqual(command);
+  expect(updateRecipeSchema.safeParse({ title:'Legacy edit' }).success).toBe(true);
+  for (const input of [
+    { title:'Missing protocol', edit_owner:owner },
+    { title:'Missing owner', edit_protocol:RECIPE_EDIT_PROTOCOL },
+    { ...command, edit_protocol:'herewoven.recipe-edit.v2' },
+    { ...command, edit_owner:{ ...owner, generation:-1 } },
+  ]) expect(updateRecipeSchema.safeParse(input).success).toBe(false);
+});

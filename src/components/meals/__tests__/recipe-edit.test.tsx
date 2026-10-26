@@ -226,7 +226,7 @@ it.each(["Close", "Escape"])(
       "/api/recipes/r1",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ title: "Soup saved" }),
+        body: JSON.stringify({ title: "Soup saved", edit_protocol: "herewoven.recipe-edit.v1", edit_owner: originalOwner }),
       }),
     );
     expect(screen.getByRole("dialog", { name: "Edit recipe" })).toBe(dialog);
@@ -413,6 +413,8 @@ it("replaces changed ingredients only on Save while retaining canonical IDs, opt
     url: "/api/recipes/r1",
     method: "PATCH",
     body: {
+      edit_protocol: "herewoven.recipe-edit.v1",
+      edit_owner: originalOwner,
       ingredients: [
         { ingredient_id: "i2", amount: 3, unit: "tsp", note: null },
         { ingredient_id: "i1", amount: 2, unit: null, note: "ripe" },

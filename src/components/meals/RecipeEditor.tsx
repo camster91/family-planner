@@ -7,6 +7,7 @@ import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import { RECIPE_EDIT_PROTOCOL } from "@/lib/recipe-input-contract";
 import { RECIPE_CREATE_COMMAND_MAX_AGE_MS } from "@/lib/recipe-create-command-window";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
@@ -348,7 +349,10 @@ function RecipeEditorForm({
               ...(attempt ? { [IDEMPOTENCY_HEADER]: attempt.key } : {}),
               ...(expectedOwner ? { [RECIPE_OWNER_HEADER]: JSON.stringify(expectedOwner) } : {}),
             },
-            body: attempt?.body ?? JSON.stringify(body),
+            body: attempt?.body ?? JSON.stringify({
+              ...body,
+              ...(initialRecipe && expectedOwner ? { edit_protocol: RECIPE_EDIT_PROTOCOL, edit_owner: expectedOwner } : {}),
+            }),
             signal,
           },
         );

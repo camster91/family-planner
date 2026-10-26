@@ -2038,3 +2038,32 @@ their own canonical handlers; this page does not convert notifications or links
 into capabilities. Five added owner-admission/response cases and existing
 response fixtures are authored/adapted, UNRUN. No QA/checks/build/browser/DB/
 migration/CI/push/merge/deploy or activation ran. #460/#135/#473 remain open.
+
+
+### Recipe edit strict predecessor refusal — 2026-10-26 source candidate
+
+This supersedes the preceding note that owner-bound edits had no body barrier.
+New owner-bound editors send `edit_protocol: herewoven.recipe-edit.v1` and the
+original `edit_owner` alongside the existing PATCH fields. The canonical strict
+input accepts both together or neither; missing pairs, unknown versions and
+malformed owners refuse. The route compares the body owner with its captured
+principal before starting recipe effects, independently of the optional header.
+Protocol/owner fields are stripped before building Recipe update data. Existing
+legacy callers without either field retain the established edit path.
+
+The inspected predecessor is base `3b4e1046fee45e5924ac24b3498f0e2ef26b5669`,
+`src/lib/recipe-input-contract.ts` blob
+`ef8b807f059b13c10f9fde0d014f6c18fa7c653f`: its update object is strict and has
+neither edit field. The new command therefore cannot be admitted by that
+source schema. The client does not remove metadata or retry an unbound body
+after a refusal. This is source provenance, not an executed old-server test or
+a compatibility claim about unknown older implementations.
+
+Three new fixture cases cover pair/version validation, mismatched body-only
+ownership refusal and matching ownership without metadata persistence; existing
+editor payload assertions are adapted. All are UNRUN. No exact-edit receipt/
+idempotency contract, original issue-time admission, immutable birth identity,
+full session-ID binding or durable pending journal is supplied. Migration,
+forward/rollback binaries, real DB concurrency and complete household/UI/native
+acceptance remain separate. No QA/checks/build/browser/DB/CI/push/merge/deploy or
+activation ran. #460/#135/#473 remain open.

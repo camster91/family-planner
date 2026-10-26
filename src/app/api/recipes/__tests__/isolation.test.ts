@@ -360,3 +360,28 @@ describe('recipe detail original owner', () => {
     expect((await response.json()).recipe.id).toBe('recipe-a')
   })
 })
+
+it('refuses a body-only edit owner mismatch before recipe effects', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
+    title:'Must not apply', edit_protocol:'herewoven.recipe-edit.v1',
+    edit_owner:{ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-B', role:'parent', generation:0 },
+  } }), P('recipe-a'))
+  expect(response.status).toBe(409)
+  expect((await response.json()).error.code).toBe('RECIPE_OWNER_CHANGED')
+  expect(writesTo('recipe')).toHaveLength(0)
+})
+
+it('admits matching body ownership without persisting command metadata as recipe fields', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  const commandOwner = { protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 }
+  const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
+    title:'Updated soup', edit_protocol:'herewoven.recipe-edit.v1', edit_owner:commandOwner,
+  } }), P('recipe-a'))
+  expect(response.status).toBe(200)
+  expect(JSON.parse(response.headers.get('X-Herewoven-Recipe-Owner')!)).toEqual(commandOwner)
+  const update = writesTo('recipe').find(write => write.op === 'update')!
+  expect(update.args.data.title).toBe('Updated soup')
+  expect(update.args.data).not.toHaveProperty('edit_owner')
+  expect(update.args.data).not.toHaveProperty('edit_protocol')
+})
