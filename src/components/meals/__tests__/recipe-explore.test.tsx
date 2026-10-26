@@ -9,6 +9,7 @@ import {
   waitFor,
   fireEvent,
   within,
+  act,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
@@ -173,4 +174,38 @@ it("searches within the app and opens a result directly in the recipe reader", a
       body: JSON.stringify({ query: "soup", source: "BBC Good Food" }),
     }),
   );
+});
+
+// Authored UNRUN: ignored abort cannot leave public discovery/import busy forever.
+it.each(['preview-body', 'search-headers'] as const)('settles %s stalls without saving household state', async stage => {
+  jest.useFakeTimers();
+  const calls = setup();
+  const baseFetch = fetch;
+  global.fetch = jest.fn((url, init) => {
+    if (stage === 'preview-body' && String(url) === '/api/recipes/preview')
+      return Promise.resolve({ ok: true, status: 200, json: () => new Promise(() => undefined) });
+    if (stage === 'search-headers' && String(url) === '/api/recipes/discover')
+      return new Promise(() => undefined);
+    return baseFetch(url, init);
+  }) as jest.Mock;
+  const view = render(<Explore />);
+  try {
+    const link = await screen.findByLabelText('Recipe link');
+    if (stage === 'preview-body') {
+      fireEvent.change(link, { target: { value: preview.source } });
+      fireEvent.submit(screen.getByRole('button', { name: 'Read recipe' }).closest('form')!);
+    } else {
+      fireEvent.change(screen.getByLabelText('What would you like to cook?'), { target: { value: 'soup' } });
+      fireEvent.submit(screen.getByRole('button', { name: 'Search recipes' }).closest('form')!);
+    }
+    await act(async () => { await jest.advanceTimersByTimeAsync(15_000); });
+    expect(screen.getByRole('alert')).toHaveTextContent(stage === 'preview-body'
+      ? 'We couldn’t reach that recipe.' : 'We couldn’t reach the recipe search.');
+    expect(screen.getByRole('button', { name: stage === 'preview-body' ? 'Read recipe' : 'Search recipes' })).toBeEnabled();
+    expect(calls).toHaveLength(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  } finally {
+    view.unmount();
+    jest.useRealTimers();
+  }
 });

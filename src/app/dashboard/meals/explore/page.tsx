@@ -25,6 +25,7 @@ import {
   type OnlineRecipe,
 } from "@/lib/recipe-discovery";
 
+import { requestOwnedJson } from "@/lib/owned-request-http";
 import { readRecipeLibraryPage, type RecipeLibrarySummary as SavedRecipe } from "@/lib/recipe-library-client";
 type RecipeSearchResult = { title: string; url: string; source?: string };
 
@@ -140,21 +141,16 @@ export default function RecipeExplorePage() {
     setError("");
     const abort = new AbortController();
     controller.current = abort;
-    let timedOut = false;
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      abort.abort();
-    }, 15000);
     try {
-      const response = await fetch("/api/recipes/preview", {
+      const result = await requestOwnedJson("/api/recipes/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: link }),
         signal: abort.signal,
-      });
-      const data = (await response.json().catch(() => null)) as {
-        recipe?: OnlineRecipe;
-      } | null;
+      }, 512 * 1024);
+      if (result.kind !== "reply") throw new Error("Recipe preview unavailable");
+      const { response } = result;
+      const data = result.body as { recipe?: unknown } | null;
       const parsed = onlineRecipeSchema.safeParse(data?.recipe);
       if (!response.ok || !parsed.success) {
         if (current() && !abort.signal.aborted) setError(text("readFailed"));
@@ -168,11 +164,10 @@ export default function RecipeExplorePage() {
         setSavedId(null);
       }
     } catch {
-      if (current() && (!abort.signal.aborted || timedOut))
+      if (current() && !abort.signal.aborted)
         setError(text("readNetworkError"));
     } finally {
-      clearTimeout(deadline);
-      if (current() && (!abort.signal.aborted || timedOut)) {
+      if (current() && !abort.signal.aborted) {
         importBusy.current = false;
         setLoading(false);
       }
@@ -192,21 +187,16 @@ export default function RecipeExplorePage() {
     setResultLimit(6);
     setSearched(false);
     setIncompleteSearch(false);
-    let timedOut = false;
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      abort.abort();
-    }, 15000);
     try {
-      const response = await fetch("/api/recipes/discover", {
+      const result = await requestOwnedJson("/api/recipes/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: query.trim(), source }),
         signal: abort.signal,
-      });
-      const parsed = recipeDiscoveryResponse.safeParse(
-        await response.json().catch(() => null),
-      );
+      }, 512 * 1024);
+      if (result.kind !== "reply") throw new Error("Recipe search unavailable");
+      const { response } = result;
+      const parsed = recipeDiscoveryResponse.safeParse(result.body);
       if (!response.ok || !parsed.success) {
         if (current() && !abort.signal.aborted)
           setSearchError(text("searchFailed"));
@@ -222,11 +212,10 @@ export default function RecipeExplorePage() {
         setSearched(true);
       }
     } catch {
-      if (current() && (!abort.signal.aborted || timedOut))
+      if (current() && !abort.signal.aborted)
         setSearchError(text("searchNetworkError"));
     } finally {
-      clearTimeout(deadline);
-      if (current() && (!abort.signal.aborted || timedOut)) setSearching(false);
+      if (current() && !abort.signal.aborted) setSearching(false);
     }
   };
 
