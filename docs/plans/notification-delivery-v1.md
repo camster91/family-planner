@@ -1138,3 +1138,10 @@ The journal now provides cloned, owner-scoped intent snapshots from the existing
 Retries retain original keys and timing; expired or unknown-age rows remain visible with retry disabled and read-only Rewards navigation. Removing a confirmed original updates the list and does not clear a differently edited latest draft. Owner/permission retirement and access/storage masks continue to contain private content. Typed EN/ES messages and an edited-draft recovery fixture were authored, UNRUN; an existing unknown-time fixture was adapted for both alert and row copy.
 
 This supersedes the prior latest-signature-only discovery limitation. It does not prove rendered/accessibility behavior, cross-tab consistency, stale-cache races, write durability, old-reader compatibility, original-session command admission or exact receipt outcome inspection. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran. #135 remains open.
+
+
+### 2026-10-25 — household-scoped reward people reads (source only)
+
+Reward GET exact-target, paged and legacy collection reads, plus the shared SSR page reader, now load scalar reward rows and project creator/claimant names from current same-household User queries. Absent or moved people become null; scalar creator/claimant history remains. Each related-person lookup covers at most 100 rewards and 200 distinct IDs. Paging lookahead and cursor position remain based on reward rows, without a second reward engine. The original viewer read gate and final response renewal remain in place.
+
+One focused projection fixture is authored, UNRUN. This is query-time scope, not recall after a related person moves. Mutation response relationship projections still need separate work. Legacy unpaged total response volume, actual database behavior, generated types, rendered roles and runtime acceptance remain unverified. No QA, migrations, release or activation ran; #136 remains open.

@@ -16,3 +16,25 @@ it.each(['limit=0', 'limit=101', 'limit=2&limit=3', 'limit=2&status=claimed&stat
 it('retains the legacy unpaged status contract without limit', () => {
   expect(parseRewardPaging(new URLSearchParams({ status: 'legacy-status' }), 'family-a')).toEqual({ ok: true, paged: false })
 })
+
+// Source fixture only, UNRUN during the no-QA pass.
+it('projects only current household people and preserves scalar reward history', async () => {
+  const { projectRewardPeople } = await import('../reward-people')
+  const findMany = jest.fn().mockResolvedValue([
+    { id: 'present', name: 'Current member', family_id: 'family-a', email: 'private@example.invalid' },
+    { id: 'moved', name: 'Hidden name', family_id: 'family-b' },
+  ])
+  const db = { user: { findMany } } as unknown as Parameters<typeof projectRewardPeople>[0]
+  const rewards = await projectRewardPeople(db, 'family-a', [
+    { id: 'reward-a', created_by: 'present', claimed_by: 'moved' },
+    { id: 'reward-b', created_by: 'removed', claimed_by: null },
+  ])
+  expect(findMany).toHaveBeenCalledWith({
+    where: { family_id: 'family-a', id: { in: ['present', 'moved', 'removed'] } },
+    select: { id: true, name: true, family_id: true }, take: 3,
+  })
+  expect(rewards).toEqual([
+    { id: 'reward-a', created_by: 'present', claimed_by: 'moved', creator: { id: 'present', name: 'Current member' }, claimer: null },
+    { id: 'reward-b', created_by: 'removed', claimed_by: null, creator: null, claimer: null },
+  ])
+})

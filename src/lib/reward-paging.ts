@@ -1,3 +1,4 @@
+import { projectRewardPeople } from "@/lib/reward-people"
 /** Opt-in rewards keysets; positions are never household authority. */
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
@@ -37,12 +38,11 @@ export function afterRewardCursor(position: Position): Prisma.RewardWhereInput {
   return { OR: [{ created_at: { lt: position.createdAt } }, { created_at: position.createdAt, id: { gt: position.id } }] }
 }
 /** Shared API/SSR reader; one lookahead, never a complete-household pre-read. */
-export async function readRewardPage(db: Pick<Prisma.TransactionClient, 'reward'>, familyId: string, page: Extract<RewardPaging, { paged: true }>) {
+export async function readRewardPage(db: Pick<Prisma.TransactionClient, 'reward' | 'user'>, familyId: string, page: Extract<RewardPaging, { paged: true }>) {
   const rows = await db.reward.findMany({
     where: { family_id: familyId, ...(page.status ? { status: page.status } : {}), ...(page.cursor ? afterRewardCursor(page.cursor) : {}) },
-    include: { creator: { select: { id: true, name: true } }, claimer: { select: { id: true, name: true } } },
     orderBy: [{ created_at: 'desc' }, { id: 'asc' }], take: page.limit + 1,
   })
   const rewards = rows.slice(0, page.limit)
-  return { rewards, nextCursor: rows.length > page.limit && rewards.length ? encodeRewardCursor(familyId, page.status, rewards[rewards.length - 1]) : null }
+  return { rewards: await projectRewardPeople(db, familyId, rewards), nextCursor: rows.length > page.limit && rewards.length ? encodeRewardCursor(familyId, page.status, rewards[rewards.length - 1]) : null }
 }

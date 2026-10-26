@@ -1,3 +1,4 @@
+import { projectRewardPeople } from "@/lib/reward-people"
 import { withRewardReadAccess } from "@/lib/reward-read-access"
 import { protectRewardResponse } from "@/lib/reward-response"
 import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
@@ -38,10 +39,9 @@ export async function GET(request: NextRequest) {
       const id = searchParams.get('rewardId')!
       if (searchParams.getAll('rewardId').length !== 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(id) || ['limit', 'cursor', 'status'].some(key => searchParams.has(key)))
         return NextResponse.json({ error: 'Invalid reward target', code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
-      const result = await withRewardReadAccess(prisma!, actor, async tx => ({ rewards: await tx.reward.findMany({
+      const result = await withRewardReadAccess(prisma!, actor, async tx => ({ rewards: await projectRewardPeople(tx, actor.familyId, await tx.reward.findMany({
         where: { family_id: actor.familyId, id }, take: 1,
-        include: { creator: { select: { id: true, name: true } }, claimer: { select: { id: true, name: true } } },
-      }) }))
+      })) }))
       return respond(result)
     }
     const paging = parseRewardPaging(searchParams, auth.user.family_id)
@@ -51,14 +51,10 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
 
-    const result = await withRewardReadAccess(prisma!, actor, async tx => ({ rewards: await tx.reward.findMany({
+    const result = await withRewardReadAccess(prisma!, actor, async tx => ({ rewards: await projectRewardPeople(tx, actor.familyId, await tx.reward.findMany({
       where,
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
-      },
       orderBy: { created_at: 'desc' },
-    }) }))
+    })) }))
 
     return respond(result)
   } catch (error) {
