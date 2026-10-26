@@ -1,5 +1,6 @@
 import { after } from "next/server";
-import { getServerUser } from "@/lib/supabase/server";
+import { readEventNotificationFocus } from "@/lib/event-notification-focus";
+import { getServerUser, getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { isCalendarSyncEnabled } from "@/lib/calendar-sync/config";
 import { refreshStaleConnections } from "@/lib/calendar-sync/sync";
@@ -10,6 +11,7 @@ import CalendarPageClient from "./CalendarPageClient";
 
 interface CalendarPageProps {
   searchParams: Promise<{
+    focus?: string | string[];
     month?: string;
     year?: string;
     date?: string;
@@ -72,9 +74,23 @@ export default async function CalendarPage({
       ? params.view
       : undefined;
 
+  let notificationFocus: { target: Awaited<ReturnType<typeof readEventNotificationFocus>> } | undefined;
+  if (params.focus !== undefined) {
+    let target: Awaited<ReturnType<typeof readEventNotificationFocus>> = null;
+    try {
+      const actor = await getServerActor();
+      if (actor && actor.id === sessionUser.id && actor.family_id === familyId && actor.role === user.role && familyId)
+        target = await readEventNotificationFocus(prisma!, {
+          userId: actor.id, familyId, role: actor.role!, tokenVersion: actor.tokenVersion,
+        }, params.focus);
+    } catch { /* All unsupported/failed targets retain the neutral fallback. */ }
+    notificationFocus = { target };
+  }
+
   return (
     <CalendarPageClient
       events={[]}
+      notificationFocus={notificationFocus}
       initialDate={initialDate}
       initialView={initialView}
       currentMonth={month}

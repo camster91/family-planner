@@ -879,7 +879,7 @@
       "screenFamily": "terms"
     }
   ],
-  "incrementalSourceNote": "2026-10-25: chore focus, gated owned parent review and reward claim/approval focus added to the original15 embedded surfaces (now18). Base page/route/feature snapshot retained; no rendered acceptance.",
+  "incrementalSourceNote": "2026-10-26: chore focus, gated owned parent review, reward focus and concrete-event focus added to the original15 embedded surfaces (now19). Base page/route/feature snapshot retained; no rendered acceptance.",
   "embeddedSurfaces": [
     {
       "screen": "onboarding",
@@ -1028,6 +1028,14 @@
         "/dashboard/rewards?focus=<canonical-reward-id>"
       ],
       "mapping": "2026-10-25 source: role-aware current claim/approval focus outside shelf paging, shared canonical approval/recovery and neutral fallback. Unverified/unrendered."
+    },
+    {
+      "screen": "notification-event-focus",
+      "source": "src/components/calendar/EventNotificationFocus.tsx",
+      "reviewEntryRoutes": [
+        "/dashboard/calendar?focus=<canonical-concrete-event-id>"
+      ],
+      "mapping": "2026-10-26 source: personal parent/teen exact concrete-event context independent of calendar range; locked scoped minimal read, EN/ES unavailable fallback and read-only calendar link. Recurring masters require a separate occurrence contract. Unverified/unrendered."
     }
   ],
   "remaining": [

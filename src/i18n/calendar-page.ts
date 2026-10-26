@@ -1,5 +1,9 @@
 /** Page/source/undo presentation; provider names and server errors remain verbatim. */
 export const calendarPageEnglish = {
+  focusHeading: "From notification",
+  focusUnavailable: "This event is unavailable here. Open your calendar to continue.",
+  focusZone: "Times shown in {zone}",
+  focusAll: "Open calendar",
   import: "Import from text or photo",
   sourceTitle: "Read-only. Imported from {source}",
   source: "From {source}",
@@ -15,6 +19,10 @@ export const calendarPageEnglish = {
 export type CalendarPageMessage = keyof typeof calendarPageEnglish;
 export type CalendarPageError = { key: CalendarPageMessage } | { raw: string };
 export const calendarPageSpanish: Record<CalendarPageMessage, string> = {
+  focusHeading: "Desde una notificación",
+  focusUnavailable: "Este evento no está disponible aquí. Abre tu calendario para continuar.",
+  focusZone: "Horas en {zone}",
+  focusAll: "Abrir calendario",
   import: "Importar desde texto o foto",
   sourceTitle: "Solo lectura. Importado de {source}",
   source: "De {source}",

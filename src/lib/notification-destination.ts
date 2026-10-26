@@ -40,10 +40,21 @@ export function listNotificationTargetId(value: unknown): string | null {
   const id = value.slice(LIST_DETAIL_PREFIX.length);
   return MEMBER_ID_PATTERN.test(id) && !RESERVED_LIST_TARGETS.has(id) ? id : null;
 }
-export type NotificationDestination = "/dashboard/today" | `/dashboard/chores?focus=${string}` |
+const EVENT_FOCUS_PREFIX = "/dashboard/calendar?focus=";
+export function eventNotificationDestination(id: string): `/dashboard/calendar?focus=${string}` | null {
+  return typeof id === "string" && MEMBER_ID_PATTERN.test(id) ? `${EVENT_FOCUS_PREFIX}${id}` : null;
+}
+export function eventNotificationFocusId(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith(EVENT_FOCUS_PREFIX)) return null;
+  const id = value.slice(EVENT_FOCUS_PREFIX.length);
+  return MEMBER_ID_PATTERN.test(id) ? id : null;
+}
+export type NotificationDestination = `/dashboard/calendar?focus=${string}` | "/dashboard/today" | `/dashboard/chores?focus=${string}` |
   `/dashboard/rewards?focus=${string}` | `/dashboard/meals/recipes/${string}` | `/dashboard/lists/${string}`;
 export function notificationDestination(value: unknown): NotificationDestination | null {
   if (value === "/dashboard/today") return value;
+  const eventId = eventNotificationFocusId(value);
+  if (eventId) return eventNotificationDestination(eventId);
   const choreId = choreNotificationFocusId(value);
   if (choreId) return choreNotificationDestination(choreId);
   const rewardId = rewardNotificationFocusId(value);

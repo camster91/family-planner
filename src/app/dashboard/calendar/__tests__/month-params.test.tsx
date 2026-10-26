@@ -2,6 +2,8 @@
 // to build an Invalid Date and fail the whole page. It now falls back to the
 // current month. The query is the UTC month widened by a day each side, so
 // the viewer's local month (O-31) is always covered.
+const mockEventFocus = jest.fn(async () => ({id:"event-a",title:"Focused event",start:"2026-12-04T16:00:00.000Z",end:"2026-12-04T17:00:00.000Z"}));
+jest.mock("@/lib/event-notification-focus", () => ({readEventNotificationFocus:(...args:unknown[]) => (mockEventFocus as (...args:unknown[]) => unknown)(...args)}));
 const mockFindMany = jest.fn(async (_args: unknown) => [] as unknown[]);
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -16,6 +18,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 jest.mock("@/lib/supabase/server", () => ({
   getServerUser: async () => ({ id: "parent-a" }),
+  getServerActor: jest.fn(async () => ({id:"parent-a",family_id:"family-A",role:"parent",tokenVersion:0})),
 }));
 jest.mock("@/lib/calendar-import/source", () => ({
   attachEventSources: async (_p: unknown, _f: string, e: unknown[]) => e,
@@ -38,7 +41,7 @@ jest.mock("../CalendarPageClient", () => ({
 
 import CalendarPage from "../page";
 
-beforeEach(() => mockFindMany.mockClear());
+beforeEach(() => { mockFindMany.mockClear(); mockEventFocus.mockClear(); });
 
 it("blocks child SSR even if the shell guard is bypassed", async () => {
   require("@/lib/prisma").prisma.user.findUnique.mockResolvedValueOnce({
@@ -122,4 +125,18 @@ describe("calendar edit links by role", () => {
     })) as { props: { canEditEvents: boolean } };
     expect(element.props.canEditEvents).toBe(expected);
   });
+});
+
+
+// Authored UNRUN: direct event focus is independent from month query/paging.
+it("passes an exact authorized event focus to the canonical calendar client", async () => {
+  const element = await CalendarPage({searchParams:Promise.resolve({focus:"event-a",month:"1",year:"2027"})});
+  expect(element?.props.notificationFocus).toEqual({target:{id:"event-a",title:"Focused event",start:"2026-12-04T16:00:00.000Z",end:"2026-12-04T17:00:00.000Z"}});
+  expect(mockEventFocus).toHaveBeenCalledWith(expect.anything(),{userId:"parent-a",familyId:"family-A",role:"parent",tokenVersion:0},"event-a");
+});
+it("keeps focus unavailable when the verified actor no longer matches the page household", async () => {
+  require("@/lib/supabase/server").getServerActor.mockResolvedValueOnce({id:"parent-a",family_id:"family-B",role:"parent",tokenVersion:0});
+  const element = await CalendarPage({searchParams:Promise.resolve({focus:"event-a"})});
+  expect(element?.props.notificationFocus).toEqual({target:null});
+  expect(mockEventFocus).not.toHaveBeenCalled();
 });

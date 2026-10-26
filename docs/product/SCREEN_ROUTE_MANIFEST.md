@@ -6,7 +6,7 @@ browser, rendering, test scanner, provider, CI or release action ran.
 
 [SCREEN_ROUTE_MANIFEST.json](SCREEN_ROUTE_MANIFEST.json) records82 physical
 `src/app/**/page.tsx` sources,71 distinct route patterns, all22 literal feature
-keys/entry destinations from `src/lib/features.ts`, and18 named embedded surfaces (the original15 plus dated chore-focus, parent-review and reward-focus source additions).
+keys/entry destinations from `src/lib/features.ts`, and19 named embedded surfaces (the original15 plus dated chore-focus, parent-review, reward-focus and concrete-event-focus source additions).
 These are counts of source records, not measured screen/frame/acceptance coverage.
 
 ## How the records relate
@@ -98,3 +98,16 @@ without the earlier shelf/balance data. Valid focus reuses canonical approval,
 receipt keys and recovery, removes its loaded duplicate and keeps paging counts
 about the page. EN/ES, semantic focus and source cases are authored/unrun. No new
 page, route pattern, provider/native delivery or rendered acceptance is claimed.
+
+
+## Concrete event notification context — 2026-10-26
+
+`EventNotificationFocus` adds a read-only context on the existing Calendar route
+for one concrete event, independently of visible month/range paging. Personal
+parent/teen actor and same-household event admission are rechecked under locks;
+missing, revoked, unsupported/recurring-master and read-failure results share
+a neutral fallback. Typed EN/ES heading/zone/fallback controls, viewer-local
+date display after hydration and a calendar link are source only. No inferred
+occurrence, edit command, new page/feature key or provider action is added.
+This raises embedded source entries from18 to19; base page/route counts remain
+a dated snapshot. No rendered, physical-device or acceptance claim follows.

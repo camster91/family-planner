@@ -43,3 +43,13 @@ it.each(['/dashboard/lists/create','/dashboard/lists/groceries','/dashboard/list
 ])('withholds ambiguous recipe/list targets (%s)', value => {
   expect(notificationDestination(value)).toBeNull();
 });
+
+// Authored UNRUN: concrete event focus uses one exact canonical ID.
+it('admits an exact event focus path', async () => {
+  const {eventNotificationDestination} = await import('../notification-destination');
+  expect(eventNotificationDestination('event-a')).toBe('/dashboard/calendar?focus=event-a');
+  expect(notificationDestination('/dashboard/calendar?focus=event-a')).toBe('/dashboard/calendar?focus=event-a');
+});
+it.each(['/dashboard/calendar?focus=','/dashboard/calendar?focus=a&date=2026-10-26',
+  '/dashboard/calendar?focus=%61','/dashboard/calendar?focus=a#private','/dashboard/calendar?focus=a/b',
+])('refuses ambiguous event focus paths (%s)', value => expect(notificationDestination(value)).toBeNull());

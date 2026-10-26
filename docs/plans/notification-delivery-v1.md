@@ -1291,3 +1291,32 @@ links, create source event identity, guarantee same-ID birth continuity, impleme
 event-occurrence focus, or establish native cold/warm/installed-client behavior.
 Full N4 producer-to-target/permission/deletion and original role/device evidence
 remain open. No QA/checks/build/browser/DB/CI/push/merge/deploy or activation ran.
+
+
+## Concrete event focus on Calendar — 2026-10-26 source only
+
+The strict allowlist now admits `/dashboard/calendar?focus=<plain-event-id>`
+without extra query data, encoded aliases or fragments. The existing Calendar
+route resolves a focus separately from normal month/range paging. A narrow
+reader captures the personal parent/teen actor, locks/renews original account
+generation/role/household, checks the household/calendar boundary and locks the
+exact same-family Event row before projecting only ID/title/start/end. Shared
+paired devices and child roles gain no new Calendar route access.
+
+The existing page hosts a compact read-only notification card with typed EN/ES
+copy, focus target, start/end time elements and an Open calendar fallback. UTC
+render/hydration matches, then browser timezone display applies with an explicit
+zone caption. No address, description, creator identity, edit/delete action or
+provider payload is added. Missing/foreign/revoked/read-failure and unsupported
+targets use one unavailable state. Existing calendar/provider configuration is
+not activated or changed.
+
+A local recurring master is not a concrete occurrence and refuses this narrow
+reader. No first/future instance is guessed. Full recurring occurrence identity,
+producer event linkage, immutable target birth, native cold/warm/Back/sign-in,
+role/locale/timezone/reflow and old-client/rollback acceptance remain unfinished.
+Current concrete/imported stored occurrence rows retain their actual instants;
+the source does not claim the full N4 journey complete. Strict URL, scoped-reader
+and SSR wiring fixtures are authored, UNRUN. The source screen directory records
+one embedded context, not a new page or rendered proof. No QA/tests/checks/build/
+browser/DB/migration/CI/push/merge/deploy or activation ran.

@@ -1,5 +1,7 @@
 "use client";
 import * as React from "react";
+import { EventNotificationFocus } from "@/components/calendar/EventNotificationFocus";
+import type { EventNotificationFocus as Focus } from "@/lib/event-notification-focus";
 import { useCoreTranslation } from "@/i18n/core";
 import {
   calendarPageMessages,
@@ -21,6 +23,7 @@ const LazyImportEventsDialog = React.lazy(() =>
 );
 interface CalendarPageClientProps {
   events: unknown[];
+  notificationFocus?: { target: Focus | null };
   currentMonth: number;
   currentYear: number;
   initialDate?: string;
@@ -36,6 +39,7 @@ export function calendarMonthHref(year: number, month: number): string {
 }
 export default function CalendarPageClient({
   events,
+  notificationFocus,
   currentMonth,
   currentYear,
   initialDate,
@@ -68,6 +72,7 @@ export default function CalendarPageClient({
   };
   return (
     <div className="pb-20">
+      {notificationFocus && <EventNotificationFocus target={notificationFocus.target} />}
       <CalendarPlanner
         initialDate={
           initialDate ||
