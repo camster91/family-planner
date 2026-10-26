@@ -431,11 +431,14 @@ const COLUMN_DEFAULTS: Record<string, Record<string, unknown>> = {
 class FakeDb {
   tables: Tables = seed()
   writes: Write[] = []
+  // Explicit fixture capability only. No real migration/trigger/lock evidence.
+  foodSourceVersionsReady = false
   private seq = 0
 
   reset() {
     this.tables = seed()
     this.writes = []
+    this.foodSourceVersionsReady = false
     this.seq = 0
   }
 
@@ -801,6 +804,7 @@ function delegate(model: string) {
       if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
       if (model === 'chore') row.responsibility_generation = randomUUID()
       applyData(model, row, args.data)
+      if (model === 'recipe' && db.foodSourceVersionsReady) { row.food_generation = randomUUID(); row.food_epoch = 0 }
       if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
       return project(model, row, args)
@@ -814,6 +818,7 @@ function delegate(model: string) {
         if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
         if (model === 'chore') row.responsibility_generation = randomUUID()
         applyData(model, row, d)
+        if (model === 'recipe' && db.foodSourceVersionsReady) { row.food_generation = randomUUID(); row.food_epoch = 0 }
         if (violatesUnique(model, all(), row)) {
           if (args.skipDuplicates) continue
           throw uniqueViolation(model)
@@ -839,6 +844,7 @@ function delegate(model: string) {
       }
       const created: Row = { id: db.nextId(model), created_at: new Date() }
       applyData(model, created, args.create)
+      if (model === 'recipe' && db.foodSourceVersionsReady) { created.food_generation = randomUUID(); created.food_epoch = 0 }
       all().push(created)
       return project(model, created, args)
     },
@@ -912,6 +918,21 @@ export const fakePrisma: any = new Proxy(
       }
       if (prop === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Explicit opt-in schema capability stub for recipe identity cases.
+        // This does not execute/catalog-validate SQL or simulate DB triggers.
+        if (sql.startsWith('SELECT COUNT(*) = 11 AND bool_and(') &&
+            sql.includes("FROM unnest(ARRAY['Family','User','Recipe','RecipeIngredient','Ingredient','InventoryItem','FamilyMeal','MealPrepSession','MealBatch','MealBatchConsumption','List']) expected(name)") &&
+            sql.includes("public.herewoven_food_source_version()")) return [{ ready: db.foodSourceVersionsReady }]
+        if (sql === 'SELECT "id" AS "recipeId", "food_generation" AS "recipeGeneration" FROM "Recipe" WHERE "id" = ? AND "family_id" = ? AND "created_by" = ? FOR SHARE') {
+          const row = db.find('recipe', String(values[0]))
+          return db.foodSourceVersionsReady && row && row.family_id === values[1] && row.created_by === values[2] && typeof row.food_generation === 'string'
+            ? [{ recipeId: row.id, recipeGeneration: row.food_generation }] : []
+        }
+        if (sql === 'SELECT "id" FROM "Recipe" WHERE "id" = ? AND "family_id" = ? AND "created_by" = ? AND "food_generation" = ? FOR SHARE') {
+          const row = db.find('recipe', String(values[0]))
+          return db.foodSourceVersionsReady && row && row.family_id === values[1] && row.created_by === values[2] && row.food_generation === values[3]
+            ? [{ id: row.id }] : []
+        }
         // Exact subscription authority probes. These mirror current fixture
         // rows only; in-memory locks do not prove PostgreSQL serialization.
         if (sql === 'SELECT "id", "family_id", "role", "token_version" FROM "User" WHERE "id" = ? FOR SHARE') {

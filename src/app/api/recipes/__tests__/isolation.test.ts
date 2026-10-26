@@ -36,6 +36,7 @@ function patch(as: UserKey | null, id: string, body: unknown) {
 describe('recipes — two households, roles and gate', () => {
   beforeEach(() => {
     db.reset()
+    db.foodSourceVersionsReady = true // Explicit migrated fixture; not real trigger evidence.
     mockGate.mockReset()
     mockGate.mockImplementation(async () => null)
   })
@@ -91,6 +92,16 @@ describe('recipes — two households, roles and gate', () => {
     expect(foreign.status).toBe(404)
     await expectDenied(foreign, [404])
     expect(await foreign.json()).toEqual(await missing.json())
+  })
+
+  // Authored UNRUN: schema unavailability refuses before new canonical effects.
+  it('holds a fresh create before ingredient writes when insertion identity storage is unavailable', async () => {
+    db.foodSourceVersionsReady = false
+    const response = await create('parentA', { title: 'Held soup', servings: 2, ingredients: [{ name: 'New food', amount: 1, unit: 'cup' }] })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_IDENTITY_UNAVAILABLE' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('ingredient')).toHaveLength(0)
   })
 
   it('a teen creates a recipe; named ingredients are upserted by normalized name in the household', async () => {

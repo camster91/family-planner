@@ -613,3 +613,10 @@ continue physically and synchronous CPU/allocations are not preempted. JSON-only
 bridge protection is post-parse. No promise of provider cancellation, raw media
 retention proof, stock save, native hardware or full identity acceptance is made.
 No QA, app/database/provider execution or release ran. #125/#135 remain open.
+
+
+### 2026-10-25 — recipe insertion identity fixture and migration precondition
+
+New recipe creates now require the existing food-source-versions migration/trigger before effects. The migration is **unapplied and unverified** in this no-QA candidate; do not treat a fixture opt-in as schema readiness or silently activate a provider to satisfy it. Later migration/restore/old-reader and PostgreSQL acceptance must establish the original birth identity before ordinary creates are released. Legacy ID-only create receipts remain held/unknown rather than being assigned a current row identity.
+
+The existing shared route fixture now defaults food-source readiness off. Recipe positive cases explicitly opt in; only the narrow recipe insertion/lookup queries are simulated, and unknown raw queries still return no rows. Opt-in fixture inserts receive independent generations and scoped lookup checks household/creator/generation. One negative case describes unavailable storage refusing before new ingredients/recipes. These are authored/unrun fixture sources, not an SQL engine, row-lock model or immutable-trigger/rollback proof. No tests/checks/build/browser/CI/DB/migrations/generation/push/merge/deploy/activation ran; #460/#135/#136 remain open.
