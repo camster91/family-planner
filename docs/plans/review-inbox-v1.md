@@ -597,3 +597,12 @@ serializing the old inbox/identity; normal session/role routing then determines
 the destination. This avoids presenting revocation as an empty or blank review
 screen. Transient query errors still use ordinary error recovery, not an auth
 redirect. This follow-through is also source-only and unrun.
+
+
+## 2026-10-25 — captured chore assignment read recovery (local source only)
+
+The existing capture-to-canonical-chore handoff was already source-authored. Its editor now loads member/profile choices through the shared15-second/256-KiB foreground transport with abort/retirement on close/unmount. Member reads no longer repeat when the selected account changes; explicit retry starts one new attempt for each independent catalog. Members require an actual array, valid scalar fields/unique IDs, and are projected to id/name/role rather than retaining email or extra response fields. Profile responses use the existing canonical reader; a disabled404 capability remains optional, whereas unknown/invalid reads are visible failures.
+
+Typed EN/ES loading/failure/retry copy preserves partial fields and selected IDs. Capture review never defaults a task to the first account. A failed/loading catalog holds its affected submit/review path instead of treating stale choices as current; ordinary valid account selection remains usable when optional profiles are unavailable. Retrying catalog reads does not create/review a chore. URL routine/date defaults initialize separately from profile-query resolution so a later catalog retry cannot reapply URL defaults over edited fields. Existing captured-task source cases now check read-once selection and explicit-retry draft retention, UNRUN.
+
+This is read-instance retirement, not original-browser/session binding or final role/household authority proof. Canonical write/photo-upload transports and broader permission/lifecycle/storage/role/native/rendered acceptance remain separate. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #464/#450/#135 remain open.

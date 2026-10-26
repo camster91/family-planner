@@ -1,4 +1,5 @@
 "use client";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
 import { useTodayKey } from "@/components/ui/use-hydrated";
 import { parseDateOnly, toDateOnlyLocal } from "@/lib/dates";
@@ -39,11 +40,11 @@ import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   findActiveHouseholdProfile,
+  readHouseholdProfilesResponse,
   readApiErrorCode,
   type HouseholdProfile,
 } from "@/lib/household-profile-types";
 import {
-  fetchHouseholdProfiles,
   readProfileChoreCreateSuccess,
 } from "@/lib/household-profile-client";
 import { useProfileSetupText } from "@/i18n/profile-setup";
@@ -139,6 +140,10 @@ export default function CreateChoreForm({
   const [familyMembers, setFamilyMembers] = useState<
     { id: string; name: string; role: string }[]
   >([]);
+  const [targetsAttempt, setTargetsAttempt] = useState(0);
+  const [membersState, setMembersState] = useState<"loading" | "ready" | "failed">("loading");
+  const [profilesFailed, setProfilesFailed] = useState(false);
+  const [profilesLoading, setProfilesLoading] = useState(true);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
@@ -182,7 +187,7 @@ export default function CreateChoreForm({
     assignmentTarget.kind === "profile" ? assignmentTarget.id : null;
   const profileTargetMissing = Boolean(
     profileTargetId &&
-    !findActiveHouseholdProfile(profileOptions, profileTargetId),
+    (profilesLoading || profilesFailed || !findActiveHouseholdProfile(profileOptions, profileTargetId)),
   );
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(review?.initial.icon ?? null);
@@ -244,9 +249,12 @@ export default function CreateChoreForm({
         ? []
         : [message("fieldAssignee")]),
   ];
-  const submitHint = profileTargetMissing
-    ? profileText("profileTargetRefresh")
-    : missingFields.length === 0
+  const assignmentReadBlocked = profileTargetId ? profileTargetMissing : membersState !== "ready";
+  const submitHint = !profileTargetId && membersState !== "ready"
+    ? message(membersState === "loading" ? "assignmentLoading" : "assignmentLoadFailed")
+    : profileTargetMissing
+      ? profileText("profileTargetRefresh")
+      : missingFields.length === 0
       ? null
       : missingFields.length === 1
         ? message("missingOne", { field: missingFields[0] })
@@ -270,7 +278,11 @@ export default function CreateChoreForm({
         setWeeklyStart(date);
       }
     }
-    const requestedProfileId = params.get("profile");
+  }, []);
+
+  useEffect(() => {
+    if (reviewRef.current) return;
+    const requestedProfileId = new URLSearchParams(window.location.search).get("profile");
     if (!requestedProfileId || profileOptions.length === 0) return;
     const requestedProfile = findActiveHouseholdProfile(
       profileOptions,
@@ -283,78 +295,61 @@ export default function CreateChoreForm({
   }, [profileOptions]);
 
   useEffect(() => {
-    const loadFamilyMembers = async () => {
-      try {
-        const res = await fetch("/api/family/members");
-        const data = await res.json();
-        if (res.ok && data.members) {
-          setFamilyMembers(data.members);
-          const requestedProfileId = new URLSearchParams(
-            window.location.search,
-          ).get("profile");
-          // A profile query is resolved against the active profile catalog.
-          // Never turn a stale or still-loading profile request into the first
-          // account in the household.
-          if (
-            !reviewRef.current &&
-            data.members.length > 0 &&
-            !assignedTo &&
-            !requestedProfileId
-          ) {
-            const requested = new URLSearchParams(window.location.search).get(
-              "member",
-            );
-            setAssignmentTarget((current) =>
-              current.kind === "profile"
-                ? current
-                : current.id
-                  ? current
-                  : {
-                      kind: "account",
-                      id:
-                        data.members.find(
-                          (m: { id: string }) => m.id === requested,
-                        )?.id ?? data.members[0].id,
-                    },
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Error loading family members:", err);
+    let retired = false;
+    const controller = new AbortController();
+    setMembersState("loading");
+    async function loadFamilyMembers() {
+      const result = await requestOwnedJson("/api/family/members", { signal: controller.signal }, 256 * 1024);
+      if (retired) return;
+      const body = result.kind === "reply" && result.response.ok && result.body && typeof result.body === "object"
+        ? result.body as { members?: unknown } : null;
+      const rows = body?.members;
+      if (!Array.isArray(rows) || rows.some(row => !row || typeof row !== "object" || Array.isArray(row)
+        || typeof row.id !== "string" || !row.id || row.id.length > 128
+        || typeof row.name !== "string" || typeof row.role !== "string")
+        || new Set(rows.map(row => row.id)).size !== rows.length) {
+        setMembersState("failed"); return;
       }
-    };
-    loadFamilyMembers();
-  }, [assignedTo]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadProfiles() {
-      try {
-        const profiles = await fetchHouseholdProfiles();
-        if (!cancelled && profiles) {
-          setProfileRecurrenceSupported(
-            profiles.profileChoreSupported === true &&
-              profiles.profileChoreRecurrenceSupported === true,
-          );
-        }
-        if (!cancelled && profiles?.profileChoreSupported) {
-          setProfileOptions(
-            profiles.profiles.filter((profile) => !profile.archived_at),
-          );
-        }
-      } catch {
-        // Profile setup is optional; the account assignment path remains available.
+      // Retain only the selector's public fields, never member email/extra data.
+      const members = rows.map(row => ({ id: row.id as string, name: row.name as string, role: row.role as string }));
+      setFamilyMembers(members); setMembersState("ready");
+      const params = new URLSearchParams(window.location.search);
+      // Captured tasks require a deliberate choice. A profile query must not
+      // silently become the first account if that profile is not available.
+      if (!reviewRef.current && members.length > 0 && !params.get("profile")) {
+        const requested = params.get("member");
+        setAssignmentTarget(current => current.kind === "profile" || current.id ? current : {
+          kind: "account", id: members.find(member => member.id === requested)?.id ?? members[0].id,
+        });
       }
     }
+    void loadFamilyMembers();
+    return () => { retired = true; controller.abort(); };
+  }, [targetsAttempt]);
+
+  useEffect(() => {
+    let retired = false;
+    const controller = new AbortController();
+    setProfilesFailed(false); setProfilesLoading(true);
+    async function loadProfiles() {
+      const result = await requestOwnedJson("/api/family/profiles", { signal: controller.signal }, 256 * 1024);
+      if (retired) return;
+      setProfilesLoading(false);
+      // A disabled profile capability remains optional; failures are not an
+      // authoritative empty profile list and must not clear a selected draft.
+      if (result.kind === "reply" && result.response.status === 404) { setProfileOptions([]); setProfileRecurrenceSupported(false); return; }
+      const profiles = result.kind === "reply" && result.response.ok ? readHouseholdProfilesResponse(result.body) : null;
+      if (!profiles) { setProfilesFailed(true); return; }
+      setProfileRecurrenceSupported(profiles.profileChoreSupported === true && profiles.profileChoreRecurrenceSupported === true);
+      setProfileOptions(profiles.profileChoreSupported ? profiles.profiles.filter(profile => !profile.archived_at) : []);
+    }
     void loadProfiles();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return () => { retired = true; controller.abort(); };
+  }, [targetsAttempt]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (photoUploadPending.current) return;
+    if (photoUploadPending.current || assignmentReadBlocked) return;
     if (frequency === "weekly" && !weeklyDays.length) {
       setError(message("chooseWeekday"));
       return;
@@ -720,6 +715,11 @@ export default function CreateChoreForm({
                       </optgroup>
                     )}
                   </select>
+                  {membersState === "loading" && <p role="status" className="text-footnote text-label-secondary mt-1.5">{message("assignmentLoading")}</p>}
+                  {(membersState === "failed" || profilesFailed) && <div className="mt-1.5 space-y-1">
+                    <p role="alert" className="text-footnote text-danger-text">{message(membersState === "failed" ? "assignmentLoadFailed" : "profileChoicesLoadFailed")}</p>
+                    <button type="button" className="btn-plain min-h-11" disabled={busy || membersState === "loading"} onClick={() => setTargetsAttempt(attempt => attempt + 1)}>{message("retryAssignments")}</button>
+                  </div>}
                   {profileTargetId && (
                     <p className="text-footnote text-label-secondary mt-1.5">
                       {profileRecurrenceSupported

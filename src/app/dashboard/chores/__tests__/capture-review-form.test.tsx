@@ -82,6 +82,7 @@ it("requires a deliberate account choice and returns a reviewed request without 
       .mocked(fetch)
       .mock.calls.every(([, init]) => !init?.method || init.method === "GET"),
   ).toBe(true);
+  expect(jest.mocked(fetch).mock.calls.filter(([path]) => path === "/api/family/members")).toHaveLength(1);
   expect(push).not.toHaveBeenCalled();
 });
 it("keeps unfinished date and number strings when restoring a saved task", () => {
@@ -109,4 +110,25 @@ it("keeps unfinished date and number strings when restoring a saved task", () =>
     "2099-",
   );
   expect((screen.getByLabelText("Step") as HTMLInputElement).value).toBe("2.");
+});
+
+// Authored UNRUN: failed choices can retry without replacing the captured draft.
+it("preserves task fields through explicit family-choice retry", async () => {
+  let memberAttempts = 0;
+  global.fetch = jest.fn(async (url: string) => {
+    if (url === "/api/family/members") {
+      memberAttempts++;
+      if (memberAttempts === 1) throw new Error("Fixture offline");
+      return { ok: true, status: 200, json: async () => ({ members: [{ id: "fixture-parent", name: "Synthetic parent", role: "parent" }] }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ profiles: [] }) };
+  }) as unknown as typeof fetch;
+  render(<CreateChoreForm inSheet review={{ initial, onChange: jest.fn(), onReview: jest.fn(), submitLabel: "Use reviewed task" }} />);
+  const retry = await screen.findByRole("button", { name: "Retry family choices" });
+  expect(screen.getByDisplayValue(initial.title)).toBeInTheDocument();
+  fireEvent.click(retry);
+  await screen.findByRole("option", { name: "Synthetic parent" });
+  expect(screen.getByDisplayValue(initial.title)).toBeInTheDocument();
+  expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("");
+  expect(memberAttempts).toBe(2);
 });
