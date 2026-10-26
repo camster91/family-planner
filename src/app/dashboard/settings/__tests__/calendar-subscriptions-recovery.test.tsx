@@ -153,3 +153,26 @@ it("aborts the list read on unmount and ignores a late bridge response", async (
   await act(async () => finish({ ok: true, json: async () => ({ subscriptions: [] }) }));
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+// Authored UNRUN: reads cannot silently authorize another uncertain create.
+it("serializes add and keeps an unknown save held after an explicit list read", async () => {
+  global.fetch = jest.fn(async (_path, init) => {
+    if (init?.method === "POST") throw new Error("Fixture interrupted save");
+    return { ok: true, json: async () => ({ subscriptions: [] }) };
+  }) as unknown as typeof fetch;
+  const user = await mount();
+  await screen.findByText(settingsMessages.en.noSubscriptions);
+  const name = screen.getByLabelText(settingsMessages.en.calendarName);
+  const url = screen.getByLabelText(settingsMessages.en.calendarLink);
+  await user.type(name, "School fixture"); await user.type(url, "https://fixture.example/private.ics");
+  act(() => { fireEvent.submit(name.closest("form")!); fireEvent.submit(name.closest("form")!); });
+  await screen.findByText(settingsMessages.en.calendarWriteUnconfirmed);
+  expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect(name).toHaveValue("School fixture"); expect(url).toHaveValue("https://fixture.example/private.ics");
+  expect(name).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: settingsMessages.en.checkSubscriptions }));
+  await screen.findByText(settingsMessages.en.noSubscriptions);
+  fireEvent.submit(name.closest("form")!);
+  expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect(screen.getByRole("button", { name: settingsMessages.en.addCalendar })).toBeDisabled();
+});

@@ -175,6 +175,8 @@ export const settingsEnglish = {
   subscriptionsLoadFailed:
     "Could not load subscribed calendars. Your changes have not been sent.",
   retrySubscriptions: "Retry calendar list",
+  checkSubscriptions: "Check calendar list",
+  calendarWriteUnconfirmed: "That calendar change may already have saved. Your original request is kept while this screen is open. Check the list before making another change; checking does not retry or cancel it.",
   newName: "New name",
   problem: "Problem: ",
   refresh: "Refresh",
@@ -468,6 +470,8 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   subscriptionsLoadFailed:
     "No se pudieron cargar los calendarios suscritos. Tus cambios no se han enviado.",
   retrySubscriptions: "Reintentar lista de calendarios",
+  checkSubscriptions: "Revisar lista de calendarios",
+  calendarWriteUnconfirmed: "El cambio de calendario puede haberse guardado. La solicitud original se conserva mientras esta pantalla siga abierta. Revisa la lista antes de hacer otro cambio; revisarla no reintenta ni cancela la solicitud.",
   newName: "Nombre nuevo",
   problem: "Problema: ",
   refresh: "Actualizar",
