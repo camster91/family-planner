@@ -101,6 +101,7 @@ export function RecipeDraftBoundary(
   const [seed, setSeed] = React.useState<RecipeEditableDocument>();
   const [formGeneration, setFormGeneration] = React.useState(0);
   const [receipt, setReceipt] = React.useState<ReviewReceiptState | null>(null);
+  const [confirmedCompletion, setConfirmedCompletion] = React.useState(false);
   const [duplicate, setDuplicate] = React.useState<{
     id: string;
     title: string;
@@ -503,6 +504,7 @@ export function RecipeDraftBoundary(
     setNotice(null);
   }
   async function send(token: number) {
+    const onConfirmed = callbacks.current.onCreated;
     const saved = entry.current;
     if (!saved) throw new OwnedRequestRecoveryError("INTENT_CHANGED");
     const document = documentOf(saved);
@@ -588,8 +590,11 @@ export function RecipeDraftBoundary(
     }
     entry.current = null;
     setDirty(false);
+    setConfirmedCompletion(true);
+    setView("completed");
     if (!(await navigation.releaseBeforeNavigation()) || !live(token)) return;
-    callbacks.current.onCreated?.(parsed.data.recipe);
+    try { onConfirmed?.(parsed.data.recipe); }
+    catch { if (live(token)) setNotice(text("savedHandoffFailed")); }
   }
   async function submit(
     body: Record<string, unknown>,
@@ -815,7 +820,7 @@ export function RecipeDraftBoundary(
         )}
         {view === "completed" && (
           <div className="space-y-2">
-            <p role="status">{text("draftReviewClosed")}</p>
+            <p role="status">{text(confirmedCompletion ? "draftCommitted" : "draftReviewClosed")}</p>
             <Link
               className="btn-plain min-h-11"
               href="/dashboard/meals/explore"

@@ -231,6 +231,9 @@ function RecipeEditorForm({
   const [error, setError] = React.useState<string | null>(null);
   const [uncertain, setUncertain] = React.useState(false);
   const uncertainRef = React.useRef(false);
+  const confirmedRef = React.useRef(false);
+  const [confirmed, setConfirmed] = React.useState<{ id: string } | null>(null);
+  const [handoffFailed, setHandoffFailed] = React.useState(false);
   const [receiptState, setReceiptState] = React.useState<ReviewReceiptState | null>(null);
   const [receiptFailed, setReceiptFailed] = React.useState(false);
   const formLive = React.useRef(true);
@@ -249,6 +252,7 @@ function RecipeEditorForm({
     initialRecipe ? "uncertain" : "uncertainCreate",
   );
   const markUncertain = () => {
+    if (confirmedRef.current) return;
     uncertainRef.current = true;
     setUncertain(true);
     setError(uncertainMessage);
@@ -284,6 +288,7 @@ function RecipeEditorForm({
   async function writeRecipe(body: Record<string, unknown>) {
     if (!formLive.current) return;
     const own = formEpoch.current;
+    const completionCallbacks = callbacks.current;
     const expectedOwner = originalRecipeOwner.current;
     if ((expectedOwner || expectedRecipeOwner) && !sameRecipeOwner(expectedOwner, expectedRecipeOwner ?? null)) {
       callbacks.current.onOwnerHold?.(); return;
@@ -451,24 +456,41 @@ function RecipeEditorForm({
       markUncertain();
       return;
     }
+    confirmRecipe(r, completionCallbacks);
+  }
+
+  function confirmRecipe(r: RecipeDetailData, handoff = callbacks.current) {
+    if (!formLive.current) return;
+    const owner = originalRecipeOwner.current;
+    if ((owner || currentRecipeOwner.current) && !sameRecipeOwner(owner, currentRecipeOwner.current)) {
+      callbacks.current.onOwnerHold?.(); return;
+    }
+    confirmedRef.current = true;
+    setConfirmed({ id: r.id });
+    setHandoffFailed(false);
     creationAttempt.current = null;
     uncertainRef.current = false;
     setUncertain(false);
-    if (initialRecipe) callbacks.current.onSaved?.(r);
-    else
-      callbacks.current.onCreated?.({
-        id: r.id,
-        title: r.title,
-        prep_time: r.prep_time,
-        cook_time: r.cook_time,
-        servings: r.servings,
-        source_url: r.source_url ?? sourceUrl ?? null,
-      });
+    setError(null);
+    try {
+      if (initialRecipe) handoff.onSaved?.(r);
+      else
+        handoff.onCreated?.({
+          id: r.id,
+          title: r.title,
+          prep_time: r.prep_time,
+          cook_time: r.cook_time,
+          servings: r.servings,
+          source_url: r.source_url ?? sourceUrl ?? null,
+        });
+    } catch {
+      if (formLive.current) setHandoffFailed(true);
+    }
   }
 
   async function inspectCreation() {
     const attempt = creationAttempt.current;
-    if (!formLive.current || initialRecipe || !attempt || mutationPending.current || disabled || isMutationPending?.()) return;
+    if (!formLive.current || confirmedRef.current || initialRecipe || !attempt || mutationPending.current || disabled || isMutationPending?.()) return;
     mutationPending.current = true;
     const own = ++formEpoch.current;
     const abort = new AbortController();
@@ -505,7 +527,7 @@ function RecipeEditorForm({
 
   async function retryCreation() {
     if (
-      !formLive.current || initialRecipe ||
+      !formLive.current || confirmedRef.current || initialRecipe ||
       !creationAttempt.current ||
       receiptState?.state === "committed" || receiptState?.state === "expired" ||
       mutationPending.current ||
@@ -533,7 +555,7 @@ function RecipeEditorForm({
 
   const submit = async () => {
     if (
-      !formLive.current || disabled ||
+      !formLive.current || confirmedRef.current || disabled ||
       isMutationPending?.() ||
       mutationPending.current ||
       saving ||
@@ -695,7 +717,7 @@ function RecipeEditorForm({
       )
         body.ingredients = ingredients;
       if (initialRecipe && Object.keys(body).length === 0) {
-        callbacks.current.onSaved?.(initialRecipe);
+        confirmRecipe(initialRecipe);
         return;
       }
       if (initialRecipe && initialRecipe.revision !== undefined)
@@ -737,7 +759,7 @@ function RecipeEditorForm({
         {initialRecipe ? text("recipeDetails") : text("newRecipe")}
       </legend>
 
-      <fieldset disabled={uncertain && !initialRecipe} className="space-y-3">
+      <fieldset disabled={!!confirmed || (uncertain && !initialRecipe)} className="space-y-3">
         {!initialRecipe && safeSourceUrl && (
           <div className="space-y-2">
             <a
@@ -985,6 +1007,12 @@ function RecipeEditorForm({
         </p>
       )}
 
+      {confirmed && (
+        <div className="space-y-2">
+          <p role={handoffFailed ? "alert" : "status"} className="text-footnote">{text(handoffFailed ? "savedHandoffFailed" : "savedConfirmed")}</p>
+          <Link href={`/dashboard/meals/recipes/${encodeURIComponent(confirmed.id)}`} className="btn-tinted min-h-[44px] inline-flex items-center">{text("openConfirmedRecipe")}</Link>
+        </div>
+      )}
       {duplicate && (
         <Link
           className="btn-tinted min-h-[44px] inline-flex items-center"
@@ -1019,11 +1047,11 @@ function RecipeEditorForm({
           }}
           className="btn-plain flex-1 min-h-[44px]"
         >
-          {text("cancel")}
+          {text(confirmed ? "closeConfirmed" : "cancel")}
         </button>
         <button
           type="button"
-          disabled={uncertain}
+          disabled={uncertain || !!confirmed}
           onClick={() => void submit()}
           className="btn-tinted flex-1 min-h-[44px]"
         >

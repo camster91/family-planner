@@ -258,3 +258,22 @@ it("passes the original preview owner into its saved receipt inspector", async (
   await inspector(savedRequest, context);
   expect(inspectReviewDocumentReceipt).toHaveBeenCalledWith(savedRequest, context, expected);
 });
+
+// Authored UNRUN: confirmed retirement precedes a best-effort parent handoff.
+it("keeps an adopted confirmed save completed when its selection callback throws", async () => {
+  store.sendExact.mockResolvedValue({ sent: true, result: { kind: 'reply', response: { ok: true, status: 201 }, body: {
+    recipe: { id: 'confirmed-recipe', title: 'Confirmed soup', servings: 2, prep_time: null, cook_time: null },
+  } } });
+  store.retireConfirmed.mockImplementation(async () => { rows = []; return true });
+  const created = jest.fn(() => { throw new Error('Fixture callback failure') });
+  render(<RecipeEditor onCreated={created} onCancel={jest.fn()} />);
+  fireEvent.change(await screen.findByLabelText('Recipe name'), { target: { value: 'Confirmed soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await screen.findByText('The recipe was saved and is still in your recipe box.');
+  expect(screen.queryByRole('button', { name: 'Check the same save' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save recipe' })).toBeNull();
+  expect(screen.getByRole('link', { name: 'Open recipe box' })).toHaveAttribute('href', '/dashboard/meals/explore');
+  expect(store.sendExact).toHaveBeenCalledTimes(1);
+  expect(store.retireConfirmed).toHaveBeenCalledTimes(1);
+  expect(created).toHaveBeenCalledTimes(1);
+});

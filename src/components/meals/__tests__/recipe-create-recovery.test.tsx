@@ -97,3 +97,23 @@ test('retires ordinary recipe-create completion after the editor unmounts', asyn
   expect(created).not.toHaveBeenCalled();
   expect(saving.mock.calls).toHaveLength(callbackCount);
 });
+
+// Authored UNRUN: a UI handoff failure is not a failed/unknown canonical create.
+test('keeps a confirmed ordinary save locked when its parent callback throws', async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 201, json: async () => ({ recipe: {
+    id: 'confirmed-recipe', title: 'Confirmed soup', servings: 2, prep_time: null, cook_time: null,
+  } }) })) as unknown as typeof fetch;
+  const created = jest.fn(() => { throw new Error('Fixture private callback detail') });
+  render(<RecipeEditor onCreated={created} onCancel={jest.fn()} />);
+  fireEvent.change(await screen.findByLabelText('Recipe name'), { target: { value: 'Confirmed soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Recipe saved, but we could not finish returning'));
+  expect(screen.getByRole('alert')).not.toHaveTextContent('Fixture private callback detail');
+  expect(screen.getByRole('link', { name: 'Open saved recipe' })).toHaveAttribute('href', '/dashboard/meals/recipes/confirmed-recipe');
+  expect(screen.getByLabelText('Recipe name')).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save recipe' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Check original save' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(created).toHaveBeenCalledTimes(1);
+});

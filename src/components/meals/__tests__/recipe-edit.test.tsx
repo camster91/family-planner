@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RecipePage from "@/app/dashboard/meals/recipes/[id]/page";
+import { RecipeEditor } from "../RecipeEditor";
 import type { RecipeDetailData } from "../RecipeDetail";
 
 let mockRouteId = "r1";
@@ -494,3 +495,22 @@ it.each(["parent", "teen"])(
     expect(screen.getByText("Chop. Simmer.", { exact: false })).toBeTruthy();
   },
 );
+
+// Authored UNRUN: do not replace a dispatch callback's captured parent generation.
+it("keeps an in-flight edit bound to the parent callback that started it", async () => {
+  const pending = deferred<Response>();
+  global.fetch = jest.fn(() => pending.promise) as typeof fetch;
+  let generation = 0;
+  const applied = jest.fn();
+  const firstCallback = (recipe: RecipeDetailData) => { if (generation === 0) applied(recipe) };
+  const view = render(<RecipeEditor initialRecipe={RECIPE} onSaved={firstCallback} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Pending edit' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+  generation = 1;
+  const nextCallback = (recipe: RecipeDetailData) => { if (generation === 1) applied(recipe) };
+  view.rerender(<RecipeEditor initialRecipe={{ ...RECIPE, title: 'New current title' }} onSaved={nextCallback} onCancel={jest.fn()} />);
+  await act(async () => { pending.resolve(response({ ...RECIPE, title: 'Pending edit' })) });
+  expect(applied).not.toHaveBeenCalled();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
