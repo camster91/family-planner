@@ -579,6 +579,7 @@ export default function RecipeExplorePage() {
             </label>
             {libraryOwner.current && <RecipeCollections
               expectedOwner={libraryOwner.current}
+              onOwnerHold={holdLibraryOwner}
               value={collectionId}
               canEdit={canSave}
               onSelect={(id) => {
@@ -625,6 +626,7 @@ export default function RecipeExplorePage() {
                   <RecipeCuration
                     id={recipe.id}
                     expectedOwner={libraryOwner.current ?? undefined}
+                    onOwnerHold={holdLibraryOwner}
                     title={recipe.title}
                     favorite={recipe.favorite}
                     onChanged={() => void loadLibrary(0)}

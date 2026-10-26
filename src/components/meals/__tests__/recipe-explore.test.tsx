@@ -210,3 +210,21 @@ it.each(['preview-body', 'search-headers'] as const)('settles %s stalls without 
     jest.useRealTimers();
   }
 });
+
+// Authored UNRUN: child catalog authority loss must mask the original library too.
+it('masks the containing recipe library when its collection catalog changes household', async () => {
+  const saves = setup();
+  const baseFetch = fetch;
+  global.fetch = jest.fn((url, init) => String(url) === '/api/recipes/collections'
+    ? Promise.resolve({ ok: true, status: 200, headers: new Headers({ 'X-Herewoven-Recipe-Owner': JSON.stringify({
+        protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-b', familyId: 'family-b', role: 'parent', generation: 0,
+      }) }), json: async () => ({ collections: [{ id: 'other', name: 'Other private collection', revision: 0 }] }) })
+    : baseFetch(url, init)) as jest.Mock;
+  render(<Explore />);
+  const reload = await screen.findByRole('button', { name: 'Reload page' });
+  await waitFor(() => expect(reload).toHaveFocus());
+  expect(screen.queryByRole('link', { name: 'Fixture pasta' })).toBeNull();
+  expect(screen.queryByText('Other private collection')).toBeNull();
+  expect(screen.queryByLabelText('Recipe link')).toBeNull();
+  expect(saves).toHaveLength(0);
+});

@@ -71,12 +71,14 @@ test('masks the sheet when parallel recipe and catalog reads belong to different
   global.fetch = jest.fn(async (url: string) => String(url).endsWith('/collections')
     ? response({ collections: [{ id: 'private-other', name: 'Private collection' }] }, { ...owner, familyId: 'family-b' })
     : response({ id: 'fx_recipe', revision: 0, favorite: false, collectionIds: [] })) as unknown as typeof fetch;
-  render(<RecipeCuration id='fx_recipe' title='Fixture soup' />);
+  const held = jest.fn();
+  render(<RecipeCuration id='fx_recipe' title='Fixture soup' onOwnerHold={held} />);
   fireEvent.click(screen.getByRole('button', { name: 'Organize recipe: Fixture soup' }));
   await screen.findByRole('button', { name: 'Reload page' });
   expect(screen.queryByText('Private collection')).toBeNull();
   expect(screen.queryByRole('checkbox')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Save choices' })).toBeNull();
+  expect(held).toHaveBeenCalledTimes(1);
 });
 test('refuses an older server without owner markers instead of enabling writes', async () => {
   global.fetch = jest.fn(async (url: string) => ({ ok: true, json: async () => String(url).endsWith('/collections') ? { collections: [] } : { id: 'fx_recipe', revision: 0, favorite: false, collectionIds: [] } })) as unknown as typeof fetch;

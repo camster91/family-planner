@@ -23,8 +23,11 @@ export function RecipeCuration({
   favorite = false,
   onChanged,
   expectedOwner,
+  onOwnerHold,
 }: {
   expectedOwner?: RecipeOwner;
+  /** Mask the containing household view when this control loses its original owner. */
+  onOwnerHold?: () => void;
   id: string;
   title: string;
   favorite?: boolean;
@@ -49,7 +52,10 @@ export function RecipeCuration({
   const ownerHeld = useRef(false);
   const reloadFocus = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (ownerHold && document.activeElement === document.body) reloadFocus.current?.focus(); }, [ownerHold]);
-  const holdOwner = () => { ownerHeld.current = true; setOwnerHold(true); setNeedsRefresh(true); setMessage("ownerChanged"); };
+  const holdOwner = () => {
+    ownerHeld.current = true; setOwnerHold(true); setNeedsRefresh(true); setMessage("ownerChanged");
+    onOwnerHold?.();
+  };
   const generation = useRef(0);
   const action = useRef(false);
   const mutating = useRef(false);

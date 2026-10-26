@@ -16,8 +16,11 @@ export function RecipeCollections({
   onSelect,
   canEdit,
   expectedOwner,
+  onOwnerHold,
 }: {
   expectedOwner?: RecipeOwner;
+  /** Mask the containing household view when this control loses its original owner. */
+  onOwnerHold?: () => void;
   value: string;
   onSelect: (id: string) => void;
   canEdit: boolean;
@@ -48,7 +51,8 @@ export function RecipeCollections({
     setName("");
     setConfirm(false);
     setUncertain(true);
-  }, []);
+    onOwnerHold?.();
+  }, [onOwnerHold]);
   const generation = useRef(0);
   const action = useRef(false);
   const mutating = useRef(false);
