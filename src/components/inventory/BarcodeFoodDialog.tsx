@@ -98,7 +98,8 @@ export function BarcodeFoodDialog({
   const total = useRef(0);
   const unknown = rows.some((row) => row.uncertain);
   const locked = saving || unknown;
-  const navigation = usePendingFormNavigationController(locked);
+  const hasDraft = rows.length > 0;
+  const navigation = usePendingFormNavigationController(locked || hasDraft);
   useEffect(() => {
     live.current = true;
     return () => {
@@ -307,10 +308,13 @@ export function BarcodeFoodDialog({
     setReview(true);
     await metadata(id, code, false);
   }
-  function close() {
+  async function close() {
     if (suspended || flight.current || attempts.current.size) return;
+    if (rowsRef.current.length && !window.confirm(text("discardDraft")))
+      return;
     camera.stop();
     requests.current.forEach((request) => request.abort());
+    if (!(await navigation.releaseBeforeNavigation())) return;
     total.current ? onDone(total.current) : onClose();
   }
   async function save() {

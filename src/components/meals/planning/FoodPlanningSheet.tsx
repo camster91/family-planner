@@ -854,6 +854,20 @@ export default function FoodPlanningSheet({
           <Link
             href="/dashboard/meals?view=bulk"
             className="inline-flex min-h-[44px] items-center text-[var(--accent-text)]"
+            aria-disabled={session.busy || undefined}
+            tabIndex={session.busy ? -1 : undefined}
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              event.preventDefault();
+              if (!session.busy) void router.push("/dashboard/meals?view=bulk");
+            }}
           >
             {text("managePreparedMeals")}
           </Link>

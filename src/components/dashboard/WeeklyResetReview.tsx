@@ -110,6 +110,7 @@ export default function WeeklyResetReview({
             return;
           }
           if (
+            event.button !== 0 ||
             event.metaKey ||
             event.ctrlKey ||
             event.shiftKey ||

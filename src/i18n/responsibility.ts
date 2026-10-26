@@ -8,6 +8,7 @@ const en = {
   previewUnavailable:
     "Answers could not be loaded. Open to retry; this is not an empty plan.",
   title: "Who’s handling this?",
+  openTarget: "Open canonical item",
   close: "Close responsibility",
   intro:
     "Confirm the plan together. Naming someone does not mean they have agreed.",
@@ -91,6 +92,7 @@ const es: typeof en = {
   previewUnavailable:
     "No se pudieron cargar las respuestas. Abre para reintentar; no indica un plan vacío.",
   title: "¿Quién se encarga?",
+  openTarget: "Abrir elemento principal",
   close: "Cerrar responsabilidad",
   intro:
     "Confirmen el plan juntos. Nombrar a alguien no significa que haya aceptado.",
