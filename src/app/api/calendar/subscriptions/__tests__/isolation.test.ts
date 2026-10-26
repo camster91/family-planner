@@ -52,8 +52,10 @@ import {
   expectDenied,
   expectNoForeignData,
   FAMILY_A,
+  USER_IDS,
   type UserKey,
 } from "@/__tests__/helpers/two-household";
+import * as outbound from "@/lib/outbound-url";
 import { decryptSecret } from "@/lib/secret-box";
 import {
   ics,
@@ -347,4 +349,16 @@ describe("calendar subscriptions — audit statuses (F-4)", () => {
     expect(db.writes).toHaveLength(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
+
+// Authored UNRUN: URL validation may outlive the original authenticated session.
+it("refuses subscription creation when the original session changes during URL validation", async () => {
+  jest.spyOn(outbound, "assertPublicProviderUrl").mockImplementationOnce(async () => {
+    const user = db.find("user", USER_IDS.parentA)!;
+    user.token_version += 1;
+  });
+  const res = await collection.POST(req({ as: "parentA", body: newSub }));
+  expect(res.status).toBe(401);
+  expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
+  expect(writesTo("calendarSubscription")).toHaveLength(0);
 });

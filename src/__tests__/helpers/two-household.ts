@@ -909,6 +909,16 @@ export const fakePrisma: any = new Proxy(
       }
       if (prop === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Exact subscription authority probes. These mirror current fixture
+        // rows only; in-memory locks do not prove PostgreSQL serialization.
+        if (sql === 'SELECT "id", "family_id", "role", "token_version" FROM "User" WHERE "id" = ? FOR SHARE') {
+          const user = db.find('user', String(values[0]))
+          return user ? [{ id: user.id, family_id: user.family_id, role: user.role, token_version: user.token_version }] : []
+        }
+        if (sql === 'SELECT "id" FROM "Family" WHERE "id" = ? FOR SHARE') {
+          const family = db.find('family', String(values[0]))
+          return family ? [{ id: family.id }] : []
+        }
         // Only the three additive metadata-table probes used by deletion.
         if (/^SELECT to_regclass\('public\."(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
         // Exact source query for private scheduled-root metadata. Locks are

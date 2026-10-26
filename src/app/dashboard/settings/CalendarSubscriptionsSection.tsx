@@ -108,6 +108,10 @@ export default function CalendarSubscriptionsSection() {
     try {
       const result = await requestOwnedJson("/api/calendar/subscriptions", { signal: controller.signal }, 128 * 1024);
       if (!current()) return;
+      if (result.kind === "reply") {
+        const code = result.body && typeof result.body === "object" ? (result.body as Record<string, unknown>).code : null;
+        if ([401, 403].includes(result.response.status) || code === "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" || code === "CALENDAR_SUBSCRIPTION_ACCESS_UNCONFIRMED") setAccessHeld(true);
+      }
       const subscriptions = result.kind === "reply" && result.response.ok
         ? readCalendarSubscriptionList(result.body) : null;
       if (!subscriptions) throw new Error("Subscription list unavailable");
@@ -175,7 +179,7 @@ export default function CalendarSubscriptionsSection() {
     const data = result.body && typeof result.body === "object" && !Array.isArray(result.body)
       ? result.body as Record<string, unknown> : null;
     if (!result.response.ok) {
-      if ([401, 403].includes(result.response.status)) setAccessHeld(true);
+      if ([401, 403].includes(result.response.status) || data?.code === "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" || data?.code === "CALENDAR_SUBSCRIPTION_ACCESS_UNCONFIRMED") setAccessHeld(true);
       if (result.response.status >= 500 || [401, 403, 408, 409, 425, 429].includes(result.response.status)) holdWrite();
       else { pendingWrite.current = null; setError(settingsResponseError(data?.error, fallback)); }
       return null;
