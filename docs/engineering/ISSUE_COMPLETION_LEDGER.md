@@ -56,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work captures original actors and renews routine schedule/independent-step recovery authority at every successful review reply. Original request bytes, owner scope, readiness/current revision and receipt summaries are withheld on late access refusal after private lookups. Existing packet/key, retry-state decisions and receipt/domain data remain unchanged; reviews still do not write or resend. Four source fixture cases cover late refusal and exact expired-packet preservation, UNRUN. Point-in-time renewal is not browser-session recall or durable/multi-device recovery acceptance. All37 issues remain open; no QA or release ran.
+Latest bounded planning work reconciles the live37-issue directory with the current ledger and consolidates the roadmap's repeated status text. The full52,606-character source history and15,354-character previous directory are preserved verbatim in linked canonical #128 comments, including their historical counts and caveats. The current summary replaces stale40-issue status and retired current rows without changing original programme requirements or unchecked acceptance. No issue is newly closed and no code is declared accepted. All source remains local/unverified; QA and release stay deferred.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -92,6 +92,18 @@ reconciliation, not a QA run or validation of operating procedures:
 Repeated recovery notes were consolidated here after preserving named backups in
 `../docs-before-status-consolidation-20261024/`; Git and #128 retain prior history.
 The unchanged older release/checkpoint notes below are historical evidence.
+
+## Roadmap directory consolidation — 2026-10-26
+
+Fresh GitHub metadata still contains37 open issues. The roadmap body had a stale
+40-issue statement, retired rows in its current directory and52,606 characters
+of repeated unverified source notes ahead of programme requirements. The complete
+source notes are preserved [verbatim in #128 history](https://github.com/camster91/family-planner/issues/128#issuecomment-6408496469);
+the complete prior directory/status snapshot is preserved [separately](https://github.com/camster91/family-planner/issues/128#issuecomment-6408496898).
+Named original-body and live issue snapshots remain beside the recovery checkout.
+The current roadmap uses this canonical37-issue directory and source-versus-
+acceptance boundaries; its original programme/unchecked criteria remain intact.
+This changes task organization only, with no issue closure or runtime acceptance.
 
 ## Current canonical issue directory
 
