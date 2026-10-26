@@ -9,7 +9,7 @@ jest.mock("@/lib/idempotency-request-json", () => ({
 jest.mock("@/lib/review-document-browser", () =>
   require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
 );
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RecipeEditor } from "../RecipeEditor";
 test("uncertain creation retries exactly its original tagged body and key, with fields locked", async () => {
   const created = jest.fn();
@@ -74,4 +74,26 @@ it.each(['present', 'absent'] as const)('inspects %s without resending an uncert
   expect(screen.getByLabelText('Recipe name')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Save recipe' })).toBeDisabled();
   expect(created).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: ignored-abort transport must not deliver an unmounted save callback.
+test('retires ordinary recipe-create completion after the editor unmounts', async () => {
+  let finish!: (response: unknown) => void;
+  global.fetch = jest.fn(() => new Promise(resolve => { finish = resolve })) as unknown as typeof fetch;
+  const created = jest.fn();
+  const saving = jest.fn();
+  const view = render(<RecipeEditor onCreated={created} onSavingChange={saving} onCancel={jest.fn()} />);
+  fireEvent.change(await screen.findByLabelText('Recipe name'), { target: { value: 'Original soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+  const signal = (global.fetch as jest.Mock).mock.calls[0][1].signal;
+  view.unmount();
+  const callbackCount = saving.mock.calls.length;
+  expect(signal.aborted).toBe(true);
+  await act(async () => {
+    finish({ ok: true, status: 201, json: async () => ({ recipe: { id: 'recipe-a', title: 'Original soup', servings: 2, prep_time: null, cook_time: null } }) });
+    await Promise.resolve();
+  });
+  expect(created).not.toHaveBeenCalled();
+  expect(saving.mock.calls).toHaveLength(callbackCount);
 });

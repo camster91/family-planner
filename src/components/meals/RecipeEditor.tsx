@@ -100,6 +100,10 @@ function RecipeEditorForm({
   onOwnedSubmit,
 }: RecipeEditorProps & RecipeOwnedFormProps) {
   const originalRecipeOwner = React.useRef(expectedRecipeOwner ? Object.freeze({ ...expectedRecipeOwner }) : null);
+  const currentRecipeOwner = React.useRef(expectedRecipeOwner ?? null);
+  currentRecipeOwner.current = expectedRecipeOwner ?? null;
+  const callbacks = React.useRef({ onCreated, onSaved, onSavingChange, onOwnerHold });
+  callbacks.current = { onCreated, onSaved, onSavingChange, onOwnerHold };
   const text = useRecipeEditorText();
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
@@ -229,12 +233,12 @@ function RecipeEditorForm({
   const uncertainRef = React.useRef(false);
   const [receiptState, setReceiptState] = React.useState<ReviewReceiptState | null>(null);
   const [receiptFailed, setReceiptFailed] = React.useState(false);
-  const receiptLive = React.useRef(true);
-  const receiptEpoch = React.useRef(0);
-  const receiptController = React.useRef<AbortController | null>(null);
+  const formLive = React.useRef(true);
+  const formEpoch = React.useRef(0);
+  const requestController = React.useRef<AbortController | null>(null);
   React.useEffect(() => {
-    receiptLive.current = true;
-    return () => { receiptLive.current = false; receiptEpoch.current++; receiptController.current?.abort(); };
+    formLive.current = true;
+    return () => { formLive.current = false; formEpoch.current++; requestController.current?.abort(); };
   }, []);
   const creationAttempt = React.useRef<{
     key: string;
@@ -278,9 +282,11 @@ function RecipeEditorForm({
     setLines((prev) => prev.filter((l) => l.key !== key));
 
   async function writeRecipe(body: Record<string, unknown>) {
+    if (!formLive.current) return;
+    const own = formEpoch.current;
     const expectedOwner = originalRecipeOwner.current;
     if ((expectedOwner || expectedRecipeOwner) && !sameRecipeOwner(expectedOwner, expectedRecipeOwner ?? null)) {
-      onOwnerHold?.(); return;
+      callbacks.current.onOwnerHold?.(); return;
     }
     if (onOwnedSubmit && !initialRecipe) {
       await onOwnedSubmit(
@@ -322,6 +328,8 @@ function RecipeEditorForm({
       setError(text("expiredCreate"));
       return;
     }
+    const abort = new AbortController();
+    requestController.current = abort;
     const result = await runOwnedForeground(
       async (signal) => {
         const response = await fetch(
@@ -346,8 +354,12 @@ function RecipeEditorForm({
         );
         return { kind: "reply" as const, response, reply };
       },
-      { timeoutMs: 30_000 },
+      { timeoutMs: 30_000, signal: abort.signal },
     );
+    if (!formLive.current || own !== formEpoch.current) return;
+    if ((expectedOwner || currentRecipeOwner.current) && !sameRecipeOwner(expectedOwner, currentRecipeOwner.current)) {
+      callbacks.current.onOwnerHold?.(); return;
+    }
     if (result.kind !== "reply") {
       markUncertain();
       return;
@@ -357,7 +369,7 @@ function RecipeEditorForm({
         (result.reply as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
         (res.ok && !sameRecipeOwner(expectedOwner, readRecipeOwner(res.headers?.get(RECIPE_OWNER_HEADER) ?? null))))) {
       markUncertain();
-      onOwnerHold?.();
+      callbacks.current.onOwnerHold?.();
       return;
     }
     const data = result.reply as {
@@ -442,9 +454,9 @@ function RecipeEditorForm({
     creationAttempt.current = null;
     uncertainRef.current = false;
     setUncertain(false);
-    if (initialRecipe) onSaved?.(r);
+    if (initialRecipe) callbacks.current.onSaved?.(r);
     else
-      onCreated?.({
+      callbacks.current.onCreated?.({
         id: r.id,
         title: r.title,
         prep_time: r.prep_time,
@@ -456,13 +468,13 @@ function RecipeEditorForm({
 
   async function inspectCreation() {
     const attempt = creationAttempt.current;
-    if (initialRecipe || !attempt || mutationPending.current || disabled || isMutationPending?.()) return;
+    if (!formLive.current || initialRecipe || !attempt || mutationPending.current || disabled || isMutationPending?.()) return;
     mutationPending.current = true;
-    const own = ++receiptEpoch.current;
+    const own = ++formEpoch.current;
     const abort = new AbortController();
-    receiptController.current = abort;
+    requestController.current = abort;
     setSaving(true);
-    onSavingChange?.(true);
+    callbacks.current.onSavingChange?.(true);
     setError(null);
     setReceiptFailed(false);
     try {
@@ -478,22 +490,22 @@ function RecipeEditorForm({
           throw error;
         }
       }, { signal: abort.signal, timeoutMs: 15_000 });
-      if (!receiptLive.current || own !== receiptEpoch.current) return;
-      if (result.kind === "owner-held") { onOwnerHold?.(); return; }
+      if (!formLive.current || own !== formEpoch.current) return;
+      if (result.kind === "owner-held") { callbacks.current.onOwnerHold?.(); return; }
       if (result.kind === "receipt") setReceiptState(result.state);
       else setReceiptFailed(true);
     } finally {
-      if (receiptLive.current && own === receiptEpoch.current) {
+      if (formLive.current && own === formEpoch.current) {
         mutationPending.current = false;
         setSaving(false);
-        onSavingChange?.(false);
+        callbacks.current.onSavingChange?.(false);
       }
     }
   }
 
   async function retryCreation() {
     if (
-      initialRecipe ||
+      !formLive.current || initialRecipe ||
       !creationAttempt.current ||
       receiptState?.state === "committed" || receiptState?.state === "expired" ||
       mutationPending.current ||
@@ -501,24 +513,27 @@ function RecipeEditorForm({
       isMutationPending?.()
     )
       return;
+    const own = formEpoch.current;
     mutationPending.current = true;
     setSaving(true);
-    onSavingChange?.(true);
+    callbacks.current.onSavingChange?.(true);
     setError(null);
     try {
       await writeRecipe({});
     } catch {
-      markUncertain();
+      if (formLive.current && own === formEpoch.current) markUncertain();
     } finally {
-      mutationPending.current = false;
-      setSaving(false);
-      onSavingChange?.(false);
+      if (formLive.current && own === formEpoch.current) {
+        mutationPending.current = false;
+        setSaving(false);
+        callbacks.current.onSavingChange?.(false);
+      }
     }
   }
 
   const submit = async () => {
     if (
-      disabled ||
+      !formLive.current || disabled ||
       isMutationPending?.() ||
       mutationPending.current ||
       saving ||
@@ -616,10 +631,11 @@ function RecipeEditorForm({
       setError(text("tooManyIngredients"));
       return;
     }
+    const own = formEpoch.current;
     mutationPending.current = true;
     setSaving(true);
     try {
-      onSavingChange?.(true);
+      callbacks.current.onSavingChange?.(true);
       setError(null);
       const fields = {
         title: cleanTitle,
@@ -679,7 +695,7 @@ function RecipeEditorForm({
       )
         body.ingredients = ingredients;
       if (initialRecipe && Object.keys(body).length === 0) {
-        onSaved?.(initialRecipe);
+        callbacks.current.onSaved?.(initialRecipe);
         return;
       }
       if (initialRecipe && initialRecipe.revision !== undefined)
@@ -688,11 +704,13 @@ function RecipeEditorForm({
         body.base_updated_at = initialRecipe.updated_at;
       await writeRecipe(body);
     } catch {
-      markUncertain();
+      if (formLive.current && own === formEpoch.current) markUncertain();
     } finally {
-      mutationPending.current = false;
-      setSaving(false);
-      onSavingChange?.(false);
+      if (formLive.current && own === formEpoch.current) {
+        mutationPending.current = false;
+        setSaving(false);
+        callbacks.current.onSavingChange?.(false);
+      }
     }
   };
 
