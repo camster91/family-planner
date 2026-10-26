@@ -15,7 +15,9 @@ export function RecipeCollections({
   value,
   onSelect,
   canEdit,
+  expectedOwner,
 }: {
+  expectedOwner?: RecipeOwner;
   value: string;
   onSelect: (id: string) => void;
   canEdit: boolean;
@@ -33,7 +35,7 @@ export function RecipeCollections({
     "readError" | "writeError" | "refreshed" | "saved" | null
   >(null);
   const [ownerHold, setOwnerHold] = useState(false);
-  const owner = useRef<RecipeOwner | null>(null);
+  const owner = useRef<RecipeOwner | null>(expectedOwner ?? null);
   const ownerHeld = useRef(false);
   const controller = useRef<AbortController | null>(null);
   const reloadFocus = useRef<HTMLButtonElement>(null);

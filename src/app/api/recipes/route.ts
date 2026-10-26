@@ -1,3 +1,4 @@
+import { RECIPE_OWNER_HEADER, RECIPE_OWNER_PROTOCOL, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
@@ -49,6 +50,11 @@ export async function GET(request: NextRequest) {
     if (error) return error;
     const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
       role: auth.user.role, generation: auth.payload.tv ?? 0 });
+
+    const owner = { protocol: RECIPE_OWNER_PROTOCOL, ...original } as const;
+    const expectedOwner = request.headers.get(RECIPE_OWNER_HEADER);
+    if (expectedOwner !== null && !sameRecipeOwner(readRecipeOwner(expectedOwner), owner))
+      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
 
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
@@ -109,7 +115,7 @@ export async function GET(request: NextRequest) {
     const recipes = hasMore ? rows.slice(0, limit) : rows;
     return NextResponse.json(
       { recipes, nextOffset: hasMore ? offset + limit : null },
-      { headers: { "Cache-Control": "private, no-store" } },
+      { headers: { "Cache-Control": "private, no-store", [RECIPE_OWNER_HEADER]: JSON.stringify(owner) } },
     );
   } catch (err) {
     logRouteError("GET /api/recipes", err, getRequestId(request));

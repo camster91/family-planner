@@ -26,11 +26,19 @@ import {
 } from "@/lib/recipe-discovery";
 
 import { requestOwnedJson } from "@/lib/owned-request-http";
-import { readRecipeLibraryPage, type RecipeLibrarySummary as SavedRecipe } from "@/lib/recipe-library-client";
+import { RecipeLibraryOwnerChanged, readRecipeLibraryPage, type RecipeLibrarySummary as SavedRecipe } from "@/lib/recipe-library-client";
+import type { RecipeOwner } from "@/lib/recipe-owner-contract";
+import { useRecipeCurationText } from "@/i18n/recipe-curation";
 type RecipeSearchResult = { title: string; url: string; source?: string };
 
 export default function RecipeExplorePage() {
   const text = useRecipeExploreText();
+  const curationText = useRecipeCurationText();
+  const [ownerHold, setOwnerHold] = React.useState(false);
+  const libraryOwner = React.useRef<RecipeOwner | null>(null);
+  const libraryHeld = React.useRef(false);
+  const reloadFocus = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => { if (ownerHold) reloadFocus.current?.focus(); }, [ownerHold]);
   const [query, setQuery] = React.useState("");
   const [favoritesOnly, setFavoritesOnly] = React.useState(false);
   const [collectionId, setCollectionId] = React.useState("");
@@ -68,9 +76,23 @@ export default function RecipeExplorePage() {
   const previewGeneration = React.useRef(0);
   const libraryController = React.useRef<AbortController | null>(null);
 
+  const holdLibraryOwner = React.useCallback(() => {
+    libraryHeld.current = true;
+    setOwnerHold(true);
+    setCanSave(false);
+    setRecipes([]);
+    setPreview(null);
+    setEditor(false);
+    setSavedId(null);
+    previewGeneration.current++;
+    searchGeneration.current++;
+    controller.current?.abort();
+    searchController.current?.abort();
+  }, []);
+
   const loadLibrary = React.useCallback(
     async (next: number) => {
-      if (libraryBusy.current) return;
+      if (libraryBusy.current || libraryHeld.current) return;
       libraryBusy.current = true;
       const abort = new AbortController();
       libraryController.current = abort;
@@ -81,14 +103,17 @@ export default function RecipeExplorePage() {
         setOffset(0);
       }
       try {
-        const data = await readRecipeLibraryPage(libraryFilters, next, abort.signal);
+        const data = await readRecipeLibraryPage(libraryFilters, next, abort.signal, fetch, libraryOwner.current);
         if (!abort.signal.aborted) {
+          if (!libraryOwner.current) libraryOwner.current = data.owner;
+          setCanSave(["parent", "teen"].includes(data.owner.role));
           setRecipes((previous) => next === 0 ? data.recipes :
             [...new Map([...previous, ...data.recipes].map(recipe => [recipe.id, recipe])).values()]);
           setOffset(data.nextOffset);
         }
-      } catch {
-        if (!abort.signal.aborted) setLibraryError(text("libraryError"));
+      } catch (error) {
+        if (!abort.signal.aborted && error instanceof RecipeLibraryOwnerChanged) holdLibraryOwner();
+        else if (!abort.signal.aborted) setLibraryError(text("libraryError"));
       } finally {
         if (!abort.signal.aborted) {
           libraryBusy.current = false;
@@ -96,20 +121,20 @@ export default function RecipeExplorePage() {
         }
       }
     },
-    [text, libraryFilters],
+    [text, libraryFilters, holdLibraryOwner],
   );
 
   React.useEffect(() => {
-    const abort = new AbortController();
-    fetch("/api/auth/me", { signal: abort.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (!abort.signal.aborted)
-          setCanSave(["parent", "teen"].includes(data?.user?.role));
-      })
-      .catch(() => undefined);
+    const advisory = new AbortController();
+    // Manual import remains available during a library-only failure. This role
+    // hint cannot replace an admitted library owner or authorize any API write.
+    void requestOwnedJson("/api/auth/me", { signal: advisory.signal }, 64 * 1024).then(result => {
+      if (advisory.signal.aborted || libraryHeld.current || libraryOwner.current || result.kind !== "reply" || !result.response.ok) return;
+      const body = result.body as { user?: { role?: unknown } } | null;
+      setCanSave(body?.user?.role === "parent" || body?.user?.role === "teen");
+    });
     return () => {
-      abort.abort();
+      advisory.abort();
       previewGeneration.current++;
       controller.current?.abort();
       searchGeneration.current++;
@@ -230,6 +255,14 @@ export default function RecipeExplorePage() {
       )
     : undefined;
 
+  if (ownerHold) return (
+    <FeatureGate featureKey="meals">
+      <div role="alert" className="space-y-3">
+        <p>{curationText.ownerChanged}</p>
+        <button ref={reloadFocus} type="button" className="btn-secondary min-h-[44px]" onClick={() => window.location.reload()}>{curationText.reload}</button>
+      </div>
+    </FeatureGate>
+  );
   return (
     <FeatureGate featureKey="meals">
       <div className="space-y-6 pb-20">
@@ -544,7 +577,8 @@ export default function RecipeExplorePage() {
               />
               {text("favoritesOnly")}
             </label>
-            <RecipeCollections
+            {libraryOwner.current && <RecipeCollections
+              expectedOwner={libraryOwner.current}
               value={collectionId}
               canEdit={canSave}
               onSelect={(id) => {
@@ -554,7 +588,7 @@ export default function RecipeExplorePage() {
                 else filters.delete("collection");
                 setLibraryFilters(filters.toString());
               }}
-            />
+            />}
           </div>
           {libraryError && (
             <div role="alert">
@@ -590,6 +624,7 @@ export default function RecipeExplorePage() {
                 {canSave && (
                   <RecipeCuration
                     id={recipe.id}
+                    expectedOwner={libraryOwner.current ?? undefined}
                     title={recipe.title}
                     favorite={recipe.favorite}
                     onChanged={() => void loadLibrary(0)}

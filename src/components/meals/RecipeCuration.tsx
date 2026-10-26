@@ -22,7 +22,9 @@ export function RecipeCuration({
   title,
   favorite = false,
   onChanged,
+  expectedOwner,
 }: {
+  expectedOwner?: RecipeOwner;
   id: string;
   title: string;
   favorite?: boolean;
@@ -43,7 +45,7 @@ export function RecipeCuration({
     "readError" | "writeError" | "refreshed" | "saved" | "current" | "ownerChanged" | null
   >(null);
   const [ownerHold, setOwnerHold] = useState(false);
-  const owner = useRef<RecipeOwner | null>(null);
+  const owner = useRef<RecipeOwner | null>(expectedOwner ?? null);
   const ownerHeld = useRef(false);
   const reloadFocus = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (ownerHold && document.activeElement === document.body) reloadFocus.current?.focus(); }, [ownerHold]);
@@ -54,7 +56,7 @@ export function RecipeCuration({
   usePendingFormNavigationController(busy);
   useEffect(() => {
     generation.current++;
-    owner.current = null;
+    owner.current = expectedOwner ?? null;
     ownerHeld.current = false;
     setOwnerHold(false);
     action.current = false;
@@ -67,7 +69,7 @@ export function RecipeCuration({
       generation.current++;
       action.current = false;
     };
-  }, [id]);
+  }, [id, expectedOwner]);
   async function load(preserve: boolean) {
     if (ownerHeld.current) { setOpen(true); return; }
     if (action.current) return;

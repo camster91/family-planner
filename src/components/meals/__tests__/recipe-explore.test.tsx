@@ -31,7 +31,8 @@ const preview = {
   prep_time: 15,
   cook_time: 30,
 };
-const response = (body: unknown, ok = true) => ({
+const response = (body: unknown, ok = true, role = "parent") => ({
+  headers: new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ protocol: "herewoven.recipe-owner.v1", actorId: role === "child" ? "child-a" : "parent-a", familyId: "family-a", role, generation: 0 }) }),
   ok,
   status: ok ? 200 : 422,
   json: async () => body,
@@ -46,7 +47,7 @@ function setup(role = "parent") {
           { id: "saved-fixture", title: "Fixture pasta", description: null },
         ],
         nextOffset: null,
-      });
+      }, true, role);
     if (String(url) === "/api/recipes/discover")
       return response({
         results: [{ title: "Fixture online soup", url: preview.source }],

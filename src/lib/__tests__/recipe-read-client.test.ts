@@ -40,14 +40,16 @@ describe("bounded canonical recipe reads", () => {
 });
 
 // Library boundary cases authored UNRUN; shared transport deadline/body cases remain above.
+const libraryOwner = { protocol: "herewoven.recipe-owner.v1", actorId: "parent-a", familyId: "family-a", role: "parent", generation: 0 } as const;
+const libraryHeaders = () => new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify(libraryOwner) });
 describe("recipe library pages", () => {
   it("projects one searched page and strips unrelated fields without fetching continuation", async () => {
     const { readRecipeLibraryPage } = await import("../recipe-library-client");
-    const transport = jest.fn(async () => ({ ok: true, json: async () => ({ recipes: [{
+    const transport = jest.fn(async () => ({ ok: true, headers: libraryHeaders(), json: async () => ({ recipes: [{
       id: "recipe-a", title: "Soup", description: null, favorite: true, privateExtra: "discard",
     }], nextOffset: null }) }) as Response);
     await expect(readRecipeLibraryPage("q=rice+%26+beans&favorite=1", 100, new AbortController().signal, transport))
-      .resolves.toEqual({ recipes: [{ id: "recipe-a", title: "Soup", description: null, favorite: true }], nextOffset: null });
+      .resolves.toEqual({ recipes: [{ id: "recipe-a", title: "Soup", description: null, favorite: true }], nextOffset: null, owner: libraryOwner });
     expect(transport).toHaveBeenCalledWith("/api/recipes?limit=100&offset=100&q=rice+%26+beans&favorite=1", {
       cache: "no-store", signal: expect.any(AbortSignal),
     });
@@ -62,7 +64,7 @@ describe("recipe library pages", () => {
   ])("refuses malformed or inconsistent page data", async body => {
     const { readRecipeLibraryPage } = await import("../recipe-library-client");
     await expect(readRecipeLibraryPage("", 0, new AbortController().signal,
-      jest.fn(async () => ({ ok: true, json: async () => body }) as Response))).rejects.toThrow("Recipe library unavailable");
+      jest.fn(async () => ({ ok: true, headers: libraryHeaders(), json: async () => body }) as Response))).rejects.toThrow("Recipe library unavailable");
   });
   it("refuses duplicate filters before a request", async () => {
     const { readRecipeLibraryPage } = await import("../recipe-library-client");
@@ -70,4 +72,16 @@ describe("recipe library pages", () => {
     await expect(readRecipeLibraryPage("q=one&q=two", 0, new AbortController().signal, transport)).rejects.toThrow();
     expect(transport).not.toHaveBeenCalled();
   });
+});
+
+it("rejects a changed library owner before decoding private recipe data", async () => {
+  const { readRecipeLibraryPage, RecipeLibraryOwnerChanged } = await import("../recipe-library-client");
+  const json = jest.fn();
+  const transport = jest.fn(async (_path: string, _init?: RequestInit) => ({ ok: true, status: 200, headers: new Headers({
+    "X-Herewoven-Recipe-Owner": JSON.stringify({ ...libraryOwner, familyId: "family-b" }),
+  }), json }) as unknown as Response);
+  await expect(readRecipeLibraryPage("", 100, new AbortController().signal, transport, libraryOwner))
+    .rejects.toBeInstanceOf(RecipeLibraryOwnerChanged);
+  expect(json).not.toHaveBeenCalled();
+  expect(transport.mock.calls[0][1]?.headers).toEqual({ "X-Herewoven-Recipe-Owner": JSON.stringify(libraryOwner) });
 });
