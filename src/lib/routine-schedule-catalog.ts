@@ -12,13 +12,12 @@ import {
   routineScheduleCatalog,
   type RoutineAssignmentOption,
 } from "@/lib/routine-schedule-view";
-import { eligibleChoreAssigneeInTx } from "@/lib/chore-member-subject";
+import { readChoreAssigneesInTx } from "@/lib/chore-member-subject";
 import { PROFILE_CHORE_ELIGIBILITY_SELECT, profileChoreAssigneeFromSnapshot } from "@/lib/chore-profile-assignee";
 import {
   isProfileChoreEnabled,
   isProfileChoreRecurrenceSupported,
 } from "@/lib/profile-chore-gates";
-import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 import type { EffectResult } from "@/lib/idempotency";
 /** Stable bounded pages; unavailable future protocols are visible but never editable. */
 export async function readRoutineScheduleCatalog(
@@ -70,28 +69,15 @@ export async function readRoutineScheduleCatalog(
             body: { error: { code: "ROUTINE_MEMBERS_REQUIRE_REVIEW" } },
           };
         const assignments: RoutineAssignmentOption[] = [];
+        const accountEligibility = await readChoreAssigneesInTx(tx, actor.familyId, users.map(user => user.id));
         for (const user of users) {
-          try {
-            const owner = await eligibleChoreAssigneeInTx(
-              tx,
-              actor.familyId,
-              user.id,
-            );
-            if (owner)
-              assignments.push({
-                subject: {
-                  kind: "account",
-                  user_id: owner.assigned_to,
-                  member_id: owner.assigned_member_id ?? null,
-                },
-                name: user.name,
-                role: user.role,
-                canRepeat: true,
-              });
-          } catch (caught) {
-            if (!(caught instanceof HouseholdMemberIdentityConflict))
-              throw caught;
-          }
+          const eligibility = accountEligibility.get(user.id);
+          if (eligibility?.kind !== "eligible") continue;
+          const owner = eligibility.assignee;
+          assignments.push({
+            subject: { kind: "account", user_id: owner.assigned_to, member_id: owner.assigned_member_id ?? null },
+            name: user.name, role: user.role, canRepeat: true,
+          });
         }
         for (const profile of profiles) {
           if (

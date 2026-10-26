@@ -170,3 +170,29 @@ assignment cap is unchanged. Account-member eligibility queries, relation/query
 plans, synchronization through all lifecycle writers, actual latency and full
 role/native/rollback acceptance remain separate. No QA/tests/checks/build/browser/
 DB/generation/CI/push/merge/deploy or activation ran. #134/#450/#480 remain open.
+
+
+## Routine catalog account eligibility batches — 2026-10-26 source only
+
+The account side now calls `readChoreAssigneesInTx` in batches of100 distinct
+User IDs, up to the catalog's1000 combined-choice boundary. It loads current
+same-household accounts plus global mapping/link references for those IDs,
+then the referenced household member states and global reverse associations.
+Foreign or contradictory references are intentionally not hidden by a family
+filter. Each choice is eligible, inactive or conflicted; the catalog preserves
+its prior skip behavior without allowing one conflict to silently grant access.
+
+Scalar writer/top-up lookup still queries its exact target. Shared reference
+and projection functions keep its requireCanonical/historical behavior and
+the batch reader's legacy/inactive/conflicting mapping behavior aligned. This
+map is read-only eligibility under the existing household lifecycle transaction,
+never an actor or a cached authorization grant to a writer. No profile namespace
+conversion, credit/points decision or new flag is introduced.
+
+Two source fixtures compare mixed scalar/batch outcomes (including foreign,
+dual, reverse and missing mappings) and205 unique account choices over three
+batches. They are UNRUN. Existing schema unique user/member association keys
+are the expected reference-cardinality bound; actual deployed constraints,
+SQL/query plans, all concurrent lifecycle writers, latency and rollback/native
+acceptance have not been established. No schema/generation/DB/QA/tests/checks/
+build/browser/CI/push/merge/deploy or activation ran. #134/#450/#480 remain open.
