@@ -139,3 +139,14 @@ it("keeps legacy id-only receipts unknown without inspecting a replacement recip
   expect(await (await GET(request())).json()).toEqual({ state: "committed", current: "unknown" });
   expect(tx.$queryRaw.mock.calls.some(([parts]) => String(parts).includes('FROM "Recipe"'))).toBe(false);
 });
+
+// Authored UNRUN: a state-only inspection cannot rebind the original session.
+it("rejects a changed expected session before reading the stored receipt", async () => {
+  const input = request();
+  input.headers.set("X-Herewoven-Recipe-Owner", JSON.stringify({ protocol: "herewoven.recipe-owner.v1",
+    actorId: "fixture-parent", familyId: "fixture-family-a", role: "parent", generation: 9 }));
+  const response = await GET(input);
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: { code: "RECIPE_OWNER_CHANGED" } });
+  expect(tx.idempotencyRecord.findFirst).not.toHaveBeenCalled();
+});

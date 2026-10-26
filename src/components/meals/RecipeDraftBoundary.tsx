@@ -70,6 +70,9 @@ export function RecipeDraftBoundary(
   const callbacks = React.useRef(props);
   callbacks.current = props;
   const originalRecipeOwner = React.useRef(props.expectedRecipeOwner ? Object.freeze({ ...props.expectedRecipeOwner }) : null);
+  const inspectRecipeReceipt = React.useCallback((
+    request: Parameters<typeof inspectReviewDocumentReceipt>[0], reviewContext: ReviewDocumentContext,
+  ) => inspectReviewDocumentReceipt(request, reviewContext, originalRecipeOwner.current ?? undefined), []);
   const context = React.useRef<ReviewDocumentContext | null>(null);
   const store = React.useRef<ReturnType<typeof browserReviewDocument> | null>(
     null,
@@ -509,7 +512,7 @@ export function RecipeDraftBoundary(
       saved.key,
       saved.body,
       document.requests[0].key,
-      inspectReviewDocumentReceipt,
+      inspectRecipeReceipt,
       (request, context) =>
         submitReviewDocumentRequest(request, context, document.expiresAt, originalRecipeOwner.current ?? undefined),
     );
@@ -576,7 +579,7 @@ export function RecipeDraftBoundary(
     const confirmed = await store.current!.retireConfirmed(
       saved.key,
       saved.body,
-      inspectReviewDocumentReceipt,
+      inspectRecipeReceipt,
     );
     if (!live(token)) return;
     if (!confirmed) {
@@ -632,7 +635,7 @@ export function RecipeDraftBoundary(
         saved.body,
         newIdempotencyKey(),
         async (request, context) => {
-          const proof = await inspectReviewDocumentReceipt(request, context);
+          const proof = await inspectRecipeReceipt(request, context);
           const reason =
             terminal.code === "RECIPE_SOURCE_EXISTS"
               ? "source-exists"
@@ -672,7 +675,7 @@ export function RecipeDraftBoundary(
       const states = await store.current!.inspectReceipts(
         saved.key,
         saved.body,
-        inspectReviewDocumentReceipt,
+        inspectRecipeReceipt,
       );
       if (live(token)) {
         observeReceipt(states[0], saved);
@@ -688,7 +691,7 @@ export function RecipeDraftBoundary(
         !(await store.current!.retireConfirmed(
           saved.key,
           saved.body,
-          inspectReviewDocumentReceipt,
+          inspectRecipeReceipt,
         ))
       )
         return;

@@ -244,3 +244,17 @@ it("forwards the preview owner and propagates a context session hold before open
   expect(store.freeze).not.toHaveBeenCalled();
   expect(store.sendExact).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: every saved-request inspector keeps the frozen preview context.
+it("passes the original preview owner into its saved receipt inspector", async () => {
+  const expected = { protocol: "herewoven.recipe-owner.v1", actorId: "fixture-parent", familyId: "fixture-family", role: "parent", generation: context.owner!.generation } as const;
+  const { inspectReviewDocumentReceipt } = await import("@/lib/review-document-receipts");
+  render(<RecipeEditor expectedRecipeOwner={expected} onCancel={jest.fn()} />);
+  fireEvent.change(await screen.findByLabelText("Recipe name"), { target: { value: "Family soup" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save recipe" }));
+  await waitFor(() => expect(store.sendExact).toHaveBeenCalledTimes(1));
+  const inspector = store.sendExact.mock.calls[0][3];
+  const savedRequest = JSON.parse(rows[0].body).requests[0];
+  await inspector(savedRequest, context);
+  expect(inspectReviewDocumentReceipt).toHaveBeenCalledWith(savedRequest, context, expected);
+});

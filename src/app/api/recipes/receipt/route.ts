@@ -1,3 +1,4 @@
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders } from "@/lib/recipe-read-authority";
 import { foodSourceStorageAvailable } from "@/lib/food-planning/source-versions";
 import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { NextRequest, NextResponse } from "next/server";
@@ -9,10 +10,10 @@ import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 
 export const dynamic = "force-dynamic";
-const reply = (body: unknown, status = 200) =>
+const reply = (body: unknown, status = 200, ownerHeaders: Record<string, string> = {}) =>
   NextResponse.json(body, {
     status,
-    headers: { "Cache-Control": "private, no-store" },
+    headers: { "Cache-Control": "private, no-store", ...ownerHeaders },
   });
 
 /** State-only canonical create receipt. No cached private recipe/title/source
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
     }
     const actor = Object.freeze({ userId: auth.user.id, familyId: auth.user.family_id,
       tokenVersion: auth.payload.tv ?? 0, originalRole: auth.user.role });
+    const original = { actorId: actor.userId, familyId: actor.familyId, role: actor.originalRole, generation: actor.tokenVersion };
+    const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+    if (ownerRefusal) return ownerRefusal;
     const key = request.headers.get("Idempotency-Key")?.trim() ?? "";
     const hash = request.headers.get("X-Recipe-Request-Hash") ?? "";
     if (!isValidIdempotencyKey(key) || !/^[a-f0-9]{64}$/.test(hash))
@@ -108,7 +112,7 @@ export async function GET(request: NextRequest) {
       const refusal = await authorizeRecipeCreation(prisma!, actor);
       if (refusal) return reply(refusal.body, refusal.status);
     }
-    return reply(result.body, result.status);
+    return reply(result.body, result.status, result.status === 200 ? recipeReadOwnerHeaders(original) : {});
   } catch (error) {
     logRouteError("GET recipe receipt", error, getRequestId(request));
     return reply({ error: "Recipe receipt unavailable" }, 500);
