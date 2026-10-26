@@ -38,3 +38,36 @@ describe("bounded canonical recipe reads", () => {
       .rejects.toThrow("Recipe read unavailable");
   });
 });
+
+// Library boundary cases authored UNRUN; shared transport deadline/body cases remain above.
+describe("recipe library pages", () => {
+  it("projects one searched page and strips unrelated fields without fetching continuation", async () => {
+    const { readRecipeLibraryPage } = await import("../recipe-library-client");
+    const transport = jest.fn(async () => ({ ok: true, json: async () => ({ recipes: [{
+      id: "recipe-a", title: "Soup", description: null, favorite: true, privateExtra: "discard",
+    }], nextOffset: null }) }) as Response);
+    await expect(readRecipeLibraryPage("q=rice+%26+beans&favorite=1", 100, new AbortController().signal, transport))
+      .resolves.toEqual({ recipes: [{ id: "recipe-a", title: "Soup", description: null, favorite: true }], nextOffset: null });
+    expect(transport).toHaveBeenCalledWith("/api/recipes?limit=100&offset=100&q=rice+%26+beans&favorite=1", {
+      cache: "no-store", signal: expect.any(AbortSignal),
+    });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { recipes: [{ id: "bad/path", title: "Soup", description: null }], nextOffset: null },
+    { recipes: [{ id: "r", title: {}, description: null }], nextOffset: null },
+    { recipes: [{ id: "r", title: "Soup", description: null }], nextOffset: 100 },
+    { recipes: [{ id: "r", title: "Soup", description: null }, { id: "r", title: "Again", description: null }], nextOffset: null },
+    { recipes: [], nextOffset: -1 },
+  ])("refuses malformed or inconsistent page data", async body => {
+    const { readRecipeLibraryPage } = await import("../recipe-library-client");
+    await expect(readRecipeLibraryPage("", 0, new AbortController().signal,
+      jest.fn(async () => ({ ok: true, json: async () => body }) as Response))).rejects.toThrow("Recipe library unavailable");
+  });
+  it("refuses duplicate filters before a request", async () => {
+    const { readRecipeLibraryPage } = await import("../recipe-library-client");
+    const transport = jest.fn();
+    await expect(readRecipeLibraryPage("q=one&q=two", 0, new AbortController().signal, transport)).rejects.toThrow();
+    expect(transport).not.toHaveBeenCalled();
+  });
+});

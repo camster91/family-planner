@@ -25,13 +25,7 @@ import {
   type OnlineRecipe,
 } from "@/lib/recipe-discovery";
 
-type SavedRecipe = {
-  id: string;
-  title: string;
-  description: string | null;
-  source_url?: string | null;
-  favorite?: boolean;
-};
+import { readRecipeLibraryPage, type RecipeLibrarySummary as SavedRecipe } from "@/lib/recipe-library-client";
 type RecipeSearchResult = { title: string; url: string; source?: string };
 
 export default function RecipeExplorePage() {
@@ -86,25 +80,11 @@ export default function RecipeExplorePage() {
         setOffset(0);
       }
       try {
-        const response = await fetch(
-          `/api/recipes?limit=100&offset=${next}${libraryFilters ? `&${libraryFilters}` : ""}`,
-          {
-            signal: abort.signal,
-          },
-        );
-        const data = (await response.json().catch(() => null)) as {
-          recipes?: SavedRecipe[];
-          nextOffset?: number | null;
-        } | null;
-        if (!response.ok || !Array.isArray(data?.recipes)) {
-          if (!abort.signal.aborted) setLibraryError(text("libraryError"));
-          return;
-        }
+        const data = await readRecipeLibraryPage(libraryFilters, next, abort.signal);
         if (!abort.signal.aborted) {
-          setRecipes((previous) =>
-            next === 0 ? data.recipes! : [...previous, ...data.recipes!],
-          );
-          setOffset(data.nextOffset ?? null);
+          setRecipes((previous) => next === 0 ? data.recipes :
+            [...new Map([...previous, ...data.recipes].map(recipe => [recipe.id, recipe])).values()]);
+          setOffset(data.nextOffset);
         }
       } catch {
         if (!abort.signal.aborted) setLibraryError(text("libraryError"));
