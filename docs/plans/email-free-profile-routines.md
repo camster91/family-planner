@@ -217,3 +217,23 @@ point-in-time principal check, not response recall, original browser-session-ID
 binding or serialization of every related person's later move. No schema,
 profile policy, flag activation, QA/tests/checks/build/browser/DB/CI/push/merge/
 deploy ran. #134/#450/#480/#136 remain open.
+
+
+## Routine recovery final disclosure check — 2026-10-26 source only
+
+Both stack schedule and independent-step recovery reviewers now capture their
+original actor at entry and renew existing routine authority inside the common
+successful-reply builder. This covers ready/pending/committed/removed/expired/
+conflict/paused/unavailable review results after their private receipt/source
+lookups. A late authority refusal propagates through the original transaction
+and returns its existing error rather than the saved request bytes/owner scope/
+current version or receipt summary. Packet/key data is never changed, purged,
+rebound or resent by the review.
+
+Four fixture cases describe late refusal and preservation of exact expired
+packets for both reviewers. They are UNRUN. Existing review timing/state policy,
+receipt retention and paused writes remain; this adds no activation or writer.
+Actual transaction/session/household/concurrency, browser scope continuity and
+restore/native/old-client acceptance remain separate. Point-in-time principal
+renewal is not response recall or full browser-session-ID proof. No QA/tests/
+checks/build/browser/DB/CI/push/merge/deploy ran. #134/#450/#135/#136 remain open.
