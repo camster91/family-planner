@@ -26,7 +26,7 @@ candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is 
 consolidated into #464 with its full original requirements preserved. Redundant
 #448 tracking is now a named required defect section of #499, leaving **37 open issues**.
 #105 closure does not mark any acceptance item done.
-Twelve documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480; all
+Fourteen documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480/#136; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
 
@@ -56,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded planning work reconciles #125 against its existing food-capture matrix and current source: barcode formats including explicit UPC-E, local tap-start camera/manual fallback, review tray, gated product adapter and canonical stock snapshots already exist. The recipe detail host also already keys editors and guards route changes, so no duplicate host/controller was added. The capture issue now needs original behavioral/provider/device/locale evidence rather than reconstruction of these foundations; no acceptance checkbox or issue is closed. All 37 issues remain open; QA and release/activation remain deferred.
+Latest bounded planning work completes two #136 documentation definitions: required review before a new integration/AI retrieval scope is enabled or enters a release candidate, and incident containment/credential-rotation/user-notification/evidence-preservation process. Existing runbook/history is preserved with named backups; no operational action or new approval authority is introduced. These definition-only criteria are reconciled separately from security testing, actual incidents, communication, drills and release readiness. All 37 issues remain open; QA and release/activation remain deferred.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
