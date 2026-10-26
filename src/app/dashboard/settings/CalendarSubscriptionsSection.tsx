@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { calendarSubscriptionFeedback } from "@/i18n/calendar-subscription-feedback";
 import { requestOwnedJson } from "@/lib/owned-request-http";
-import { readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
+import { MAX_SUBSCRIPTIONS_PER_FAMILY, readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
 import { describeCalendarSync } from "@/lib/calendar-sync-status";
 import { useNow } from "@/components/fridge/sync-status";
 
@@ -215,8 +215,10 @@ export default function CalendarSubscriptionsSection() {
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!live.current || writeBusy.current || writeHeldRef.current || loadInFlight.current || !loaded || loadFailed) return;
     const input = { name: name.trim(), url: url.trim(), color };
     if (!input.name || !input.url) return;
+    if (subs.length >= MAX_SUBSCRIPTIONS_PER_FAMILY) { setError(settingsFeedback("calendarSubscriptionLimit")); return; }
     const run = beginWrite("add", { path: "/api/calendar/subscriptions", method: "POST", body: JSON.stringify(input) });
     if (!run) return;
     try {
@@ -273,6 +275,11 @@ export default function CalendarSubscriptionsSection() {
       </div>}
 
       {!accessHeld && <>
+      {loaded && !loadFailed && <p id="calendar-subscription-capacity" role="status" className="mb-3 text-sm text-label-secondary">
+        {subs.length >= MAX_SUBSCRIPTIONS_PER_FAMILY
+          ? copy("calendarSubscriptionCapacityFull", { limit: MAX_SUBSCRIPTIONS_PER_FAMILY })
+          : copy("calendarSubscriptionCapacity", { count: subs.length, limit: MAX_SUBSCRIPTIONS_PER_FAMILY })}
+      </p>}
       {!loaded ? (
         <p className="text-sm text-muted-foreground">
           {copy("loadingEllipsis")}
@@ -447,6 +454,10 @@ export default function CalendarSubscriptionsSection() {
             {copy("calendarLinkPrivacy")}
           </p>
         </div>
+        <details className="rounded-lg border border-border px-3">
+          <summary className="min-h-[44px] cursor-pointer py-3 text-sm font-medium">
+            {copy("calendarColourSummary", { colour: copy(COLORS.find(option => option.value === color)?.label ?? "blue") })}
+          </summary>
         <fieldset>
           <legend className="block text-sm font-medium text-foreground mb-1">
             {copy("colour")}
@@ -476,16 +487,19 @@ export default function CalendarSubscriptionsSection() {
             ))}
           </div>
         </fieldset>
+        </details>
         <button
           type="submit"
           disabled={
             !loaded ||
             loadFailed ||
             busy !== null || writeHeld ||
+            subs.length >= MAX_SUBSCRIPTIONS_PER_FAMILY ||
             !name.trim() ||
             !url.trim()
           }
           className="btn-primary inline-flex items-center min-h-[44px]"
+          aria-describedby={loaded && !loadFailed ? "calendar-subscription-capacity" : undefined}
         >
           <CalendarPlus className="w-4 h-4 mr-2" aria-hidden="true" />
           {busy === "add" ? copy("adding") : copy("addCalendar")}
