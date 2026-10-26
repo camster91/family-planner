@@ -311,10 +311,21 @@ describe('recipe original create owner', () => {
   })
   it('rejects old owner metadata retained in a restored body without a matching header', async () => {
     const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: {
-      title: 'Restored soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: { ...original, generation: 9 },
+      title: 'Restored soup', creation_protocol: 'herewoven.recipe-create.v1', creation_issued_at: Date.now(), creation_owner: { ...original, generation: 9 },
     } }))
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+  })
+  // Authored UNRUN: an old command must not restart after receipt expiry/cleanup.
+  it('refuses an expired owner-bound command before receipt allocation', async () => {
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: {
+      title: 'Old soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: original,
+      creation_issued_at: Date.now() - 24 * 60 * 60 * 1000 - 1,
+    } }))
+    expect(response.status).toBe(410)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_COMMAND_EXPIRED' } })
     expect(writesTo('recipe')).toHaveLength(0)
     expect(writesTo('idempotencyRecord')).toHaveLength(0)
   })

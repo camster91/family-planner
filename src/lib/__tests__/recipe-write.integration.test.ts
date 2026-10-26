@@ -77,7 +77,7 @@ suite("recipe create replay containment", () => {
   });
   // Authored UNRUN: new command-body provenance participates in existing hashing.
   it("does not let a new generation adopt an older owner-bound create body", async () => {
-    const bound = { ...input, creation_owner: { protocol: 'herewoven.recipe-owner.v1' as const,
+    const bound = { ...input, creation_issued_at: Date.now(), creation_owner: { protocol: 'herewoven.recipe-owner.v1' as const,
       actorId: user, familyId: family, role: 'parent', generation: 0 } };
     expect(hashIdempotentRequest(RECIPE_CREATE_ACTION, bound)).not.toBe(hashIdempotentRequest(RECIPE_CREATE_ACTION,
       { ...bound, creation_owner: { ...bound.creation_owner, generation: 1 } }));

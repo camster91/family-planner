@@ -1,3 +1,4 @@
+import { recipeCreateCommandTimeRefusal } from "@/lib/recipe-create-command-window";
 import { foodSourceStorageAvailable } from "@/lib/food-planning/source-versions";
 import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
@@ -77,6 +78,8 @@ export async function createRecipeWithReceipt(
     const boundActor = commandOwner ? { ...actor, originalRole: commandOwner.role } : actor;
     const refused = await recipeWriteAuthority(tx, boundActor);
     if (refused) return refused;
+    const timeRefusal = recipeCreateCommandTimeRefusal(input);
+    if (timeRefusal) return timeRefusal;
     if (recordId) {
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
       const receipt = await tx.idempotencyRecord.findFirst({
@@ -91,6 +94,8 @@ export async function createRecipeWithReceipt(
         select: { response_status: true, response_body: true },
       });
       if (!receipt) return failure(409, "IDEMPOTENCY_IN_PROGRESS");
+      const afterReceiptWait = recipeCreateCommandTimeRefusal(input);
+      if (afterReceiptWait) return afterReceiptWait;
       if (receipt.response_status !== null)
         return { status: receipt.response_status, body: receipt.response_body };
     }
@@ -98,6 +103,8 @@ export async function createRecipeWithReceipt(
     const sourceKey = source ? recipeSourceKey(source) : null;
     if (source && !input.source_copy) {
       const duplicate = await findRecipeSource(tx, actor.familyId, source);
+      const afterSourceWait = recipeCreateCommandTimeRefusal(input);
+      if (afterSourceWait) return afterSourceWait;
       if (duplicate) {
         const code =
           duplicate === "incomplete"
@@ -112,6 +119,7 @@ export async function createRecipeWithReceipt(
             where: { id: recordId },
             data: { response_status: 409, response_body: { error: { code }, ...(commandOwner ? { creationOwner: commandOwner } : {}) } },
           });
+        if (recipeCreateCommandTimeRefusal(input)) throw new Error("Recipe command window expired");
         return {
           status: 409,
           body: {
@@ -126,6 +134,8 @@ export async function createRecipeWithReceipt(
     // Require the existing DB insertion-identity trigger before any new effect.
     // A missing migration is a hold, never permission to fabricate a birth.
     if (!(await foodSourceStorageAvailable(tx))) return failure(503, "RECIPE_IDENTITY_UNAVAILABLE");
+    const beforeEffects = recipeCreateCommandTimeRefusal(input);
+    if (beforeEffects) return beforeEffects;
     const lines = await resolveIngredientLines(
       tx,
       actor.familyId,
@@ -167,6 +177,9 @@ export async function createRecipeWithReceipt(
         where: { id: recordId },
         data: { response_status: 201, response_body: body },
       });
+    // Effects/receipt may already be written: throw so the whole transaction
+    // rolls back if a later wait exhausted the original command window.
+    if (recipeCreateCommandTimeRefusal(input)) throw new Error("Recipe command window expired");
     return { status: 201, body };
   });
 }

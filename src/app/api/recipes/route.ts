@@ -1,3 +1,4 @@
+import { recipeCreateCommandTimeRefusal } from "@/lib/recipe-create-command-window";
 import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { RECIPE_OWNER_HEADER, RECIPE_OWNER_PROTOCOL, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
@@ -175,6 +176,8 @@ export async function POST(request: NextRequest) {
     const data = parsed.data;
     if (data.creation_owner && !sameRecipeOwner(data.creation_owner, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
       return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    const timeRefusal = recipeCreateCommandTimeRefusal(data);
+    if (timeRefusal) return NextResponse.json(timeRefusal.body, { status: timeRefusal.status, headers: { "Cache-Control": "private, no-store" } });
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     if (data.creation_protocol && !key)
@@ -204,7 +207,7 @@ export async function POST(request: NextRequest) {
           request.headers.has(REVIEW_SUBMIT_HEADERS.contract),
         ),
       {
-        beforeReplay: () => authorizeRecipeCreation(prisma!, actor),
+        beforeReplay: async () => (await authorizeRecipeCreation(prisma!, actor)) ?? recipeCreateCommandTimeRefusal(data),
       },
     );
     response.headers.set("Cache-Control", "private, no-store");
@@ -218,6 +221,8 @@ export async function POST(request: NextRequest) {
     const detail = await readCreatedRecipe(prisma!, actor, receipt.recipeId, receipt.recipeGeneration);
     const finalRefusal = await authorizeRecipeCreation(prisma!, actor);
     if (finalRefusal) return NextResponse.json(finalRefusal.body, { status: finalRefusal.status, headers: { "Cache-Control": "private, no-store" } });
+    const lateTimeRefusal = recipeCreateCommandTimeRefusal(data);
+    if (lateTimeRefusal) return NextResponse.json(lateTimeRefusal.body, { status: lateTimeRefusal.status, headers: { "Cache-Control": "private, no-store" } });
     if (detail.status === 200) for (const [name, value] of Object.entries(recipeReadOwnerHeaders(original))) response.headers.set(name, value);
     return NextResponse.json(detail.body, {
       status: detail.status === 200 ? response.status : detail.status,

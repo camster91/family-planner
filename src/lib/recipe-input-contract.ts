@@ -47,6 +47,7 @@ export const createRecipeSchema = z
     // client must not retry a keyed create against an older key-ignorant route.
     creation_protocol: z.literal("herewoven.recipe-create.v1").optional(),
     creation_owner: recipeOwnerSchema.optional(),
+    creation_issued_at: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
     source_url: recipeSourceField.nullable().optional(),
     source_copy: z.boolean().optional(),
     title: z.string().trim().min(1).max(200),
@@ -58,8 +59,9 @@ export const createRecipeSchema = z
     ingredients: ingredients.optional(),
   })
   .strict()
-  .refine(value => !value.creation_owner || value.creation_protocol === "herewoven.recipe-create.v1", {
-    message: "Recipe owner requires the create protocol",
+  .refine(value => (value.creation_owner === undefined && value.creation_issued_at === undefined) ||
+    (value.creation_owner !== undefined && value.creation_issued_at !== undefined && value.creation_protocol === "herewoven.recipe-create.v1"), {
+    message: "Recipe owner and original issue time require the create protocol",
   });
 
 export const updateRecipeSchema = z

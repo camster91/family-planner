@@ -7,6 +7,7 @@ import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import { RECIPE_CREATE_COMMAND_MAX_AGE_MS } from "@/lib/recipe-create-command-window";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
@@ -279,13 +280,14 @@ function RecipeEditorForm({
             ? { source_url: sourceUrl, source_copy: sourceCopy }
             : {}),
           creation_protocol: "herewoven.recipe-create.v1",
-          ...(expectedOwner ? { creation_owner: expectedOwner } : {}),
+          ...(expectedOwner ? { creation_owner: expectedOwner, creation_issued_at: Date.now() } : {}),
         },
         ownedDraft,
       );
       return;
     }
-    if (!initialRecipe && !creationAttempt.current)
+    if (!initialRecipe && !creationAttempt.current) {
+      const issuedAt = Date.now();
       creationAttempt.current = {
         key: newIdempotencyKey(),
         body: JSON.stringify({
@@ -294,16 +296,17 @@ function RecipeEditorForm({
             ? { source_url: sourceUrl, source_copy: sourceCopy }
             : {}),
           creation_protocol: "herewoven.recipe-create.v1",
-          ...(expectedOwner ? { creation_owner: expectedOwner } : {}),
+          ...(expectedOwner ? { creation_owner: expectedOwner, creation_issued_at: issuedAt } : {}),
         }),
-        startedAt: Date.now(),
+        startedAt: issuedAt,
       };
+    }
     const attempt = creationAttempt.current;
-    // Never reuse a create key after the server receipt's retention window.
+    // Never renew a create command beyond its original one-day retry window.
     if (
       attempt &&
       (Date.now() < attempt.startedAt ||
-        Date.now() - attempt.startedAt >= 24 * 60 * 60 * 1000)
+        Date.now() - attempt.startedAt >= RECIPE_CREATE_COMMAND_MAX_AGE_MS)
     ) {
       markUncertain();
       setError(text("expiredCreate"));
@@ -353,6 +356,9 @@ function RecipeEditorForm({
       existingRecipe?: { id?: unknown; title?: unknown };
     } | null;
     if (!res.ok) {
+      if (["RECIPE_COMMAND_EXPIRED", "RECIPE_COMMAND_TIME_UNCONFIRMED"].includes(data?.error?.code ?? "")) {
+        markUncertain(); return;
+      }
       // A prior unknown attempt stays unknown even if this retry is refused.
       if (res.status === 413 && data?.error?.code === "RECIPE_REQUEST_TOO_LARGE" && !uncertainRef.current) {
         creationAttempt.current = null;

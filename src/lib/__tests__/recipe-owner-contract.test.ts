@@ -22,8 +22,21 @@ it('requires stored recipe birth identity without inventing one for legacy recei
 // Authored UNRUN: original owner stays in canonical input and therefore receipt hashing.
 it('preserves optional create-command ownership and refuses it without the create protocol', async () => {
   const { createRecipeSchema } = await import('../recipe-input-contract');
-  const input = { title: 'Family soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: owner };
+  const input = { title: 'Family soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: owner, creation_issued_at: Date.now() };
   expect(createRecipeSchema.parse(input).creation_owner).toEqual(owner);
   expect(createRecipeSchema.safeParse({ title: 'Family soup', creation_owner: owner }).success).toBe(false);
   expect(createRecipeSchema.safeParse({ title: 'Legacy soup' }).success).toBe(true);
+});
+
+// Authored UNRUN: original timing is never supplied/renewed by a retry or read.
+it('holds missing/future timing and refuses the exact one-day boundary', async () => {
+  const { recipeCreateCommandTimeRefusal: refuse, RECIPE_CREATE_COMMAND_MAX_AGE_MS: age } = await import('../recipe-create-command-window');
+  const command = { creation_owner: owner, creation_issued_at: 1000 };
+  expect(refuse(command, 1000)).toBeNull();
+  expect(refuse(command, 1000 + age - 1)).toBeNull();
+  expect(refuse(command, 1000 + age)?.body.error.code).toBe('RECIPE_COMMAND_EXPIRED');
+  expect(refuse(command, 999)?.body.error.code).toBe('RECIPE_COMMAND_TIME_UNCONFIRMED');
+  expect(refuse({ creation_owner: owner }, 1000)?.body.error.code).toBe('RECIPE_COMMAND_TIME_UNCONFIRMED');
+  expect(command.creation_issued_at).toBe(1000);
+  expect(refuse({}, 1000)).toBeNull();
 });
