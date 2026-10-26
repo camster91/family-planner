@@ -1,3 +1,4 @@
+import { readAnalyticsChores } from "@/lib/analytics-chore-read";
 import { ANALYTICS_SUMMARY_PROJECTION, ANALYTICS_WINDOW_DAYS, MAX_ANALYTICS_CHORES, ANALYTICS_SUMMARY_COVERAGE, ANALYTICS_SUMMARY_LIMIT_CODE } from "@/lib/analytics-summary-contract";
 import { PRIVATE_TIMELINE_ACTIONS } from "@/lib/review-inbox/timeline-contract";
 import { prisma } from '@/lib/prisma'
@@ -74,22 +75,10 @@ export async function GET(request: NextRequest) {
         where: { family_id: familyId },
         select: { id: true, name: true, role: true, avatar_url: true, xp: true, level: true, streak: true, best_streak: true },
       }),
-      // Chores that count toward the rates: due in the window up to now, or
-      // completed in the window. A future occurrence (a recurring series
-      // generates them ahead) is not due yet, so it is left out of the
-      // denominator unless it was already done.
-      prisma!.chore.findMany({
-        where: {
-          family_id: familyId,
-          OR: [
-            { due_date: { gte: windowStart, lte: now } },
-            { status: { in: DONE_STATUSES }, completed_at: { gte: windowStart, lte: now } },
-          ],
-        },
-        select: { id: true, assigned_to: true, status: true, points: true, difficulty: true, completed_at: true, due_date: true },
-        orderBy: [{ due_date: 'desc' }, { id: 'asc' }],
-        take: MAX_ANALYTICS_CHORES + (summaryOnly ? 1 : 0),
-      }),
+      // Fill the visible cap through the canonical routine occurrence policy;
+      // never filter only after a truncated candidate window.
+      readAnalyticsChores(prisma!, familyId, windowStart, now,
+        MAX_ANALYTICS_CHORES + (summaryOnly ? 1 : 0)),
       prisma!.chore.findMany({
         where: {
           family_id: familyId,

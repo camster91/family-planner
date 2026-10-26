@@ -2283,3 +2283,36 @@ runs after this additional lookup. Projection is point-in-time, not a lock on
 related-person membership; subsequent moves, profile/erasure provenance,
 historical title/description policy and original compatibility/privacy/runtime
 acceptance remain separate. No QA or database/provider/release action ran.
+
+
+### Analytics scheduled-occurrence visibility — #134/#450, 2026-10-26
+
+Analytics' rate/participation source now uses the same `readVisibleChoreRows` +
+`hiddenRoutineOccurrenceIds` policy as ordinary chore reads. It retains the
+original household,90-day due-or-completed predicate and due-descending/ID-
+ascending ordering. Outer chunks request at most500 visible rows through the
+existing reader, which bounds each candidate/private-metadata batch to at most
+200. Continuation uses a private due-date/ID keyset until the visible limit or
+true exhaustion, and rejects a repeated visible ID instead of silently double
+counting a row. No new independent routine policy or public cursor is introduced.
+
+Visibility precedes the5000 legacy cap or5001 compact lookahead. Paused/retired/
+unsupported open occurrences are hidden by the existing policy; evidence-bearing
+and completed/verified history retains that policy's visibility. The separate
+completed-history query remains bounded and bypasses the open-occurrence filter.
+A hidden prefix cannot consume the visible cap, and hidden rows do not trigger
+compact limit refusal. Private root metadata never enters an analytics DTO.
+
+This source depends on the existing routine metadata schema, including
+`database/migration-zzzz-routine-schedules.sql`, just like the other canonical
+routine-aware readers. No schema probe, generation or migration ran. Missing
+read readiness must fail rather than bypass visibility; staged schema/old-reader
+compatibility remains unperformed. Bounded query payloads do not establish a
+bounded number of queries, a stable snapshot or latency: a dense all-hidden
+window can require many reads, and concurrent date/status/config changes retain
+snapshot/measurement work. Source helper limits90-day input and at most5001
+retained rows; larger-window aggregation/profile/owner/history policy remains
+separate. No QA/tests/checks/build/browser/DB/CI/release ran. Later cases must
+cover hidden prefixes across multiple batches/chunks, all-hidden exhaustion,
+equal due-date IDs, lookahead4999/5000/5001, retained completion/evidence,
+malformed/paused/retired roots, repeated IDs, metadata errors and household scope.
