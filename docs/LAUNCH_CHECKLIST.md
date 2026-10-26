@@ -15,6 +15,16 @@ installation, live smoke/offline/theme, privacy-safe screenshot/log and P0/P1
 promotion-blocking requirements remain open there. #139 separately owns reusable
 QA infrastructure. This consolidation ran no QA or release operations.
 
+## Current candidate boundary — 2026-10-26
+
+The recovered local follow-through remains unpushed, unverified and unreleased.
+Older “Ready in code” and dated pass records below describe their original
+baseline/candidates; they do not accept this changed tree. #377 now separates
+its original launch requirements from linked historical execution reports.
+All current tests/checks/build/browser/CI, migration and release actions remain
+deferred. No historical merge, activation recommendation or old report supplies
+new deployment/provider/scheduler authorization.
+
 ## Must do before the first family signs up
 
 | # | Item | Who | How | Status |

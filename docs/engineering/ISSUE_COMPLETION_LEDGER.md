@@ -56,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded planning work consolidates localization issue #142. The complete old execution/status prose is preserved verbatim in a linked history comment, while the original locale architecture, resilience/data/QA/rollout requirements, one checked and four unchecked acceptance items remain intact. The current issue separates partial typed EN/ES source from unperformed layout/timezone/data/native/store acceptance. This changes issue organization, not code or criterion status;37 issues remain open. No QA or release ran.
+Latest bounded planning work consolidates launch issue #377: both old execution-report blocks are preserved verbatim in canonical history comments, while the full original launch packet and linked #105/#364 acceptance remain intact. The current summary names canonical owners, separates old candidate results from this unverified tree, and retains all15 unchecked/five checked original items without triggering owner/provider/scheduler/release actions. The launch checklist now explicitly separates historical code-readiness notes from the current no-QA candidate.37 issues remain open; no QA or release ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -110,6 +110,13 @@ execution prose](https://github.com/camster91/family-planner/issues/142#issuecom
 is preserved verbatim, and the original requirements plus one checked/four
 unchecked criteria remain in the issue body. Older acceptance applies only to
 its recorded candidates, not the current unverified source. No issue closed.
+
+Launch #377 now separates its original launch packet and transferred #105/#364
+acceptance from the [earlier](https://github.com/camster91/family-planner/issues/377#issuecomment-6408535900)
+and [later](https://github.com/camster91/family-planner/issues/377#issuecomment-6408536202)
+execution reports, preserved verbatim. All15 unchecked/five checked original
+items are retained; current owner references no longer require reopening
+retired trackers or treating historical activation wording as new authority.
 
 ## Current canonical issue directory
 
