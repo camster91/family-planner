@@ -136,6 +136,16 @@ export default function CreateChoreForm({
     review?.initial.weeklyDays ?? [],
   );
   const [loading, setLoading] = useState(false);
+  const submitPending = useRef(false);
+  const live = useRef(true);
+  const submitEpoch = useRef(0);
+  const accountController = useRef<AbortController | null>(null);
+  const accountRequest = useRef<{ key: string; body: string; issuedAt: number } | null>(null);
+  const [accountSaveState, setAccountSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; submitEpoch.current++; accountController.current?.abort(); submitPending.current = false; };
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [familyMembers, setFamilyMembers] = useState<
     { id: string; name: string; role: string }[]
@@ -222,6 +232,8 @@ export default function CreateChoreForm({
     rotation,
   };
   const reviewSignature = JSON.stringify(reviewState);
+  const currentDraftSignature = useRef(reviewSignature);
+  currentDraftSignature.current = reviewSignature;
   const previousReviewSignature = useRef(reviewSignature);
   useEffect(() => {
     if (previousReviewSignature.current === reviewSignature) return;
@@ -349,7 +361,7 @@ export default function CreateChoreForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (photoUploadPending.current || assignmentReadBlocked) return;
+    if (!live.current || submitPending.current || accountSaveState !== "editing" || photoUploadPending.current || assignmentReadBlocked) return;
     if (frequency === "weekly" && !weeklyDays.length) {
       setError(message("chooseWeekday"));
       return;
@@ -410,6 +422,10 @@ export default function CreateChoreForm({
       setError(message("fieldAssignee"));
       return;
     }
+    submitPending.current = true;
+    const submittedDraftSignature = reviewSignature;
+    const epoch = ++submitEpoch.current;
+    const current = () => live.current && submitEpoch.current === epoch;
     setLoading(true);
     setError(null);
     const submittedProfileDraftRevision = isProfileTarget
@@ -496,12 +512,26 @@ export default function CreateChoreForm({
         });
         return;
       }
-      const res = await fetch("/api/chores/create", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(requestBody),
-      });
-      const data = await res.json().catch(() => null);
+      let res: Response;
+      let raw: unknown;
+      if (isProfileTarget) {
+        // Preserve the existing strict profile protocol/recovery path.
+        res = await fetch("/api/chores/create", { method: "POST", headers, body: JSON.stringify(requestBody) });
+        raw = await res.json().catch(() => null);
+      } else {
+        const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now() });
+        accountRequest.current = packet;
+        const controller = new AbortController(); accountController.current = controller;
+        const result = await requestOwnedJson("/api/chores/create", {
+          method: "POST", signal: controller.signal,
+          headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key }, body: packet.body,
+        }, 512 * 1024);
+        if (!current()) return;
+        if (result.kind !== "reply") { setAccountSaveState("unknown"); return; }
+        res = result.response; raw = result.body;
+      }
+      if (!current()) return;
+      const data = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
 
       if (!res.ok) {
         if (isProfileTarget) {
@@ -529,6 +559,10 @@ export default function CreateChoreForm({
             setError(profileText("profileTargetError"));
           }
         } else {
+          if (res.status >= 500 || [401, 403, 408, 409, 425, 429].includes(res.status)) {
+            setAccountSaveState("unknown"); return;
+          }
+          accountRequest.current = null;
           setError(
             typeof data?.error === "string"
               ? data.error
@@ -546,12 +580,22 @@ export default function CreateChoreForm({
         return;
       }
 
+      if (!isProfileTarget) {
+        const chore = data?.chore;
+        if (!chore || typeof chore !== "object" || Array.isArray(chore)
+          || typeof (chore as { id?: unknown }).id !== "string" || !(chore as { id: string }).id) {
+          setAccountSaveState("unknown"); return;
+        }
+        setAccountSaveState("confirmed");
+      }
+
       // A native event can still reach a controlled input while a request is
       // in flight (for example through automation). Keep a newly edited draft
       // on screen instead of letting an older response navigate away.
       if (
-        isProfileTarget &&
-        submittedProfileDraftRevision !== profileDraftRevision.current
+        isProfileTarget
+          ? submittedProfileDraftRevision !== profileDraftRevision.current
+          : submittedDraftSignature !== currentDraftSignature.current
       ) {
         return;
       }
@@ -563,10 +607,12 @@ export default function CreateChoreForm({
         profileIdempotencyKey.current = null;
         profilePendingRequest.current = null;
       }
-      if ((await navigation?.releaseBeforeNavigation()) === false) return;
+      if ((await navigation?.releaseBeforeNavigation()) === false || !current()) return;
       router.push("/dashboard/chores");
       router.refresh();
-    } catch (err) {
+    } catch {
+      if (!current()) return;
+      if (!isProfileTarget && accountRequest.current) { setAccountSaveState("unknown"); return; }
       if (isProfileTarget && profileIdempotencyKey.current) {
         profileAmbiguousKeys.current.set(
           profileIdempotencyKey.current.signature,
@@ -578,11 +624,20 @@ export default function CreateChoreForm({
           ? profileText("profileTargetError")
           : message("unexpected"),
       );
-      console.error(err);
     } finally {
-      setLoading(false);
+      if (current()) { accountController.current = null; submitPending.current = false; setLoading(false); }
     }
   };
+
+  if (accountSaveState !== "editing") return <div role="status" className="rounded-2xl border border-border bg-surface-fill p-5 space-y-3">
+    <p>{message(accountSaveState === "confirmed" ? "accountSaveConfirmed" : "accountSaveUnknown")}</p>
+    <p className="text-sm text-label-secondary">{message("accountSaveRecoveryLimit")}</p>
+    <button type="button" className="btn-tinted min-h-11" disabled={loading} onClick={async () => {
+      const epoch = submitEpoch.current;
+      if ((await navigation?.releaseBeforeNavigation()) === false || !live.current || epoch !== submitEpoch.current) return;
+      router.push("/dashboard/chores"); router.refresh();
+    }}>{message("checkChores")}</button>
+  </div>;
 
   return (
     <div className={inSheet ? "" : "max-w-xl mx-auto pb-20"}>
@@ -631,9 +686,9 @@ export default function CreateChoreForm({
         )}
 
         <fieldset
-          disabled={Boolean(profileTargetId) && loading}
+          disabled={busy}
           className="m-0 min-w-0 space-y-4 border-0 p-0"
-          aria-busy={Boolean(profileTargetId) && loading}
+          aria-busy={busy}
         >
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Title */}

@@ -132,3 +132,27 @@ it("preserves task fields through explicit family-choice retry", async () => {
   expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("");
   expect(memberAttempts).toBe(2);
 });
+
+// Authored UNRUN: ordinary account creation holds unknown outcomes instead of minting a replacement save.
+it("serializes ordinary submits and holds an interrupted create before any replacement", async () => {
+  const read = global.fetch;
+  global.fetch = jest.fn(async (path, init) => {
+    if (init?.method === "POST") throw new Error("Fixture unknown save");
+    return read(path, init);
+  }) as typeof fetch;
+  render(<CreateChoreForm inSheet />);
+  await screen.findByRole("option", { name: "Synthetic parent" });
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("fixture-parent"));
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Synthetic ordinary task" } });
+  fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+  const form = screen.getByLabelText("Title").closest("form")!;
+  fireEvent.submit(form); fireEvent.submit(form);
+  await screen.findByText("This chore may already have been saved. Check Chores before creating another.");
+  const writes = jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST");
+  expect(writes).toHaveLength(1);
+  expect(typeof (writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]).toBe("string");
+  expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Check Chores" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+  expect(jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+});
