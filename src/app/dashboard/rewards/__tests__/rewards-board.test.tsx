@@ -509,3 +509,23 @@ it('shares one synchronous latch across rapid approval activations', async () =>
   act(() => { button.click(); button.click(); });
   await waitFor(() => expect(requests).toHaveLength(1));
 });
+
+// Authored UNRUN: exact old intent is retained; status reads remain available.
+it('holds an original approval past receipt retention without issuing a new POST', async () => {
+  const firstIssued = Date.now(); let localClock = firstIssued;
+  const now = jest.spyOn(Date, 'now').mockImplementation(() => localClock);
+  try {
+    const calls = mockFetch(url => url === '/api/rewards/approve' ? 'throw' : { status: 200, body: { rewards: [ICE_CREAM] } });
+    const user = userEvent.setup(); renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
+    await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+    await screen.findByRole('button', { name: 'Try again' });
+    localClock = firstIssued + 7 * 24 * 60 * 60 * 1000;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByText('This original request is too old or its timing cannot be confirmed. Check the current reward before starting anything new.');
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Check status' }));
+    await waitFor(() => expect(calls.some(call => call.method === 'GET')).toBe(true));
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
+  } finally { now.mockRestore() }
+});

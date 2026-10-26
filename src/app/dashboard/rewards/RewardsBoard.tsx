@@ -13,7 +13,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
 import { Dialog } from '@/components/ui/dialog'
 import { useMaybeToast } from '@/components/ui/toast'
-import { IDEMPOTENCY_HEADER, newIdempotencyKey } from '@/lib/idempotency-key'
+import { createRewardRetryIntent, rewardRetryWithinWindow, sameRewardRetryIntent, type RewardRetryIntent } from '@/lib/reward-retry-intent'
+import { IDEMPOTENCY_HEADER } from '@/lib/idempotency-key'
 import { useRewardsText } from '@/i18n/rewards'
 
 export interface RewardCard {
@@ -98,7 +99,7 @@ function parseRewardList(value: unknown): RewardCard[] | null {
 type Recovery = {
   kind: 'claim' | 'approve'
   reward: RewardCard
-  key: string
+  intent: RewardRetryIntent
   message: string
 }
 
@@ -143,8 +144,8 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
   const [claimError, setClaimError] = React.useState<string | null>(null)
   const [approving, setApproving] = React.useState<string | null>(null)
   const [recoveries, setRecoveries] = React.useState<Recovery[]>([])
-  const claimKeys = React.useRef(new Map<string, string>())
-  const approveKeys = React.useRef(new Map<string, string>())
+  const claimKeys = React.useRef(new Map<string, RewardRetryIntent>())
+  const approveKeys = React.useRef(new Map<string, RewardRetryIntent>())
   const uncertainRequests = React.useRef(new Set<string>())
   const [pending, setPending] = React.useState(false)
   const [checking, setChecking] = React.useState(false)
@@ -194,12 +195,14 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
 
   const pointsUnit = (count: number) => rewardsText(count === 1 ? 'point' : 'points')
 
-  const getKey = (map: React.MutableRefObject<Map<string, string>>, id: string) => {
+  const getIntent = (map: React.MutableRefObject<Map<string, RewardRetryIntent>>, id: string, kind: Recovery['kind']) => {
     const existing = map.current.get(id)
-    if (existing) return existing
-    const created = newIdempotencyKey()
-    map.current.set(id, created)
-    return created
+    if (existing) return existing.rewardId === id && existing.kind === kind ? existing : null
+    try {
+      const created = createRewardRetryIntent(id, kind)
+      map.current.set(id, created)
+      return created
+    } catch { return null }
   }
 
   const applyReward = (next: RewardCard) => {
@@ -277,7 +280,13 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
   const claim = async (candidate?: RewardCard) => {
     const reward = candidate ?? confirming
     if (!reward || !active.current || workBusy.current || accessHeld) return
-    const key = getKey(claimKeys, reward.id)
+    const intent = getIntent(claimKeys, reward.id, 'claim')
+    if (!intent) { setClaimError(rewardsText('retryUnavailable')); return }
+    if (!rewardRetryWithinWindow(intent)) {
+      const message = rewardsText('retryExpired'); setClaimError(message)
+      putRecovery({ kind: 'claim', reward, intent, message }); return
+    }
+    const key = intent.key
     const epoch = beginWork()
     setClaiming(true)
     setClaimError(null)
@@ -285,7 +294,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
       const result = await foreground('/api/rewards/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
-        body: JSON.stringify({ rewardId: reward.id }),
+        body: intent.body,
       })
       if (!currentWork(epoch)) return
       if (result.kind === 'reply') holdAccess(result.response.status, result.body)
@@ -295,7 +304,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
         const message = rewardFailureMessage(body, rewardsText('claimErrorDescription'))
         setClaimError(message)
         if (uncertainRewardStatus(response.status, body) || uncertainRequests.current.has(`claim:${reward.id}`)) {
-          putRecovery({ kind: 'claim', reward, key, message })
+          putRecovery({ kind: 'claim', reward, intent, message })
         } else {
           claimKeys.current.delete(reward.id)
         }
@@ -305,7 +314,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
       if (!parsed || parsed.reward.id !== reward.id || parsed.reward.status !== 'claimed' || parsed.reward.claimedById !== currentUserId) {
         const message = rewardsText('recoveryTitle')
         setClaimError(message)
-        putRecovery({ kind: 'claim', reward, key, message })
+        putRecovery({ kind: 'claim', reward, intent, message })
         return
       }
       applyReward(parsed.reward)
@@ -319,7 +328,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
       if (!currentWork(epoch)) return
       const message = rewardsText('connectionErrorDescription')
       setClaimError(message)
-      putRecovery({ kind: 'claim', reward, key, message })
+      putRecovery({ kind: 'claim', reward, intent, message })
     } finally {
       if (currentWork(epoch)) setClaiming(false)
       finishWork(epoch)
@@ -328,14 +337,19 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
 
   const approve = async (reward: RewardCard) => {
     if (!active.current || workBusy.current || accessHeld) return
-    const key = getKey(approveKeys, reward.id)
+    const intent = getIntent(approveKeys, reward.id, 'approve')
+    if (!intent) { addToast({ type: 'error', title: rewardsText('retryUnavailable') }); return }
+    if (!rewardRetryWithinWindow(intent)) {
+      putRecovery({ kind: 'approve', reward, intent, message: rewardsText('retryExpired') }); return
+    }
+    const key = intent.key
     const epoch = beginWork()
     setApproving(reward.id)
     try {
       const result = await foreground('/api/rewards/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', [IDEMPOTENCY_HEADER]: key },
-        body: JSON.stringify({ rewardId: reward.id }),
+        body: intent.body,
       })
       if (!currentWork(epoch)) return
       if (result.kind === 'reply') holdAccess(result.response.status, result.body)
@@ -344,7 +358,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
       if (!response.ok) {
         const message = rewardFailureMessage(body, rewardsText('claimErrorDescription'))
         if (uncertainRewardStatus(response.status, body) || uncertainRequests.current.has(`approve:${reward.id}`)) {
-          putRecovery({ kind: 'approve', reward, key, message })
+          putRecovery({ kind: 'approve', reward, intent, message })
         } else {
           approveKeys.current.delete(reward.id)
           addToast({ type: 'error', title: rewardsText('givenErrorTitle', { name: reward.name }), message })
@@ -353,7 +367,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
       }
       const parsed = parseRewardResponse(body)
       if (!parsed || parsed.id !== reward.id || !['approved', 'redeemed'].includes(parsed.status)) {
-        putRecovery({ kind: 'approve', reward, key, message: rewardsText('recoveryTitle') })
+        putRecovery({ kind: 'approve', reward, intent, message: rewardsText('recoveryTitle') })
         return
       }
       applyReward(parsed)
@@ -363,7 +377,7 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
       router.refresh()
     } catch {
       if (!currentWork(epoch)) return
-      putRecovery({ kind: 'approve', reward, key, message: rewardsText('connectionErrorDescription') })
+      putRecovery({ kind: 'approve', reward, intent, message: rewardsText('connectionErrorDescription') })
     } finally {
       if (currentWork(epoch)) setApproving(null)
       finishWork(epoch)
@@ -374,11 +388,14 @@ function RewardsBoardContent({ rewards, notificationFocus, userXp, isParent, cur
     if (!active.current || workBusy.current || accessHeld) return
     const keys = target.kind === 'claim' ? claimKeys : approveKeys
     const existing = keys.current.get(target.reward.id)
-    if (existing && existing !== target.key) {
+    if (target.intent.kind !== target.kind || target.intent.rewardId !== target.reward.id || !rewardRetryWithinWindow(target.intent)) {
+      putRecovery({ ...target, message: rewardsText('retryExpired') }); return
+    }
+    if (existing && !sameRewardRetryIntent(existing, target.intent)) {
       putRecovery({ ...target, message: rewardsText('statusUnconfirmed') })
       return
     }
-    keys.current.set(target.reward.id, target.key)
+    keys.current.set(target.reward.id, target.intent)
     if (target.kind === 'claim') {
       setConfirming(target.reward)
       await claim(target.reward)
@@ -487,7 +504,8 @@ function RewardRow({ busy = false, reward, currentUserId, isParent, approving, o
 }
 
 function RecoveryNotice({ busy = false, recovery, rewardsText, onRetry, onCheckStatus }: { busy?: boolean; recovery: Recovery; rewardsText: (key: string, params?: Record<string, string | number>) => string; onRetry: () => void; onCheckStatus: () => void }) {
-  return <div role="status" aria-live="polite" className="w-full rounded-xl border border-[var(--warning-tint)] bg-[var(--warning-tint)]/40 p-3 text-footnote text-label-primary"><p className="font-semibold">{recovery.message}</p><p className="mt-1 text-label-secondary">{rewardsText('recoveryDescription')}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="btn-plain min-h-[44px]" disabled={busy} onClick={onRetry}>{rewardsText('tryAgain')}</button><button type="button" className="btn-plain min-h-[44px]" disabled={busy} onClick={onCheckStatus}>{rewardsText('checkStatus')}</button></div></div>
+  const retryAllowed = rewardRetryWithinWindow(recovery.intent)
+  return <div role="status" aria-live="polite" className="w-full rounded-xl border border-[var(--warning-tint)] bg-[var(--warning-tint)]/40 p-3 text-footnote text-label-primary"><p className="font-semibold">{retryAllowed ? recovery.message : rewardsText('retryExpired')}</p><p className="mt-1 text-label-secondary">{rewardsText('recoveryDescription')}</p><div className="mt-2 flex flex-wrap gap-2"><button type="button" className="btn-plain min-h-[44px]" disabled={busy || !retryAllowed} onClick={onRetry}>{rewardsText('tryAgain')}</button><button type="button" className="btn-plain min-h-[44px]" disabled={busy} onClick={onCheckStatus}>{rewardsText('checkStatus')}</button></div></div>
 }
 
 function rewardIcon(icon: string | null | undefined): string {

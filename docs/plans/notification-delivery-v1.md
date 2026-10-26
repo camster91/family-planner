@@ -865,3 +865,36 @@ retain uncertainty behind the privacy hold. Receipt-age hold, owner-bound HTTP
 contracts, durable recovery and all real Back/navigation/lifecycle/concurrency/
 role/device/rendered acceptance remain open. No QA/schema/migration/generation,
 flag/provider/scheduler/native activation, build/browser/CI or release ran.
+
+
+## Original reward request age and payload — 2026-10-25
+
+Claim/approval memory now retains a frozen request object: action, canonical
+reward ID, original serialized body, idempotency key and first creation time.
+The first send records it; status reads, retries, later refusals and refreshed
+reward display fields never renew that timestamp or payload. Recovery and active
+map must agree on every original field before another send. A mismatched source/
+action/body/key/time holds instead of reconstructing a new request.
+
+A browser-safe predicate uses the existing server IDEMPOTENCY_TTL_MS7-day upper
+bound, without changing server cleanup/retention policy. At/past that original
+age, a reversed clock before the original issue time, nonfinite/invalid time or
+unsupported payload holds before foreground transport. Try again disables once
+rendered outside the window; Check status remains available. Typed EN/ES copy
+states that original timing is no longer confirmed. The uncertain request stays
+in memory; no replacement key, automatic resubmit or new server intent is issued.
+
+This is a local precondition, not proof of the server's authoritative clock,
+receipt existence, request arrival time or outcome. Arbitrary wall-clock changes,
+network/server delay near expiry, backup restore and process-death recovery still
+need the original-owner/server-admitted intent protocol and rollout acceptance.
+Existing canonical single-use claim/approval predicates remain necessary; do not
+claim the client predicate alone prevents all old-operation replay. No disk
+journal or server retention extension is added. Explicit reload still discards
+local memory under the existing warning.
+
+Authored unrun cases cover horizon/future/invalid time, changed payload/action/
+time, exact frozen request and old approval→read→still-held retry without a new
+POST. All receipt/clock/expiry/concurrency/role/device/rendered acceptance remains
+open. No QA/schema/migration/generation, flags/providers/schedulers/native,
+build/browser/CI or release actions ran.
