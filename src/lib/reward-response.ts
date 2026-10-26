@@ -3,7 +3,8 @@
  */
 import { NextResponse } from "next/server";
 import type { PrismaClient } from "@prisma/client";
-import { authorizeRewardReplay, type RewardActor } from "@/lib/reward-mutations";
+import { authorizeRewardActorInTx, authorizeRewardReplay, type RewardActor } from "@/lib/reward-mutations";
+import { projectRewardMutationPeople } from "@/lib/reward-people";
 export async function protectRewardResponse(
   db: Pick<PrismaClient, "$transaction">, actor: RewardActor, parentOnly: boolean, response: NextResponse, disclosure: "read" | "write" = "write",
 ) {
@@ -19,7 +20,27 @@ export async function protectRewardResponse(
       const code = typeof body?.code === "string" && body.code.startsWith("REWARD_COMMAND_") ? body.code : "REWARD_ACCESS_CHANGED";
       return NextResponse.json({ error: message, code }, { status: refused.status, headers: { "Cache-Control": "private, no-store" } });
     }
-    response.headers.set("Cache-Control", "private, no-store");
+    if (disclosure === "write") {
+      // This boundary also receives completed idempotency replays, which can
+      // contain old names. Never return their stored relationship objects.
+      const envelope: unknown = await response.json();
+      const scope = await db.$transaction(async tx => {
+        const held = await authorizeRewardActorInTx(tx, actor, parentOnly);
+        if (held) return { kind: "held" as const, result: held };
+        return { kind: "data" as const, body: await projectRewardMutationPeople(tx, actor.familyId, envelope) };
+      }, { timeout: 5000, maxWait: 5000 });
+      const lateRefusal = scope.kind === "held" ? scope.result : await authorizeRewardReplay(db, actor, parentOnly);
+      if (lateRefusal) {
+        const body = lateRefusal.body && typeof lateRefusal.body === "object" ? lateRefusal.body as Record<string, unknown> : null;
+        const code = typeof body?.code === "string" && body.code.startsWith("REWARD_COMMAND_") ? body.code : "REWARD_ACCESS_CHANGED";
+        return NextResponse.json({ error: message, code }, { status: lateRefusal.status, headers: { "Cache-Control": "private, no-store" } });
+      }
+      if (scope.kind !== "data") throw new Error("Reward response held");
+      const headers = new Headers(response.headers);
+      headers.delete("Content-Length");
+      headers.delete("Content-Encoding");
+      return NextResponse.json(scope.body, { status: response.status, headers });
+    }
     return response;
   } catch {
     return NextResponse.json({ error: message, code: "REWARD_ACCESS_UNCONFIRMED" },

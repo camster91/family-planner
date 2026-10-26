@@ -28,3 +28,26 @@ export async function projectRewardPeople<T extends RewardPeopleSource>(
   }
   return result;
 }
+
+/** Receipt snapshots are history, never authority for related-person names. */
+export async function projectRewardMutationPeople(
+  db: Pick<Prisma.TransactionClient, "user">,
+  familyId: string,
+  envelope: unknown,
+): Promise<Record<string, unknown>> {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) throw new Error("Reward response held");
+  const body = envelope as Record<string, unknown>;
+  const value = body.reward;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Reward response held");
+  const reward = value as Record<string, unknown>;
+  if (reward.family_id !== familyId || typeof reward.created_by !== "string" || !reward.created_by
+      || !(reward.claimed_by === null || (typeof reward.claimed_by === "string" && reward.claimed_by.length > 0)))
+    throw new Error("Reward response held");
+  // Drop both cached relation objects before projection, including extra fields
+  // carried by older stored responses. Scalar receipt history is unchanged.
+  const { creator: _creator, claimer: _claimer, ...scalars } = reward;
+  const [projected] = await projectRewardPeople(db, familyId, [{ ...scalars,
+    created_by: reward.created_by, claimed_by: reward.claimed_by as string | null,
+  }]);
+  return { ...body, reward: projected };
+}
