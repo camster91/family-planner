@@ -1,3 +1,4 @@
+import { ANALYTICS_SUMMARY_PROJECTION, ANALYTICS_WINDOW_DAYS, MAX_ANALYTICS_CHORES, ANALYTICS_SUMMARY_COVERAGE, ANALYTICS_SUMMARY_LIMIT_CODE } from "@/lib/analytics-summary-contract";
 import { PRIVATE_TIMELINE_ACTIONS } from "@/lib/review-inbox/timeline-contract";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
@@ -13,9 +14,6 @@ import { isGamificationOn } from '@/lib/gamification-visibility'
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const ANALYTICS_WINDOW_DAYS = 90
-// Safety cap on rows per query; a household's 90 days stays far below it.
-const MAX_ANALYTICS_CHORES = 5000
 const DONE_STATUSES = ['completed', 'verified']
 
 // GET /api/analytics?tz=<IANA>|tzOffset=<minutes>
@@ -34,9 +32,9 @@ export async function GET(request: NextRequest) {
     if (gate) return gate
 
     const query = new URL(request.url).searchParams
-    if (query.has('projection') && (query.getAll('projection').length !== 1 || query.get('projection') !== 'summary-v1'))
+    if (query.has('projection') && (query.getAll('projection').length !== 1 || query.get('projection') !== ANALYTICS_SUMMARY_PROJECTION))
       return NextResponse.json({ error: 'Invalid analytics projection' }, { status: 400 })
-    const summaryOnly = query.get('projection') === 'summary-v1'
+    const summaryOnly = query.get('projection') === ANALYTICS_SUMMARY_PROJECTION
     // Without `tz`/`tzOffset` (older clients), UTC days as before.
     const zone = parseLocalZone(query)
     if (!zone) {
@@ -70,7 +68,7 @@ export async function GET(request: NextRequest) {
         },
         select: { id: true, assigned_to: true, status: true, points: true, difficulty: true, completed_at: true, due_date: true },
         orderBy: [{ due_date: 'desc' }, { id: 'asc' }],
-        take: MAX_ANALYTICS_CHORES,
+        take: MAX_ANALYTICS_CHORES + (summaryOnly ? 1 : 0),
       }),
       prisma!.chore.findMany({
         where: {
@@ -80,7 +78,7 @@ export async function GET(request: NextRequest) {
         },
         select: { id: true, assigned_to: true, points: true, completed_at: true },
         orderBy: { completed_at: 'desc' },
-        take: MAX_ANALYTICS_CHORES,
+        take: MAX_ANALYTICS_CHORES + (summaryOnly ? 1 : 0),
       }),
       summaryOnly ? Promise.resolve([]) : prisma!.activity.findMany({
         // Legacy page-view/click rows are not household activity (#136).
@@ -90,6 +88,13 @@ export async function GET(request: NextRequest) {
         take: 10,
       }),
     ])
+
+    // One lookahead row distinguishes a complete exactly-at-cap collection
+    // from a truncated one. Never turn an incomplete compact read into totals.
+    // Legacy requests retain their established cap/body pending compatibility work.
+    if (summaryOnly && (allChores.length > MAX_ANALYTICS_CHORES || recentCompletedChores.length > MAX_ANALYTICS_CHORES))
+      return NextResponse.json({ code: ANALYTICS_SUMMARY_LIMIT_CODE, error: 'This progress window exceeds the supported summary size.' },
+        { status: 422, headers: { 'Cache-Control': 'private, no-store' } })
 
     // Completed chores by the viewer's local day.
     const completedByDay = new Map<string, { count: number; points: number }>()
@@ -215,6 +220,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
+      ...(summaryOnly ? { coverage: ANALYTICS_SUMMARY_COVERAGE } : {}),
       summary: {
         totalChores,
         completedChores,

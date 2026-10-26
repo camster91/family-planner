@@ -2220,3 +2220,37 @@ to real response shape and the shared owned signal. All are UNRUN. No original
 browser-owner pinning across pages, stable DB snapshot, local recurrence engine,
 CPU/latency/memory benchmark or native/rendered/rollback acceptance is supplied.
 No QA/tests/checks/build/browser/DB/CI/push/merge/deploy or activation ran.
+
+
+### Compact analytics coverage — #134, 2026-10-26 (local source only)
+
+`GET /api/analytics?projection=summary-v1` is an additive compact display mode.
+Unspecified projection retains the legacy response shape/cap; unknown, empty or
+repeated projection selectors are400. The compact mode requests at most5001
+rows in each of its two existing90-day chore collections. Exactly5000 is
+admissible; a lookahead row in either collection yields422 with
+`code: ANALYTICS_SUMMARY_LIMIT`, no totals/member payload, private/no-store.
+This refuses silent truncation instead of presenting partial counts as complete.
+
+Successful compact replies add `coverage: { kind: "complete", windowDays:90,
+rowLimit:5000 }`. The current browser requires that marker before canonical DTO
+admission. Its meaning is limited to those source collections not exceeding
+their cap at read time: it is not a stable database snapshot, original-owner
+proof, historical profile attribution or a completed routine/cohort audit. The
+5000-row cap remains a real product limit requiring future aggregation design.
+The browser maps only the known422 code, under a16KiB error-body budget, into
+localized limit guidance with a canonical chores link. Other failures/missing
+coverage use the existing localized error/retry. It never displays raw errors
+or zeroed-out substitute totals.
+
+Server-first promotion is required for this source candidate: older servers
+may ignore the projection parameter but do not emit coverage, so the new
+browser withholds their summaries rather than inferring completeness. Server
+rollback with a new installed client may leave this optional view unavailable;
+a coordinated compatible-client rollback/support strategy and actual old-client,
+DB/concurrency, EN/ES/accessibility/device/performance acceptance remain open.
+No tests/checks/build/browser/DB/CI/promotion/rollback/release ran. Existing page
+fixtures are adapted as source only, UNRUN. Later checks must cover4999/5000/5001
+in either collection, successful empty collections, strict selector admission,
+known/unknown/oversized/stalled error bodies, absent/invalid coverage, legacy
+response preservation and localized nonnumeric limit presentation.

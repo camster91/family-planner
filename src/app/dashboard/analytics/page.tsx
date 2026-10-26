@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { AnalyticsSummaryLimitError } from '@/lib/analytics-summary-contract'
 import { TrendingUp } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -28,7 +30,7 @@ function AnalyticsPageContent() {
   const analyticsText = useAnalyticsText()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const [loadError, setLoadError] = useState<"failed" | "limit" | null>(null)
 
   const live = useRef(false)
   const readSerial = useRef(0)
@@ -41,7 +43,7 @@ function AnalyticsPageContent() {
     const serial = ++readSerial.current
     const current = () => live.current && !controller.signal.aborted && serial === readSerial.current
     setLoading(true)
-    setLoadError(false)
+    setLoadError(null)
     try {
       // O-31: canonical day counts use the viewer's zone, independent of locale.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -50,10 +52,10 @@ function AnalyticsPageContent() {
         : `tzOffset=${new Date().getTimezoneOffset()}`
       const data = await readHouseholdAnalytics(zoneParam, controller.signal)
       if (current()) setData(data)
-    } catch {
+    } catch (cause) {
       if (current()) {
         setData(null)
-        setLoadError(true)
+        setLoadError(cause instanceof AnalyticsSummaryLimitError ? "limit" : "failed")
       }
     } finally {
       if (current()) {
@@ -101,16 +103,20 @@ function AnalyticsPageContent() {
       {loadError ? (
         <div role="alert" className="card-apple flex flex-col items-start gap-3 p-5">
           <div>
-            <p className="text-title-3 text-label-primary">{analyticsText('loadError')}</p>
-            <p className="mt-1 text-subhead text-label-secondary">{analyticsText('weeklyTrendDescription')}</p>
+            <p className="text-title-3 text-label-primary">{analyticsText(loadError === 'limit' ? 'summaryLimit' : 'loadError')}</p>
+            <p className="mt-1 text-subhead text-label-secondary">{analyticsText(loadError === 'limit' ? 'summaryLimitHelp' : 'weeklyTrendDescription')}</p>
           </div>
-          <button
+          {loadError === 'limit' ? (
+            <Link href="/dashboard/chores" className="btn-tinted inline-flex items-center min-h-[44px] px-4 text-subhead font-semibold">
+              {analyticsText('openChores')}
+            </Link>
+          ) : <button
             type="button"
             onClick={() => void loadAnalytics()}
             className="btn-tinted min-h-[44px] min-w-[44px] px-4 text-subhead font-semibold"
           >
             {analyticsText('retry')}
-          </button>
+          </button>}
         </div>
       ) : loading ? (
         <div className="card-apple p-8 text-center text-subhead text-label-secondary" role="status" aria-busy="true">
