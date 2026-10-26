@@ -107,3 +107,45 @@ it('refuses all helper rotation effects if a later distinct replacement identity
   expect(tx.chore.updateMany).not.toHaveBeenCalled();
   expect(tx.chore.update).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: both passes page all roots, even as effects remove eligibility.
+function pagedRemovalTx(lastReplacement = 'user-a') {
+  const roots = Array.from({ length:205 }, (_, index) => ({
+    id:`root-${String(index).padStart(3,'0')}`, rotation_member_ids:['leaving',index >= 200 ? lastReplacement : 'user-a'],
+    assigned_to:'leaving', assigned_member_id:'old-profile', status:'pending',
+  }));
+  let firstWriteReadCount: number | null = null;
+  const findMany = jest.fn(async (args: any) => roots
+    .filter(row => row.rotation_member_ids.includes('leaving') && row.id > (args.where.id?.gt ?? ''))
+    .sort((a,b) => a.id.localeCompare(b.id)).slice(0,args.take)
+    .map(row => ({ ...row, rotation_member_ids:[...row.rotation_member_ids] })));
+  const update = jest.fn(async (args: any) => {
+    firstWriteReadCount ??= findMany.mock.calls.length;
+    Object.assign(roots.find(row => row.id === args.where.id)!, args.data);
+    return {};
+  });
+  return { tx:{ chore:{ findMany,update,updateMany:jest.fn(async () => ({ count:1 })) } }, roots,
+    firstWriteReadCount:() => firstWriteReadCount };
+}
+it('pages removal preflight and effects without dropping roots after their rotations change', async () => {
+  const { tx,roots,firstWriteReadCount } = pagedRemovalTx();
+  expect(await dropMemberFromRotationsInTx(tx as any,'family-a','leaving')).toBe(205);
+  expect(firstWriteReadCount()).toBe(3);
+  expect(tx.chore.findMany).toHaveBeenCalledTimes(6);
+  expect(tx.chore.findMany.mock.calls.every(([args]) => args.take === 100 && args.where.family_id === 'family-a')).toBe(true);
+  expect(resolve).toHaveBeenCalledTimes(1);
+  expect(tx.chore.update).toHaveBeenCalledTimes(205);
+  expect(new Set(tx.chore.update.mock.calls.map(([args]) => args.where.id)).size).toBe(205);
+  expect(roots.every(row => !row.rotation_member_ids.includes('leaving'))).toBe(true);
+});
+it('finds a replacement on the last preflight page and refuses before any effects if it is unavailable', async () => {
+  const { tx } = pagedRemovalTx('user-b');
+  resolve.mockImplementation(async (_tx,_family,userId) => {
+    if (userId === 'user-b') throw new Error('Last-page replacement unavailable');
+    return { assigned_to:userId, assigned_member_id:'member-a' };
+  });
+  await expect(dropMemberFromRotationsInTx(tx as any,'family-a','leaving')).rejects.toThrow('Last-page replacement unavailable');
+  expect(tx.chore.findMany).toHaveBeenCalledTimes(3);
+  expect(tx.chore.update).not.toHaveBeenCalled();
+  expect(tx.chore.updateMany).not.toHaveBeenCalled();
+});

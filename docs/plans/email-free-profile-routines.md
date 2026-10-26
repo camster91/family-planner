@@ -119,3 +119,29 @@ parent picker and strict rollback/role obligations. This is planning, not profil
 rotation code. Profile points/reward ownership has been asked explicitly and is
 unanswered; #557 former-login erasure/independent-profile retention is also still
 pending. No schema, capability, permission, data, credit or activation changed.
+
+
+## Account rotation removal pages — 2026-10-26 source only
+
+`dropMemberFromRotationsInTx` now reads matching roots in stable-ID pages of100
+rather than retaining the full household template list and all removal plans.
+A read-only first pass collects distinct canonical replacement accounts, all
+of which are resolved before any rotation effect. A second keyset pass applies
+the existing turn-shift/removal/assignment rules to every matching root, counting
+each changed root. Updating a root removes it from the `has` predicate, but the
+next page advances by immutable ID rather than an offset, so later roots are
+not intentionally skipped. Empty results return without a second scan.
+
+The caller's existing household lifecycle lock and transaction span both passes.
+A newly contradictory canonical replacement refuses instead of silently dropping
+its member assignment; errors must propagate through that transaction. Completed
+canonical history and legacy account-only assignments retain their prior rules.
+Two fixture cases describe205 roots across both passes and a required replacement
+on the final preflight page refusing before any effects. They are UNRUN.
+
+This bounds query-page/template-plan retention, not total transaction duration,
+total rows/series writes, distinct replacement-account memory or DB query cost.
+The extra scan and real query/index/lock/rollback behavior are unmeasured. It does
+not alter `applyRotationEditInTx`'s retained complete future plan, add profile
+rotation, decide profile credits or activate any flag. No QA/tests/checks/build/
+browser/DB/CI/push/merge/deploy ran. #134/#450/#480 remain open.

@@ -159,6 +159,40 @@ export async function applyRotationEditInTx(
   return true
 }
 
+type RotationRemovalTemplate = {
+  id: string
+  rotation_member_ids: string[]
+  assigned_to: string | null
+  assigned_member_id: string | null
+  status: string
+}
+const ROTATION_REMOVAL_PAGE_SIZE = 100
+async function* rotationRemovalPages(tx: Prisma.TransactionClient, familyId: string, memberId: string) {
+  let after: string | null = null
+  for (;;) {
+    const rows: RotationRemovalTemplate[] = await tx.chore.findMany({
+      where: { family_id: familyId, rotation_member_ids: { has: memberId },
+        ...(after ? { id: { gt: after } } : {}) },
+      orderBy: { id: 'asc' }, take: ROTATION_REMOVAL_PAGE_SIZE,
+      select: { id: true, rotation_member_ids: true, assigned_to: true, assigned_member_id: true, status: true },
+    })
+    if (rows.length === 0) return
+    const next = rows[rows.length - 1].id
+    if (rows.length > ROTATION_REMOVAL_PAGE_SIZE || !next || next === after)
+      throw new Error('Rotation removal cursor did not advance')
+    yield rows
+    if (rows.length < ROTATION_REMOVAL_PAGE_SIZE) return
+    after = next
+  }
+}
+function rotationRemovalPlan(template: RotationRemovalTemplate, memberId: string) {
+  const removedAt = template.rotation_member_ids.indexOf(memberId)
+  const rest = template.rotation_member_ids.filter((id) => id !== memberId)
+  const retainedHistory = template.assigned_member_id && ['completed', 'verified', 'approved'].includes(template.status)
+  const nextAssignee = !retainedHistory && template.assigned_to === memberId && rest.length > 0 ? rest[removedAt % rest.length] : null
+  return { removedAt, rest, nextAssignee }
+}
+
 /**
  * Drop a member who is leaving the household from every rotation there, in
  * the caller's transaction (member removal, O-34; account deletion).
@@ -180,55 +214,58 @@ export async function dropMemberFromRotationsInTx(
   familyId: string,
   memberId: string
 ): Promise<number> {
-  const templates = await tx.chore.findMany({
-    where: { family_id: familyId, rotation_member_ids: { has: memberId } },
-    select: { id: true, rotation_member_ids: true, assigned_to: true, assigned_member_id: true, status: true },
-  })
-  // Callers hold the household lifecycle lock. Resolve the distinct canonical
-  // replacements before this helper changes any rotation; many roots may share
-  // one replacement. Keep legacy account-only assignments account-only.
-  const plans = templates.map(template => {
-    const removedAt = template.rotation_member_ids.indexOf(memberId)
-    const rest = template.rotation_member_ids.filter((id) => id !== memberId)
-    const retainedHistory = template.assigned_member_id && ['completed', 'verified', 'approved'].includes(template.status)
-    const nextAssignee = !retainedHistory && template.assigned_to === memberId && rest.length > 0 ? rest[removedAt % rest.length] : null
-    return { template, removedAt, rest, nextAssignee }
-  })
-  const requiredCanonical = new Set(plans.flatMap(plan =>
-    plan.template.assigned_member_id && plan.nextAssignee ? [plan.nextAssignee] : []
-  ))
+  // First pass resolves all distinct canonical replacements before effects.
+  // A second keyset pass applies every root without retaining the full roster.
+  // The caller's existing household lifecycle lock spans both passes.
+  const requiredCanonical = new Set<string>()
+  let found = false
+  for await (const templates of rotationRemovalPages(tx, familyId, memberId)) {
+    found = true
+    for (const template of templates) {
+      const plan = rotationRemovalPlan(template, memberId)
+      if (template.assigned_member_id && plan.nextAssignee) requiredCanonical.add(plan.nextAssignee)
+    }
+  }
+  if (!found) return 0
   const canonicalAssignees = new Map<string, { assigned_to: string; assigned_member_id: string }>()
   for (const userId of [...requiredCanonical].sort())
     canonicalAssignees.set(userId, await canonicalChoreAssigneeInTx(tx, familyId, userId))
 
-  for (const { template, removedAt, rest, nextAssignee } of plans) {
-    const series = { family_id: familyId, recurrence_id: template.id }
-    if (removedAt === 0) {
-      await tx.chore.updateMany({ where: { ...series, rotation_index: 0 }, data: { rotation_index: null } })
-    } else {
-      await tx.chore.updateMany({ where: { ...series, rotation_index: removedAt }, data: { rotation_index: removedAt - 1 } })
+  let changed = 0
+  for await (const templates of rotationRemovalPages(tx, familyId, memberId)) {
+    for (const template of templates) {
+      const { removedAt, rest, nextAssignee } = rotationRemovalPlan(template, memberId)
+      if (template.assigned_member_id && nextAssignee && !canonicalAssignees.has(nextAssignee))
+        throw new HouseholdMemberIdentityConflict()
+      const series = { family_id: familyId, recurrence_id: template.id }
+      if (removedAt === 0) {
+        await tx.chore.updateMany({ where: { ...series, rotation_index: 0 }, data: { rotation_index: null } })
+      } else {
+        await tx.chore.updateMany({ where: { ...series, rotation_index: removedAt }, data: { rotation_index: removedAt - 1 } })
+      }
+      await tx.chore.updateMany({
+        where: { ...series, rotation_index: { gt: removedAt } },
+        data: { rotation_index: { decrement: 1 } },
+      })
+      if (rest.length === 0) {
+        await tx.chore.updateMany({ where: series, data: { rotation_index: null } })
+      }
+      const assignee = nextAssignee
+        ? template.assigned_member_id
+          ? canonicalAssignees.get(nextAssignee)!
+          : { assigned_to: nextAssignee }
+        : {}
+      await tx.chore.update({
+        where: { id: template.id },
+        data: {
+          rotation_member_ids: rest,
+          // The series itself goes to the next person, so it is not removed or
+          // handed over with the leaving member's own chores.
+          ...assignee,
+        },
+      })
+      changed++
     }
-    await tx.chore.updateMany({
-      where: { ...series, rotation_index: { gt: removedAt } },
-      data: { rotation_index: { decrement: 1 } },
-    })
-    if (rest.length === 0) {
-      await tx.chore.updateMany({ where: series, data: { rotation_index: null } })
-    }
-    const assignee = nextAssignee
-      ? template.assigned_member_id
-        ? canonicalAssignees.get(nextAssignee)!
-        : { assigned_to: nextAssignee }
-      : {}
-    await tx.chore.update({
-      where: { id: template.id },
-      data: {
-        rotation_member_ids: rest,
-        // The series itself goes to the next person, so it is not removed or
-        // handed over with the leaving member's own chores.
-        ...assignee,
-      },
-    })
   }
-  return templates.length
+  return changed
 }
