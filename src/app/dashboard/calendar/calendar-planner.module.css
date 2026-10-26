@@ -222,6 +222,27 @@
   background: var(--surface-elevated);
   box-shadow: var(--shadow-md);
 }
+.connectionSources {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 0;
+}
+.connectionSources legend {
+  padding: 0 0 4px;
+  color: var(--label-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.connectionSources button {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-color: transparent;
+  text-align: start;
+}
 .connectionMenu a {
   display: flex;
   align-items: center;

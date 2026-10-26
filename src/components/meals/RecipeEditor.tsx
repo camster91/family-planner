@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { MealContextLink as Link } from "./MealContextLink";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";

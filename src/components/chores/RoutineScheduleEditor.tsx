@@ -108,7 +108,8 @@ export function RoutineScheduleEditor({
   }
 
   const index = Math.min(selected, draft.steps.length - 1),
-    step = draft.steps[index];
+    step = draft.steps[index],
+    parsedStart = parseDateOnly(draft.schedule.starts_on);
   const choices = assignments.filter(
     (option) => draft.schedule.frequency === "once" || option.canRepeat,
   );
@@ -143,11 +144,18 @@ export function RoutineScheduleEditor({
     });
   }
   function next() {
+    const scheduleValid =
+      draft.schedule.frequency === "weekly"
+        ? draft.schedule.weekly_days.length > 0
+        : draft.schedule.frequency === "monthly"
+          ? Number.isInteger(draft.schedule.monthly_day) &&
+            draft.schedule.monthly_day! >= 1 &&
+            draft.schedule.monthly_day! <= 31
+          : true;
     const valid =
       stage === 0
         ? draft.label.trim().length > 0 &&
-          (draft.schedule.frequency !== "weekly" ||
-            draft.schedule.weekly_days.length > 0)
+          scheduleValid
         : draft.steps.every(
             (row) =>
               row.title.trim() &&
@@ -625,8 +633,20 @@ export function RoutineScheduleEditor({
                 {t(draft.schedule.frequency)}
                 {draft.schedule.frequency === "weekly"
                   ? ` · ${formatWeeklyDays(draft.schedule.weekly_days, locale)}`
-                  : ""}
+                  : draft.schedule.frequency === "monthly"
+                    ? ` · ${t("monthDay")}: ${draft.schedule.monthly_day}`
+                    : ""}
               </p>
+              {draft.schedule.starts_on && (
+                <p>
+                  {t("start")}: {parsedStart
+                    ? new Intl.DateTimeFormat(locale, {
+                        dateStyle: "medium",
+                        timeZone: "UTC",
+                      }).format(parsedStart)
+                    : t("invalid")}
+                </p>
+              )}
               {draft.state === "paused" ? (
                 <p>{t("pausedEdit")}</p>
               ) : (

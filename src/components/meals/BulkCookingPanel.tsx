@@ -328,6 +328,25 @@ export function BulkCookingPanel({
   const current = sessions.find((row) => row.id === selected) ?? sessions[0];
   const modalSession =
     modal && sessions.find((row) => row.id === modal.sessionId);
+  const sessionCounts = current
+    ? current.batches.reduce(
+        (totals, batch) => {
+          const counts = batchPortionCounts(
+            batch.total_servings,
+            batch.meals,
+            batch.consumption,
+          );
+          return {
+            total: totals.total + batch.total_servings,
+            eaten: totals.eaten + counts.eaten,
+            remaining: totals.remaining + counts.remaining,
+            planned: totals.planned + counts.planned,
+            unplanned: totals.unplanned + counts.unplanned,
+          };
+        },
+        { total: 0, eaten: 0, remaining: 0, planned: 0, unplanned: 0 },
+      )
+    : null;
   const formScope =
     scope ??
     (recoveryRequested && recovery.context
@@ -540,6 +559,26 @@ export function BulkCookingPanel({
                 </button>
               )}
             </div>
+            {sessionCounts && (
+              <div
+                className="rounded-xl bg-[var(--surface-fill)] p-3 space-y-1"
+                role="status"
+                aria-label={tBulk("sessionSummary")}
+              >
+                <p className="text-subhead font-semibold">
+                  {tBulk("sessionSummary")}
+                </p>
+                <p className="text-subhead text-label-secondary">
+                  {tBulk("total", { count: sessionCounts.total })} ·{" "}
+                  {tBulk("eaten", { count: sessionCounts.eaten })} ·{" "}
+                  {tBulk("remaining", { count: sessionCounts.remaining })}
+                </p>
+                <p className="text-footnote text-label-secondary">
+                  {tBulk("planned", { count: sessionCounts.planned })} ·{" "}
+                  {tBulk("unplanned", { count: sessionCounts.unplanned })}
+                </p>
+              </div>
+            )}
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
               {current.batches.map((batch) => {
                 const counts = batchPortionCounts(

@@ -23,6 +23,8 @@ export const calendarPlannerEnglish = {
   agenda: "Agenda",
   add: "Add event",
   calendars: "Calendars",
+  calendarMenu: "Calendars & connections",
+  calendarMenuHelp: "Choose a calendar to show, then manage connections below.",
   showCalendars: "Show calendars and connections",
   hideCalendars: "Hide calendars and connections",
   scrollWeek:
@@ -122,6 +124,8 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   agenda: "Agenda",
   add: "Añadir evento",
   calendars: "Calendarios",
+  calendarMenu: "Calendarios y conexiones",
+  calendarMenuHelp: "Elige un calendario para mostrar y gestiona las conexiones abajo.",
   showCalendars: "Mostrar calendarios y conexiones",
   hideCalendars: "Ocultar calendarios y conexiones",
   scrollWeek:

@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useReviewRecoveryText } from "@/i18n/review-recovery";
-import Link from "next/link";
+import { MealContextLink as Link } from "./MealContextLink";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";

@@ -93,7 +93,32 @@ export function CalendarPlanner({
   const gridViewport = React.useRef<HTMLDivElement>(null);
   const requestId = React.useRef(0),
     dialog = React.useRef<HTMLDialogElement>(null),
-    trigger = React.useRef<HTMLElement | null>(null);
+    trigger = React.useRef<HTMLElement | null>(null),
+    connectionMenu = React.useRef<HTMLDetailsElement>(null);
+  const closeConnectionMenu = (restoreFocus = true) => {
+    const menu = connectionMenu.current;
+    if (!menu?.open) return;
+    menu.open = false;
+    if (restoreFocus) menu.querySelector("summary")?.focus();
+  };
+  const closeConnectionMenuOnEscape = (
+    event: React.KeyboardEvent<HTMLDetailsElement>,
+  ) => {
+    if (event.key !== "Escape" || !event.currentTarget.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeConnectionMenu();
+  };
+  React.useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      const menu = connectionMenu.current;
+      if (menu && !menu.contains(event.target as Node)) {
+        menu.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, []);
   React.useEffect(() => {
     setLocal(true);
     setDate(chooseLocalToday ? dayKey(new Date(), true) : initialDate);
@@ -329,9 +354,32 @@ export function CalendarPlanner({
         <div className={styles.headerActions}>
           {headerAction}
           {canEditEvents && (
-            <details className={styles.connectionMenu}>
-              <summary>{msg("addConnection")}</summary>
+            <details
+              ref={connectionMenu}
+              className={styles.connectionMenu}
+              onKeyDown={closeConnectionMenuOnEscape}
+            >
+              <summary>{msg("calendarMenu")}</summary>
               <div>
+                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                  {msg("calendarMenuHelp")}
+                </p>
+                <fieldset className={styles.connectionSources}>
+                  <legend>{msg("calendars")}</legend>
+                  {options.map((source) => (
+                    <button
+                      key={source.id}
+                      type="button"
+                      aria-pressed={filter === source.id}
+                      onClick={() => {
+                        setFilter(source.id);
+                        closeConnectionMenu();
+                      }}
+                    >
+                      {source.name}
+                    </button>
+                  ))}
+                </fieldset>
                 <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
                   {calendarSyncAvailable
                     ? msg("connectionHelp")
