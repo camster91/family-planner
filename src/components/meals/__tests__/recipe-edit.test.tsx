@@ -343,7 +343,7 @@ it("allows a corrected Save after validation without leaving detail dismissal lo
   await user.click(screen.getByRole("button", { name: "Save recipe" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(writes).toEqual([
-    { url: "/api/recipes/r1", method: "PATCH", body: { servings: 80 } },
+    { url: "/api/recipes/r1", method: "PATCH", body: { servings: 80, base_revision: 0, edit_protocol: "herewoven.recipe-edit.v1", edit_owner: originalOwner } },
   ]);
   expect(document.activeElement).toBe(trigger);
 });
@@ -494,7 +494,7 @@ it.each(["parent", "teen"])(
       {
         url: "/api/recipes/r1",
         method: "PATCH",
-        body: { title: "Summer soup" },
+        body: { title: "Summer soup", base_revision: 0, edit_protocol: "herewoven.recipe-edit.v1", edit_owner: { ...originalOwner, role } },
       },
     ]);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -535,4 +535,30 @@ it('retires the visible recipe and editor when a bound edit loses access', async
   expect(screen.queryByRole('heading', { name: 'Soup' })).toBeNull();
   expect(screen.queryByText('Private denial detail')).toBeNull();
   expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
+});
+
+// Authored UNRUN: malformed successful writes never become renderable detail.
+it('keeps a malformed successful edit unknown without handing it to its parent or resending', async () => {
+  const onSaved = jest.fn();
+  global.fetch = jest.fn(async () => response({ ...RECIPE,
+    ingredients: [{ ...RECIPE.ingredients[0], amount: 'not-a-number' }],
+  } as unknown as RecipeDetailData)) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} onSaved={onSaved} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Pending soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('may have been saved'));
+  expect(onSaved).not.toHaveBeenCalled();
+  expect((screen.getByRole('button', { name: 'Save recipe' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+it('projects a validated edit reply before handing it to its parent', async () => {
+  const onSaved = jest.fn();
+  global.fetch = jest.fn(async () => response({ ...RECIPE, title: 'Saved soup', privateExtra: 'discard' } as RecipeDetailData)) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} onSaved={onSaved} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Saved soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(onSaved.mock.calls[0][0]).toEqual({ ...RECIPE, title: 'Saved soup' });
+  expect(onSaved.mock.calls[0][0]).not.toHaveProperty('privateExtra');
 });

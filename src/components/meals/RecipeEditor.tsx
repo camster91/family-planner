@@ -7,6 +7,7 @@ import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import { parseRecipeDetail } from "@/lib/recipe-detail-client";
 import { RECIPE_EDIT_PROTOCOL } from "@/lib/recipe-input-contract";
 import { RECIPE_CREATE_COMMAND_MAX_AGE_MS } from "@/lib/recipe-create-command-window";
 import { runOwnedForeground } from "@/lib/owned-request-http";
@@ -444,25 +445,14 @@ function RecipeEditorForm({
       markUncertain();
       return;
     }
-    const r = data.recipe;
-    if (
-      initialRecipe &&
-      (r.id !== initialRecipe.id ||
-        !Array.isArray(r.ingredients) ||
-        r.ingredients.some(
-          (line) =>
-            !line?.ingredient || typeof line.ingredient.name !== "string",
-        ) ||
-        [
-          "description",
-          "instructions",
-          "prep_time",
-          "cook_time",
-          "servings",
-        ].some((field) => !(field in r)))
-    ) {
-      markUncertain();
-      return;
+    let r = data.recipe;
+    if (initialRecipe) {
+      try {
+        r = parseRecipeDetail(r, initialRecipe.id, { requireRevision: !!expectedOwner });
+      } catch {
+        markUncertain();
+        return;
+      }
     }
     confirmRecipe(r, completionCallbacks);
   }

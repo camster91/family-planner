@@ -10,7 +10,7 @@ const id = z.string().regex(MEMBER_ID_PATTERN);
 const minutes = z.number().int().nonnegative().safe().nullable();
 const detail = z.object({
   id, title: z.string(), source_url: z.string().nullable().optional(),
-  favorite: z.boolean().optional(), revision: z.number().int().nonnegative().safe(),
+  favorite: z.boolean().optional(), revision: z.number().int().nonnegative().safe().optional(),
   updated_at: z.string().datetime({ offset: true }).optional(),
   description: z.string().nullable(), instructions: z.string().nullable(),
   prep_time: minutes, cook_time: minutes,
@@ -20,6 +20,18 @@ const detail = z.object({
     ingredient: z.object({ id, name: z.string(), unit: z.string().nullable() }),
   })).max(RECIPE_MAX_INGREDIENTS),
 });
+/** Shared display boundary for reads and edit replies. Legacy unbound editors
+ * may omit revision; owner-bound screens/edits must retain the reviewed version.
+ */
+export function parseRecipeDetail(value: unknown, expectedId: string,
+  options: { requireRevision?: boolean } = {}): RecipeDetailData {
+  const parsed = detail.parse(value);
+  if (parsed.id !== expectedId ||
+    ((options.requireRevision ?? true) && parsed.revision === undefined) ||
+    new Set(parsed.ingredients.map(line => line.id)).size !== parsed.ingredients.length)
+    throw new Error("Recipe detail unavailable");
+  return parsed;
+}
 export class RecipeDetailNotFound extends Error {}
 export class RecipeDetailOwnerChanged extends Error {}
 
@@ -47,10 +59,9 @@ export async function readRecipeDetail(
         }
       },
     });
-    const parsed = z.object({ recipe: detail }).parse(body).recipe;
-    if (signal.aborted || parsed.id !== recipeId ||
-      new Set(parsed.ingredients.map(line => line.id)).size !== parsed.ingredients.length)
-      throw new Error("Recipe detail unavailable");
+    const value = body && typeof body === "object" && "recipe" in body ? body.recipe : undefined;
+    const parsed = parseRecipeDetail(value, recipeId);
+    if (signal.aborted) throw new Error("Recipe detail unavailable");
     if (!receivedOwner) throw new Error("Recipe detail unavailable");
     return { recipe: parsed, owner: receivedOwner };
   } catch {

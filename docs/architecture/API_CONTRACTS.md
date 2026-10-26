@@ -2089,3 +2089,28 @@ same-ID replacement could share revision and still needs immutable birth
 continuity. Durable pending edits, rebase/recovery UX, real row-lock/concurrency
 and current/previous installed-client acceptance remain separate. No tests/
 checks/build/browser/DB/migration/CI/push/merge/deploy or activation ran.
+
+
+### Recipe edit response projection — 2026-10-26 source candidate
+
+The browser edit response now uses the same `parseRecipeDetail` projection as
+the canonical detail reader before passing data to `onSaved`. It validates
+exact target ID, complete nested display/ingredient shape, finite numeric
+fields, capped unique line identities and (for bound edits) revision metadata,
+and strips unrelated response properties. Existing role/owner/lifetime guards
+remain before this handoff. Ordinary create still hands off its existing
+summary; this change concerns the full edit-detail result.
+
+Malformed successful edit JSON becomes an unconfirmed outcome: no parent
+recipe replacement or callback, no second request, and Save remains disabled
+under the existing uncertainty behavior. This does not assert rollback or
+provide receipt inspection. Legacy unbound editors may accept absent revision
+metadata; newly bound edits and detail reads require it. No input/response is
+silently truncated or reinterpreted as an empty recipe.
+
+Two source fixture cases describe malformed-success containment and removal
+of unrelated fields from a validated callback. Two existing page payload
+assertions missed in the prior owner/revision changes are also adapted. All
+are UNRUN. Durable recovery, source birth continuity, exact edit retries and
+real client/DB/concurrency/rendered acceptance remain separate. No QA/checks/
+build/browser/DB/CI/push/merge/deploy or activation ran.
