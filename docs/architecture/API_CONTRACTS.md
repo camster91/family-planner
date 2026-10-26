@@ -2233,7 +2233,7 @@ admissible; a lookahead row in either collection yields422 with
 This refuses silent truncation instead of presenting partial counts as complete.
 
 Successful compact replies add `coverage: { kind: "complete", windowDays:90,
-rowLimit:5000, memberLimit:1000 }`. The current browser requires that marker before canonical DTO
+rowLimit:5000, memberLimit:1000, memberScope:"accounts" }`. The current browser requires that marker before canonical DTO
 admission. Its meaning is limited to those source collections not exceeding
 their cap at read time: it is not a stable database snapshot, original-owner
 proof, historical profile attribution or a completed routine/cohort audit. The
@@ -2338,3 +2338,23 @@ browser2MiB/15-second transport guard remains in effect. No runtime, schema,
 compatibility, dense/concurrent or locale/device acceptance was run. Deferred
 cases include999/1000/1001 current Users, active member count changing during a
 read, matching/missing/wrong coverage memberLimit and unchanged legacy responses.
+
+
+Compact analytics coverage explicitly declares `memberScope:"accounts"` and
+the browser requires that value before DTO admission. It describes the existing
+User-backed participation list, not member-protocol2 support or profile credit
+ownership. Per-person counts are over the existing90-day window, while the ring
+and trend retain their separately defined week windows. The EN/ES participant
+caption states login-account coverage and the90-day range, and is associated
+with the list through aria-describedby. Household totals continue to count all
+canonically visible chores, including profile-owned rows where present, without
+moving those rows into another person's participation/XP ledger.
+
+No profile roster, namespace conversion, account link, points/streak/reward
+attribution or permission/capability grant is introduced. Full email-free profile
+analytics remains a separate #480/#557 identity/history/credit design and runtime
+requirement. The explicit scope prevents a current account-only cohort from
+being described as complete all-person coverage; it does not complete that
+feature. New clients withhold old/intermediate servers lacking the scope marker;
+server-first/rollback compatibility and actual EN/ES/screen-reader/role/household
+acceptance remain unperformed. No QA or provider/data/release action ran.

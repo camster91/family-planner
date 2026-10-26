@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AnalyticsSummaryLimitError } from '@/lib/analytics-summary-contract'
+import { AnalyticsSummaryLimitError, ANALYTICS_WINDOW_DAYS } from '@/lib/analytics-summary-contract'
 import { TrendingUp } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -224,13 +224,16 @@ function AnalyticsPageContent() {
               <h2 id="progress-members-title" className="section-header">{analyticsText('progressByPerson')}</h2>
               <span className="text-footnote text-label-secondary">{members.length}</span>
             </div>
+            <p className="mb-3 text-footnote text-label-secondary" id="progress-members-scope">
+              {analyticsText('progressByPersonDescription', { days: ANALYTICS_WINDOW_DAYS })}
+            </p>
             {members.length === 0 ? (
               <div className="card-apple p-8 text-center">
                 <p className="text-title-3 text-label-primary">{analyticsText('noProgress')}</p>
                 <p className="mt-1 text-subhead text-label-secondary">{analyticsText('noProgressDescription')}</p>
               </div>
             ) : (
-              <ul className="card-apple divide-y divide-[var(--surface-separator)] overflow-hidden" data-testid="progress-members">
+              <ul className="card-apple divide-y divide-[var(--surface-separator)] overflow-hidden" data-testid="progress-members" aria-describedby="progress-members-scope">
                 {members.map((member) => (
                   <li key={member.id || member.name} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-3 sm:flex sm:gap-3 sm:px-5">
                     <div className="row-span-2 self-center sm:row-auto"><Avatar name={member.name || '?'} src={member.avatar_url} size="sm" /></div>
