@@ -1208,3 +1208,28 @@ body/DB waits, immutable notification birth identity, same-owner replacement
 protection, multi-device ordering, slow-body deadlines or acceptance of current/
 previous installed clients. No QA/checks/build/browser/DB/migration/CI/push/merge/
 deploy or activation ran. #141/#136/#134 remain open.
+
+
+### 2026-10-26 — mounted unknown-outcome recovery hold
+
+An unconfirmed foreground notification write now sets a synchronous mounted
+hold before controls can be used again. Network/deadline/body-decoding failures,
+malformed success envelopes and5xx replies hold new mark-read/snooze/delete
+choices and older-page continuation. Existing definitive non-success responses
+retain their error handling. Previously deliberate waiting-delete/Undo intents
+continue through their existing lifecycle; no new write or retry is inferred.
+
+A persistent typed EN/ES notice directs the person to refresh. Only a validated
+full-page read admitted by the existing read sequence/write-epoch guards clears
+the hold. Failed or stale reads do not; refresh cannot start while earlier local
+write/delete work is still active. There is no automatic write replay. Read
+failure copy no longer asserts that notifications on the server are unchanged.
+
+This is a mounted interaction guard, not durable receipt reconciliation. A
+canonical observation may race a previously unknown server command and cannot
+prove that command stopped. Returning after unmount loses this memory, and
+original actor/session/row-birth identity and cross-tab ordering are unchanged.
+Exact request recovery and the wider N1–N5 contract remain open. Three added
+network/server/malformed snooze cases plus two adapted oversized-response cases
+are authored, UNRUN; no tests/checks/build/browser/DB/CI/push/merge/deploy or
+activation ran. #141/#135 remain open.

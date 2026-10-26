@@ -88,6 +88,8 @@ export default function NotificationsPage() {
   const snoozeLock = useRef(false);
   const deleting = useRef(new Set<string>());
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [writeHold, setWriteHold] = useState(false);
+  const writeHoldRef = useRef(false);
   const loadSequence = useRef(0);
   const writeEpoch = useRef(0);
   const activeRead = useRef<AbortController | null>(null);
@@ -135,7 +137,14 @@ export default function NotificationsPage() {
     [addToast, text],
   );
 
+  const holdWrites = useCallback(() => {
+    if (!pageLive.current) return;
+    writeHoldRef.current = true;
+    setWriteHold(true);
+  }, []);
+
   const loadNotifications = useCallback(async () => {
+    if (snoozeLock.current || pending.current.size || deleting.current.size) return;
     const sequence = ++loadSequence.current;
     const observedWriteEpoch = writeEpoch.current;
     activeRead.current?.abort();
@@ -157,6 +166,8 @@ export default function NotificationsPage() {
       if (observedWriteEpoch !== writeEpoch.current || snoozeLock.current || pending.current.size || deleting.current.size)
         throw new NotificationPageError(text("notificationReadChanged"));
       setNotifications(page.notifications);
+      writeHoldRef.current = false;
+      setWriteHold(false);
       cursorRef.current = page.nextCursor;
       setNextCursor(page.nextCursor);
       setPagingSupported(page.pagingSupported);
@@ -171,7 +182,7 @@ export default function NotificationsPage() {
 
   const loadOlder = async () => {
     const cursor = cursorRef.current;
-    if (loading || olderLock.current || snoozeLock.current || pending.current.size || deleting.current.size || !cursor) return;
+    if (writeHoldRef.current || loading || olderLock.current || snoozeLock.current || pending.current.size || deleting.current.size || !cursor) return;
     olderLock.current = true;
     const controller = new AbortController();
     activeRead.current = controller;
@@ -256,7 +267,7 @@ export default function NotificationsPage() {
 
   const handleMarkAsRead = useCallback(
     async (notificationId: string) => {
-      if (!pageLive.current || snoozeLock.current) return;
+      if (!pageLive.current || writeHoldRef.current || snoozeLock.current) return;
       const controller = new AbortController();
       activeWrites.current.add(controller);
       snoozeLock.current = true;
@@ -271,15 +282,16 @@ export default function NotificationsPage() {
         });
         if (!pageLive.current || controller.signal.aborted) return;
         if (!result.response.ok) {
+          if (result.response.status >= 500) holdWrites();
           await failed(text("markFailed"), result.body);
           return;
         }
-        if (!succeeded(result.body)) { await failed(text("markFailed")); return; }
+        if (!succeeded(result.body)) { holdWrites(); await failed(text("markFailed")); return; }
         setNotifications((prev) =>
           prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
         );
       } catch {
-        if (!controller.signal.aborted) await failed(text("markFailed"));
+        if (!controller.signal.aborted) { holdWrites(); await failed(text("markFailed")); }
       } finally {
         activeWrites.current.delete(controller);
         writeEpoch.current++;
@@ -287,7 +299,7 @@ export default function NotificationsPage() {
         if (pageLive.current && !controller.signal.aborted) setSnoozePending(null);
       }
     },
-    [failed, text],
+    [failed, holdWrites, text],
   );
 
   const restore = useCallback((item: NotificationItem) => {
@@ -314,11 +326,13 @@ export default function NotificationsPage() {
         });
         if (!pageLive.current || controller.signal.aborted) return;
         if (!result.response.ok || !succeeded(result.body)) {
+          if (result.response.status >= 500 || result.response.ok) holdWrites();
           restore(item);
           await failed(text("deleteFailed"), result.body);
         }
       } catch {
         if (pageLive.current && !controller.signal.aborted) {
+          holdWrites();
           restore(item);
           await failed(text("deleteFailed"));
         }
@@ -330,12 +344,12 @@ export default function NotificationsPage() {
           setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
       }
     },
-    [failed, restore, text],
+    [failed, holdWrites, restore, text],
   );
 
   const handleDelete = useCallback(
     (item: NotificationItem) => {
-      if (!pageLive.current || snoozeLock.current || pending.current.has(item.id) || deleting.current.has(item.id)) return;
+      if (!pageLive.current || writeHoldRef.current || snoozeLock.current || pending.current.has(item.id) || deleting.current.has(item.id)) return;
       writeEpoch.current++;
       setNotifications((prev) => prev.filter((n) => n.id !== item.id));
       const timer = setTimeout(() => void commitDelete(item), DELETE_DELAY_MS);
@@ -369,7 +383,7 @@ export default function NotificationsPage() {
     notification: NotificationItem,
     minutes: number | null,
   ) => {
-    if (!pageLive.current || snoozeLock.current) return;
+    if (!pageLive.current || writeHoldRef.current || snoozeLock.current) return;
     const controller = new AbortController();
     activeWrites.current.add(controller);
     snoozeLock.current = true;
@@ -384,6 +398,7 @@ export default function NotificationsPage() {
       });
       if (!pageLive.current || controller.signal.aborted) return;
       if (!result.response.ok) {
+        if (result.response.status >= 500) holdWrites();
         await failed(text("snoozeFailed"), result.body);
         return;
       }
@@ -395,6 +410,7 @@ export default function NotificationsPage() {
           (typeof body.snoozed_until !== "string" ||
             !Number.isFinite(Date.parse(body.snoozed_until))))
       ) {
+        holdWrites();
         await failed(text("snoozeFailed"));
         return;
       }
@@ -412,7 +428,7 @@ export default function NotificationsPage() {
         title: minutes === null ? text("restored") : text("snoozeDone"),
       });
     } catch {
-      if (!controller.signal.aborted) await failed(text("snoozeFailed"));
+      if (!controller.signal.aborted) { holdWrites(); await failed(text("snoozeFailed")); }
     } finally {
       activeWrites.current.delete(controller);
       writeEpoch.current++;
@@ -509,6 +525,12 @@ export default function NotificationsPage() {
           </button>
         ))}
       </div>
+
+      {writeHold && (
+        <p role="alert" className="mx-4 mb-4 rounded-xl bg-surface-fill p-4 text-subhead text-label-primary">
+          {text("notificationRecoveryHold")}
+        </p>
+      )}
 
       {/* Notification list */}
       <div className="px-4">
@@ -632,7 +654,7 @@ export default function NotificationsPage() {
                   {isSnoozed(notification) ? (
                     <button
                       type="button"
-                      disabled={snoozePending !== null}
+                      disabled={writeHold || snoozePending !== null}
                       onClick={() => handleSnooze(notification, null)}
                       className="btn-tinted min-h-[44px] disabled:opacity-50"
                       aria-label={text("showLabel", {
@@ -649,7 +671,7 @@ export default function NotificationsPage() {
                           title: notification.title,
                         })}
                         value=""
-                        disabled={snoozePending !== null}
+                        disabled={writeHold || snoozePending !== null}
                         onChange={(e) => {
                           if (e.target.value)
                             void handleSnooze(
@@ -674,7 +696,7 @@ export default function NotificationsPage() {
                   {!isSnoozed(notification) && !notification.read && (
                     <button
                       type="button"
-                      disabled={snoozePending !== null}
+                      disabled={writeHold || snoozePending !== null}
                       onClick={() => handleMarkAsRead(notification.id)}
                       className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full px-2 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill-secondary shrink-0"
                       aria-label={text("markLabel", {
@@ -689,7 +711,7 @@ export default function NotificationsPage() {
                   )}
                   <button
                     type="button"
-                    disabled={snoozePending !== null}
+                    disabled={writeHold || snoozePending !== null}
                     onClick={() => handleDelete(notification)}
                     className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full hover:bg-surface-fill-secondary shrink-0"
                     aria-label={text("deleteLabel", {
@@ -717,7 +739,7 @@ export default function NotificationsPage() {
             )}
             {olderError && <p role="alert" className="text-subhead text-label-secondary">{olderError}</p>}
             {nextCursor && (
-              <button ref={olderTrigger} type="button" className="btn-tinted min-h-[44px]" disabled={loadingOlder || snoozePending !== null || deleteBusy} aria-busy={loadingOlder} onClick={() => void loadOlder()}>
+              <button ref={olderTrigger} type="button" className="btn-tinted min-h-[44px]" disabled={writeHold || loadingOlder || snoozePending !== null || deleteBusy} aria-busy={loadingOlder} onClick={() => void loadOlder()}>
                 {text(loadingOlder ? "loading" : olderError ? "retryOlder" : "loadOlder")}
               </button>
             )}

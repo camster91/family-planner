@@ -286,7 +286,7 @@ it('offers the canonical summary destination and withholds arbitrary stored link
 });
 
 // Authored source cases only; QA remains deferred.
-it.each(['mark', 'snooze'] as const)('keeps the notification and releases controls after an oversized %s reply', async action => {
+it.each(['mark', 'snooze'] as const)('keeps the notification and holds writes after an oversized %s reply', async action => {
   const decode = jest.fn(async () => ({ success: true, snoozed_until: null }))
   global.fetch = jest.fn(async (_input, init) => init?.method === 'PATCH'
     ? ({ ok: true, status: 200, headers: new Headers({ 'content-length': '65536' }), json: decode })
@@ -298,8 +298,8 @@ it.each(['mark', 'snooze'] as const)('keeps the notification and releases contro
   await screen.findByText('The change could not be confirmed. Refresh notifications before trying again.')
   expect(decode).not.toHaveBeenCalled()
   expect(screen.getByTestId('notification-row').textContent).toContain('Unread: Dishes done')
-  expect((screen.getByRole('button', { name: 'Mark "Dishes done" as read' }) as HTMLButtonElement).disabled).toBe(false)
-  expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(false)
+  expect((screen.getByRole('button', { name: 'Mark "Dishes done" as read' }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(true)
 })
 
 it('offers an explicit canonical refresh after an unconfirmed mark-read reply', async () => {
@@ -400,4 +400,33 @@ it.each(['mark', 'snooze', 'delete'] as const)('retires a pending %s response wh
   expect(screen.queryByText("Couldn't delete the notification")).toBeNull()
   expect(screen.queryByText('Notification snoozed')).toBeNull()
   expect(screen.getByText('Next screen')).toBeTruthy()
+})
+
+// Source-only recovery cases: a failed refresh cannot clear an unknown write.
+it.each(['network', 'server', 'malformed'] as const)('holds further changes after a %s snooze result until a valid full refresh', async outcome => {
+  const user = userEvent.setup()
+  let reads = 0
+  const calls = mockFetch(method => {
+    if (method === 'PATCH') return outcome === 'network' ? 'throw'
+      : outcome === 'server' ? { status: 500, body: { error: 'Could not confirm' } }
+      : { status: 200, body: { success: true, snoozed_until: 'invalid' } }
+    if (++reads === 2) return 'throw'
+    return { status: 200, body: { notifications: [UNREAD], nextCursor: null } }
+  })
+  renderPage()
+  await user.selectOptions(await screen.findByRole('combobox', { name: 'Snooze "Dishes done"' }), '15')
+  await screen.findByText('Refresh to check the latest state before making another change.')
+  const snooze = screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement
+  expect(snooze.disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Delete "Dishes done"' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.selectOptions(snooze, '60')
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'Refresh notifications' }))
+  await screen.findByText('Check your connection and try again.')
+  expect(screen.getByText('Refresh to check the latest state before making another change.')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(false))
+  expect(screen.queryByText('Refresh to check the latest state before making another change.')).toBeNull()
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+  expect(reads).toBe(3)
 })
