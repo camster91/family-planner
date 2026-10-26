@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import "@testing-library/jest-dom";
 import * as React from "react";
 import { render, screen, within } from "@testing-library/react";
@@ -38,7 +39,7 @@ beforeEach(() => {
       removeEventListener: jest.fn(),
     });
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [{ id: "school", name: "School", color: null }] }

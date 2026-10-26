@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import * as React from "react";
 import {
   act,
@@ -48,9 +49,9 @@ beforeEach(() => {
   window.matchMedia = jest.fn().mockReturnValue({ matches: true });
   global.fetch = jest.fn(async (url, options) => {
     if (String(url) === "/api/auth/me")
-      return { ok: true, json: async () => ({ user: { role: "parent" } }) };
+      return { ok: true, headers: calendarReadOwnerHeaders(), json: async () => ({ user: { role: "parent" } }) };
     if (String(url).startsWith("/api/events?id="))
-      return { ok: true, json: async () => ({ event: currentEvent }) };
+      return { ok: true, headers: calendarReadOwnerHeaders(), json: async () => ({ event: currentEvent }) };
     if (options?.method === "PATCH") {
       if (succeeds)
         currentEvent = { ...currentEvent, ...JSON.parse(String(options.body)) };
@@ -79,10 +80,10 @@ beforeEach(() => {
       };
     }
     if (String(url).includes("subscriptions"))
-      return { ok: true, json: async () => ({ subscriptions: [] }) };
+      return { ok: true, headers: calendarReadOwnerHeaders(), json: async () => ({ subscriptions: [] }) };
     reads += 1;
     return {
-      ok: true,
+      ok: true, headers: calendarReadOwnerHeaders(),
       json: async () => ({
         events: committed ? [currentEvent] : [],
         hasMore: false,

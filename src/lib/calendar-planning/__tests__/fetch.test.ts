@@ -1,3 +1,5 @@
+import { calendarReadOwnerFixture, calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
+import { CALENDAR_OWNER_HEADER } from "@/lib/calendar-read-owner";
 import { fetchPlanningRange } from "../fetch";
 const start = "2026-01-01T00:00:00Z", end = "2026-01-08T00:00:00Z";
 const event = (id: string) => ({id,title:"Fixture event",start_time:"2026-01-04T12:00:00Z",end_time:"2026-01-04T13:00:00Z",event_type:"other"});
@@ -67,7 +69,7 @@ it("rejects failed responses, malformed paging and aborted requests", async () =
   ).rejects.toThrow();
 });
 const response = (body: unknown) =>
-  ({ ok: true, json: async () => body }) as Response;
+  ({ ok: true, headers: calendarReadOwnerHeaders(), json: async () => body }) as Response;
 it("reads every cursor page with the same bounded range and signal", async () => {
   const request = jest
     .fn()
@@ -106,7 +108,7 @@ it('rejects a stalled later page at the overall deadline instead of returning a 
 });
 it('refuses an oversized page without decoding it', async () => {
   const json = jest.fn();
-  const request = jest.fn(async () => ({ok:true,headers:new Headers({'content-length':String(8 * 1024 * 1024 + 1)}),json}) as unknown as Response);
+  const request = jest.fn(async () => ({ok:true,headers:new Headers({...Object.fromEntries(calendarReadOwnerHeaders()),'content-length':String(8 * 1024 * 1024 + 1)}),json}) as unknown as Response);
   await expect(fetchPlanningRange(start,end,new AbortController().signal,request)).rejects.toThrow('could not load');
   expect(json).not.toHaveBeenCalled();
 });
@@ -128,4 +130,25 @@ it('refuses invalid page budgets before dispatch', async () => {
   const request = jest.fn();
   await expect(fetchPlanningRange(start,end,new AbortController().signal,request,0)).rejects.toThrow('paging');
   expect(request).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: paging is bound to the first admitted response owner.
+it.each([
+  {actorId:'other-parent'}, {familyId:'family-B'}, {role:'teen'}, {generation:1},
+])('withholds partial results and never decodes a changed-owner page (%j)', async change => {
+  const json = jest.fn(async () => ({events:[event('b')],hasMore:false}));
+  const headers = new Headers({[CALENDAR_OWNER_HEADER]:JSON.stringify({...calendarReadOwnerFixture,...change})});
+  const request = jest.fn().mockResolvedValueOnce(response({events:[event('a')],hasMore:true,nextCursor:'next'}))
+    .mockResolvedValueOnce({ok:true,headers,json});
+  await expect(fetchPlanningRange(start,end,new AbortController().signal,request)).rejects.toThrow('paging');
+  expect(json).not.toHaveBeenCalled();
+  expect(request.mock.calls[1][1].headers[CALENDAR_OWNER_HEADER]).toBe(JSON.stringify(calendarReadOwnerFixture));
+});
+it.each([null,'{}','not-json'])('refuses a missing or invalid response owner before body decoding (%s)', async marker => {
+  const headers = new Headers();
+  if (marker !== null) headers.set(CALENDAR_OWNER_HEADER,marker);
+  const json = jest.fn();
+  await expect(fetchPlanningRange(start,end,new AbortController().signal,
+    jest.fn(async () => ({ok:true,headers,json}) as unknown as Response))).rejects.toThrow('paging');
+  expect(json).not.toHaveBeenCalled();
 });

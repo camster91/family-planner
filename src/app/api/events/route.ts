@@ -1,3 +1,4 @@
+import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
 import { projectEventCreators } from "@/lib/event-people";
 import { assistantDeleteTargetGuard } from "@/lib/assistant-delete-target";
 import {
@@ -47,16 +48,23 @@ async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
-    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+    const original: Readonly<CalendarReadOwner> = Object.freeze({ protocol: CALENDAR_OWNER_PROTOCOL, actorId: auth.user.id, familyId: auth.user.family_id,
       role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const scopeChanged = () => NextResponse.json({
+      error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED",
+    }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    // Old clients may omit comparison metadata. A client that supplies it must
+    // never silently rebind its original read to a different current owner.
+    const expected = request.headers.get(CALENDAR_OWNER_HEADER);
+    if (expected !== null && !sameCalendarOwner(readCalendarOwner(expected), original)) return scopeChanged();
     const reply = async (body: unknown) => {
       const [current, refused] = await authenticateWithFamily(request);
       if (refused) { refused.headers.set("Cache-Control", "private, no-store"); return refused; }
       if (current.user.id !== original.actorId || current.user.family_id !== original.familyId ||
         current.user.role !== original.role || (current.payload.tv ?? 0) !== original.generation)
-        return NextResponse.json({ error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED" },
-          { status: 409, headers: { "Cache-Control": "private, no-store" } });
-      return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
+        return scopeChanged();
+      return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store",
+        [CALENDAR_OWNER_HEADER]: JSON.stringify(original) } });
     };
 
     const { searchParams } = new URL(request.url);

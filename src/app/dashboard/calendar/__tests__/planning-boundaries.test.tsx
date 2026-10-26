@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import * as React from "react";
 import { runInThisContext } from "node:vm";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -15,7 +16,7 @@ afterEach(() => {
 beforeEach(() => {
   replace.mockClear();
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }

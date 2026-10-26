@@ -1,3 +1,5 @@
+import { CALENDAR_OWNER_HEADER } from "@/lib/calendar-read-owner";
+import { calendarReadOwnerFixture } from "@/__tests__/helpers/calendar-read-owner";
 // Two-household isolation for /api/events (#102).
 
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
@@ -103,4 +105,22 @@ it('withholds already-loaded event data if the viewer changes households during 
     expect(body).not.toHaveProperty('event');
     expect(body).not.toHaveProperty('events');
   } finally { lookup.mockRestore(); }
+});
+
+// Authored UNRUN: optional comparison headers preserve old clients, never grant access.
+it('echoes the renewed owner without changing legacy response bodies', async () => {
+  db.reset();
+  const response = await events.GET(req({as:'parentA',query:{id:'event-a'}}));
+  expect(response.status).toBe(200);
+  expect(JSON.parse(response.headers.get(CALENDAR_OWNER_HEADER)!)).toEqual(calendarReadOwnerFixture);
+  expect(await response.json()).toHaveProperty('event.id','event-a');
+});
+it.each(['{}','bad-json',JSON.stringify({...calendarReadOwnerFixture,familyId:'family-B'}),
+  JSON.stringify({...calendarReadOwnerFixture,generation:1})])('refuses an invalid or different original owner (%s)', async marker => {
+  db.reset();
+  const response = await events.GET(req({as:'parentA',headers:{[CALENDAR_OWNER_HEADER]:marker},query:{id:'event-a'}}));
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({error:'Your account or household changed. Reload the calendar.',code:'EVENT_SCOPE_CHANGED'});
+  expect(response.headers.get(CALENDAR_OWNER_HEADER)).toBeNull();
+  expect(writesTo('event')).toHaveLength(0);
 });

@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import * as React from "react";
 import "@testing-library/jest-dom";
 import { render, screen, fireEvent, act } from "@testing-library/react";
@@ -43,7 +44,7 @@ beforeEach(() => {
     removeEventListener: jest.fn(),
   });
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? {
@@ -197,7 +198,7 @@ const suggestion = {
 };
 function suggestionResponse() {
   return {
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     status: 200,
     json: async () => ({
       suggestions: [suggestion],
@@ -275,7 +276,7 @@ it("a lost commit response and locale switch reuse the exact reviewed batch and 
   });
   await act(async () =>
     resolve({
-      ok: true,
+      ok: true, headers: calendarReadOwnerHeaders(),
       status: 201,
       json: async () => ({
         count: 1,
@@ -385,7 +386,7 @@ it("shared offline notices switch language without changing age or duplicating t
 });
 it("the parent-only local detail edit action is translated without exposing it on imported events", async () => {
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }

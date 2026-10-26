@@ -1,3 +1,4 @@
+import { CALENDAR_OWNER_HEADER, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
 import { z } from "zod";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
@@ -44,6 +45,7 @@ export async function fetchPlanningRange(
   const result = await runOwnedForeground(async ownedSignal => {
     const events = new Map<string, PlanningEvent>();
     const seen = new Set<string>();
+    let owner: CalendarReadOwner | null = null;
     let pages = 0;
     let cursor: string | null = null;
     try {
@@ -51,8 +53,17 @@ export async function fetchPlanningRange(
         if (ownedSignal.aborted) throw new DOMException("Request aborted", "AbortError");
         const query = new URLSearchParams({ start, end, limit: "200" });
         if (cursor) query.set("cursor", cursor);
-        const response = await request(`/api/events?${query}`, { cache: "no-store", signal: ownedSignal });
+        const response = await request(`/api/events?${query}`, { cache: "no-store", signal: ownedSignal,
+          ...(owner ? { headers: { [CALENDAR_OWNER_HEADER]: JSON.stringify(owner) } } : {}) });
         if (!response.ok || ownedSignal.aborted) throw new Error("Calendar unavailable");
+        // Admit metadata before decoding any private page. Missing markers
+        // (including older servers) fail closed; never merge partial results.
+        const admitted = readCalendarOwner(response.headers?.get(CALENDAR_OWNER_HEADER) ?? null);
+        if (!admitted || (owner && !sameCalendarOwner(owner, admitted))) {
+          void response.body?.cancel().catch(() => undefined);
+          throw new InvalidCalendarPage();
+        }
+        owner ??= Object.freeze(admitted);
         // Retain large valid 200-event pages, while bounding untrusted streams.
         const parsed = page.safeParse(await readBoundedJsonResponse(response, ownedSignal, 8 * 1024 * 1024));
         if (!parsed.success) throw new InvalidCalendarPage();
