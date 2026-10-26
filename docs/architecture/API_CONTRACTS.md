@@ -2193,3 +2193,30 @@ UNRUN. This is point-in-time checking, not recall or serialization of related
 people after lookup, original browser-session-ID binding, or coverage of event
 mutation/SSR replies. No actual DB, role/native/rollback/recurrence acceptance,
 QA/checks/build/browser/CI/push/merge/deploy or provider activation ran.
+
+
+### Browser calendar range transport/projection — 2026-10-26 source candidate
+
+`fetchPlanningRange` uses the existing foreground helper for one30-second
+range-job deadline (all pages/headers/body waits) and an8MiB streamed response
+limit per page. JSON-only older bridges retain the helper's post-decode bound,
+not a preallocation guarantee. Non-success response bodies are not decoded.
+The existing ten-page/2000-event budget remains, with explicit truncation only
+when that deliberate budget is reached. Internal page budgets outside1–10 and
+invalid/nonpositive/over45-day ranges refuse before dispatch.
+
+Each page projects complete typed planning/source display fields, strict
+calendar instants and nonnegative intervals (including existing zero-duration
+points), range overlap, at most200 unique event IDs and bounded cursor metadata.
+Empty continuation pages, within-page duplicate IDs, malformed metadata or
+repeated cursors refuse. Unrelated properties are stripped; a failed/malformed
+later page never returns an apparently complete partial calendar. Existing
+cross-page ID reconciliation is retained, not a snapshot-convergence claim.
+
+Seven new fixture cases describe a stalled later page, size refusal before
+decoding, malformed display/time/duplicate rows, minimal projection and invalid
+page budget. Existing pagination and one source-attribution fixture are adapted
+to real response shape and the shared owned signal. All are UNRUN. No original
+browser-owner pinning across pages, stable DB snapshot, local recurrence engine,
+CPU/latency/memory benchmark or native/rendered/rollback acceptance is supplied.
+No QA/tests/checks/build/browser/DB/CI/push/merge/deploy or activation ran.

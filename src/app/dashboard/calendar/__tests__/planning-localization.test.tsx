@@ -32,7 +32,7 @@ const event = {
   start_time: "2026-01-05T09:00:45.123Z",
   end_time: "2026-01-05T11:00:55.456Z",
   event_type: "other",
-  source: { name: "Fixture {source}", color: null },
+  source: { subscription_id: "fixture-source", name: "Fixture {source}", color: null },
   source_subscription_id: "fixture-source",
 };
 beforeEach(() => {
