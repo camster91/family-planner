@@ -8,6 +8,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
@@ -417,7 +418,7 @@ it("holds a legacy untimed save without replacing its key or posting again", asy
   const signature = rewardCreateSignature(draft); const key = "legacy-reward-key-12345678";
   window.localStorage.setItem(rewardCreateStorageKey(owner), JSON.stringify({ version: 1, owner, latestDraft: draft, intents: { [signature]: { key, draft } } }));
   const user = userEvent.setup(); render(<CreateRewardForm owner={owner} />);
-  await screen.findByText("The original save is too old or its timing is unknown. Your draft and request are kept. Check Rewards before creating anything new.");
+  await screen.findAllByText("The original save is too old or its timing is unknown. Your draft and request are kept. Check Rewards before creating anything new.");
   expect(screen.getByRole("button", { name: "Try again" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Create Reward" }));
   expect(global.fetch).not.toHaveBeenCalled();
@@ -435,4 +436,26 @@ it("retires an unmounted save and keeps recovery after an abort-ignoring late su
   await act(async () => finish(response(201, createdRewardForOwner(owner, "Pending original"))));
   expect(push).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled();
   const saved = JSON.parse(window.localStorage.getItem(rewardCreateStorageKey(owner))!); expect(Object.keys(saved.intents)).toHaveLength(1);
+});
+
+// Authored UNRUN: edited drafts must not hide earlier unfinished requests.
+it("lists original owner saves independently of the latest edited draft", async () => {
+  const owner = { userId: "recovery-list-owner", familyId: "recovery-list-family" };
+  const original = { name: "Original choice", description: "Original details", cost: 50, icon: "🎁" };
+  const latest = { ...original, name: "New draft", description: "Later edit" };
+  const signature = rewardCreateSignature(original); const key = "original-reward-save-12345678";
+  window.localStorage.setItem(rewardCreateStorageKey(owner), JSON.stringify({ version: 1, owner, latestDraft: latest,
+    intents: { [signature]: { key, draft: original, issuedAt: Date.now() } } }));
+  global.fetch = jest.fn(async () => response(201, createdRewardForOwner(owner, original.name))) as typeof fetch;
+  const user = userEvent.setup(); render(<CreateRewardForm owner={owner} />);
+  const list = await screen.findByRole("list", { name: "Unfinished reward saves" });
+  expect(screen.getByLabelText("Name")).toHaveValue(latest.name);
+  expect(within(list).getByText("Original details")).toBeInTheDocument();
+  await user.click(within(list).getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  const init = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+  expect(JSON.parse(init.body as string)).toEqual(original);
+  expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe(key);
+  const saved = JSON.parse(window.localStorage.getItem(rewardCreateStorageKey(owner))!);
+  expect(saved.latestDraft).toEqual(latest); expect(saved.intents).toEqual({});
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { requestOwnedJson } from "@/lib/owned-request-http";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +15,7 @@ import {
   rememberRewardCreateDraft,
   rememberRewardCreateIntent,
   rewardCreateIntent,
+  rewardCreateIntents,
   rewardCreateOwnerKey,
   rewardCreateSignature,
   rewardCreateWithinRetryWindow,
@@ -122,6 +123,8 @@ function CreateRewardFormInner({
   const submittingRef = useRef(false);
   const requestKeys = useRef(new Map<string, RewardCreateIntent>());
   const uncertainRequests = useRef(new Set<string>());
+  const recoveryListId = useId();
+  const [pendingSaves, setPendingSaves] = useState<Array<{ signature: string; intent: RewardCreateIntent }>>([]);
   const [recoveryIntent, setRecoveryIntent] = useState<RewardCreateIntent | null>(null);
   const [accessHeld, setAccessHeld] = useState(false);
   const [storageHeld, setStorageHeld] = useState(false);
@@ -149,10 +152,23 @@ function CreateRewardFormInner({
     onBusyChange?.(loading);
   }, [loading, onBusyChange]);
 
+  const refreshPendingSaves = useCallback(() => {
+    const pending = new Map(rewardCreateIntents(scopedOwner).map(entry => [entry.signature, entry.intent]));
+    for (const [signature, intent] of requestKeys.current) {
+      if (!pending.has(signature)) pending.set(signature, intent);
+    }
+    setPendingSaves(Array.from(pending, ([signature, intent]) => ({ signature, intent })));
+  }, [scopedOwner]);
+
   useEffect(() => {
     // This effect is intentionally the first browser read. Rendering always
     // starts from the same defaults as SSR, so a cached private draft cannot
     // change the server/client HTML during hydration.
+    for (const { signature, intent } of rewardCreateIntents(scopedOwner)) {
+      requestKeys.current.set(signature, intent);
+      uncertainRequests.current.add(signature);
+    }
+    refreshPendingSaves();
     const draft = latestRewardCreateDraft(scopedOwner);
     if (draft) {
       setName(draft.name);
@@ -169,7 +185,7 @@ function CreateRewardFormInner({
     }
     setStorageHeld(rewardCreateStorageHeld(scopedOwner));
     setHydrated(true);
-  }, [scopedOwner]);
+  }, [scopedOwner, refreshPendingSaves]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -207,6 +223,7 @@ function CreateRewardFormInner({
       setError(stored || remembered ? "recoveryHold" : "capacityError"); return;
     }
     requestKeys.current.set(signature, original);
+    refreshPendingSaves();
     const payload: CreatePayload = { name: original.draft.name.trim(), description: original.draft.description.trim() || undefined,
       cost: original.draft.cost, icon: original.draft.icon };
     submittingRef.current = true;
@@ -232,13 +249,13 @@ function CreateRewardFormInner({
           || code === "REWARD_ACCESS_CHANGED" || code === "REWARD_ACCESS_UNCONFIRMED"
           || uncertainRequests.current.has(signature) || Boolean(stored || remembered || retry);
         if (ambiguous) retain(response.status === 403 ? "permissionError" : "createError");
-        else { requestKeys.current.delete(signature); forgetRewardCreateIntent(scopedOwner, signature); setRecoveryIntent(null); }
+        else { requestKeys.current.delete(signature); forgetRewardCreateIntent(scopedOwner, signature); setRecoveryIntent(null); refreshPendingSaves(); }
         throw new CreateRewardFailure(response.status === 403 ? "permissionError" : "createError");
       }
       if (!isCreatedReward(data, payload, scopedOwner)) { retain("recoveryTitle"); return; }
       confirmedRequests.current.add(signature); uncertainRequests.current.delete(signature);
       requestKeys.current.delete(signature); forgetRewardCreateIntent(scopedOwner, signature);
-      forgetLatestRewardCreateDraft(scopedOwner, signature); setRecoveryIntent(null);
+      forgetLatestRewardCreateDraft(scopedOwner, signature); setRecoveryIntent(null); refreshPendingSaves();
       const allowed = await navigation?.releaseBeforeNavigation();
       if (!current()) return;
       if (allowed === false) { setConfirmed(true); return; }
@@ -362,17 +379,32 @@ function CreateRewardFormInner({
               <>
                 <p className="mt-1">{copy.recoveryDescription}</p>
                 {recoveryIntent && <p className="mt-1 [overflow-wrap:anywhere]">{copy.recoveryName.replace("{name}", recoveryIntent.draft.name)}</p>}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => void submit(recoveryIntent ?? undefined)} disabled={loading || !recoveryIntent || !rewardCreateWithinRetryWindow(recoveryIntent)}>
-                    {copy.tryAgain}
-                  </button>
-                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => void checkRewards()} disabled={loading}>
-                    {copy.checkRewards}
-                  </button>
-                </div>
               </>
             )}
           </div>
+        )}
+
+        {pendingSaves.length > 0 && (
+          <details open className="rounded-xl border border-separator bg-surface-fill p-4">
+            <summary className="min-h-[44px] cursor-pointer text-subhead font-semibold">
+              {copy.pendingSaves.replace("{count}", String(pendingSaves.length))}
+            </summary>
+            <p className="text-sm text-label-secondary">{copy.pendingSavesDescription}</p>
+            <ul className="mt-3 max-h-72 space-y-3 overflow-y-auto" aria-label={copy.pendingSavesLabel}>
+              {pendingSaves.map(({ signature, intent }, index) => (
+                <li key={signature} className="rounded-lg bg-surface-fill-secondary p-3 space-y-2">
+                  <p id={`${recoveryListId}-${index}`} className="font-medium [overflow-wrap:anywhere]">{intent.draft.icon} {intent.draft.name}</p>
+                  <p className="text-sm text-label-secondary">{intent.draft.cost} {copy.points}</p>
+                  {intent.draft.description && <p className="text-sm [overflow-wrap:anywhere]">{intent.draft.description}</p>}
+                  {!rewardCreateWithinRetryWindow(intent) && <p className="text-sm text-label-secondary">{copy.retryAgeHold}</p>}
+                  <button type="button" className="btn-plain min-h-[44px]" aria-describedby={`${recoveryListId}-${index}`} onClick={() => void submit(intent)} disabled={loading || !rewardCreateWithinRetryWindow(intent)}>
+                    {copy.tryAgain}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="btn-plain mt-2 min-h-[44px]" onClick={() => void checkRewards()} disabled={loading}>{copy.checkRewards}</button>
+          </details>
         )}
 
         <fieldset disabled={loading} aria-busy={loading} className="space-y-5">

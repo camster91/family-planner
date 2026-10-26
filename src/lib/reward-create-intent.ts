@@ -232,6 +232,15 @@ export function rewardCreateIntent(
   return intent ? cloneIntent(intent) : null;
 }
 
+/** Bounded owner-only snapshots; a caller cannot mutate the recovery journal. */
+export function rewardCreateIntents(
+  owner: RewardCreateOwner | undefined,
+): Array<{ signature: string; intent: RewardCreateIntent }> {
+  const store = getStore(owner);
+  if (!store || store.storageHeld) return [];
+  return Array.from(store.intents, ([signature, intent]) => ({ signature, intent: cloneIntent(intent) }));
+}
+
 export function rememberRewardCreateIntent(
   owner: RewardCreateOwner | undefined,
   signature: string,
