@@ -48,7 +48,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 - Legacy import rehearsal: `docs/MIGRATION_REHEARSAL.md` — restored current-source procedure for #104; fixture acceptance, approved real-export rehearsal and production cutover remain separate and unperformed.
 
-- Current implementation-to-QA handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (source coverage only; runtime acceptance and release remain).
+- Current deferral boundary and preserved earlier implementation handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (historical candidate coverage is not current source completion or permission to start QA/release).
 
 - AI evaluation source/observation contract (#144): `docs/testing/AI_EVALUATION.md` (versioned builders/fixtures authored; no evaluation or provider run claimed).
 

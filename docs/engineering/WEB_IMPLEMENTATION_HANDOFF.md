@@ -1,3 +1,37 @@
+# Current handoff boundary — 2026-10-26
+
+The active instruction is source/planning issue follow-through with **all QA,
+tests/checks/builds/browser/CI and release activity deferred**. The earlier frozen
+candidate and82-issue statements below belong to the historical candidates and
+dates they name. They do not establish source completion, readiness or acceptance
+for the recovered checkout. The latest GitHub read has37 open issues; use
+[CURRENT_STATE](../CURRENT_STATE.md), the
+[issue completion ledger](ISSUE_COMPLETION_LEDGER.md) and canonical
+[programme #128](https://github.com/camster91/family-planner/issues/128) for current
+source checkpoints, disposition and next actions.
+
+The current local work is unpushed, unverified and unreleased. Earlier passing
+or failed runs remain evidence for their exact original candidates only; none
+was rerun or promoted here. There is no current source-freeze declaration and
+no instruction here to start QA, merge, deploy, activate providers or apply
+migrations. Authored fixtures and source schemas do not prove that any native,
+database, household, restore or installed-client path works.
+
+Original accepted feature/role/device/privacy/compatibility requirements remain
+in their canonical issues. Some source work is still unfinished; do not relabel
+all remaining work as QA or waiting, and do not close an issue because its UI or
+plan exists. Actual external inputs—provider eligibility/configuration, signing,
+hardware, approved exports, operator decisions and independent household beta
+observations—stay distinct from work Codex can author locally. The two #110
+research/definition criteria recently reconciled do not adopt billing or supply
+customer evidence.
+
+The material below is retained in full for provenance. Its earlier commands,
+counts, proposed sequencing and completeness statements cannot override the
+latest user instruction or current canonical disposition.
+
+---
+
 ## Integrated source repair batch frozen for consolidated QA — 2026-10-23
 
 The implementation review of this repair batch is complete. It follows the

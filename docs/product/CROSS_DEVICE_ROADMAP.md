@@ -1,3 +1,23 @@
+## Current source-only programme boundary — 2026-10-26
+
+The latest GitHub read has37 open issues. Current source/planning follow-through
+lives in [CURRENT_STATE](../CURRENT_STATE.md), the
+[issue completion ledger](../engineering/ISSUE_COMPLETION_LEDGER.md) and
+[programme #128](https://github.com/camster91/family-planner/issues/128).
+QA/tests/checks/build/browser/CI, schema execution, provider/native activation
+and release remain deferred. Local source is unpushed, unverified and unreleased;
+there is no new source freeze or full native-parity claim.
+
+The product requirements and named dependencies below remain useful, but earlier
+82-issue counts and verified/live/source-complete statements refer to their old
+candidates/dates. They do not validate the recovered checkout or make actual
+hardware, signing, provider eligibility, old-client recovery or household beta
+evidence available. Preserve those requirements and histories without treating
+their absence as Done. Current owner decisions and remaining source work stay
+in canonical issues; this roadmap is not a second completion board.
+
+---
+
 # Herewoven cross-device experience and family AI
 
 Date: 2026-10-10. Owner: Cameron. Execution: Codex. Parent: [#128](https://github.com/camster91/family-planner/issues/128).
