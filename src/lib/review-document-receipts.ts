@@ -68,21 +68,32 @@ export async function inspectReviewDocumentReceipt(
     headers.set("X-Capture-Action", request.action);
     headers.set("X-Capture-Request-Hash", hash);
   }
-  const result = await requestOwnedJson(
-    recipe
-      ? "/api/recipes/receipt"
-      : chore
-        ? "/api/chores/create/receipt"
-        : "/api/capture/receipt",
-    { headers },
-    8192,
-  );
-  if (result.kind !== "reply")
-    throw new OwnedRequestRecoveryError("UNAVAILABLE");
-  if ([401, 403, 409, 422].includes(result.response.status))
-    return { state: "refused" };
+  return readReceiptAt(recipe ? "/api/recipes/receipt" : chore ? "/api/chores/create/receipt" : "/api/capture/receipt", headers);
+}
+
+async function readReceiptAt(path: string, headers: Headers, signal?: AbortSignal): Promise<ReviewReceiptState> {
+  const result = await requestOwnedJson(path, { headers, signal }, 8192);
+  if (result.kind !== "reply") throw new OwnedRequestRecoveryError("UNAVAILABLE");
+  if ([401, 403, 409, 422].includes(result.response.status)) return { state: "refused" };
   if (!result.response.ok) throw new OwnedRequestRecoveryError("UNAVAILABLE");
   const proof = receipt.safeParse(result.body);
   if (!proof.success) throw new OwnedRequestRecoveryError("UPDATE_REQUIRED");
   return proof.data;
+}
+
+/** Inspect the original ordinary chore request through the existing state-only
+ * endpoint. Receipt presence is never permission to retry an absent/expired key.
+ * Authentication and current household permissions remain server decisions.
+ */
+export async function inspectChoreCreateReceipt(
+  original: { action: "chore.create" | "chore.profile.create"; key: string; body: string },
+  signal?: AbortSignal,
+): Promise<ReviewReceiptState> {
+  const raw: unknown = JSON.parse(original.body);
+  const parsed = original.action === "chore.create" ? createChoreSchema.parse(raw) : profileChoreCreateSchema.parse(raw);
+  const hash = await hashBrowserIdempotentRequest(original.action, parsed);
+  if (signal?.aborted || !/^[a-f0-9]{64}$/.test(hash)) throw new OwnedRequestRecoveryError("UNAVAILABLE");
+  return readReceiptAt("/api/chores/create/receipt", new Headers({
+    "Idempotency-Key": original.key, "X-Chore-Create-Action": original.action, "X-Chore-Request-Hash": hash,
+  }), signal);
 }

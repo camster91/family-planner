@@ -1,6 +1,6 @@
 "use client";
 import { CHORE_PHOTO_MAX_BYTES, isChorePhotoPath } from "@/lib/chore-photo-contract";
-import { requestOwnedJson } from "@/lib/owned-request-http";
+import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
 import { useTodayKey } from "@/components/ui/use-hydrated";
 import { parseDateOnly, toDateOnlyLocal } from "@/lib/dates";
@@ -142,6 +142,9 @@ export default function CreateChoreForm({
   const submitEpoch = useRef(0);
   const submitController = useRef<AbortController | null>(null);
   const accountRequest = useRef<{ key: string; body: string; issuedAt: number } | null>(null);
+  const originalRecoveryRequest = useRef<{ action: "chore.create" | "chore.profile.create"; key: string; body: string } | null>(null);
+  const [checkingReceipt, setCheckingReceipt] = useState(false);
+  const [receiptFeedback, setReceiptFeedback] = useState<ChoreFormMessage | null>(null);
   const [accountSaveState, setAccountSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
   useEffect(() => {
     live.current = true;
@@ -170,7 +173,7 @@ export default function CreateChoreForm({
   const photoController = useRef<AbortController | null>(null);
   const photoUploadPending = useRef(false);
   useEffect(() => () => { photoEpoch.current++; photoController.current?.abort(); photoUploadPending.current = false; }, []);
-  const busy = loading || photoUploading;
+  const busy = loading || photoUploading || checkingReceipt;
   const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
@@ -456,7 +459,7 @@ export default function CreateChoreForm({
     const epoch = ++submitEpoch.current;
     const current = () => live.current && submitEpoch.current === epoch;
     setLoading(true);
-    setError(null);
+    setError(null); setReceiptFeedback(null);
     const submittedProfileDraftRevision = isProfileTarget
       ? profileDraftRevision.current
       : null;
@@ -512,6 +515,7 @@ export default function CreateChoreForm({
           setProfileRetryAgeHeld(true); setError(message("profileRetryExpired")); return;
         }
         submittedProfileRequest = profilePendingRequest.current;
+        originalRecoveryRequest.current = Object.freeze({ action: "chore.profile.create", key, body: JSON.stringify(requestBody) });
         headers[IDEMPOTENCY_HEADER] = key;
       } else {
         requestBody = {
@@ -552,6 +556,7 @@ export default function CreateChoreForm({
       } else {
         const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now() });
         accountRequest.current = packet;
+        originalRecoveryRequest.current = Object.freeze({ action: "chore.create", key: packet.key, body: packet.body });
         const controller = new AbortController(); submitController.current = controller;
         const result = await requestOwnedJson("/api/chores/create", {
           method: "POST", signal: controller.signal,
@@ -654,10 +659,45 @@ export default function CreateChoreForm({
     }
   };
 
+  const checkOriginalSave = async () => {
+    const original = originalRecoveryRequest.current;
+    if (!original || !live.current || submitPending.current || photoUploadPending.current) return;
+    submitPending.current = true;
+    const epoch = ++submitEpoch.current;
+    const controller = new AbortController(); submitController.current = controller;
+    const current = () => live.current && submitEpoch.current === epoch;
+    setCheckingReceipt(true); setReceiptFeedback(null);
+    const result = await runOwnedForeground(async signal => {
+      const { inspectChoreCreateReceipt } = await import("@/lib/review-document-receipts");
+      if (signal.aborted) return { kind: "unknown" as const };
+      return { kind: "proof" as const, proof: await inspectChoreCreateReceipt(original, signal) };
+    }, { signal: controller.signal });
+    if (!current()) return;
+    if (result.kind === "unknown") setReceiptFeedback("choreReceiptUnavailable");
+    else {
+      const proof = result.proof;
+      if (proof.state === "committed") {
+        setReceiptFeedback(proof.current === "present" ? "choreReceiptPresent" : proof.current === "removed" ? "choreReceiptRemoved" : "choreReceiptUnknown");
+        if (proof.current === "present") setAccountSaveState("confirmed");
+        else setAccountSaveState("unknown");
+      } else {
+        setReceiptFeedback(proof.state === "pending" ? "choreReceiptPending" : proof.state === "expired" ? "choreReceiptExpired" : proof.state === "absent" ? "choreReceiptAbsent" : "choreReceiptRefused");
+        // No read result can establish permission to recreate or renew a key.
+        setAccountSaveState("unknown");
+      }
+    }
+    submitController.current = null; submitPending.current = false; setCheckingReceipt(false);
+  };
+  const receiptControls = originalRecoveryRequest.current && !review ? <div className="space-y-2">
+    <button type="button" className="btn-plain min-h-11" disabled={busy} onClick={() => void checkOriginalSave()}>{message(checkingReceipt ? "checkingSavedChore" : "checkSavedChore")}</button>
+    {receiptFeedback && <p role="status" className="text-sm text-label-secondary">{message(receiptFeedback)}</p>}
+  </div> : null;
+
   if (accountSaveState !== "editing") return <div role="status" className="rounded-2xl border border-border bg-surface-fill p-5 space-y-3">
     <p>{message(accountSaveState === "confirmed" ? "accountSaveConfirmed" : "accountSaveUnknown")}</p>
     <p className="text-sm text-label-secondary">{message("accountSaveRecoveryLimit")}</p>
-    <button type="button" className="btn-tinted min-h-11" disabled={loading} onClick={async () => {
+    {receiptControls}
+    <button type="button" className="btn-tinted min-h-11" disabled={busy} onClick={async () => {
       const epoch = submitEpoch.current;
       if ((await navigation?.releaseBeforeNavigation()) === false || !live.current || epoch !== submitEpoch.current) return;
       router.push("/dashboard/chores"); router.refresh();
@@ -707,6 +747,7 @@ export default function CreateChoreForm({
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
             <p className="text-body text-[var(--danger-text)]">{error}</p>
+            {receiptControls}
             {profileRetryAgeHeld && <Link href="/dashboard/chores" className="btn-plain inline-flex min-h-11 items-center">{message("checkChores")}</Link>}
           </div>
         )}

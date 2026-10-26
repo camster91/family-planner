@@ -1,9 +1,11 @@
 /** @jest-environment jsdom */
+import { webcrypto } from "node:crypto";
 /** Authored only; consolidated QA is deferred. */
 import * as React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CreateChoreForm from "../create/CreateChoreForm";
 import type { CaptureChoreDraft } from "@/lib/capture-chore-review";
+if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, "crypto", { configurable: true, value: webcrypto });
 const push = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: jest.fn() }),
@@ -138,6 +140,7 @@ it("serializes ordinary submits and holds an interrupted create before any repla
   const read = global.fetch;
   global.fetch = jest.fn(async (path, init) => {
     if (init?.method === "POST") throw new Error("Fixture unknown save");
+    if (path === "/api/chores/create/receipt") return { ok: true, status: 200, json: async () => ({ state: "absent" }) } as Response;
     return read(path, init);
   }) as typeof fetch;
   render(<CreateChoreForm inSheet />);
@@ -152,6 +155,12 @@ it("serializes ordinary submits and holds an interrupted create before any repla
   expect(writes).toHaveLength(1);
   expect(typeof (writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]).toBe("string");
   expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Check original save" }));
+  await screen.findByText("No matching receipt is visible. This does not prove the original save failed.");
+  expect(screen.queryByRole("button", { name: "Create Chore" })).not.toBeInTheDocument();
+  const receiptCall = jest.mocked(fetch).mock.calls.find(([path]) => path === "/api/chores/create/receipt")!;
+  expect(new Headers(receiptCall[1]?.headers).get("Idempotency-Key")).toBe((writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]);
+  expect(receiptCall[1]?.method).toBeUndefined();
   fireEvent.click(screen.getByRole("button", { name: "Check Chores" }));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
   expect(jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
