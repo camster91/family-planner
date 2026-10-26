@@ -1981,3 +1981,29 @@ the target time on another deliberate request and are not an exact retry after
 uncertainty; refresh the canonical inbox first. No schema/migration or provider
 change. Fixture source is UNRUN; session-renewal, concurrent same-owner row
 replacement, native/old-reader and all runtime acceptance remain separate.
+
+
+### Canonical recipe detail browser read — 2026-10-26 source candidate
+
+The existing detail page uses `recipe-detail-client.ts` and the shared bounded
+recipe transport:15-second foreground deadline and1MiB JSON response. Replacing
+a read or leaving the route aborts the page-owned controller; existing route/
+request-generation guards still reject retired completions. Canonical404 maps
+to the existing missing/foreign state without error-body decoding. Other read
+failures keep the localized Retry state. No write or provider request is added.
+
+The display projection checks the requested canonical ID, complete nested
+ingredient/display fields, finite nonnegative amounts/times, positive servings
+(or null), optional valid revision/time metadata and no more than100 unique
+line IDs. Unrecognized fields are stripped. Unsupported legacy/malformed data
+holds with Retry; it is never silently truncated, normalized or presented as
+an empty recipe. These are read-shape bounds, not reapplication of write-time
+text/portion limits. Advisory role loading uses the shared foreground helper
+and64KiB body bound; failure grants no extra controls or server permission.
+
+Seven fixture cases are authored, UNRUN. The existing server remains household
+scoped and renews authority before responding, but this browser slice does not
+pin detail, later edits or curation to one original owner generation. Same-ID
+birth replacement, owner handoff, notification exact-link admission and current/
+previous native acceptance remain separate work. No schema/migration/QA/release
+or provider activation ran.

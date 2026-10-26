@@ -20,6 +20,8 @@ import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { RecipeDetailEdit } from "@/components/meals/RecipeDetailEdit";
 import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { RecipeCuration } from "@/components/meals/RecipeCuration";
+import { readRecipeDetail, RecipeDetailNotFound } from "@/lib/recipe-detail-client";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 
 type Load =
   | { state: "loading" }
@@ -51,46 +53,47 @@ function RecipePageInner() {
   };
 
   React.useEffect(() => {
-    let active = true;
-    fetch("/api/auth/me")
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json();
-        if (active) setRole(data.user?.role ?? null);
+    const controller = new AbortController();
+    void requestOwnedJson("/api/auth/me", { method: "GET", signal: controller.signal }, 64 * 1024)
+      .then(result => {
+        if (controller.signal.aborted || result.kind !== "reply" || !result.response.ok) return;
+        const body = result.body;
+        const user = body && typeof body === "object" && "user" in body ? body.user : null;
+        const role = user && typeof user === "object" && "role" in user ? user.role : null;
+        if (role === "parent" || role === "teen" || role === "child") setRole(role);
       })
       .catch(() => {});
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, []);
   const [load, setLoad] = React.useState<Load>({ state: "loading" });
 
   const currentId = React.useRef(id);
   currentId.current = id;
   const generation = React.useRef(0);
+  const activeRead = React.useRef<AbortController | null>(null);
   const fetchRecipe = React.useCallback(async () => {
     if (!id) return;
     const requestGeneration = ++generation.current;
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    activeRead.current = controller;
     const current = () =>
-      currentId.current === id && generation.current === requestGeneration;
+      !controller.signal.aborted && currentId.current === id && generation.current === requestGeneration;
     setLoad({ state: "loading" });
     try {
-      const res = await fetch(`/api/recipes/${encodeURIComponent(id)}`);
-      if (!current()) return;
-      if (res.status === 404) {
-        setLoad({ state: "not-found" });
-        return;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { recipe: RecipeDetailData };
-      if (current()) setLoad({ state: "ready", recipe: data.recipe });
-    } catch {
-      if (current()) setLoad({ state: "error" });
+      const recipe = await readRecipeDetail(id, controller.signal);
+      if (current()) setLoad({ state: "ready", recipe });
+    } catch (cause) {
+      if (current()) setLoad({ state: cause instanceof RecipeDetailNotFound ? "not-found" : "error" });
+    } finally {
+      if (activeRead.current === controller) activeRead.current = null;
     }
   }, [id]);
 
   const invalidateRequests = React.useCallback(() => {
     generation.current++;
+    activeRead.current?.abort();
+    activeRead.current = null;
   }, []);
   React.useEffect(() => {
     void fetchRecipe();
