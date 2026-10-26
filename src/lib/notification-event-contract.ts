@@ -1,4 +1,4 @@
-/** Proposed N1 internal contract (#141), currently unconnected.
+/** N1 internal contract (#141), used by bounded default-off producer cohorts.
  * Coordinates are not authority. Canonical domain transactions must create/reuse
  * transition identity; no timestamp/title/receipt-key inference is permitted.
  */

@@ -5,6 +5,39 @@ infrastructure or accepted behavior. Existing #141 taxonomy, preferences, privac
 quiet-hours/timezone, native/deep-link and telemetry criteria remain authoritative.
 No provider, scheduler, schema, data, permission or release setting changes here.
 
+## Current terminal-cohort recovery boundary — 2026-10-26
+
+The current source wires account-chore creation and chore approval/return plus
+reward creation/claim/approval to the admission/terminal-recipient primitives,
+behind existing default-off readiness and dispatch-window configuration. See
+`person-chore-create.ts`, `chore-check-http.ts` and `reward-mutations.ts` with
+their source-specific adapters. Later dated sections preserve how those cohorts
+were authored; earlier “unconnected” descriptions apply to their old checkpoints.
+No cohort is activated or accepted by this reconciliation.
+
+These cohorts use the caller's canonical business transaction. Stored recipient
+decisions are terminal `created`/`suppressed`, with a frozen slot and inbox link
+that may later be cleared. The current schema has no queued/leased/retryable
+recipient state. A missing inbox row is not evidence of delivery failure or
+permission to refill its terminal slot. A suppressed/departed/erased choice is
+not a reason to recompute a new recipient roster.
+
+For an unknown business response, use that domain's original command/key and
+existing canonical outcome inspection where supported. If the source has no
+exact recovery proof, keep the outcome uncertain; a recipient retry must not
+stand in for the missing business receipt. A rolled-back cohort does not become
+a separately accepted pending delivery merely because an event adapter ran.
+The existing parent portability export is retained evidence, not a dispatch UI.
+
+N2's future asynchronous recovery requirements below remain open. Introducing
+such a cohort requires reviewed pending/delivery states, original source/slot
+identity, authoritative deadline/retention, leases/CAS and source/recipient
+renewal plus exact recovery and installed-client/rollback acceptance. N3 provider
+reconciliation, remaining ordinary/manual/reassignment/reminder producers and
+N4 event/list/recipe/native destinations also remain unfinished. Do not add an
+unbacked pending queue/view or infer resend from notification deletion. No new
+schema, scheduler, provider, UI or mutation path is introduced here. No QA ran.
+
 ## Current source and the missing behavior
 
 - `notification-policy.ts` maps every existing in-app type to a category,

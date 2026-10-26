@@ -1,4 +1,4 @@
-/** N2 terminal in-app slot; used by the default-off chore-create cohort.
+/** N2 terminal in-app slot for default-off canonical chore/reward cohorts.
  * Caller owns the canonical effect/admission/receipt transaction. A slot is a
  * frozen accepted recipient position, never recalculated from a new roster.
  */

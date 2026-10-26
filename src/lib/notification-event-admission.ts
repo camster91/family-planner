@@ -1,4 +1,4 @@
-/** N1 internal admission; the default-off canonical chore-create cohort uses it.
+/** N1 internal admission for default-off canonical chore/reward cohorts.
  * The caller owns one canonical domain transaction and its exact effect receipt.
  * Required sourceGuard must lock/recheck canonical generation, accepted transition,
  * role/feature and source authority in this SAME transaction, not a cached DTO.
