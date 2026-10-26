@@ -208,6 +208,21 @@ export function MealPrepEditor({
     setValidation(false);
     mutation.clearError();
   };
+  const moveDish = (direction: -1 | 1) => {
+    if (mutation.locked) return;
+    const nextIndex = selectedDish + direction;
+    if (nextIndex < 0 || nextIndex >= dishes.length) return;
+    setDishes((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(selectedDish, 1);
+      if (!moved) return prev;
+      next.splice(nextIndex, 0, moved);
+      return next;
+    });
+    setSelectedDish(nextIndex);
+    setValidation(false);
+    mutation.clearError();
+  };
   const requestClose = () => {
     if (mutation.owned) {
       if (!mutation.closeBlocked) void navigateAfterOwnedDrafts(onClose);
@@ -377,6 +392,34 @@ export function MealPrepEditor({
               >
                 {tBulk("duplicateDish")}
               </button>
+              {dishes.length > 1 && (
+                <div
+                  className="flex flex-wrap gap-2"
+                  role="group"
+                  aria-label={tBulk("reorderDishes")}
+                >
+                  <button
+                    type="button"
+                    className="btn-tinted min-h-[44px]"
+                    disabled={mutation.locked || selectedDish === 0}
+                    aria-label={tBulk("moveDishUp")}
+                    onClick={() => moveDish(-1)}
+                  >
+                    ↑ {tBulk("moveDishUp")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-tinted min-h-[44px]"
+                    disabled={
+                      mutation.locked || selectedDish === dishes.length - 1
+                    }
+                    aria-label={tBulk("moveDishDown")}
+                    onClick={() => moveDish(1)}
+                  >
+                    ↓ {tBulk("moveDishDown")}
+                  </button>
+                </div>
+              )}
               {step === 1 ? (
                 <>
                   <RecipePicker

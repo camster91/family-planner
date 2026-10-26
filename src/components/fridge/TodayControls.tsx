@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { BoardLinks } from "@/app/dashboard/today/today-board-data";
 import { canRoleAccessPath } from "@/lib/kid-access";
+import { canCreateList } from "@/lib/role-capabilities";
 import ExplorePanel from "@/components/layout/ExplorePanel";
 import { useTodayBoardText } from "@/i18n/today-board";
 
@@ -43,6 +44,7 @@ export default function TodayControls({
   const parent = role === "parent";
   const canCreateEvent = (parent || role === "teen") && Boolean(links.calendar);
   const canCreateChore = parent && Boolean(links.chores);
+  const canAddList = canCreateList(role) && Boolean(links.lists);
   const closeOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
     if (event.key !== "Escape" || !event.currentTarget.open) return;
     event.preventDefault();
@@ -65,7 +67,7 @@ export default function TodayControls({
       aria-label={text("todayQuickActions")}
       className="relative mb-4 flex flex-wrap items-center gap-2 md:mb-5"
     >
-      {(canCreateEvent || canCreateChore) && (
+      {(canCreateEvent || canCreateChore || canAddList) && (
         <details
           ref={add}
           className="relative"
@@ -89,6 +91,12 @@ export default function TodayControls({
               <Link prefetch={false} href="/dashboard/chores/create" className={menuClass}>
                 <ListPlus size={18} aria-hidden="true" />
                 {text("addChore")}
+              </Link>
+            )}
+            {canAddList && (
+              <Link prefetch={false} href="/dashboard/lists/create" className={menuClass}>
+                <ListPlus size={18} aria-hidden="true" />
+                {text("addList")}
               </Link>
             )}
           </div>

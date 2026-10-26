@@ -12,6 +12,7 @@ import { formatRecipeAmount } from "@/lib/recipe-scaling";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { formatMinutes } from "@/lib/meal-slots";
 import { useTranslation } from "@/i18n";
+import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 
 export interface RecipeDetailData {
@@ -43,6 +44,7 @@ export function RecipeDetail({
   actions?: React.ReactNode;
 }) {
   const { locale } = useTranslation();
+  const detailText = useRecipeDetailText();
   const text = useRecipePresentationText();
   const sourceMatch = /^Source: (https:\/\/[^\n]+)\n/.exec(
     recipe.description ?? "",
@@ -81,6 +83,15 @@ export function RecipeDetail({
         >
           {recipe.title}
         </h1>
+        {recipe.favorite && (
+          <span
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-[var(--surface-fill)] px-3 text-footnote font-semibold text-label-primary"
+            data-testid="recipe-favorite"
+          >
+            <span aria-hidden="true">★</span>
+            {detailText("favorite")}
+          </span>
+        )}
         {description && (
           <p className="text-body text-label-secondary break-words whitespace-pre-line">
             {description}
