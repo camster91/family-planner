@@ -34,7 +34,7 @@ such a cohort requires reviewed pending/delivery states, original source/slot
 identity, authoritative deadline/retention, leases/CAS and source/recipient
 renewal plus exact recovery and installed-client/rollback acceptance. N3 provider
 reconciliation, remaining ordinary/manual/reassignment/reminder producers and
-N4 event/list/recipe/native destinations also remain unfinished. Do not add an
+N4 producer-to-target and event/native journeys also remain unfinished. Do not add an
 unbacked pending queue/view or infer resend from notification deletion. No new
 schema, scheduler, provider, UI or mutation path is introduced here. No QA ran.
 
@@ -1266,3 +1266,28 @@ Exact request recovery and the wider N1–N5 contract remain open. Three added
 network/server/malformed snooze cases plus two adapted oversized-response cases
 are authored, UNRUN; no tests/checks/build/browser/DB/CI/push/merge/deploy or
 activation ran. #141/#135 remain open.
+
+
+## Exact recipe/list destination admission — 2026-10-26 source only
+
+The existing notification allowlist now admits canonical plain-ID recipe detail
+and list detail paths, with typed constructors/parsers shared by future trusted
+producers. Extra query data, fragments, encoded aliases, separators and reserved
+list static/shortcut targets (`create`, `groceries`, `type`) refuse. No arbitrary
+scheme, publisher URL, action instruction or permission is accepted.
+
+The inbox's existing Open control renders these paths without issuing a write.
+Recipe detail uses its existing household-scoped API, owner/body validation and
+neutral missing/reload/retry states. List detail uses the existing scoped SSR
+reader and neutral missing/read-failure state with Back/Retry controls. A stored
+notification link is never authorization; the existing role/feature/session
+boundaries and canonical mutation handlers still apply when the target opens.
+No target is inferred from notification title/type or renamed to an alias.
+
+Strict-link and inbox render-only fixture sources are authored, UNRUN. Existing
+older allowlists withhold unknown paths; no downgrade fallback strips IDs or
+reinterprets them as actions. This does not migrate any producer, backfill stored
+links, create source event identity, guarantee same-ID birth continuity, implement
+event-occurrence focus, or establish native cold/warm/installed-client behavior.
+Full N4 producer-to-target/permission/deletion and original role/device evidence
+remain open. No QA/checks/build/browser/DB/CI/push/merge/deploy or activation ran.

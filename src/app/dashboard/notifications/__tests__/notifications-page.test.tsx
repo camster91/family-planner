@@ -430,3 +430,15 @@ it.each(['network', 'server', 'malformed'] as const)('holds further changes afte
   expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
   expect(reads).toBe(3)
 })
+
+// Authored UNRUN: exposing an exact link does not perform a target action.
+it('renders exact saved-recipe and list links without mutation requests', async () => {
+  const calls = mockFetch(() => ({status:200,body:{notifications:[
+    {...UNREAD,action_url:'/dashboard/meals/recipes/recipe-a'},
+    {...READ,action_url:'/dashboard/lists/list-a'},
+  ],nextCursor:null}}));
+  renderPage();
+  expect((await screen.findByRole('link',{name:'Open "Dishes done"'})).getAttribute('href')).toBe('/dashboard/meals/recipes/recipe-a');
+  expect(screen.getByRole('link',{name:'Open "Swim lesson"'}).getAttribute('href')).toBe('/dashboard/lists/list-a');
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+});

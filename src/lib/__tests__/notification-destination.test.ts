@@ -27,3 +27,19 @@ it("admits a canonical reward focus without an arbitrary action URL", () => {
 it.each(["/dashboard/rewards?focus=", "/dashboard/rewards?focus=fixture&extra=1", "/dashboard/rewards?focus=fixture#private", "/dashboard/rewards?focus=%66ixture", "/dashboard/rewards?focus=a/b", "/dashboard/rewards?focus=a?focus=b", "/dashboard/rewards?focus=" + "a".repeat(129)])("rejects ambiguous reward destinations (%s)", value => {
   expect(notificationDestination(value)).toBeNull();
 });
+
+// Authored UNRUN: exact existing target routes, without aliases or extra action data.
+it('admits plain canonical recipe/list targets', async () => {
+  const {recipeNotificationDestination,listNotificationDestination} = await import('../notification-destination');
+  expect(recipeNotificationDestination('recipe-a_1')).toBe('/dashboard/meals/recipes/recipe-a_1');
+  expect(listNotificationDestination('list-a_1')).toBe('/dashboard/lists/list-a_1');
+  expect(notificationDestination('/dashboard/meals/recipes/recipe-a_1')).toBe('/dashboard/meals/recipes/recipe-a_1');
+  expect(notificationDestination('/dashboard/lists/list-a_1')).toBe('/dashboard/lists/list-a_1');
+});
+it.each(['/dashboard/lists/create','/dashboard/lists/groceries','/dashboard/lists/type',
+  '/dashboard/lists/a?token=private','/dashboard/lists/%61','/dashboard/lists/a#private','/dashboard/lists/a/items',
+  '/dashboard/meals/recipes/a?owner=other','/dashboard/meals/recipes/%61','/dashboard/meals/recipes/a#private',
+  '/dashboard/meals/recipes/a/other','/dashboard/meals/recipes/../settings',
+])('withholds ambiguous recipe/list targets (%s)', value => {
+  expect(notificationDestination(value)).toBeNull();
+});
