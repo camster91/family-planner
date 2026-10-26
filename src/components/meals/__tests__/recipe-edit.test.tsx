@@ -13,6 +13,8 @@ import RecipePage from "@/app/dashboard/meals/recipes/[id]/page";
 import { RecipeEditor } from "../RecipeEditor";
 import type { RecipeDetailData } from "../RecipeDetail";
 
+const originalOwner = { protocol: "herewoven.recipe-owner.v1", actorId: "parent-a", familyId: "family-a", role: "parent", generation: 0 } as const;
+const ownerHeaders = (role = "parent") => new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ ...originalOwner, role }) });
 let mockRouteId = "r1";
 beforeEach(() => {
   mockRouteId = "r1";
@@ -71,7 +73,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 const response = (recipe: RecipeDetailData) =>
-  ({ ok: true, status: 200, json: async () => ({ recipe }) }) as Response;
+  ({ ok: true, headers: ownerHeaders(), status: 200, json: async () => ({ recipe }) }) as Response;
 
 it("ignores a delayed load from the previous route", async () => {
   const pending = deferred<Response>();
@@ -79,7 +81,7 @@ it("ignores a delayed load from the previous route", async () => {
   global.fetch = jest.fn((url) =>
     String(url) === "/api/auth/me"
       ? Promise.resolve({
-          ok: true,
+          ok: true, headers: ownerHeaders(),
           json: async () => ({ user: { role: "parent" } }),
         } as Response)
       : String(url).endsWith("r1")
@@ -113,7 +115,7 @@ it.each(["r2", "r1"])(
         ? pending.promise
         : String(url) === "/api/auth/me"
           ? Promise.resolve({
-              ok: true,
+              ok: true, headers: ownerHeaders(),
               json: async () => ({ user: { role: "parent" } }),
             } as Response)
           : Promise.resolve(response(currentRecipe)),
@@ -165,7 +167,7 @@ function setup(role = "parent") {
       const body = JSON.parse(String(init.body));
       writes.push({ url, method: init.method, body });
       return {
-        ok: true,
+        ok: true, headers: ownerHeaders(role),
         status: 200,
         json: async () => ({
           recipe: { ...RECIPE, ...body, ingredients: RECIPE.ingredients },
@@ -173,7 +175,7 @@ function setup(role = "parent") {
       } as Response;
     }
     return {
-      ok: true,
+      ok: true, headers: ownerHeaders(role),
       status: 200,
       json: async () =>
         url === "/api/auth/me" ? { user: { role } } : { recipe: RECIPE },
@@ -379,7 +381,7 @@ it("keeps the edit dialog open and disables cancellation while a Save is in flig
   expect(screen.getByRole("dialog")).toBeTruthy();
   expect(global.fetch).toHaveBeenCalledTimes(1);
   resolve({
-    ok: true,
+    ok: true, headers: ownerHeaders(),
     status: 200,
     json: async () => ({ recipe: { ...RECIPE, title: "Soup new" } }),
   } as Response);

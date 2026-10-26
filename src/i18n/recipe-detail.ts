@@ -15,6 +15,9 @@ const en = {
   failed: "Couldn’t load this recipe",
   failedDescription: "Check your connection and try again.",
   retry: "Try again",
+  ownerChanged: "Reload recipes",
+  ownerChangedDescription: "Your account or household context could not be confirmed. Reload before continuing.",
+  reload: "Reload",
   edit: "Edit recipe",
   editDescription: "Changes apply to this recipe. Planned meals keep their saved name.",
 } as const;
@@ -34,6 +37,9 @@ const es: Record<keyof typeof en, string> = {
   failed: "No se pudo cargar esta receta",
   failedDescription: "Revisa tu conexión y vuelve a intentarlo.",
   retry: "Reintentar",
+  ownerChanged: "Vuelve a cargar las recetas",
+  ownerChangedDescription: "No se pudo confirmar tu cuenta o el contexto de tu hogar. Vuelve a cargar antes de continuar.",
+  reload: "Volver a cargar",
   edit: "Editar receta",
   editDescription: "Los cambios se aplican a esta receta. Las comidas planificadas conservan su nombre guardado.",
 };

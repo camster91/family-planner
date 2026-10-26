@@ -2007,3 +2007,34 @@ pin detail, later edits or curation to one original owner generation. Same-ID
 birth replacement, owner handoff, notification exact-link admission and current/
 previous native acceptance remain separate work. No schema/migration/QA/release
 or provider activation ran.
+
+
+### Recipe detail owner continuity — 2026-10-26 source candidate
+
+Detail GET and PATCH now admit the optional existing recipe-owner header against
+the server-captured principal before reading recipe data or edit JSON. Successful
+responses echo that marker. Legacy headerless response bodies remain unchanged.
+PATCH passes the original role into the existing locked writer and detail reader.
+The marker is comparison metadata, never a credential or source-read grant.
+
+The browser detail helper now returns the validated recipe and owner together.
+It refuses absent/malformed/mismatched successful metadata before decoding the
+private body;401/403/409 hold the owner context. A canonical404 still maps to
+the existing neutral missing state. The page retains its first admitted owner
+across refreshes/route IDs in the same mounted lifetime and derives advisory
+role controls from that owner, removing the separate auth read. Edit and
+curation controls receive this original context and report owner holds to the
+containing page, which retires reads and replaces all recipe/action content
+with localized reload guidance. No owner is silently adopted on Retry.
+
+The new detail reader holds against older servers without marker support. An
+already-open edit followed by server rollback is a distinct unresolved case:
+older PATCH readers may ignore this header and still accept the edit payload.
+There is no strict edit-version/owner body refusal barrier in this slice, so
+forward/rollback release acceptance is not established. No new safe-retry
+promise, immutable recipe birth, full session-ID binding, durable edit journal
+or grocery-action owner contract is added. Other actions still authorize in
+their own canonical handlers; this page does not convert notifications or links
+into capabilities. Five added owner-admission/response cases and existing
+response fixtures are authored/adapted, UNRUN. No QA/checks/build/browser/DB/
+migration/CI/push/merge/deploy or activation ran. #460/#135/#473 remain open.

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { Dialog } from "@/components/ui/dialog";
 import { RecipeEditor } from "./RecipeEditor";
+import type { RecipeOwner } from "@/lib/recipe-owner-contract";
 import type { RecipeDetailData } from "./RecipeDetail";
 
 /** Uses the canonical recipe PATCH; editing never changes linked meal snapshots. */
@@ -11,9 +12,13 @@ export function RecipeDetailEdit({
   recipe,
   role,
   onSaved,
+  expectedOwner,
+  onOwnerHold,
 }: {
   recipe: RecipeDetailData;
   role: string | null;
+  expectedOwner?: RecipeOwner;
+  onOwnerHold?: () => void;
   onSaved: (recipe: RecipeDetailData) => void;
 }) {
   const text = useRecipeDetailText();
@@ -48,6 +53,8 @@ export function RecipeDetailEdit({
         >
           <RecipeEditor
             initialRecipe={recipe}
+            expectedRecipeOwner={expectedOwner}
+            onOwnerHold={onOwnerHold}
             onSavingChange={onSavingChange}
             onSaved={(saved) => {
               onSaved(saved);

@@ -20,14 +20,15 @@ import { AddToGroceriesButton } from "@/components/meals/AddToGroceriesButton";
 import { RecipeDetailEdit } from "@/components/meals/RecipeDetailEdit";
 import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { RecipeCuration } from "@/components/meals/RecipeCuration";
-import { readRecipeDetail, RecipeDetailNotFound } from "@/lib/recipe-detail-client";
-import { requestOwnedJson } from "@/lib/owned-request-http";
+import { readRecipeDetail, RecipeDetailNotFound, RecipeDetailOwnerChanged } from "@/lib/recipe-detail-client";
+import type { RecipeOwner } from "@/lib/recipe-owner-contract";
 
 type Load =
   | { state: "loading" }
   | { state: "ready"; recipe: RecipeDetailData }
   | { state: "not-found" }
-  | { state: "error" };
+  | { state: "error" }
+  | { state: "owner-hold" };
 
 export default function RecipePage() {
   return (
@@ -41,7 +42,9 @@ function RecipePageInner() {
   const detailText = useRecipeDetailText();
   const params = useParams<{ id: string }>();
   const id = params?.id;
-  const [role, setRole] = React.useState<string | null>(null);
+  const owner = React.useRef<RecipeOwner | null>(null);
+  const ownerHeld = React.useRef(false);
+  const role = owner.current?.role ?? null;
   const [groceryPending, setGroceryPending] = React.useState(false);
   const groceryPendingRef = React.useRef(false);
   const groceryOwnership = React.useCallback((pending: boolean) => {
@@ -52,27 +55,26 @@ function RecipePageInner() {
     if (groceryPendingRef.current) event.preventDefault();
   };
 
-  React.useEffect(() => {
-    const controller = new AbortController();
-    void requestOwnedJson("/api/auth/me", { method: "GET", signal: controller.signal }, 64 * 1024)
-      .then(result => {
-        if (controller.signal.aborted || result.kind !== "reply" || !result.response.ok) return;
-        const body = result.body;
-        const user = body && typeof body === "object" && "user" in body ? body.user : null;
-        const role = user && typeof user === "object" && "role" in user ? user.role : null;
-        if (role === "parent" || role === "teen" || role === "child") setRole(role);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
   const [load, setLoad] = React.useState<Load>({ state: "loading" });
 
   const currentId = React.useRef(id);
   currentId.current = id;
   const generation = React.useRef(0);
   const activeRead = React.useRef<AbortController | null>(null);
+  const reloadFocus = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (load.state === "owner-hold" && document.activeElement === document.body)
+      reloadFocus.current?.focus();
+  }, [load.state]);
+  const holdOwner = React.useCallback(() => {
+    ownerHeld.current = true;
+    generation.current++;
+    activeRead.current?.abort();
+    activeRead.current = null;
+    setLoad({ state: "owner-hold" });
+  }, []);
   const fetchRecipe = React.useCallback(async () => {
-    if (!id) return;
+    if (!id || ownerHeld.current) return;
     const requestGeneration = ++generation.current;
     activeRead.current?.abort();
     const controller = new AbortController();
@@ -81,14 +83,18 @@ function RecipePageInner() {
       !controller.signal.aborted && currentId.current === id && generation.current === requestGeneration;
     setLoad({ state: "loading" });
     try {
-      const recipe = await readRecipeDetail(id, controller.signal);
-      if (current()) setLoad({ state: "ready", recipe });
+      const result = await readRecipeDetail(id, controller.signal, { expectedOwner: owner.current ?? undefined });
+      if (current()) {
+        owner.current ??= Object.freeze({ ...result.owner });
+        setLoad({ state: "ready", recipe: result.recipe });
+      }
     } catch (cause) {
+      if (current() && cause instanceof RecipeDetailOwnerChanged) { holdOwner(); return; }
       if (current()) setLoad({ state: cause instanceof RecipeDetailNotFound ? "not-found" : "error" });
     } finally {
       if (activeRead.current === controller) activeRead.current = null;
     }
-  }, [id]);
+  }, [id, holdOwner]);
 
   const invalidateRequests = React.useCallback(() => {
     generation.current++;
@@ -111,6 +117,16 @@ function RecipePageInner() {
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         <span>{detailText("meals")}</span>
       </Link>
+
+      {load.state === "owner-hold" && (
+        <section role="alert" className="card-apple p-5 space-y-3">
+          <h1 className="text-title-2 text-label-primary">{detailText("ownerChanged")}</h1>
+          <p className="text-body text-label-secondary">{detailText("ownerChangedDescription")}</p>
+          <button ref={reloadFocus} type="button" className="btn-tinted min-h-[44px]" onClick={() => window.location.reload()}>
+            {detailText("reload")}
+          </button>
+        </section>
+      )}
 
       {load.state === "loading" && (
         <div className="space-y-4" role="status" aria-label={detailText("loading")}>
@@ -201,6 +217,8 @@ function RecipePageInner() {
                   key={load.recipe.id}
                   recipe={load.recipe}
                   role={role}
+                  expectedOwner={owner.current ?? undefined}
+                  onOwnerHold={holdOwner}
                   onSaved={(recipe) => {
                     if (
                       currentId.current === id &&
@@ -217,6 +235,8 @@ function RecipePageInner() {
                     id={load.recipe.id}
                     title={load.recipe.title}
                     favorite={load.recipe.favorite}
+                    expectedOwner={owner.current ?? undefined}
+                    onOwnerHold={holdOwner}
                     onChanged={() => void fetchRecipe()}
                   />
                 )}

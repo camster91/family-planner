@@ -340,3 +340,23 @@ describe('recipe original create owner', () => {
     expect(writesTo('ingredient')).toHaveLength(0)
   })
 })
+
+// Authored source cases, UNRUN: optional detail-owner continuity admission.
+describe('recipe detail original owner', () => {
+  beforeEach(() => { db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null) })
+  it.each(['GET', 'PATCH'] as const)('refuses %s with a different expected household before touching recipe data', async method => {
+    const request = req({ as: 'parentA', method, body: { title: 'Must not apply' }, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-B', role:'parent', generation:0 }),
+    } })
+    const response = await recipe[method](request, P('recipe-a'))
+    expect(response.status).toBe(409)
+    expect((await response.json()).error.code).toBe('RECIPE_OWNER_CHANGED')
+    expect(writesTo('recipe')).toHaveLength(0)
+  })
+  it('adds server-captured owner metadata without changing the legacy detail body', async () => {
+    const response = await recipe.GET(req({ as:'parentA' }), P('recipe-a'))
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.headers.get('X-Herewoven-Recipe-Owner')!)).toMatchObject({ actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 })
+    expect((await response.json()).recipe.id).toBe('recipe-a')
+  })
+})
