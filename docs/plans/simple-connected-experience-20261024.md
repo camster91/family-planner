@@ -50,3 +50,16 @@ to automatic household attachment or shared-device chat. No provider/feature
 activation, permission widening, implementation acceptance or QA follows.
 
 Closure record: https://github.com/camster91/family-planner/issues/123#issuecomment-6406251429
+
+
+## 2026-10-25 — preserve dropdown defect under canonical UI tracking
+
+#499 now contains a named required dropdown-contrast section and the complete
+original #448 requirements verbatim. #448 is closed only as redundant tracking.
+The identified source inventory remains `native-select-source-inventory.md`;
+solid themed source CSS does not prove native popups. All source-location/custom-
+menu/contrast/compiled closed-expanded/keyboard/role/value criteria and separate
+Android/Windows platform proof stay unchecked. General screen screenshots do not
+waive this named defect. No API/schema/permission/invitation changes or QA ran.
+
+Closure record: https://github.com/camster91/family-planner/issues/448#issuecomment-6406739133

@@ -23,7 +23,8 @@ The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only and consolidated the full #105 final-
 candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is now
-consolidated into #464 with its full original requirements preserved, leaving **38 open issues**.
+consolidated into #464 with its full original requirements preserved. Redundant
+#448 tracking is now a named required defect section of #499, leaving **37 open issues**.
 #105 closure does not mark any acceptance item done.
 Twelve documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480; all
 runtime/device/customer/production criteria remain separate and unchecked.
@@ -55,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work binds weekly profile retry lookup to the explicit weekday/start choice rather than a newly derived occurrence date. An unchanged pending request or a return to the same prior draft after edits can recover its original wire body/key/time across midnight; an old reviewed start is permitted only for that recognized original request, while new past-start validation remains. The existing date-rollover source fixture was strengthened, UNRUN. This remains mounted recovery without server-age/original-browser/durable proof; broader profile/runtime/QA acceptance is unfinished. The 38 issues remain open; no release or activation ran.
+Latest bounded source work consolidates the redundant #448 tracker into a named required dropdown-contrast section of #499, preserving its entire original body and explicit unchecked source/custom-menu/contrast/compiled-CSS/keyboard/role/Android/Windows criteria. Existing theme/solid-row CSS is source evidence only; the defect and platform proof remain required. The live directory now contains 37 open issues. Closure is tracking consolidation, not implementation/runtime acceptance. No QA, release or activation ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -107,7 +108,7 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #464 — Family assistant: chat, app help, voice drafts and private feedback | Assistant source; acceptance pending | Codex | Keep Help/Today/Add and explicit canonical action review; absorb deterministic guide acceptance from #562. |
 | #460 — Explore online recipes, import readable previews and save household recipe box | Recipe source; acceptance pending | Codex | Reconcile the complete search/parse/save/reuse/grocery/prep journey with existing recovery and curation paths. |
 | #450 — Chores and routines: weekly schedules, recurring series and habit stacks | Routine source; acceptance pending | Codex | Own weekly days, repeat grouping and routine lifecycle together while preserving per-occurrence actions/history. |
-| #448 — Fix unreadable native dropdown options in dark mode app-wide | Distinct readability defect retained | Codex | Keep native dropdown light/dark/platform acceptance explicit; do not bury it as completed UI polish. |
+| #499 — Required dropdown contrast (transferred #448) | Distinct defect retained as a named unchecked section; redundant tracker closed | Codex | Complete every original native/custom light/dark/compiled/keyboard/role and separate Android/Windows-popup criterion; source CSS is not acceptance. |
 | #377 — Web launch and beta acceptance — consolidated release checklist | Launch acceptance; not a new QA run | Codex + Cameron | Use the current protected-main/Coolify route and preserve email, household, beta, recovery and full original #105/#364 final-candidate gates. |
 | #372 — Finish the Herewoven rename: legal pages, emails, Settings and the sender name | Legal/brand choice pending | Cameron | Choose legal entity/copyright and mail sender identity before modifying legal or sender copy. |
 | #363 — [Owner] Decide on Coolify Auto Deploy | Deployment policy choice pending | Cameron/operator | Record whether the existing Auto Deploy policy remains enabled; no setting change in this goal. |
@@ -135,7 +136,10 @@ The unchanged older release/checkpoint notes below are historical evidence.
 
 ### Remaining scope and next gates — 2026-10-25
 
-Current directory: 38 open issues after redundant #123 consolidation into #464.
+Current directory: 37 open issues after redundant #123→#464 and #448→#499
+consolidation. Required dropdown contrast remains an explicit unchecked defect
+section, with separate Android/Windows proof; no UI acceptance was closed.
+Dropdown consolidation: https://github.com/camster91/family-planner/issues/448#issuecomment-6406739133
 The full body and unchecked criteria are preserved verbatim in #464; no delivery
 or acceptance was closed. Closure record: https://github.com/camster91/family-planner/issues/123#issuecomment-6406251429
 

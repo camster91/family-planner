@@ -23,7 +23,8 @@ The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only and consolidated the full #105 final-
 candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is now
-consolidated into #464 with its full original requirements preserved, leaving **38 open issues**.
+consolidated into #464 with its full original requirements preserved. Redundant
+#448 tracking is now a named required defect section of #499, leaving **37 open issues**.
 #105 closure does not mark any acceptance item done.
 Twelve documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480; all
 runtime/device/customer/production criteria remain separate and unchecked.
@@ -55,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work binds weekly profile retry lookup to the explicit weekday/start choice rather than a newly derived occurrence date. An unchanged pending request or a return to the same prior draft after edits can recover its original wire body/key/time across midnight; an old reviewed start is permitted only for that recognized original request, while new past-start validation remains. The existing date-rollover source fixture was strengthened, UNRUN. This remains mounted recovery without server-age/original-browser/durable proof; broader profile/runtime/QA acceptance is unfinished. The 38 issues remain open; no release or activation ran.
+Latest bounded source work consolidates the redundant #448 tracker into a named required dropdown-contrast section of #499, preserving its entire original body and explicit unchecked source/custom-menu/contrast/compiled-CSS/keyboard/role/Android/Windows criteria. Existing theme/solid-row CSS is source evidence only; the defect and platform proof remain required. The live directory now contains 37 open issues. Closure is tracking consolidation, not implementation/runtime acceptance. No QA, release or activation ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
