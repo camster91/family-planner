@@ -1,3 +1,4 @@
+import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import {
   withCalendarSubscriptionAccess,
@@ -70,6 +71,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const owner: CalendarReadOwner = { protocol: CALENDAR_OWNER_PROTOCOL, actorId: auth.user.id,
+      familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0 };
+    const expected = request.headers.get(CALENDAR_OWNER_HEADER);
+    if (expected !== null && !sameCalendarOwner(readCalendarOwner(expected), owner))
+      return NextResponse.json({ error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED" },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } });
     const actor: CalendarSubscriptionActor = { userId: auth.user.id, familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0 };
     const result = await withCalendarSubscriptionAccess(prisma!, actor, "read", async tx => {
       const subs = await tx.calendarSubscription.findMany({
@@ -81,7 +88,9 @@ export async function GET(request: NextRequest) {
       return subs.map((sub) => toSubscriptionDto(sub, { includeUrlHint: role === "parent" }));
     });
     if (result.kind === "held") return calendarSubscriptionAccessHeld();
-    return protectCalendarSubscriptionResponse(prisma!, actor, "read", NextResponse.json({ subscriptions: result.value }));
+    const response = await protectCalendarSubscriptionResponse(prisma!, actor, "read", NextResponse.json({ subscriptions: result.value }));
+    if (response.ok) response.headers.set(CALENDAR_OWNER_HEADER, JSON.stringify(owner));
+    return response;
   } catch {
     console.error("Error listing calendar subscriptions");
     return NextResponse.json(

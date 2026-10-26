@@ -1,5 +1,6 @@
-import { CALENDAR_OWNER_HEADER, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
+import { CALENDAR_OWNER_HEADER, admitCalendarResponseOwner, CalendarReadOwnerChanged, type CalendarReadAdmission, type CalendarReadOwner } from "@/lib/calendar-read-owner";
 import { z } from "zod";
+import { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { parseCalendarInstant, CALENDAR_RANGE_MAX_MS, CALENDAR_RANGE_MAX_LIMIT } from "./instant";
@@ -38,6 +39,7 @@ export async function fetchPlanningRange(
   signal: AbortSignal,
   request: typeof fetch = fetch,
   maxPages = 10,
+  admission: CalendarReadAdmission = {},
 ) {
   const from = parseCalendarInstant(start).getTime(), until = parseCalendarInstant(end).getTime();
   if (until <= from || until - from > CALENDAR_RANGE_MAX_MS || !Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 10)
@@ -45,7 +47,7 @@ export async function fetchPlanningRange(
   const result = await runOwnedForeground(async ownedSignal => {
     const events = new Map<string, PlanningEvent>();
     const seen = new Set<string>();
-    let owner: CalendarReadOwner | null = null;
+    let owner: CalendarReadOwner | null = admission.owner ?? null;
     let pages = 0;
     let cursor: string | null = null;
     try {
@@ -55,14 +57,9 @@ export async function fetchPlanningRange(
         if (cursor) query.set("cursor", cursor);
         const response = await request(`/api/events?${query}`, { cache: "no-store", signal: ownedSignal,
           ...(owner ? { headers: { [CALENDAR_OWNER_HEADER]: JSON.stringify(owner) } } : {}) });
-        if (!response.ok || ownedSignal.aborted) throw new Error("Calendar unavailable");
-        // Admit metadata before decoding any private page. Missing markers
-        // (including older servers) fail closed; never merge partial results.
-        const admitted = readCalendarOwner(response.headers?.get(CALENDAR_OWNER_HEADER) ?? null);
-        if (!admitted || (owner && !sameCalendarOwner(owner, admitted))) {
-          void response.body?.cancel().catch(() => undefined);
-          throw new InvalidCalendarPage();
-        }
+        if (ownedSignal.aborted) throw new DOMException("Request aborted", "AbortError");
+        const admitted = admitCalendarResponseOwner(response, owner);
+        if (admission.admit && !admission.admit(admitted)) throw new CalendarReadOwnerChanged();
         owner ??= Object.freeze(admitted);
         // Retain large valid 200-event pages, while bounding untrusted streams.
         const parsed = page.safeParse(await readBoundedJsonResponse(response, ownedSignal, 8 * 1024 * 1024));
@@ -81,12 +78,40 @@ export async function fetchPlanningRange(
       } while (cursor);
       return { kind: "range" as const, events: [...events.values()], truncated: false };
     } catch (cause) {
+      if (cause instanceof CalendarReadOwnerChanged) return { kind: "owner-held" as const };
       if (cause instanceof InvalidCalendarPage) return { kind: "invalid" as const };
       throw cause;
     }
   }, { signal, timeoutMs: 30_000 });
   if (signal.aborted) throw new DOMException("Request aborted", "AbortError");
+  if (result.kind === "owner-held") throw new CalendarReadOwnerChanged();
   if (result.kind === "invalid") throw new Error("Invalid calendar paging response.");
   if (result.kind !== "range") throw new Error("Calendar could not load. Try again.");
   return { events: result.events, truncated: result.truncated };
+}
+
+const subscriptionPage = z.object({ subscriptions: z.array(z.object({
+  id: z.string().min(1).max(128), name: z.string(), color: z.string().nullable(),
+})).max(MAX_SUBSCRIPTIONS_PER_FAMILY) }).refine(value => new Set(value.subscriptions.map(row => row.id)).size === value.subscriptions.length);
+/** Planner display projection only; never return feed URLs, hints or management fields. */
+export async function fetchPlanningSources(signal: AbortSignal, admission: CalendarReadAdmission = {}, request: typeof fetch = fetch) {
+  const result = await runOwnedForeground(async ownedSignal => {
+    try {
+      const response = await request("/api/calendar/subscriptions", { cache: "no-store", signal: ownedSignal,
+        ...(admission.owner ? { headers: { [CALENDAR_OWNER_HEADER]: JSON.stringify(admission.owner) } } : {}) });
+      if (ownedSignal.aborted) throw new DOMException("Request aborted", "AbortError");
+      const owner = admitCalendarResponseOwner(response, admission.owner ?? null);
+      if (admission.admit && !admission.admit(owner)) throw new CalendarReadOwnerChanged();
+      const parsed = subscriptionPage.safeParse(await readBoundedJsonResponse(response, ownedSignal, 256 * 1024));
+      if (!parsed.success) throw new Error("Invalid calendar sources");
+      return { kind: "sources" as const, subscriptions: parsed.data.subscriptions };
+    } catch (cause) {
+      if (cause instanceof CalendarReadOwnerChanged) return { kind: "owner-held" as const };
+      throw cause;
+    }
+  }, { signal, timeoutMs: 15_000 });
+  if (signal.aborted) throw new DOMException("Request aborted", "AbortError");
+  if (result.kind === "owner-held") throw new CalendarReadOwnerChanged();
+  if (result.kind !== "sources") throw new Error("Calendar sources could not load");
+  return result.subscriptions;
 }

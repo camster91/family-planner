@@ -1,3 +1,5 @@
+import { CALENDAR_OWNER_HEADER } from "@/lib/calendar-read-owner";
+import { calendarReadOwnerFixture } from "@/__tests__/helpers/calendar-read-owner";
 // Two-household isolation + role gates for /api/calendar/subscriptions (#232).
 
 jest.mock(
@@ -392,4 +394,18 @@ it("holds manual refresh effects when the original session changes during fetch"
   expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
   expect(writesTo("event")).toHaveLength(0);
   expect(writesTo("calendarSubscription")).toHaveLength(0);
+});
+
+// Authored UNRUN: planner comparison metadata is additive to legacy reads.
+it("echoes the original owner only on an authorized successful source read", async () => {
+  const response = await collection.GET(req({as:"parentA",headers:{[CALENDAR_OWNER_HEADER]:JSON.stringify(calendarReadOwnerFixture)}}));
+  expect(response.status).toBe(200);
+  expect(JSON.parse(response.headers.get(CALENDAR_OWNER_HEADER)!)).toEqual(calendarReadOwnerFixture);
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+});
+it.each(['{}',JSON.stringify({...calendarReadOwnerFixture,familyId:"family-B"})])("refuses invalid or different original source owner (%s)", async marker => {
+  const response = await collection.GET(req({as:"parentA",headers:{[CALENDAR_OWNER_HEADER]:marker}}));
+  expect(response.status).toBe(409);
+  expect(response.headers.get(CALENDAR_OWNER_HEADER)).toBeNull();
+  expect(await response.json()).not.toHaveProperty("subscriptions");
 });

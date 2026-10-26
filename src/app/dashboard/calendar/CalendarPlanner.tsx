@@ -2,6 +2,8 @@
 import { PreparationButton } from "@/components/calendar/preparation/PreparationProvider";
 import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
+import { CalendarReadHeld, useCalendarReadScope, type CalendarReadScope } from "@/components/calendar/CalendarReadScope";
+import { CalendarReadOwnerChanged } from "@/lib/calendar-read-owner";
 import Link from "next/link";
 import { useCoreTranslation } from "@/i18n/core";
 import {
@@ -27,6 +29,7 @@ import {
 } from "@/lib/calendar-planning/view";
 import {
   fetchPlanningRange,
+  fetchPlanningSources,
   type PlanningEvent,
 } from "@/lib/calendar-planning/fetch";
 import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
@@ -40,6 +43,7 @@ import { useOnline } from "@/components/fridge/use-board-sync";
 
 type Subscription = { id: string; name: string; color: string | null };
 export function CalendarPlanner({
+  readScope: suppliedReadScope,
   initialDate,
   initialView,
   canEditEvents = false,
@@ -48,6 +52,7 @@ export function CalendarPlanner({
   chooseLocalToday = false,
   headerAction,
 }: {
+  readScope?: CalendarReadScope;
   initialDate: string;
   initialView?: PlanningView;
   canEditEvents?: boolean;
@@ -56,6 +61,8 @@ export function CalendarPlanner({
   chooseLocalToday?: boolean;
   headerAction?: React.ReactNode;
 }) {
+  const localReadScope = useCalendarReadScope();
+  const readScope = suppliedReadScope ?? localReadScope;
   const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPlannerMessage,
@@ -109,7 +116,7 @@ export function CalendarPlanner({
       gridViewport.current.scrollTop = 8 * 64;
   }, [state, start, view]);
   React.useEffect(() => {
-    if (!local) return;
+    if (!local || readScope.held) return;
     if (!start || !end) {
       setSelected(null);
       return;
@@ -118,45 +125,42 @@ export function CalendarPlanner({
       id = ++requestId.current;
     setState("loading");
     setSelected(null);
-    fetchPlanningRange(start, end, controller.signal)
+    fetchPlanningRange(start, end, controller.signal, fetch, 10, { owner: readScope.owner, admit: readScope.admit })
       .then((result) => {
-        if (!controller.signal.aborted && id === requestId.current) {
+        if (!readScope.held && !controller.signal.aborted && id === requestId.current) {
           setData(result.events);
           setTruncated(result.truncated);
           setState("ready");
           setLoadedAt(Date.now());
         }
       })
-      .catch(() => {
-        if (!controller.signal.aborted && id === requestId.current)
-          setState("error");
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted && id === requestId.current) {
+          if (cause instanceof CalendarReadOwnerChanged) readScope.hold();
+          else if (!readScope.held) setState("error");
+        }
       });
     return () => controller.abort();
-  }, [start, end, local, retry, refreshKey, eventRevision]);
+  }, [start, end, local, retry, refreshKey, eventRevision, readScope, readScope.held]);
   React.useEffect(() => {
+    if (readScope.held) return;
     const controller = new AbortController();
     setSourceState("loading");
-    fetch("/api/calendar/subscriptions", { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) throw new Error();
-        const body = await res.json();
-        if (!Array.isArray(body.subscriptions)) throw new Error();
-        if (!controller.signal.aborted) {
-          setSources(
-            body.subscriptions.map((s: Subscription) => ({
-              id: s.id,
-              name: s.name,
-              color: s.color,
-            })),
-          );
+    fetchPlanningSources(controller.signal, { owner: readScope.owner, admit: readScope.admit })
+      .then((subscriptions) => {
+        if (!readScope.held && !controller.signal.aborted) {
+          setSources(subscriptions);
           setSourceState("ready");
         }
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setSourceState("error");
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) {
+          if (cause instanceof CalendarReadOwnerChanged) readScope.hold();
+          else if (!readScope.held) setSourceState("error");
+        }
       });
     return () => controller.abort();
-  }, [retry]);
+  }, [retry, readScope, readScope.held]);
   React.useEffect(() => {
     const refresh = () => setRetry((n) => n + 1);
     window.addEventListener("online", refresh);
@@ -291,6 +295,7 @@ export function CalendarPlanner({
       </button>
     );
   };
+  if (readScope.held) return <CalendarReadHeld />;
   return (
     <div className={styles.planner}>
       <header className={styles.header}>

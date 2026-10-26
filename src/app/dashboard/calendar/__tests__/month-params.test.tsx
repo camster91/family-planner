@@ -11,6 +11,7 @@ jest.mock("@/lib/prisma", () => ({
       findUnique: jest.fn(async () => ({
         family_id: "family-A",
         role: "parent",
+        token_version: 0,
       })),
     },
     event: { findMany: (args: unknown) => mockFindMany(args) },
@@ -119,7 +120,9 @@ describe("calendar edit links by role", () => {
     ["parent", true],
     ["teen", false],
   ])("%s: canEditEvents is %p", async (role, expected) => {
-    findUnique().mockResolvedValueOnce({ family_id: "family-A", role });
+    findUnique().mockResolvedValueOnce({ family_id: "family-A", role, token_version: 0 })
+      .mockResolvedValueOnce({ family_id: "family-A", role, token_version: 0 });
+    require("@/lib/supabase/server").getServerActor.mockResolvedValueOnce({id:"parent-a",family_id:"family-A",role,tokenVersion:0});
     const element = (await CalendarPage({
       searchParams: Promise.resolve({}),
     })) as { props: { canEditEvents: boolean } };
@@ -137,6 +140,18 @@ it("passes an exact authorized event focus to the canonical calendar client", as
 it("keeps focus unavailable when the verified actor no longer matches the page household", async () => {
   require("@/lib/supabase/server").getServerActor.mockResolvedValueOnce({id:"parent-a",family_id:"family-B",role:"parent",tokenVersion:0});
   const element = await CalendarPage({searchParams:Promise.resolve({focus:"event-a"})});
-  expect(element?.props.notificationFocus).toEqual({target:null});
+  expect(element).toBeNull();
   expect(mockEventFocus).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: SSR owner handoff and final authority renewal.
+it("passes the verified original owner into the client shell", async () => {
+  const element = await CalendarPage({searchParams:Promise.resolve({})});
+  expect(element?.props.initialOwner).toEqual({protocol:"herewoven.calendar-owner.v1",actorId:"parent-a",familyId:"family-A",role:"parent",generation:0});
+});
+it("withholds focused content after a late role change instead of renewing the client", async () => {
+  const lookup = require("@/lib/prisma").prisma.user.findUnique;
+  lookup.mockResolvedValueOnce({family_id:"family-A",role:"parent",token_version:0})
+    .mockResolvedValueOnce({family_id:"family-A",role:"teen",token_version:0});
+  expect(await CalendarPage({searchParams:Promise.resolve({focus:"event-a"})})).toBeNull();
 });

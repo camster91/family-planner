@@ -1,5 +1,5 @@
 import { calendarReadOwnerFixture, calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
-import { CALENDAR_OWNER_HEADER } from "@/lib/calendar-read-owner";
+import { CALENDAR_OWNER_HEADER, CalendarReadOwnerChanged } from "@/lib/calendar-read-owner";
 import { fetchPlanningRange } from "../fetch";
 const start = "2026-01-01T00:00:00Z", end = "2026-01-08T00:00:00Z";
 const event = (id: string) => ({id,title:"Fixture event",start_time:"2026-01-04T12:00:00Z",end_time:"2026-01-04T13:00:00Z",event_type:"other"});
@@ -140,7 +140,7 @@ it.each([
   const headers = new Headers({[CALENDAR_OWNER_HEADER]:JSON.stringify({...calendarReadOwnerFixture,...change})});
   const request = jest.fn().mockResolvedValueOnce(response({events:[event('a')],hasMore:true,nextCursor:'next'}))
     .mockResolvedValueOnce({ok:true,headers,json});
-  await expect(fetchPlanningRange(start,end,new AbortController().signal,request)).rejects.toThrow('paging');
+  await expect(fetchPlanningRange(start,end,new AbortController().signal,request)).rejects.toBeInstanceOf(CalendarReadOwnerChanged);
   expect(json).not.toHaveBeenCalled();
   expect(request.mock.calls[1][1].headers[CALENDAR_OWNER_HEADER]).toBe(JSON.stringify(calendarReadOwnerFixture));
 });
@@ -149,6 +149,6 @@ it.each([null,'{}','not-json'])('refuses a missing or invalid response owner bef
   if (marker !== null) headers.set(CALENDAR_OWNER_HEADER,marker);
   const json = jest.fn();
   await expect(fetchPlanningRange(start,end,new AbortController().signal,
-    jest.fn(async () => ({ok:true,headers,json}) as unknown as Response))).rejects.toThrow('paging');
+    jest.fn(async () => ({ok:true,headers,json}) as unknown as Response))).rejects.toBeInstanceOf(CalendarReadOwnerChanged);
   expect(json).not.toHaveBeenCalled();
 });

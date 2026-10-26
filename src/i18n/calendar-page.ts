@@ -1,5 +1,7 @@
 /** Page/source/undo presentation; provider names and server errors remain verbatim. */
 export const calendarPageEnglish = {
+  ownerHeld: "Your account or household changed, or calendar access could not be confirmed. Reload to continue.",
+  reloadCalendar: "Reload calendar",
   focusHeading: "From notification",
   focusUnavailable: "This event is unavailable here. Open your calendar to continue.",
   focusZone: "Times shown in {zone}",
@@ -19,6 +21,8 @@ export const calendarPageEnglish = {
 export type CalendarPageMessage = keyof typeof calendarPageEnglish;
 export type CalendarPageError = { key: CalendarPageMessage } | { raw: string };
 export const calendarPageSpanish: Record<CalendarPageMessage, string> = {
+  ownerHeld: "Tu cuenta o tu hogar cambió, o no se pudo confirmar el acceso al calendario. Recarga para continuar.",
+  reloadCalendar: "Recargar calendario",
   focusHeading: "Desde una notificación",
   focusUnavailable: "Este evento no está disponible aquí. Abre tu calendario para continuar.",
   focusZone: "Horas en {zone}",
