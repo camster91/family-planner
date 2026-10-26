@@ -3,7 +3,7 @@ import { readRecipeDetail, RecipeDetailNotFound } from "../recipe-detail-client"
 const owner = { protocol: "herewoven.recipe-owner.v1", actorId: "parent-a", familyId: "family-a", role: "parent", generation: 0 } as const;
 const ownerHeaders = () => new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify(owner) });
 const recipe = {
-  id: "recipe-a", title: "Soup", description: null, instructions: "Simmer",
+  id: "recipe-a", revision: 0, title: "Soup", description: null, instructions: "Simmer",
   prep_time: 5, cook_time: 20, servings: 4,
   ingredients: [{ id: "line-a", amount: 1, unit: null, note: null,
     ingredient: { id: "ingredient-a", name: "Carrots", unit: null } }],
@@ -61,4 +61,11 @@ it.each([null, JSON.stringify({ ...owner, familyId: "family-b" })])("holds missi
     { fetchImpl: transport, expectedOwner: owner })).rejects.toBeInstanceOf(RecipeDetailOwnerChanged);
   expect(json).not.toHaveBeenCalled();
   expect(transport.mock.calls[0][1]?.headers).toEqual({ "X-Herewoven-Recipe-Owner": JSON.stringify(owner) });
+});
+
+it('holds a detail without revision metadata instead of admitting an unguarded editor', async () => {
+  const unversioned: Record<string, unknown> = { ...recipe };
+  delete unversioned.revision;
+  await expect(readRecipeDetail('recipe-a', new AbortController().signal,
+    { fetchImpl: transportFor({ recipe: unversioned }) })).rejects.toThrow('Recipe detail unavailable');
 });

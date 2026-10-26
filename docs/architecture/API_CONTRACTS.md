@@ -2067,3 +2067,25 @@ full session-ID binding or durable pending journal is supplied. Migration,
 forward/rollback binaries, real DB concurrency and complete household/UI/native
 acceptance remain separate. No QA/checks/build/browser/DB/CI/push/merge/deploy or
 activation ran. #460/#135/#473 remain open.
+
+
+### Reviewed revision required for bound recipe edits — 2026-10-26 source
+
+The recipe detail projection now requires nonnegative safe-integer revision
+metadata before rendering recipe actions. Owner-bound edit input additionally
+requires `base_revision`; legacy unbound callers retain their prior shape. A
+directly reused bound editor without a loaded revision refuses dispatch and
+shows localized reload guidance. The existing PATCH row lock and revision
+comparison reject an older form with `REVISION_CONFLICT` before changing recipe
+or ingredient rows. No version is guessed, refreshed or silently rebased.
+
+Three new fixture cases describe unversioned-detail refusal, stale bound-edit
+refusal and whole-page access-loss masking. Existing owner/payload fixtures now
+carry the reviewed revision; the dismissal/retry fixture uses validation400,
+while permission403 has separate containing-page retirement coverage. All are
+UNRUN. This is revision-based stale-write source behavior, not exact original
+request receipt inspection or proof of no effect after an unknown response. A
+same-ID replacement could share revision and still needs immutable birth
+continuity. Durable pending edits, rebase/recovery UX, real row-lock/concurrency
+and current/previous installed-client acceptance remain separate. No tests/
+checks/build/browser/DB/migration/CI/push/merge/deploy or activation ran.

@@ -41,6 +41,7 @@ jest.mock("../AddToGroceriesButton", () => ({
 
 const RECIPE: RecipeDetailData = {
   id: "r1",
+  revision: 0,
   title: "Soup",
   description: "Old description",
   instructions: "Chop.\nSimmer.",
@@ -226,7 +227,7 @@ it.each(["Close", "Escape"])(
       "/api/recipes/r1",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ title: "Soup saved", edit_protocol: "herewoven.recipe-edit.v1", edit_owner: originalOwner }),
+        body: JSON.stringify({ title: "Soup saved", base_revision: 0, edit_protocol: "herewoven.recipe-edit.v1", edit_owner: originalOwner }),
       }),
     );
     expect(screen.getByRole("dialog", { name: "Edit recipe" })).toBe(dialog);
@@ -287,7 +288,7 @@ it.each([
     await act(async () => {
       first.resolve({
         ok: false,
-        status: outcome === "refusal" ? 403 : 500,
+        status: outcome === "refusal" ? 400 : 500,
         json: async () => ({ error: "Permission refused" }),
       } as Response);
     });
@@ -413,6 +414,7 @@ it("replaces changed ingredients only on Save while retaining canonical IDs, opt
     url: "/api/recipes/r1",
     method: "PATCH",
     body: {
+      base_revision: 0,
       edit_protocol: "herewoven.recipe-edit.v1",
       edit_owner: originalOwner,
       ingredients: [
@@ -517,4 +519,20 @@ it("keeps an in-flight edit bound to the parent callback that started it", async
   await act(async () => { pending.resolve(response({ ...RECIPE, title: 'Pending edit' })) });
   expect(applied).not.toHaveBeenCalled();
   expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+// Authored UNRUN: permission loss masks the whole detail, unlike validation refusal.
+it('retires the visible recipe and editor when a bound edit loses access', async () => {
+  const user = userEvent.setup();
+  setup();
+  await user.click(await screen.findByRole('button', { name: 'Edit recipe' }));
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Private new title' } });
+  global.fetch = jest.fn(async () => ({ ok: false, status: 403,
+    json: async () => ({ error: 'Private denial detail' }) }) as Response) as typeof fetch;
+  await user.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await screen.findByRole('heading', { name: 'Reload recipes' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Soup' })).toBeNull();
+  expect(screen.queryByText('Private denial detail')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
 });

@@ -10,7 +10,7 @@ const id = z.string().regex(MEMBER_ID_PATTERN);
 const minutes = z.number().int().nonnegative().safe().nullable();
 const detail = z.object({
   id, title: z.string(), source_url: z.string().nullable().optional(),
-  favorite: z.boolean().optional(), revision: z.number().int().nonnegative().safe().optional(),
+  favorite: z.boolean().optional(), revision: z.number().int().nonnegative().safe(),
   updated_at: z.string().datetime({ offset: true }).optional(),
   description: z.string().nullable(), instructions: z.string().nullable(),
   prep_time: minutes, cook_time: minutes,

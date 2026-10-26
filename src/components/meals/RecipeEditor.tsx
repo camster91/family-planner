@@ -294,6 +294,10 @@ function RecipeEditorForm({
     if ((expectedOwner || expectedRecipeOwner) && !sameRecipeOwner(expectedOwner, expectedRecipeOwner ?? null)) {
       callbacks.current.onOwnerHold?.(); return;
     }
+    if (initialRecipe && expectedOwner && initialRecipe.revision === undefined) {
+      setError(text("editVersionMissing"));
+      return;
+    }
     if (onOwnedSubmit && !initialRecipe) {
       await onOwnedSubmit(
         {

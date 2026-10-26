@@ -85,4 +85,7 @@ export const updateRecipeSchema = z
   .refine(value => (value.edit_protocol === undefined && value.edit_owner === undefined) ||
     (value.edit_protocol !== undefined && value.edit_owner !== undefined), {
     message: "Recipe edit owner and protocol must be supplied together",
+  })
+  .refine(value => !value.edit_owner || value.base_revision !== undefined, {
+    message: "Owner-bound recipe edits require the reviewed revision",
   });

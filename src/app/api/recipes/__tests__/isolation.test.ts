@@ -364,7 +364,7 @@ describe('recipe detail original owner', () => {
 it('refuses a body-only edit owner mismatch before recipe effects', async () => {
   db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
   const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
-    title:'Must not apply', edit_protocol:'herewoven.recipe-edit.v1',
+    title:'Must not apply', base_revision:0, edit_protocol:'herewoven.recipe-edit.v1',
     edit_owner:{ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-B', role:'parent', generation:0 },
   } }), P('recipe-a'))
   expect(response.status).toBe(409)
@@ -374,9 +374,10 @@ it('refuses a body-only edit owner mismatch before recipe effects', async () => 
 
 it('admits matching body ownership without persisting command metadata as recipe fields', async () => {
   db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  db.find('recipe', 'recipe-a')!.revision = 0
   const commandOwner = { protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 }
   const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
-    title:'Updated soup', edit_protocol:'herewoven.recipe-edit.v1', edit_owner:commandOwner,
+    title:'Updated soup', base_revision:0, edit_protocol:'herewoven.recipe-edit.v1', edit_owner:commandOwner,
   } }), P('recipe-a'))
   expect(response.status).toBe(200)
   expect(JSON.parse(response.headers.get('X-Herewoven-Recipe-Owner')!)).toEqual(commandOwner)
@@ -384,4 +385,17 @@ it('admits matching body ownership without persisting command metadata as recipe
   expect(update.args.data.title).toBe('Updated soup')
   expect(update.args.data).not.toHaveProperty('edit_owner')
   expect(update.args.data).not.toHaveProperty('edit_protocol')
+})
+
+it('rejects stale owner-bound revisions without changing recipe or ingredient rows', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  db.find('recipe','recipe-a')!.revision = 2
+  const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
+    title:'Older edit', base_revision:1, edit_protocol:'herewoven.recipe-edit.v1',
+    edit_owner:{ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 },
+  } }), P('recipe-a'))
+  expect(response.status).toBe(409)
+  expect((await response.json()).error.code).toBe('REVISION_CONFLICT')
+  expect(writesTo('recipe')).toHaveLength(0)
+  expect(writesTo('recipeIngredient')).toHaveLength(0)
 })

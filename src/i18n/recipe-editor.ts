@@ -57,6 +57,7 @@ export const recipeEditorEnglish = {
   openExisting: "Open saved recipe: {title}",
   sourceCheckUnavailable:
     "We could not finish checking older imports. Keep this draft; check your recipe box, or deliberately choose a separate copy.",
+  editVersionMissing: "Reload this recipe before saving. Its saved version could not be confirmed.",
   revisionConflict:
     "This recipe changed elsewhere. Your edits are kept here. Close and reload the saved recipe before applying them again.",
   uncertainCreate:
@@ -173,6 +174,7 @@ export const recipeEditorSpanish: Record<RecipeEditorMessage, string> = {
   openExisting: "Abrir receta guardada: {title}",
   sourceCheckUnavailable:
     "No pudimos terminar de comprobar las importaciones antiguas. Conserva el borrador y revisa tus recetas, o elige una copia separada.",
+  editVersionMissing: "Vuelve a cargar esta receta antes de guardar. No se pudo confirmar su versión guardada.",
   revisionConflict:
     "La receta cambió en otro lugar. Tus cambios se conservan aquí. Cierra y vuelve a cargar la receta antes de aplicarlos de nuevo.",
   uncertainCreate:
