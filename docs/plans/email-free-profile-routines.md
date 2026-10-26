@@ -145,3 +145,28 @@ The extra scan and real query/index/lock/rollback behavior are unmeasured. It do
 not alter `applyRotationEditInTx`'s retained complete future plan, add profile
 rotation, decide profile credits or activate any flag. No QA/tests/checks/build/
 browser/DB/CI/push/merge/deploy ran. #134/#450/#480 remain open.
+
+
+## Routine catalog profile eligibility projection — 2026-10-26 source only
+
+The profile assignee module now owns one eligibility select and shared snapshot
+check. Its canonical writer/top-up loader still queries the exact household
+member and calls that same check. The routine schedule catalog fetches the
+eligibility fields with its existing bounded profile list and applies the check
+to those snapshots instead of making another findFirst call for each profile.
+The catalog's existing parent/user/household lifecycle transaction remains the
+authority boundary; a snapshot is not an actor, a write grant or a login.
+
+ID/household, valid presentation role and age, active/non-erased state, absent
+legacy/account associations and feature/recurrence gates retain their checks.
+The internal eligibility fields are not spread into the assignment response;
+only the prior name/role/subject/canRepeat DTO is returned. No flag is enabled,
+profile linked, credit ownership decided or profile rotation introduced.
+
+Three source cases describe200 profile choices without per-profile rereads or
+private eligibility fields in output, exclusion of ineligible loaded snapshots,
+and disabled rollout avoiding profile reads. They are UNRUN. The1000 combined
+assignment cap is unchanged. Account-member eligibility queries, relation/query
+plans, synchronization through all lifecycle writers, actual latency and full
+role/native/rollback acceptance remain separate. No QA/tests/checks/build/browser/
+DB/generation/CI/push/merge/deploy or activation ran. #134/#450/#480 remain open.

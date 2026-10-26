@@ -13,7 +13,7 @@ import {
   type RoutineAssignmentOption,
 } from "@/lib/routine-schedule-view";
 import { eligibleChoreAssigneeInTx } from "@/lib/chore-member-subject";
-import { eligibleProfileChoreAssigneeInTx } from "@/lib/chore-profile-assignee";
+import { PROFILE_CHORE_ELIGIBILITY_SELECT, profileChoreAssigneeFromSnapshot } from "@/lib/chore-profile-assignee";
 import {
   isProfileChoreEnabled,
   isProfileChoreRecurrenceSupported,
@@ -59,7 +59,7 @@ export async function readRoutineScheduleCatalog(
                   legacy_mapping: { is: null },
                   account_link: { is: null },
                 },
-                select: { id: true, name: true, role: true },
+                select: { ...PROFILE_CHORE_ELIGIBILITY_SELECT, name: true },
                 orderBy: [{ name: "asc" }, { id: "asc" }],
                 take: 1001,
               })
@@ -95,12 +95,7 @@ export async function readRoutineScheduleCatalog(
         }
         for (const profile of profiles) {
           if (
-            await eligibleProfileChoreAssigneeInTx(
-              tx,
-              actor.familyId,
-              profile.id,
-              false,
-            )
+            profileChoreAssigneeFromSnapshot(profile, actor.familyId, profile.id, false)
           )
             assignments.push({
               subject: { kind: "profile", member_id: profile.id },
