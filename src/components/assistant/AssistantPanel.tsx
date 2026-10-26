@@ -554,17 +554,37 @@ export default function AssistantPanel({
           if (choices) setTargets(choices);
           setSelected("");
         } catch (e) {
-          if (!(e instanceof ActionOutcomeUnknown)) throw e;
-          // The provider reply and editable proposal are still valid. Keep
-          // them in place and make recovery a GET-only choice reload.
-          setChoiceLoadFailed(true);
-          setTargets([]);
-          setSelected("");
-          // Do not overwrite a newer draft if one was entered while the
-          // provider response was settling; restore only the submitted draft.
-          if (textRef.current === "" || textRef.current === request.inputText)
-            setText(request.inputText);
-          setError(toAssistantError(e, "actionFailed"));
+          if (e instanceof ActionOutcomeUnknown) {
+            // The provider reply and editable proposal are still valid. Keep
+            // them in place and make recovery a GET-only choice reload.
+            setChoiceLoadFailed(true);
+            setTargets([]);
+            setSelected("");
+            // Do not overwrite a newer draft if one was entered while the
+            // provider response was settling; restore only the submitted draft.
+            if (textRef.current === "" || textRef.current === request.inputText)
+              setText(request.inputText);
+            setError(toAssistantError(e, "actionFailed"));
+          } else if (e instanceof AssistantActionError) {
+            // A deterministic refusal (for example, indistinguishable list
+            // targets) cannot be fixed by retrying the same GET. Keep the
+            // submitted draft visible and offer the canonical read-only
+            // section check, matching the explicit retry path below.
+            // Do not overwrite a newer draft entered while the proposal was
+            // settling; restore only the submitted draft.
+            if (textRef.current === "" || textRef.current === request.inputText)
+              setText(request.inputText);
+            const recoveryError = toAssistantError(e, "actionFailed");
+            setChoiceLoadFailed(false);
+            setError(recoveryError);
+            setActionRecovery({
+              error: recoveryError,
+              href: actionRecoveryPath(proposal.action),
+            });
+            setAction(null);
+          } else {
+            throw e;
+          }
         }
       }
     } catch (e) {

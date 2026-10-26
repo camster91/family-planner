@@ -29,6 +29,7 @@ import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { localDateTimeToISO } from "@/lib/dates";
 import { useCoreTranslation } from "@/i18n/core";
 import { captureMessages, type CaptureMessage } from "@/i18n/capture";
+import { useCaptureDraftText } from "@/i18n/capture-drafts";
 import { Dialog } from "@/components/ui/dialog";
 import {
   activateCaptureRecoveryStorage,
@@ -201,6 +202,7 @@ export function LegacyCaptureBox({
   privacyHidden?: boolean;
 } = {}) {
   const { locale, t } = useCoreTranslation();
+  const draftText = useCaptureDraftText();
   const msg = (key: CaptureMessage, params?: Record<string, string | number>) =>
     t(key, params, captureMessages);
   const localizeError = (error: unknown, fallback: CaptureMessage) =>
@@ -516,6 +518,11 @@ export function LegacyCaptureBox({
   function proposalIsRetired(proposal: object): boolean {
     const operation = operations.current.get(proposal);
     return operation ? retiredOperationKeys.current.has(operation.key) : false;
+  }
+
+  function confirmLegacyReplacement(): boolean {
+    if (extraction || (!draft && !(photoEvents?.length ?? 0))) return true;
+    return window.confirm(draftText.replaceReview);
   }
 
   async function rememberPayload(
@@ -980,6 +987,7 @@ export function LegacyCaptureBox({
   async function interpret() {
     const phrase = text.trim();
     if (!phrase) return;
+    if (!confirmLegacyReplacement()) return;
     const ownerEpoch = extraction ? await extraction.begin() : undefined;
     if (extraction && (ownerEpoch == null || !extractionMounted.current))
       return;
@@ -1145,6 +1153,10 @@ export function LegacyCaptureBox({
 
   // Read a photo/screenshot and propose the events it contains.
   async function interpretPhoto(file: File) {
+    if (!confirmLegacyReplacement()) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     const ownerEpoch = extraction ? await extraction.begin() : undefined;
     if (extraction && (ownerEpoch == null || !extractionMounted.current))
       return;

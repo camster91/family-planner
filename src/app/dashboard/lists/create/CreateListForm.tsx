@@ -14,6 +14,11 @@ import {
 import { useTranslation } from "@/i18n";
 import { listCreateMessages, type ListCreateMessage } from "@/i18n/list-create";
 import {
+  IDEMPOTENCY_HEADER,
+  IDEMPOTENCY_TTL_MS,
+  newIdempotencyKey,
+} from "@/lib/idempotency-key";
+import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
 } from "@/components/layout/pending-form-navigation";
@@ -29,6 +34,10 @@ class CreateListFailure extends Error {
   constructor(readonly messageKey: "permissionError" | "createError") {
     super(messageKey);
   }
+}
+
+function isAmbiguousCreate(status: number): boolean {
+  return status === 408 || status === 409 || status >= 500;
 }
 
 const TYPE_LABELS: Record<ListTypeKey, ListCreateMessage> = {
@@ -68,12 +77,20 @@ export default function CreateListForm({
     initialType ?? null,
   );
   const [loading, setLoading] = React.useState(false);
+  const [unknown, setUnknown] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
   // Stays set from the first submit until the redirect: a second tap during
   // the request or the success pause must not create a second list.
   const submittingRef = React.useRef(false);
-  const busy = loading || !!success || imageUploading;
+  const saveIntent = React.useRef<{
+    payload: string;
+    key: string;
+    createdAt: number;
+    expired?: boolean;
+  } | null>(null);
+  const expiredIntent = saveIntent.current?.expired === true;
+  const busy = loading || !!success || imageUploading || unknown;
   const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
@@ -91,30 +108,71 @@ export default function CreateListForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || submittingRef.current || imageUploading) return;
+    if (
+      !name.trim() ||
+      submittingRef.current ||
+      loading ||
+      !!success ||
+      imageUploading
+    )
+      return;
+    const body = {
+      name,
+      type,
+      image_url: imageUrl ?? undefined,
+      description: description?.trim() ? description : undefined,
+    };
+    const payload = JSON.stringify(body);
+    const existingIntent = saveIntent.current;
+    if (existingIntent) {
+      const expired =
+        existingIntent.expired ||
+        Date.now() - existingIntent.createdAt >= IDEMPOTENCY_TTL_MS;
+      if (expired) {
+        saveIntent.current = { ...existingIntent, expired: true };
+        setUnknown(false);
+        setError(copy.unknownExpired);
+        return;
+      }
+    }
+
     submittingRef.current = true;
     setLoading(true);
     setError(null);
+    const wasUnknown = unknown;
+    setUnknown(false);
     setSuccess(null);
 
     try {
+      // A retry keeps the original payload and key. A fresh key is created
+      // only for a new draft, and inside the guarded request boundary.
+      const intent =
+        saveIntent.current ??
+        ({ payload, key: newIdempotencyKey(), createdAt: Date.now() } as const);
+      saveIntent.current = intent;
       const res = await fetch("/api/lists/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          type,
-          image_url: imageUrl ?? undefined,
-          description: description?.trim() ? description : undefined,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          [IDEMPOTENCY_HEADER]: intent.key,
+        },
+        body: intent.payload,
       });
       await res.json().catch(() => null);
       if (!res.ok) {
+        if (isAmbiguousCreate(res.status) || wasUnknown) {
+          setUnknown(true);
+          setError(copy.unknownError);
+          return;
+        }
+        saveIntent.current = null;
         throw new CreateListFailure(
           res.status === 403 ? "permissionError" : "createError",
         );
       }
 
+      saveIntent.current = null;
+      setUnknown(false);
       setSuccess(copy.created);
       setTimeout(() => {
         void (async () => {
@@ -127,14 +185,20 @@ export default function CreateListForm({
       }, 1200);
     } catch (err) {
       submittingRef.current = false;
+      const outcomeIsUnknown =
+        !(err instanceof CreateListFailure) && saveIntent.current !== null;
+      if (!(err instanceof CreateListFailure)) setUnknown(outcomeIsUnknown);
       setError(
         err instanceof CreateListFailure
           ? copy[err.messageKey]
-          : err instanceof TypeError
-            ? copy.networkError
+          : outcomeIsUnknown
+            ? copy.unknownError
             : copy.createError,
       );
     } finally {
+      // A retryable/ambiguous response leaves the intent in saveIntent; the
+      // next explicit submit may check that same key and payload.
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -236,6 +300,7 @@ export default function CreateListForm({
               onChange={(e) => setName(e.target.value)}
               placeholder={copy.namePlaceholder}
               autoFocus
+              disabled={busy || expiredIntent}
               className="input-apple"
             />
           </div>
@@ -251,7 +316,7 @@ export default function CreateListForm({
               id="list-type"
               value={type}
               onChange={(event) => setType(event.target.value as ListTypeKey)}
-              disabled={busy}
+              disabled={busy || expiredIntent}
               className="input-apple min-h-[44px]"
             >
               {(Object.keys(TYPE_LABELS) as ListTypeKey[]).map((key) => (
@@ -291,6 +356,7 @@ export default function CreateListForm({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={copy.descriptionPlaceholder}
                 rows={2}
+                disabled={busy || expiredIntent}
                 className="input-apple resize-none"
               />
             </div>
@@ -299,7 +365,7 @@ export default function CreateListForm({
           <ListImagePicker
             value={imageUrl}
             onChange={setImageUrl}
-            disabled={loading || !!success}
+            disabled={busy || expiredIntent}
             onBusyChange={setImageUploading}
           />
 
@@ -313,14 +379,25 @@ export default function CreateListForm({
           >
             <button
               type="submit"
-              disabled={busy || !name.trim()}
+              disabled={
+                loading ||
+                !!success ||
+                imageUploading ||
+                expiredIntent ||
+                !name.trim()
+              }
               aria-busy={busy}
               className={cn(
                 "btn-filled w-full justify-center py-3",
-                (busy || !name.trim()) && "opacity-50 pointer-events-none",
+                (loading ||
+                  !!success ||
+                  imageUploading ||
+                  expiredIntent ||
+                  !name.trim()) &&
+                  "opacity-50 pointer-events-none",
               )}
             >
-              {busy ? (
+              {loading || success || imageUploading ? (
                 <>
                   <span className="motion-safe:animate-spin" aria-hidden="true">
                     ⟳
@@ -333,6 +410,8 @@ export default function CreateListForm({
                         : copy.creating}
                   </span>
                 </>
+              ) : unknown ? (
+                <span>{copy.retry}</span>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />

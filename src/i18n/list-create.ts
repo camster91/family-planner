@@ -41,6 +41,11 @@ export const listCreateEnglish = {
   createError: "The list could not be created. Try again.",
   networkError:
     "The list could not be created. Check your connection and try again.",
+  unknownError:
+    "The result is unknown. Keep these values and retry the same save; do not create another list.",
+  unknownExpired:
+    "This save can no longer be retried safely. Check Lists before starting another list.",
+  retry: "Retry the same save",
   permissionError: "Ask a parent to create a new list.",
   refusalTitle: "You cannot create a list yet",
   refusalDescription: "Ask a parent to create a new list for your family.",
@@ -91,6 +96,11 @@ export const listCreateSpanish: Record<ListCreateMessage, string> = {
   createError: "No se pudo crear la lista. Inténtalo de nuevo.",
   networkError:
     "No se pudo crear la lista. Revisa tu conexión e inténtalo de nuevo.",
+  unknownError:
+    "No se conoce el resultado. Conserva estos valores y comprueba el mismo guardado; no crees otra lista.",
+  unknownExpired:
+    "Este guardado ya no se puede comprobar con seguridad. Comprueba Listas antes de iniciar otra lista.",
+  retry: "Comprobar el mismo guardado",
   permissionError: "Pide a un padre o madre que cree una lista nueva.",
   refusalTitle: "Todavía no puedes crear una lista",
   refusalDescription:
