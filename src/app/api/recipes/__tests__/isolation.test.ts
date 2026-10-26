@@ -309,6 +309,15 @@ describe('recipe original create owner', () => {
     expect(writesTo('recipe')).toHaveLength(0)
     expect(writesTo('idempotencyRecord')).toHaveLength(0)
   })
+  it('rejects old owner metadata retained in a restored body without a matching header', async () => {
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: {
+      title: 'Restored soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: { ...original, generation: 9 },
+    } }))
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+  })
   it('does not adopt a new allowed role after a pre-write wait', async () => {
     mockGate.mockImplementation(async () => { db.find('user', 'parent-a')!.role = 'teen'; return null })
     const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: { title: 'Reviewed soup', servings: 2, ingredients: [] }, headers: {

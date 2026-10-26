@@ -70,7 +70,12 @@ export async function createRecipeWithReceipt(
   retainSourceRefusal = false,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const refused = await recipeWriteAuthority(tx, actor);
+    const commandOwner = input.creation_owner;
+    if (commandOwner && (commandOwner.actorId !== actor.userId || commandOwner.familyId !== actor.familyId ||
+        commandOwner.generation !== actor.tokenVersion || (actor.originalRole !== undefined && commandOwner.role !== actor.originalRole)))
+      return failure(409, "RECIPE_OWNER_CHANGED");
+    const boundActor = commandOwner ? { ...actor, originalRole: commandOwner.role } : actor;
+    const refused = await recipeWriteAuthority(tx, boundActor);
     if (refused) return refused;
     if (recordId) {
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
@@ -105,7 +110,7 @@ export async function createRecipeWithReceipt(
         if (retainSourceRefusal && recordId)
           await tx.idempotencyRecord.update({
             where: { id: recordId },
-            data: { response_status: 409, response_body: { error: { code } } },
+            data: { response_status: 409, response_body: { error: { code }, ...(commandOwner ? { creationOwner: commandOwner } : {}) } },
           });
         return {
           status: 409,
@@ -156,7 +161,7 @@ export async function createRecipeWithReceipt(
       kind: "recipe",
       id: recipe.id,
     });
-    const body = identity;
+    const body = { ...identity, ...(commandOwner ? { creationOwner: commandOwner } : {}) };
     if (recordId)
       await tx.idempotencyRecord.update({
         where: { id: recordId },

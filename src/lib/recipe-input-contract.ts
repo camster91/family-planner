@@ -1,5 +1,6 @@
 /** Browser-safe canonical recipe input validation; no database/runtime imports. */
 import { z } from "zod";
+import { recipeOwnerSchema } from "@/lib/recipe-owner-contract";
 import { recipeSourceField } from "@/lib/recipe-curation-contract";
 export const RECIPE_MAX_INGREDIENTS = 100;
 // Accommodates all bounded fields/100 ingredient lines even with JSON escapes.
@@ -45,6 +46,7 @@ export const createRecipeSchema = z
     // Old strict readers refuse this payload before creating anything. A new
     // client must not retry a keyed create against an older key-ignorant route.
     creation_protocol: z.literal("herewoven.recipe-create.v1").optional(),
+    creation_owner: recipeOwnerSchema.optional(),
     source_url: recipeSourceField.nullable().optional(),
     source_copy: z.boolean().optional(),
     title: z.string().trim().min(1).max(200),
@@ -55,7 +57,10 @@ export const createRecipeSchema = z
     servings: z.number().int().min(1).max(100).optional(),
     ingredients: ingredients.optional(),
   })
-  .strict();
+  .strict()
+  .refine(value => !value.creation_owner || value.creation_protocol === "herewoven.recipe-create.v1", {
+    message: "Recipe owner requires the create protocol",
+  });
 
 export const updateRecipeSchema = z
   .object({

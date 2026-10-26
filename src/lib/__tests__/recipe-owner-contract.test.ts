@@ -18,3 +18,12 @@ it('requires stored recipe birth identity without inventing one for legacy recei
   for (const value of [null, [], { recipeId: 'recipe-a' }, { ...identity, recipeGeneration: 'bad' }, { ...identity, recipeId: '../recipe-a' }])
     expect(readRecipeCreateReceiptIdentity(value)).toBeNull();
 });
+
+// Authored UNRUN: original owner stays in canonical input and therefore receipt hashing.
+it('preserves optional create-command ownership and refuses it without the create protocol', async () => {
+  const { createRecipeSchema } = await import('../recipe-input-contract');
+  const input = { title: 'Family soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: owner };
+  expect(createRecipeSchema.parse(input).creation_owner).toEqual(owner);
+  expect(createRecipeSchema.safeParse({ title: 'Family soup', creation_owner: owner }).success).toBe(false);
+  expect(createRecipeSchema.safeParse({ title: 'Legacy soup' }).success).toBe(true);
+});

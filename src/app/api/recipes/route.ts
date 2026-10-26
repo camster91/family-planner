@@ -173,6 +173,8 @@ export async function POST(request: NextRequest) {
       );
     }
     const data = parsed.data;
+    if (data.creation_owner && !sameRecipeOwner(data.creation_owner, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
+      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     if (data.creation_protocol && !key)

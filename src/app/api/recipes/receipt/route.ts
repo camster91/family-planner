@@ -1,3 +1,4 @@
+import { recipeOwnerSchema, sameRecipeOwner, RECIPE_OWNER_PROTOCOL } from "@/lib/recipe-owner-contract";
 import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders } from "@/lib/recipe-read-authority";
 import { foodSourceStorageAvailable } from "@/lib/food-planning/source-versions";
 import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
@@ -67,6 +68,11 @@ export async function GET(request: NextRequest) {
       if (record.response_status === null)
         return { status: 200, body: { state: "pending" } };
       const body = record.response_body;
+      if (body && typeof body === "object" && !Array.isArray(body) && "creationOwner" in body) {
+        const commandOwner = recipeOwnerSchema.safeParse(body.creationOwner);
+        if (!commandOwner.success || !sameRecipeOwner(commandOwner.data, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
+          return { status: 409, body: { error: { code: "RECIPE_OWNER_CHANGED" } } };
+      }
       if (
         record.response_status === 409 &&
         body &&

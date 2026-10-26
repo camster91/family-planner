@@ -150,3 +150,15 @@ it("rejects a changed expected session before reading the stored receipt", async
   expect(await response.json()).toEqual({ error: { code: "RECIPE_OWNER_CHANGED" } });
   expect(tx.idempotencyRecord.findFirst).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: durable new receipt metadata is authority even without a browser marker.
+it("does not let a later generation inspect an older owner-bound receipt as current work", async () => {
+  tx.idempotencyRecord.findFirst.mockResolvedValue(record({ response_body: {
+    recipeId: "fixture-recipe", recipeGeneration: generation,
+    creationOwner: { protocol: "herewoven.recipe-owner.v1", actorId: "fixture-parent", familyId: "fixture-family-a", role: "parent", generation: 1 },
+  } }));
+  const response = await GET(request());
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: { code: "RECIPE_OWNER_CHANGED" } });
+  expect(tx.$queryRaw.mock.calls.some(([parts]) => String(parts).includes('FROM "Recipe"'))).toBe(false);
+});

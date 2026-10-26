@@ -56,6 +56,11 @@ export async function inspectReviewDocumentReceipt(
           : request.action === "chore.profile.create"
             ? profileChoreCreateSchema.parse(body)
             : captureGrocerySchema.parse(body);
+  if (request.action === "recipe.create" && expectedRecipeOwner) {
+    const commandOwner = (parsed as { creation_owner?: RecipeOwner }).creation_owner;
+    if (commandOwner && !sameRecipeOwner(commandOwner, expectedRecipeOwner))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+  }
   const hash = await hashBrowserIdempotentRequest(request.action, parsed);
   if (!/^[a-f0-9]{64}$/.test(hash))
     throw new OwnedRequestRecoveryError("UNAVAILABLE");

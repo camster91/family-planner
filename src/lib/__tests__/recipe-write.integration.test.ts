@@ -75,6 +75,17 @@ suite("recipe create replay containment", () => {
     expect((await readCreatedRecipe(db, actor, identity.recipeId, identity.recipeGeneration)).status).toBe(200);
     expect((await readCreatedRecipe(db, actor, identity.recipeId, '00000000-0000-4000-8000-000000000000')).status).toBe(409);
   });
+  // Authored UNRUN: new command-body provenance participates in existing hashing.
+  it("does not let a new generation adopt an older owner-bound create body", async () => {
+    const bound = { ...input, creation_owner: { protocol: 'herewoven.recipe-owner.v1' as const,
+      actorId: user, familyId: family, role: 'parent', generation: 0 } };
+    expect(hashIdempotentRequest(RECIPE_CREATE_ACTION, bound)).not.toBe(hashIdempotentRequest(RECIPE_CREATE_ACTION,
+      { ...bound, creation_owner: { ...bound.creation_owner, generation: 1 } }));
+    expect((await createRecipeWithReceipt(db, actor, bound, null)).status).toBe(201);
+    await db.user.update({ where: { id: user }, data: { token_version: 1 } });
+    expect((await createRecipeWithReceipt(db, { ...actor, tokenVersion: 1 }, bound, null)).status).toBe(409);
+    expect(await db.recipe.count({ where: { family_id: family } })).toBe(1);
+  });
   it("concurrent exact retries create one recipe and one ingredient set, even with a long method", async () => {
     const record = await receipt();
     const results = await Promise.all([

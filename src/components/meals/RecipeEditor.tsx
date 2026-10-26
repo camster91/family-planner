@@ -279,6 +279,7 @@ function RecipeEditorForm({
             ? { source_url: sourceUrl, source_copy: sourceCopy }
             : {}),
           creation_protocol: "herewoven.recipe-create.v1",
+          ...(expectedOwner ? { creation_owner: expectedOwner } : {}),
         },
         ownedDraft,
       );
@@ -293,6 +294,7 @@ function RecipeEditorForm({
             ? { source_url: sourceUrl, source_copy: sourceCopy }
             : {}),
           creation_protocol: "herewoven.recipe-create.v1",
+          ...(expectedOwner ? { creation_owner: expectedOwner } : {}),
         }),
         startedAt: Date.now(),
       };
