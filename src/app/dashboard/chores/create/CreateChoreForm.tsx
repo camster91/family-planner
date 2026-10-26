@@ -388,18 +388,33 @@ export default function CreateChoreForm({
       setError(message("createFailed"));
       return;
     }
+    // Weekly retry identity follows the reviewed weekday/start choice, not
+    // a newly computed occurrence after midnight. Its wire body stays frozen.
+    const profileIntentSignature = canonicalBodySignature({
+      protocol: 2, selection: { memberId: assignmentTarget.id }, title: title.trim(),
+      description: description.trim() || null, points: 10,
+      due_date: frequency === "weekly" ? weeklyStart || null : dueDate,
+      difficulty, frequency, weekly_days: frequency === "weekly" ? [...weeklyDays].sort((a, b) => a - b) : [],
+      photo_url: photoUrl, icon, ...routineRequestFields(routine, routineOrder),
+    });
+    const originalProfileIntent = !reviewRef.current && assignmentTarget.kind === "profile"
+      ? (profilePendingRequest.current?.draftRevision === profileDraftRevision.current
+        ? profilePendingRequest.current : profileAmbiguousKeys.current.get(profileIntentSignature))
+      : null;
     const viewDay = toDateOnlyLocal(new Date());
     if (
       frequency === "weekly" &&
       weeklyStart &&
-      (!parseDateOnly(weeklyStart) || weeklyStart < viewDay)
+      (!parseDateOnly(weeklyStart) || (!originalProfileIntent && weeklyStart < viewDay))
     ) {
       setError(message("weeklyStartInvalid"));
       return;
     }
     const weeklyDueDate =
       frequency === "weekly"
-        ? nextSelectedWeekday(
+        ? originalProfileIntent && typeof originalProfileIntent.body.due_date === "string"
+          ? originalProfileIntent.body.due_date
+          : nextSelectedWeekday(
             parseDateOnly(weeklyStart || viewDay)!,
             weeklyDays,
             true,
@@ -484,7 +499,7 @@ export default function CreateChoreForm({
         if (pending && pending.draftRevision === profileDraftRevision.current) {
           requestBody = pending.body; signature = pending.signature; key = pending.key; issuedAt = pending.issuedAt;
         } else {
-          signature = canonicalBodySignature(computedRequestBody);
+          signature = profileIntentSignature;
           const previous = profileAmbiguousKeys.current.get(signature);
           requestBody = previous?.body ?? JSON.parse(JSON.stringify(computedRequestBody));
           key = previous?.key ?? (profileIdempotencyKey.current?.signature === signature ? profileIdempotencyKey.current.key : newIdempotencyKey());

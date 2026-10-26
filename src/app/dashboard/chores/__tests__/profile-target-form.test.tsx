@@ -459,7 +459,7 @@ describe("profile target in the create chore form", () => {
     }
   });
 
-  it("reuses the frozen weekly body and key after a response-loss date rollover", async () => {
+  it("reuses the frozen weekly body/key after edits, midnight and an old reviewed start", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-10-12T12:00:00.000Z"));
     try {
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
@@ -502,6 +502,7 @@ describe("profile target in the create chore form", () => {
       );
       await user.click(screen.getByRole("button", { name: "Weekly" }));
       await user.click(screen.getByRole("checkbox", { name: "Monday" }));
+      fireEvent.change(screen.getByLabelText("Starts on or after"), { target: { value: "2026-10-12" } });
       await user.type(screen.getByLabelText("Title"), "Pack a bag");
       await user.click(screen.getByRole("button", { name: "Create Chore" }));
       expect(
@@ -512,6 +513,9 @@ describe("profile target in the create chore form", () => {
       const firstKey = new Headers(firstCall.init?.headers).get("Idempotency-Key");
       const firstBody = firstCall.init?.body;
       jest.setSystemTime(new Date("2026-10-13T12:00:00.000Z"));
+      const title = screen.getByLabelText("Title");
+      await user.clear(title); await user.type(title, "Temporary edit");
+      await user.clear(title); await user.type(title, "Pack a bag");
       await user.click(screen.getByRole("button", { name: "Create Chore" }));
       await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 
