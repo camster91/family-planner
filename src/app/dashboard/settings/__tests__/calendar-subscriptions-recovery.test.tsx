@@ -11,6 +11,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, useTranslation } from "@/i18n";
 import CalendarSubscriptionsSection from "../CalendarSubscriptionsSection";
+import { calendarSubscriptionFeedback } from "@/i18n/calendar-subscription-feedback";
 import { readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
 import { settingsMessages } from "@/i18n/settings";
 jest.mock("@/components/fridge/sync-status", () => ({
@@ -175,4 +176,24 @@ it("serializes add and keeps an unknown save held after an explicit list read", 
   fireEvent.submit(name.closest("form")!);
   expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
   expect(screen.getByRole("button", { name: settingsMessages.en.addCalendar })).toBeDisabled();
+});
+
+// Authored UNRUN: persisted fixed-vocabulary errors relabel without replaying reads.
+it("localizes a saved feed failure on mounted locale change without another fetch", async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ subscriptions: [{
+    id: "failure-fixture", name: "School fixture", color: null, last_fetched_at: null,
+    last_status: "error", last_error: "Feed took too long to respond", url_hint: "Unavailable",
+  }] }) })) as unknown as typeof fetch;
+  const user = await mount();
+  await screen.findByText(settingsMessages.en.calendarFeedTimeout);
+  await user.click(screen.getByText("Switch presentation"));
+  expect(screen.getByText(settingsMessages.es.calendarFeedTimeout)).toBeInTheDocument();
+  expect(screen.getByText(settingsMessages.es.calendarHintUnavailable)).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+it("keeps unknown/provider error text out of subscription feedback", () => {
+  expect(calendarSubscriptionFeedback("fixture private provider details", "renameFailed")).toEqual({ key: "renameFailed" });
+  expect(calendarSubscriptionFeedback({ message: "fixture private details" }, "addCalendarFailed")).toEqual({ key: "addCalendarFailed" });
+  expect(calendarSubscriptionFeedback("constructor", "refreshFailed")).toEqual({ key: "refreshFailed" });
+  expect(calendarSubscriptionFeedback("Feed could not be downloaded (HTTP 503)", "refreshFailed")).toEqual({ key: "calendarFeedHttp", params: { status: 503 } });
 });

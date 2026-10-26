@@ -17,7 +17,6 @@ import {
 } from "./settings-copy";
 import {
   settingsFeedback,
-  settingsResponseError,
   type SettingsFeedback,
   type SettingsMessage,
 } from "@/i18n/settings";
@@ -29,6 +28,7 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { calendarSubscriptionFeedback } from "@/i18n/calendar-subscription-feedback";
 import { requestOwnedJson } from "@/lib/owned-request-http";
 import { readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
 import { describeCalendarSync } from "@/lib/calendar-sync-status";
@@ -53,11 +53,13 @@ function statusText(
   now: number,
   messages: import("@/lib/calendar-sync-status").CalendarSyncMessages,
   fallback: string,
+  copy: (key: SettingsMessage, params?: Record<string, string | number>) => string,
 ): string {
+  const issue = sub.last_error ? calendarSubscriptionFeedback(sub.last_error, sub.last_status === "error" ? "refreshLastFailed" : "calendarStatusNote") : null;
   return describeCalendarSync({
     lastAttemptAt: sub.last_fetched_at,
     failed: sub.last_status === "error",
-    error: sub.last_error,
+    error: issue ? copy(issue.key, issue.params) : null,
     now,
     verb: "updated",
     failedFallback: fallback,
@@ -181,7 +183,7 @@ export default function CalendarSubscriptionsSection() {
     if (!result.response.ok) {
       if ([401, 403].includes(result.response.status) || data?.code === "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" || data?.code === "CALENDAR_SUBSCRIPTION_ACCESS_UNCONFIRMED") setAccessHeld(true);
       if (result.response.status >= 500 || [401, 403, 408, 409, 425, 429].includes(result.response.status)) holdWrite();
-      else { pendingWrite.current = null; setError(settingsResponseError(data?.error, fallback)); }
+      else { pendingWrite.current = null; setError(calendarSubscriptionFeedback(data?.error, fallback)); }
       return null;
     }
     if (!data) { holdWrite(); return null; }
@@ -344,7 +346,7 @@ export default function CalendarSubscriptionsSection() {
                   )}
                   {sub.url_hint && (
                     <div className="text-xs text-label-tertiary break-all">
-                      {sub.url_hint}
+                      {sub.url_hint === "Unavailable" ? copy("calendarHintUnavailable") : sub.url_hint}
                     </div>
                   )}
                   <div
@@ -352,7 +354,7 @@ export default function CalendarSubscriptionsSection() {
                     role={sub.last_status === "error" ? "status" : undefined}
                   >
                     {sub.last_status === "error" ? copy("problem") : ""}
-                    {statusText(sub, now, syncCopy, copy("refreshLastFailed"))}
+                    {statusText(sub, now, syncCopy, copy("refreshLastFailed"), copy)}
                   </div>
                 </div>
               </div>
