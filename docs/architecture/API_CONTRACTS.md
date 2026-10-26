@@ -2154,3 +2154,19 @@ change without writes or forwarding the old draft. They are UNRUN. Durable
 restore/cross-tab ownership, actual effect outcomes, full session identity and
 role/native/rendered acceptance remain separate. No QA/checks/build/browser/
 DB/CI/push/merge/deploy or activation ran.
+
+
+### Exact event GET household predicate — 2026-10-26 source candidate
+
+`GET /api/events?id=<id>` now scopes its lookup by both event ID and the
+authenticated household before fetching event/creator data. Missing and foreign
+IDs return the same404; the former foreign403 distinction is removed. An
+explicit empty `id` or multiple `id` values returns400 rather than widening to
+a family list or selecting an ambiguous value. Existing successful shape and
+source attribution, established allowed family roles and collection reads stay
+unchanged. This does not grant target access from a notification URL.
+
+Three fixture cases are authored, UNRUN. Related-person projection, late-session
+renewal across all legacy event reads, local recurring occurrence semantics and
+actual DB/role/installed-client acceptance remain separate. No QA/checks/build/
+browser/DB/CI/push/merge/deploy or provider activation ran.

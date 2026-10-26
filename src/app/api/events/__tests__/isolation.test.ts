@@ -49,3 +49,23 @@ describe("events — two households", () => {
     expect((await events.DELETE(req({ as: "parentA", body: { eventId: "event-a" } }))).status).toBe(200);
   });
 });
+
+// Authored UNRUN: foreign existence and malformed targets do not become list reads.
+it('uses the same not-found result for an absent or another household event', async () => {
+  db.reset();
+  const absent = await events.GET(req({as:'parentA',query:{id:'missing-event'}}));
+  const foreign = await events.GET(req({as:'parentA',query:{id:'event-b'}}));
+  expect(absent.status).toBe(404);
+  expect(foreign.status).toBe(404);
+  expect(await foreign.json()).toEqual(await absent.json());
+  expect(writesTo('event')).toHaveLength(0);
+});
+it.each(['/api/events?id=','/api/events?id=event-a&id=event-b'])('refuses malformed exact-event selection (%s)', async path => {
+  db.reset();
+  const response = await events.GET(req({as:'parentA',path}));
+  expect(response.status).toBe(400);
+  const body = await response.json();
+  expect(body).not.toHaveProperty('events');
+  expect(body).not.toHaveProperty('event');
+  expect(writesTo('event')).toHaveLength(0);
+});

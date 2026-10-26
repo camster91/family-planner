@@ -13,7 +13,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   authenticateWithFamily,
-  requireFamilyMatch,
   requireParent,
 } from "@/lib/api-auth";
 import {
@@ -51,9 +50,11 @@ async function handleGET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     const id = searchParams.get("id");
-    if (id) {
-      const event = await prisma!.event.findUnique({
-        where: { id },
+    if (searchParams.has("id")) {
+      if (!id || searchParams.getAll("id").length !== 1)
+        return NextResponse.json({ error: "Invalid event target" }, { status: 400 });
+      const event = await prisma!.event.findFirst({
+        where: { id, family_id: auth.user.family_id },
         include: {
           creator: { select: { id: true, name: true } },
         },
@@ -61,11 +62,6 @@ async function handleGET(request: NextRequest) {
       if (!event) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
       }
-      const familyError = requireFamilyMatch(
-        event.family_id,
-        auth.user.family_id,
-      );
-      if (familyError) return familyError;
       const [withSource] = await attachEventSources(
         prisma!,
         auth.user.family_id,
