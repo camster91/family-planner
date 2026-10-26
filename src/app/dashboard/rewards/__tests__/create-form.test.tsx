@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import CreateRewardForm from "../create/CreateRewardForm";
 import { RewardCreateSheet } from "@/components/rewards/RewardCreateSheet";
+import { clearRewardCreateIntents, rewardCreateStorageKey, rewardCreateSignature } from "@/lib/reward-create-intent";
 import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const push = jest.fn();
@@ -75,6 +76,7 @@ const createdRewardForOwner = (
 };
 
 beforeEach(() => {
+  clearRewardCreateIntents();
   push.mockReset();
   refresh.mockReset();
   back.mockReset();
@@ -285,7 +287,7 @@ it("keeps the direct Back control noninteractive while saving", async () => {
   );
 });
 
-it("keeps the draft and uses localized safe refusal feedback", async () => {
+it("masks private inputs and uses localized access-refusal feedback", async () => {
   const user = userEvent.setup();
   global.fetch = jest
     .fn()
@@ -307,14 +309,14 @@ it("keeps the draft and uses localized safe refusal feedback", async () => {
 
   await waitFor(() =>
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Solo un padre o madre puede crear recompensas.",
+      "Tu acceso a recompensas cambió.",
     ),
   );
   expect(screen.getByRole("alert")).not.toHaveTextContent(
     "Only parents can create rewards",
   );
-  expect(name).toHaveValue("Tiempo de juego");
-  expect(description).toHaveValue("Conservar mientras reintento");
+  expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/Descripción/)).not.toBeInTheDocument();
   expect(push).not.toHaveBeenCalled();
 });
 
@@ -395,3 +397,42 @@ it.each([
     );
   },
 );
+
+// Authored UNRUN: retry targets the original save even after draft edits.
+it("retries original reward details after edits instead of creating the edited draft", async () => {
+  const user = userEvent.setup(); const calls: RequestInit[] = [];
+  global.fetch = jest.fn(async (_url, init) => { calls.push(init ?? {}); if (calls.length === 1) throw new TypeError("offline"); return response(201, createdRewardFor("Original reward")); }) as typeof fetch;
+  render(<CreateRewardForm />);
+  await user.type(screen.getByLabelText("Name"), "Original reward");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  await screen.findByRole("button", { name: "Try again" });
+  await user.clear(screen.getByLabelText("Name")); await user.type(screen.getByLabelText("Name"), "Edited draft");
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/rewards"));
+  expect(calls[1].body).toBe(calls[0].body); expect(calls[1].headers).toEqual(calls[0].headers);
+});
+it("holds a legacy untimed save without replacing its key or posting again", async () => {
+  const owner = { userId: "legacy-owner", familyId: "legacy-family" };
+  const draft = { name: "Legacy reward", description: "", cost: 50, icon: "🎁" };
+  const signature = rewardCreateSignature(draft); const key = "legacy-reward-key-12345678";
+  window.localStorage.setItem(rewardCreateStorageKey(owner), JSON.stringify({ version: 1, owner, latestDraft: draft, intents: { [signature]: { key, draft } } }));
+  const user = userEvent.setup(); render(<CreateRewardForm owner={owner} />);
+  await screen.findByText("The original save is too old or its timing is unknown. Your draft and request are kept. Check Rewards before creating anything new.");
+  expect(screen.getByRole("button", { name: "Try again" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  expect(global.fetch).not.toHaveBeenCalled();
+  const saved = JSON.parse(window.localStorage.getItem(rewardCreateStorageKey(owner))!);
+  expect(saved.intents[signature].key).toBe(key); expect(saved.intents[signature].issuedAt).toBeUndefined();
+});
+it("retires an unmounted save and keeps recovery after an abort-ignoring late success", async () => {
+  const owner = { userId: "retired-owner", familyId: "retired-family" };
+  let finish!: (value: Response) => void; let signal: AbortSignal | null | undefined;
+  global.fetch = jest.fn(async (_url, init) => { signal = init?.signal; return new Promise<Response>(resolve => { finish = resolve }); }) as typeof fetch;
+  const user = userEvent.setup(); const { unmount } = render(<CreateRewardForm owner={owner} />);
+  await user.type(screen.getByLabelText("Name"), "Pending original");
+  await user.click(screen.getByRole("button", { name: "Create Reward" }));
+  unmount(); expect(signal?.aborted).toBe(true);
+  await act(async () => finish(response(201, createdRewardForOwner(owner, "Pending original"))));
+  expect(push).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled();
+  const saved = JSON.parse(window.localStorage.getItem(rewardCreateStorageKey(owner))!); expect(Object.keys(saved.intents)).toHaveLength(1);
+});

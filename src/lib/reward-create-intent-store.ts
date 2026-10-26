@@ -15,6 +15,8 @@ export type RewardCreateDraft = {
 export type RewardCreateIntent = {
   key: string;
   draft: RewardCreateDraft;
+  /** Missing/unsupported legacy timing is retained as unknown, never renewed. */
+  issuedAt?: unknown;
 };
 
 export type RewardCreateStorage = {

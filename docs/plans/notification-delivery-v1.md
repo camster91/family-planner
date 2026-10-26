@@ -1113,3 +1113,12 @@ provider/native/device/rendered or full #141 acceptance.100-recipient latency is
 unmeasured and may hit the retained transaction timeout. No QA, DB/schema/
 migration/generation, flags/providers/schedulers/native activation, build/browser/
 CI, push/merge or deployment ran. All activation flags remain default-off source.
+
+
+### 2026-10-25 — reward creation retains original retry timing (source only)
+
+Creation now records the first local issue time alongside its existing owner-scoped request key and draft. Reusing a signature cannot replace its key or renew timing. Recognized legacy intents with missing or unsupported timing retain their original contents and hold retries; the existing seven-day receipt interval is a local hold boundary, not server admission or clock proof. Explicit Retry sends the original details even after editing the form. Uncertain work survives later refusals; 401/403 and access-change responses mask private fields.
+
+The foreground request uses the shared 15-second/256-KiB transport, aborts on unmount and ignores retired completions/navigation. Permission/account/family boundary changes remount the form. Error keys relabel with locale rather than rehydrating saved private drafts. Authored regression cases cover original payload/key reuse, legacy timing hold and late completion after unmount; all are UNRUN.
+
+Remaining: creation still uses the legacy endpoint and does not capture/admit an original session-generation command, inspect exact receipts or enumerate every saved signature. The existing whole-envelope loader still removes invalid/unsupported records and treats storage-read failures as empty; this change does not certify journal fault safety, multi-tab behavior, durable storage or old-reader acceptance. No test, build, browser, DB migration/generation, provider/scheduler activation, push, merge or deploy ran. #135 and the release criteria remain open.

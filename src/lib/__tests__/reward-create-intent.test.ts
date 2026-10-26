@@ -10,6 +10,7 @@ import {
   rememberRewardCreateIntent,
   rewardCreateIntent,
   rewardCreateSignature,
+  rewardCreateWithinRetryWindow,
   rewardCreateStorageKey,
   type RewardCreateDraft,
   type RewardCreateOwner,
@@ -48,7 +49,7 @@ it("rehydrates a valid owner-scoped draft and key after memory is gone", () => {
   );
 
   expect(latestRewardCreateDraft(parent)).toEqual(draft);
-  expect(rewardCreateIntent(parent, signature)).toEqual({ key, draft });
+  expect(rewardCreateIntent(parent, signature)).toMatchObject({ key, draft });
 });
 
 it("does not cross owner namespaces and clears only the requested owner", () => {
@@ -76,7 +77,7 @@ it("removes a validated draft and intent from durable storage", () => {
 
   forgetLatestRewardCreateDraft(parent, signature);
   expect(latestRewardCreateDraft(parent)).toBeNull();
-  expect(rewardCreateIntent(parent, signature)).toEqual({ key, draft });
+  expect(rewardCreateIntent(parent, signature)).toMatchObject({ key, draft });
 
   clearRewardCreateIntents(parent);
   expect(rewardCreateIntent(parent, signature)).toBeNull();
@@ -122,7 +123,7 @@ it("keeps live in-memory recovery when browser storage writes fail", () => {
   rememberRewardCreateIntent(parent, signature, draft, key);
 
   expect(latestRewardCreateDraft(parent)).toEqual(draft);
-  expect(rewardCreateIntent(parent, signature)).toEqual({ key, draft });
+  expect(rewardCreateIntent(parent, signature)).toMatchObject({ key, draft });
   setItem.mockRestore();
 });
 
@@ -189,4 +190,24 @@ it("purges only its own versioned storage namespace on global cleanup", () => {
   expect(
     window.localStorage.getItem(rewardCreateStorageKey(parent)),
   ).toBeNull();
+});
+
+// Authored UNRUN: adding timing does not renew legacy/unfinished request keys.
+it("preserves the first creation time and refuses replacing a signature's key", () => {
+  const signature = rewardCreateSignature(draft); const first = Date.now();
+  expect(rememberRewardCreateIntent(parent, signature, draft, key, first)).toBe(true);
+  expect(rememberRewardCreateIntent(parent, signature, draft, key, first + 1000)).toBe(true);
+  expect(rewardCreateIntent(parent, signature)?.issuedAt).toBe(first);
+  expect(rememberRewardCreateIntent(parent, signature, draft, "different-key-12345678", first + 2000)).toBe(false);
+  const intent = rewardCreateIntent(parent, signature)!;
+  expect(intent.key).toBe(key); expect(rewardCreateWithinRetryWindow(intent, first + 7 * 24 * 60 * 60 * 1000)).toBe(false);
+});
+it("retains legacy or unsupported timing without minting a fresh retry age", () => {
+  const signature = rewardCreateSignature(draft);
+  window.localStorage.setItem(rewardCreateStorageKey(parent), JSON.stringify({ version: 1, owner: parent, latestDraft: draft,
+    intents: { [signature]: { key, draft, issuedAt: "unknown-original-time" } } }));
+  const intent = rewardCreateIntent(parent, signature)!;
+  expect(intent.issuedAt).toBe("unknown-original-time"); expect(rewardCreateWithinRetryWindow(intent)).toBe(false);
+  expect(rememberRewardCreateIntent(parent, signature, draft, key)).toBe(true);
+  expect(rewardCreateIntent(parent, signature)?.issuedAt).toBe("unknown-original-time");
 });

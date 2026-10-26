@@ -1,6 +1,6 @@
 "use client";
 
-import { isValidIdempotencyKey } from "@/lib/idempotency-key";
+import { IDEMPOTENCY_TTL_MS, isValidIdempotencyKey } from "@/lib/idempotency-key";
 import {
   REWARD_CREATE_INTENT_MAX_INTENTS,
   REWARD_CREATE_INTENT_STORAGE_VERSION,
@@ -56,7 +56,7 @@ function cloneDraft(draft: RewardCreateDraft): RewardCreateDraft {
 }
 
 function cloneIntent(intent: RewardCreateIntent): RewardCreateIntent {
-  return { key: intent.key, draft: cloneDraft(intent.draft) };
+  return { key: intent.key, draft: cloneDraft(intent.draft), ...(intent.issuedAt !== undefined ? { issuedAt: intent.issuedAt } : {}) };
 }
 
 function validDraft(
@@ -231,6 +231,7 @@ export function rememberRewardCreateIntent(
   signature: string,
   draft: RewardCreateDraft,
   key: string,
+  issuedAt = Date.now(),
 ): boolean {
   const store = getStore(owner);
   if (
@@ -241,7 +242,11 @@ export function rememberRewardCreateIntent(
     (store.intents.size >= MAX_INTENTS && !store.intents.has(signature))
   )
     return false;
-  store.intents.set(signature, { key, draft: cloneDraft(draft) });
+  const existing = store.intents.get(signature);
+  // Never replace a prior key or manufacture timing for legacy/unknown work.
+  if (existing) return existing.key === key;
+  if (!Number.isSafeInteger(issuedAt) || issuedAt < 0) return false;
+  store.intents.set(signature, { key, draft: cloneDraft(draft), issuedAt });
   persist(store.owner, store);
   return true;
 }
@@ -270,4 +275,11 @@ export function forgetLatestRewardCreateDraft(
     store.latestDraft = null;
     persist(store.owner, store);
   }
+}
+
+
+/** Local original-age precondition only, not authoritative receipt/outcome proof. */
+export function rewardCreateWithinRetryWindow(intent: RewardCreateIntent, now = Date.now()): boolean {
+  return typeof intent.issuedAt === "number" && Number.isSafeInteger(intent.issuedAt) && intent.issuedAt >= 0
+    && Number.isSafeInteger(now) && now >= intent.issuedAt && now - intent.issuedAt < IDEMPOTENCY_TTL_MS;
 }
