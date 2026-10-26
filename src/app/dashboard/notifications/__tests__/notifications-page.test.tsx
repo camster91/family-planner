@@ -360,3 +360,44 @@ it('keeps a concurrent mark-read result and retries the exact older cursor after
     '/api/notifications?includeSnoozed=true&limit=50&cursor=cursor-a',
   ])
 })
+
+// Authored for deferred QA: keep the global toast host alive after route exit.
+it.each(['mark', 'snooze', 'delete'] as const)('retires a pending %s response when leaving the inbox', async action => {
+  jest.useFakeTimers()
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  let release!: (response: Response) => void
+  const writeInits: RequestInit[] = []
+  let writes = 0
+  global.fetch = jest.fn(async (_input, init) => {
+    if (!init?.method || init.method === 'GET')
+      return { ok: true, status: 200, json: async () => ({ notifications: [UNREAD], nextCursor: null }) } as Response
+    writes++
+    writeInits.push(init)
+    // Simulate a native bridge that ignores cancellation and settles late.
+    return await new Promise<Response>(resolve => { release = resolve })
+  }) as unknown as typeof fetch
+  const page = render(<ToastProvider><NotificationsPage /></ToastProvider>)
+  if (action === 'mark')
+    await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  else if (action === 'snooze')
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Snooze "Dishes done"' }), '15')
+  else {
+    await user.click(await screen.findByRole('button', { name: 'Delete "Dishes done"' }))
+    await act(async () => { jest.advanceTimersByTime(UNDO_TOAST_MS + 1000) })
+  }
+  expect(writes).toBe(1)
+  page.rerender(<ToastProvider><p>Next screen</p></ToastProvider>)
+  expect(writeInits[0].signal?.aborted).toBe(true)
+  await act(async () => {
+    release({ ok: action === 'snooze', status: action === 'snooze' ? 200 : 500,
+      json: async () => action === 'snooze'
+        ? { success: true, snoozed_until: '2030-01-01T12:00:00.000Z' }
+        : { error: 'Late private server detail' } } as Response)
+  })
+  expect(writes).toBe(1) // No page-exit replay of a delete already dispatched.
+  expect(screen.queryByText('Late private server detail')).toBeNull()
+  expect(screen.queryByText("Couldn't mark it as read")).toBeNull()
+  expect(screen.queryByText("Couldn't delete the notification")).toBeNull()
+  expect(screen.queryByText('Notification snoozed')).toBeNull()
+  expect(screen.getByText('Next screen')).toBeTruthy()
+})

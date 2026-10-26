@@ -91,6 +91,18 @@ export default function NotificationsPage() {
   const loadSequence = useRef(0);
   const writeEpoch = useRef(0);
   const activeRead = useRef<AbortController | null>(null);
+  const pageLive = useRef(false);
+  const activeWrites = useRef(new Set<AbortController>());
+  useEffect(() => {
+    pageLive.current = true;
+    const writes = activeWrites.current;
+    return () => {
+      pageLive.current = false;
+      // Abort only retires this foreground UI; the server may have committed.
+      for (const controller of writes) controller.abort();
+      writes.clear();
+    };
+  }, []);
   useEffect(() => {
     const tick = () => setNow(Date.now());
     const timer = setInterval(tick, 30_000);
@@ -112,6 +124,7 @@ export default function NotificationsPage() {
 
   const failed = useCallback(
     async (title: string, body?: unknown) => {
+      if (!pageLive.current) return;
       addToast({
         type: "error",
         title,
@@ -227,7 +240,7 @@ export default function NotificationsPage() {
       });
       if (waiting.size) writeEpoch.current++;
       waiting.clear();
-      setDeleteBusy(deleting.current.size > 0);
+      if (pageLive.current) setDeleteBusy(deleting.current.size > 0);
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
@@ -243,7 +256,9 @@ export default function NotificationsPage() {
 
   const handleMarkAsRead = useCallback(
     async (notificationId: string) => {
-      if (snoozeLock.current) return;
+      if (!pageLive.current || snoozeLock.current) return;
+      const controller = new AbortController();
+      activeWrites.current.add(controller);
       snoozeLock.current = true;
       writeEpoch.current++;
       setSnoozePending(notificationId);
@@ -252,7 +267,9 @@ export default function NotificationsPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notificationId }),
+          signal: controller.signal,
         });
+        if (!pageLive.current || controller.signal.aborted) return;
         if (!result.response.ok) {
           await failed(text("markFailed"), result.body);
           return;
@@ -262,11 +279,12 @@ export default function NotificationsPage() {
           prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
         );
       } catch {
-        await failed(text("markFailed"));
+        if (!controller.signal.aborted) await failed(text("markFailed"));
       } finally {
+        activeWrites.current.delete(controller);
         writeEpoch.current++;
         snoozeLock.current = false;
-        setSnoozePending(null);
+        if (pageLive.current && !controller.signal.aborted) setSnoozePending(null);
       }
     },
     [failed, text],
@@ -282,6 +300,9 @@ export default function NotificationsPage() {
 
   const commitDelete = useCallback(
     async (item: NotificationItem) => {
+      if (!pageLive.current) return;
+      const controller = new AbortController();
+      activeWrites.current.add(controller);
       pending.current.delete(item.id);
       deleting.current.add(item.id);
       setDeleteBusy(true);
@@ -289,18 +310,24 @@ export default function NotificationsPage() {
         const result = await writeNotification("/api/notifications", {
           method: "DELETE", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notificationId: item.id }),
+          signal: controller.signal,
         });
+        if (!pageLive.current || controller.signal.aborted) return;
         if (!result.response.ok || !succeeded(result.body)) {
           restore(item);
           await failed(text("deleteFailed"), result.body);
         }
       } catch {
-        restore(item);
-        await failed(text("deleteFailed"));
+        if (pageLive.current && !controller.signal.aborted) {
+          restore(item);
+          await failed(text("deleteFailed"));
+        }
       } finally {
+        activeWrites.current.delete(controller);
         writeEpoch.current++;
         deleting.current.delete(item.id);
-        setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
+        if (pageLive.current && !controller.signal.aborted)
+          setDeleteBusy(pending.current.size > 0 || deleting.current.size > 0);
       }
     },
     [failed, restore, text],
@@ -308,7 +335,7 @@ export default function NotificationsPage() {
 
   const handleDelete = useCallback(
     (item: NotificationItem) => {
-      if (snoozeLock.current || pending.current.has(item.id) || deleting.current.has(item.id)) return;
+      if (!pageLive.current || snoozeLock.current || pending.current.has(item.id) || deleting.current.has(item.id)) return;
       writeEpoch.current++;
       setNotifications((prev) => prev.filter((n) => n.id !== item.id));
       const timer = setTimeout(() => void commitDelete(item), DELETE_DELAY_MS);
@@ -317,6 +344,7 @@ export default function NotificationsPage() {
       showUndo({
         title: text("deleted"),
         onUndo: () => {
+          if (!pageLive.current) return;
           const waiting = pending.current.get(item.id);
           if (!waiting) {
             addToast({
@@ -341,7 +369,9 @@ export default function NotificationsPage() {
     notification: NotificationItem,
     minutes: number | null,
   ) => {
-    if (snoozeLock.current) return;
+    if (!pageLive.current || snoozeLock.current) return;
+    const controller = new AbortController();
+    activeWrites.current.add(controller);
     snoozeLock.current = true;
     writeEpoch.current++;
     setSnoozePending(notification.id);
@@ -350,7 +380,9 @@ export default function NotificationsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId: notification.id, minutes }),
+        signal: controller.signal,
       });
+      if (!pageLive.current || controller.signal.aborted) return;
       if (!result.response.ok) {
         await failed(text("snoozeFailed"), result.body);
         return;
@@ -380,11 +412,12 @@ export default function NotificationsPage() {
         title: minutes === null ? text("restored") : text("snoozeDone"),
       });
     } catch {
-      await failed(text("snoozeFailed"));
+      if (!controller.signal.aborted) await failed(text("snoozeFailed"));
     } finally {
+      activeWrites.current.delete(controller);
       writeEpoch.current++;
       snoozeLock.current = false;
-      setSnoozePending(null);
+      if (pageLive.current && !controller.signal.aborted) setSnoozePending(null);
     }
   };
   const isSnoozed = (n: NotificationItem) =>

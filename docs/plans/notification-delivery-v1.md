@@ -1159,3 +1159,26 @@ Focused replay projection, missing-identity hold and late-authority-loss fixture
 Fresh create/edit/claim/approval effects no longer include creator/claimant display-name relations in their result, so the canonical effect receipt and outer idempotency response store scalar reward history without those duplicated person objects. The existing HTTP disclosure boundary adds current same-household names, preserving the public relationship fields for current callers. The approval preflight also stops reading an unused claimant name; the canonical ID-only claimant existence check used for notification routing is retained. No new writer or replay engine is introduced.
 
 Existing opt-in guarded PostgreSQL fixture source now describes stored create/claim/approval receipts without creator/claimer objects; UNRUN. No old receipt is rewritten or erased. Reward name/description, scalar creator/claimant IDs and effect-time XP remain sensitive receipt history. Historical redaction/retention, canonical source birth/state replay admission, original-client compatibility and all actual DB/runtime/QA acceptance remain open. No QA/checks/build/DB/migrations/push/merge/deploy/activation ran; #136/#135 remain open.
+
+
+### 2026-10-26 — retire inbox foreground writes on route exit (source only)
+
+Mark-read, snooze and delayed-delete requests now register per-request controllers
+with the mounted inbox. Unmount aborts those foreground jobs; signal and page
+lifetime guards suppress late row restoration, success/error toasts and busy-state
+updates even if a native bridge ignores cancellation. The retained Undo callback
+refuses work after its originating inbox retires. Existing read sequencing and
+canonical notification endpoints remain the same. Waiting Undo deletes still
+flush once via the existing page-exit keepalive path; a delete already dispatched
+is removed from that waiting set and is not resent on unmount.
+
+Aborting a request does not establish whether its server mutation committed.
+Returning to the inbox uses its normal canonical read; no automatic retry,
+durable outcome journal, new ownership protocol or provider action is added.
+This is mounted route lifetime, not proof of actor/household continuity when the
+route remains mounted. Three fixture sources retain the global toast host while
+a late mark-read/delete error or snooze success settles after route exit, and
+assert cancellation and a single dispatch. They are UNRUN. Existing Undo timing,
+unknown-outcome, owner/concurrency, physical lifecycle and all #141 acceptance
+remain unverified. No QA/checks/build/browser/DB/CI/push/merge/deploy or activation
+ran.
