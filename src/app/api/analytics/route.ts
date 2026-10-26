@@ -1,5 +1,5 @@
 import { readAnalyticsChores } from "@/lib/analytics-chore-read";
-import { ANALYTICS_SUMMARY_PROJECTION, ANALYTICS_WINDOW_DAYS, MAX_ANALYTICS_CHORES, ANALYTICS_SUMMARY_COVERAGE, ANALYTICS_SUMMARY_LIMIT_CODE } from "@/lib/analytics-summary-contract";
+import { ANALYTICS_SUMMARY_PROJECTION, ANALYTICS_WINDOW_DAYS, MAX_ANALYTICS_CHORES, MAX_ANALYTICS_MEMBERS, ANALYTICS_SUMMARY_COVERAGE, ANALYTICS_SUMMARY_LIMIT_CODE } from "@/lib/analytics-summary-contract";
 import { PRIVATE_TIMELINE_ACTIONS } from "@/lib/review-inbox/timeline-contract";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
       prisma!.user.findMany({
         where: { family_id: familyId },
         select: { id: true, name: true, role: true, avatar_url: true, xp: true, level: true, streak: true, best_streak: true },
+        ...(summaryOnly ? { orderBy: { id: 'asc' as const }, take: MAX_ANALYTICS_MEMBERS + 1 } : {}),
       }),
       // Fill the visible cap through the canonical routine occurrence policy;
       // never filter only after a truncated candidate window.
@@ -101,8 +102,9 @@ export async function GET(request: NextRequest) {
     // One lookahead row distinguishes a complete exactly-at-cap collection
     // from a truncated one. Never turn an incomplete compact read into totals.
     // Legacy requests retain their established cap/body pending compatibility work.
-    if (summaryOnly && (allChores.length > MAX_ANALYTICS_CHORES || recentCompletedChores.length > MAX_ANALYTICS_CHORES))
-      return await reply({ code: ANALYTICS_SUMMARY_LIMIT_CODE, error: 'This progress window exceeds the supported summary size.' }, 422)
+    if (summaryOnly && (familyMembers.length > MAX_ANALYTICS_MEMBERS ||
+      allChores.length > MAX_ANALYTICS_CHORES || recentCompletedChores.length > MAX_ANALYTICS_CHORES))
+      return await reply({ code: ANALYTICS_SUMMARY_LIMIT_CODE, error: 'This progress view exceeds the supported summary size.' }, 422)
 
     // Completed chores by the viewer's local day.
     const completedByDay = new Map<string, { count: number; points: number }>()

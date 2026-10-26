@@ -2233,7 +2233,7 @@ admissible; a lookahead row in either collection yields422 with
 This refuses silent truncation instead of presenting partial counts as complete.
 
 Successful compact replies add `coverage: { kind: "complete", windowDays:90,
-rowLimit:5000 }`. The current browser requires that marker before canonical DTO
+rowLimit:5000, memberLimit:1000 }`. The current browser requires that marker before canonical DTO
 admission. Its meaning is limited to those source collections not exceeding
 their cap at read time: it is not a stable database snapshot, original-owner
 proof, historical profile attribution or a completed routine/cohort audit. The
@@ -2316,3 +2316,25 @@ separate. No QA/tests/checks/build/browser/DB/CI/release ran. Later cases must
 cover hidden prefixes across multiple batches/chunks, all-hidden exhaustion,
 equal due-date IDs, lookahead4999/5000/5001, retained completion/evidence,
 malformed/paused/retired roots, repeated IDs, metadata errors and household scope.
+
+
+Compact analytics also limits its current-User cohort read to1001 rows in stable
+ID order. Exactly1000 members is admitted; a lookahead row produces the same
+renewed/private422 size-limit result, without member or numeric summary data.
+This is an optional summary-processing budget, not a household join/create cap;
+no membership mutation is changed. The compact coverage marker now includes
+`memberLimit:1000`, and the browser requires it alongside the chore limits.
+Older/intermediate servers without that field cannot be treated as proving a
+complete bounded cohort. Legacy unprojected reads retain their existing User
+query/response contract, including the still-unbounded member collection.
+
+The EN/ES limit guidance covers omitted people as well as omitted work. All
+compact source collections now have explicit row budgets:1001 current Users,
+5001 visible rate-source chores retained across bounded candidates,5001 completed
+history rows, and no activity collection. These are row/retention bounds, not
+server byte/CPU/query-count/time/snapshot guarantees. Account-free profiles and
+original member lifecycle/erasure attribution remain separate, and the current
+browser2MiB/15-second transport guard remains in effect. No runtime, schema,
+compatibility, dense/concurrent or locale/device acceptance was run. Deferred
+cases include999/1000/1001 current Users, active member count changing during a
+read, matching/missing/wrong coverage memberLimit and unchanged legacy responses.
