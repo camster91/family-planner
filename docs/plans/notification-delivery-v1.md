@@ -1182,3 +1182,29 @@ assert cancellation and a single dispatch. They are UNRUN. Existing Undo timing,
 unknown-outcome, owner/concurrency, physical lifecycle and all #141 acceptance
 remain unverified. No QA/checks/build/browser/DB/CI/push/merge/deploy or activation
 ran.
+
+
+### 2026-10-26 — bounded personal inbox writes and atomic owner predicates
+
+The existing notification POST uses the shared streamed JSON reader with16KiB;
+mark-read, delete and snooze use8KiB. Authentication (and POST parent admission)
+still precedes body decoding. Oversized requests return413 before domain work;
+malformed JSON keeps400. The legacy decoder fallback has a post-decode byte
+bound only, as documented by the shared reader. This is no body-read deadline
+or transport-wide allocation guarantee. Current accepted shapes remain intact.
+
+Single-row mark-read and delete now use updateMany/deleteMany with both the
+notification ID and authenticated user ID in the actual mutation predicate.
+Affected count other than one returns the existing neutral404. This removes
+the separate ownership preflight and subsequent ID-only write. Mark-all/clear-all
+retain their existing user predicates. Snooze already used an owner predicate.
+Its relative delay is recalculated when deliberately chosen again, so it is
+not an exact original-command retry; unknown outcomes still require canonical
+refresh. No new receipt, automatic resend, scheduler or delivery provider.
+
+Seven fixture cases cover the two owner predicates and streamed/declared body
+refusals; all are UNRUN. This does not supply original-session renewal across
+body/DB waits, immutable notification birth identity, same-owner replacement
+protection, multi-device ordering, slow-body deadlines or acceptance of current/
+previous installed clients. No QA/checks/build/browser/DB/migration/CI/push/merge/
+deploy or activation ran. #141/#136/#134 remain open.

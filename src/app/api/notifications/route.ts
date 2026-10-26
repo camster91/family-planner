@@ -1,3 +1,4 @@
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body"
 import { parseNotificationPaging, afterNotificationCursor, encodeNotificationCursor } from "@/lib/notification-paging"
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
@@ -61,9 +62,9 @@ export async function POST(request: NextRequest) {
 
     let payload: unknown
     try {
-      payload = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      payload = await readBoundedJson(request, 16 * 1024)
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
     }
 
     const parsed = sendNotificationSchema.safeParse(payload)
@@ -116,11 +117,11 @@ export async function PATCH(request: NextRequest) {
     if (error) return error
     const userId = payload.userId
 
-    let body: any
+    let body: unknown
     try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      body = await readBoundedJson(request, 8 * 1024)
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
     }
     const parsed = updateNotificationSchema.safeParse(body)
     if (!parsed.success) {
@@ -135,18 +136,14 @@ export async function PATCH(request: NextRequest) {
         data: { read: true },
       })
     } else if (notificationId) {
-      // Verify notification belongs to this user
-      const notification = await prisma!.notification.findUnique({
-        where: { id: notificationId },
-        select: { user_id: true },
-      })
-      if (!notification || notification.user_id !== userId) {
-        return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
-      }
-      await prisma!.notification.update({
-        where: { id: notificationId },
+      // Ownership is part of the write, not a separate stale preflight read.
+      const changed = await prisma!.notification.updateMany({
+        where: { id: notificationId, user_id: userId },
         data: { read: true },
       })
+      if (changed.count !== 1) {
+        return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
+      }
     }
 
     return NextResponse.json({ success: true })
@@ -163,11 +160,11 @@ export async function DELETE(request: NextRequest) {
     if (error) return error
     const userId = payload.userId
 
-    let body: any
+    let body: unknown
     try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      body = await readBoundedJson(request, 8 * 1024)
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
     }
     const parsed = deleteNotificationSchema.safeParse(body)
     if (!parsed.success) {
@@ -181,17 +178,12 @@ export async function DELETE(request: NextRequest) {
         where: { user_id: userId },
       })
     } else if (notificationId) {
-      // Verify notification belongs to this user
-      const notification = await prisma!.notification.findUnique({
-        where: { id: notificationId },
-        select: { user_id: true },
+      const changed = await prisma!.notification.deleteMany({
+        where: { id: notificationId, user_id: userId },
       })
-      if (!notification || notification.user_id !== userId) {
+      if (changed.count !== 1) {
         return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
       }
-      await prisma!.notification.delete({
-        where: { id: notificationId },
-      })
     }
 
     return NextResponse.json({ success: true })

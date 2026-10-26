@@ -1963,3 +1963,21 @@ One ignored-abort ordinary-create/unmount callback fixture is authored, UNRUN. A
 Ordinary recipe save records a synchronous confirmed guard and visible read-only result before invoking optional parent selection/save callbacks. Confirmed fields and submit/retry are locked; no second body/key is generated if the host stays mounted or a synchronous callback throws. Known success is not reclassified as network uncertainty. Existing owner/lifetime admission still precedes confirmation. EN/ES guidance offers the known canonical recipe link and Close; raw callback errors are not rendered. Unchanged existing-recipe completion uses the same handoff behavior without issuing a new write.
 
 Adopted create enters its existing completed view immediately after confirmed receipt retirement, before navigation release or onCreated. A failed/blocked handoff cannot leave a submitted/retry UI with its saved entry already retired. The known-present confirmation and recipe-box path remain available; no new journal/receipt/writer is introduced. Completion retains the callback captured at dispatch, preserving the parent route-generation guard if props refresh while waiting. Two ordinary/adopted callback-failure cases and one dispatch-generation case are authored, UNRUN. This is UI result ownership, not acceptance of arbitrary asynchronous host behavior, process death, restore/old-reader or actual mounted/rendered/locale/native behavior. Existing migration prerequisite remains unapplied. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Notification write admission — 2026-10-26 source candidate
+
+`POST /api/notifications` reads at most16KiB of JSON; `PATCH`/`DELETE` on that
+route and `PATCH /api/notifications/snooze` read at most8KiB using the existing
+stream-bounded reader. Oversized bodies return413; malformed JSON remains400.
+Authentication and existing POST parent admission precede decoding. No accepted
+request field or success body changes. Legacy decoder-only bridges have the
+shared reader's post-decode bound, not a preallocation guarantee.
+
+Single-row mark-read/delete now include both ID and authenticated user ID in
+the database mutation predicate. Missing or foreign targets retain neutral404.
+Bulk actions keep their existing user scope. Relative snooze minutes recompute
+the target time on another deliberate request and are not an exact retry after
+uncertainty; refresh the canonical inbox first. No schema/migration or provider
+change. Fixture source is UNRUN; session-renewal, concurrent same-owner row
+replacement, native/old-reader and all runtime acceptance remain separate.

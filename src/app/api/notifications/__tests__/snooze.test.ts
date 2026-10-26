@@ -32,3 +32,20 @@ it('requires authentication',async()=>{
  expect((await PATCH(req({body:{notificationId:'note-a',minutes:15}}))).status).toBe(401)
  expect(write).not.toHaveBeenCalled()
 })
+
+// Authored source cases only; QA remains deferred.
+it('refuses an oversized streamed snooze before touching the notification', async () => {
+ const request = req({ body: { notificationId:'note-a', minutes:15 } })
+ request.body = new ReadableStream<Uint8Array>({
+  start(controller) { controller.enqueue(new Uint8Array(8 * 1024 + 1)); controller.close() },
+ })
+ expect((await PATCH(request)).status).toBe(413)
+ expect(write).not.toHaveBeenCalled()
+})
+it('refuses a declared oversized body without decoding it', async () => {
+ const request = req({ headers:{'content-length':String(8 * 1024 + 1)} })
+ request.json = jest.fn()
+ expect((await PATCH(request)).status).toBe(413)
+ expect(request.json).not.toHaveBeenCalled()
+ expect(write).not.toHaveBeenCalled()
+})
