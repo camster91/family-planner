@@ -2170,3 +2170,26 @@ Three fixture cases are authored, UNRUN. Related-person projection, late-session
 renewal across all legacy event reads, local recurring occurrence semantics and
 actual DB/role/installed-client acceptance remain separate. No QA/checks/build/
 browser/DB/CI/push/merge/deploy or provider activation ran.
+
+
+### Event GET creator projection and final viewer renewal — 2026-10-26 source
+
+Exact, paged-range and legacy `GET /api/events` now load scalar event rows and
+project creator display objects from current same-household User queries, in
+batches of100 events/at most100 distinct creator IDs. Missing/moved creators
+become null; `created_by` stays scalar household history. Names are not fetched
+through the unscoped event creator relation. Source attribution, event ordering,
+paging/lookahead and established family-role policy remain.
+
+The route freezes original actor/family/role/token-generation context and renews
+it after event/person/source waits, before serializing successful private
+no-store JSON. Changed context returns409 `EVENT_SCOPE_CHANGED`; current auth
+refusal retains its response with private no-store. No loaded household body is
+returned on refusal. Malformed/missing target errors remain separate.
+
+Five source fixture cases cover moved creators in exact/range/legacy reads,
+a viewer move during projection and bounded/minimal person projection. All are
+UNRUN. This is point-in-time checking, not recall or serialization of related
+people after lookup, original browser-session-ID binding, or coverage of event
+mutation/SSR replies. No actual DB, role/native/rollback/recurrence acceptance,
+QA/checks/build/browser/CI/push/merge/deploy or provider activation ran.

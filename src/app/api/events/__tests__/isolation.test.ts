@@ -7,7 +7,7 @@ jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-hous
 jest.mock("@/lib/feature-gate-server", () => ({ featureGate: async () => null }));
 
 import * as events from "../route";
-import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, req, fakePrisma, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 
 const newEvent = { title: "Swim", start_time: "2026-10-01T10:00:00.000Z", event_type: "sports" };
 
@@ -68,4 +68,39 @@ it.each(['/api/events?id=','/api/events?id=event-a&id=event-b'])('refuses malfor
   expect(body).not.toHaveProperty('events');
   expect(body).not.toHaveProperty('event');
   expect(writesTo('event')).toHaveLength(0);
+});
+
+
+// Authored UNRUN: relationship labels are scoped independently of scalar history.
+it.each(['single','range','legacy'] as const)('omits a moved creator name from %s event reads', async mode => {
+  db.reset();
+  Object.assign(db.find('event','event-a')!, {created_by:'child-b',start_time:new Date('2099-01-04T12:00:00.000Z'),end_time:new Date('2099-01-04T13:00:00.000Z')});
+  const query: Record<string,string> = mode === 'single' ? {id:'event-a'} : mode === 'range'
+    ? {start:'2099-01-01T00:00:00.000Z',end:'2099-01-08T00:00:00.000Z',limit:'20'} : {};
+  const response = await events.GET(req({as:'parentA',query}));
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+  const body = await response.json();
+  const result = body.event ?? body.events[0];
+  expect(result.id).toBe('event-a');
+  expect(result.created_by).toBe('child-b');
+  expect(result.creator).toBeNull();
+  expect(JSON.stringify(body)).not.toContain('FOREIGN');
+});
+it('withholds already-loaded event data if the viewer changes households during creator lookup', async () => {
+  db.reset();
+  const originalFindMany = fakePrisma.user.findMany;
+  const lookup = jest.spyOn(fakePrisma.user,'findMany').mockImplementationOnce(async (...args: unknown[]) => {
+    const people = await originalFindMany(...args);
+    db.find('user','parent-a')!.family_id = 'family-B';
+    return people;
+  });
+  try {
+    const response = await events.GET(req({as:'parentA',query:{id:'event-a'}}));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.code).toBe('EVENT_SCOPE_CHANGED');
+    expect(body).not.toHaveProperty('event');
+    expect(body).not.toHaveProperty('events');
+  } finally { lookup.mockRestore(); }
 });

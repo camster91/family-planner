@@ -1,3 +1,4 @@
+import { projectEventCreators } from "@/lib/event-people";
 import { assistantDeleteTargetGuard } from "@/lib/assistant-delete-target";
 import {
   deletePersonRecord,
@@ -46,6 +47,17 @@ async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const reply = async (body: unknown) => {
+      const [current, refused] = await authenticateWithFamily(request);
+      if (refused) { refused.headers.set("Cache-Control", "private, no-store"); return refused; }
+      if (current.user.id !== original.actorId || current.user.family_id !== original.familyId ||
+        current.user.role !== original.role || (current.payload.tv ?? 0) !== original.generation)
+        return NextResponse.json({ error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED" },
+          { status: 409, headers: { "Cache-Control": "private, no-store" } });
+      return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
+    };
 
     const { searchParams } = new URL(request.url);
 
@@ -54,25 +66,22 @@ async function handleGET(request: NextRequest) {
       if (!id || searchParams.getAll("id").length !== 1)
         return NextResponse.json({ error: "Invalid event target" }, { status: 400 });
       const event = await prisma!.event.findFirst({
-        where: { id, family_id: auth.user.family_id },
-        include: {
-          creator: { select: { id: true, name: true } },
-        },
+        where: { id, family_id: original.familyId },
       });
       if (!event) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
       }
       const [withSource] = await attachEventSources(
         prisma!,
-        auth.user.family_id,
-        [event],
+        original.familyId,
+        await projectEventCreators(prisma!, original.familyId, [event]),
       );
-      return NextResponse.json({ event: withSource });
+      return await reply({ event: withSource });
     }
 
     let range;
     try {
-      range = parseCalendarRange(searchParams, auth.user.family_id);
+      range = parseCalendarRange(searchParams, original.familyId);
     } catch (error) {
       if (error instanceof CalendarRangeError) {
         return NextResponse.json({ error: error.message }, { status: 400 });
@@ -83,7 +92,7 @@ async function handleGET(request: NextRequest) {
       const { start, end, limit, after } = range;
       const events = await prisma!.event.findMany({
         where: {
-          family_id: auth.user.family_id,
+          family_id: original.familyId,
           OR: [
             { start_time: { gte: start, lt: end } },
             { start_time: { lt: start }, end_time: { gt: start } },
@@ -101,17 +110,16 @@ async function handleGET(request: NextRequest) {
               }
             : {}),
         },
-        include: { creator: { select: { id: true, name: true } } },
         orderBy: [{ start_time: "asc" }, { id: "asc" }],
         take: limit + 1,
       });
       const page = events.slice(0, limit);
       const hasMore = events.length > limit;
-      return NextResponse.json({
-        events: await attachEventSources(prisma!, auth.user.family_id, page),
+      return await reply({
+        events: await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page)),
         nextCursor: hasMore
           ? encodeCalendarCursor(
-              auth.user.family_id,
+              original.familyId,
               range,
               page[page.length - 1],
             )
@@ -127,7 +135,7 @@ async function handleGET(request: NextRequest) {
     // and recently finished ones are included), oldest first. Without the
     // window the list was the household's 100 OLDEST events ever, which hid
     // everything current once a household had more than 100.
-    const where: Record<string, unknown> = { family_id: auth.user.family_id };
+    const where: Record<string, unknown> = { family_id: original.familyId };
     if (upcoming) {
       where.start_time = { gte: new Date() };
     } else {
@@ -147,16 +155,13 @@ async function handleGET(request: NextRequest) {
 
     const events = await prisma!.event.findMany({
       where,
-      include: {
-        creator: { select: { id: true, name: true } },
-      },
       orderBy: [{ start_time: "asc" }, { id: "asc" }],
       take: 100,
     });
 
     // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
-    return NextResponse.json({
-      events: await attachEventSources(prisma!, auth.user.family_id, events),
+    return await reply({
+      events: await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events)),
     });
   } catch (error) {
     logRouteError("GET /api/events", error, getRequestId(request));
