@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { prepareRewardClaimNotifications, lockRewardClaimNotificationPlan, recordRewardClaimNotificationsInTx } from "@/lib/reward-claim-notification-event";
 /**
  * Transactional reward mutations.
  *
@@ -24,6 +26,8 @@ type UpdateRewardInput = z.infer<typeof updateRewardSchema>;
 type ClaimRewardInput = z.infer<typeof claimRewardSchema>;
 
 export type RewardActor = {
+  /** Required by the explicitly enabled atomic claim cohort; never renewed from DB. */
+  tokenVersion?: number;
   familyId: string;
   userId: string;
   role: string;
@@ -35,6 +39,8 @@ export type RewardMutation = {
   applied: boolean;
   /** Actual price charged by a fresh claim, when applicable. */
   cost?: number;
+  /** Atomic event/recipient handling already occurred; skip legacy fanout. */
+  notificationHandled?: boolean;
 };
 
 const inProgress = (): EffectResult => ({
@@ -228,8 +234,10 @@ export async function claimReward(
   actor: RewardActor,
   recordId: string | null,
 ): Promise<RewardMutation> {
+  const notificationPlan = await prepareRewardClaimNotifications(db, actor);
   return db.$transaction(async (tx) => {
-    await lockRewardMembership(tx, actor);
+    if (notificationPlan) await lockRewardClaimNotificationPlan(tx, notificationPlan);
+    else await lockRewardMembership(tx, actor);
     const replay = await receiptResult(tx, actor, recordId);
     if (replay) return { result: replay, applied: false };
     const denied = await authorizeRewardActorLocked(tx, actor, false);
@@ -261,6 +269,8 @@ export async function claimReward(
         applied: false,
       };
     }
+    const claimedAt = new Date();
+    const transitionId = notificationPlan ? randomUUID() : null;
     const claimedReward = await tx.reward.updateMany({
       where: {
         id: input.rewardId,
@@ -271,7 +281,8 @@ export async function claimReward(
       data: {
         status: "claimed",
         claimed_by: actor.userId,
-        claimed_at: new Date(),
+        claimed_at: claimedAt,
+        ...(transitionId ? { notification_claim_id: transitionId } : {}),
       },
     });
     if (claimedReward.count === 0) {
@@ -291,6 +302,7 @@ export async function claimReward(
       select: { cost: true },
     });
     const cost = claimed?.cost ?? current.cost;
+    if (notificationPlan && (!Number.isSafeInteger(cost) || cost < 0)) throw new Error("Reward claim notification held");
     const deducted = await tx.user.updateMany({
       where: { id: actor.userId, xp: { gte: cost } },
       data: { xp: { decrement: cost } },
@@ -311,8 +323,11 @@ export async function claimReward(
       status: 200,
       body: { reward, xp: fresh?.xp ?? 0 },
     };
+    if (notificationPlan && transitionId) {
+      await recordRewardClaimNotificationsInTx(tx, notificationPlan, { rewardId: input.rewardId, transitionId, claimedAt, cost });
+    }
     await storeReceipt(tx, recordId, result);
-    return { result, applied: true, cost };
+    return { result, applied: true, cost, notificationHandled: notificationPlan !== null };
   });
 }
 

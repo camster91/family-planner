@@ -19,7 +19,7 @@ export async function admitNotificationRecipientInTx(
   sourceGuard: (tx: Prisma.TransactionClient, event: NotificationEventEnvelope) => Promise<boolean>,
   clock: () => Date = () => new Date(),
 ): Promise<Outcome> {
-  if (!notificationEventAdmissionEnabled() || actor.role !== "parent"
+  if (!notificationEventAdmissionEnabled() || !["parent", "teen", "child"].includes(actor.role)
       || !Number.isInteger(input.slot) || input.slot < 0 || input.slot >= 100
       || typeof input.content.title !== "string" || !input.content.title.trim() || input.content.title.length > 200
       || typeof input.content.message !== "string" || !input.content.message.trim() || input.content.message.length > 1000
@@ -39,6 +39,10 @@ export async function admitNotificationRecipientInTx(
   });
   const parsed = notificationEventEnvelope.safeParse(current?.envelope);
   if (!parsed.success || parsed.data.familyId !== actor.familyId || !notificationDispatchWindowOpen(parsed.data, clock())) return { kind: "held" };
+  // The only nonparent producer is an accepted own reward claim to a parent.
+  // Source guard below must prove the canonical actor/claim, not just the kind.
+  if ((parsed.data.kind === "reward.claim" && recipient.role !== "parent")
+      || (actor.role !== "parent" && parsed.data.kind !== "reward.claim")) return { kind: "held" };
   const expectedType = NOTIFICATION_EVENT_IN_APP_TYPE[parsed.data.kind];
   if (input.content.type !== expectedType || !await sourceGuard(tx, parsed.data)) return { kind: "held" };
   // Canonical source locks precede the event lock, matching producer admission.

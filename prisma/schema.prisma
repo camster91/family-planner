@@ -1191,6 +1191,9 @@ model Activity {
 
 model Reward {
   id          String    @id @default(cuid())
+  // #141 dormant accepted notification identity. Never inferred from text/key.
+  notification_generation String @default(dbgenerated("gen_random_uuid()::text"))
+  notification_claim_id String?
   family_id   String
   name        String
   description String?

@@ -652,3 +652,66 @@ fallback. Real two-household SQL, concurrent membership/feature/claim changes,
 focus/Back/cold-warm/locale/device/rendered and complete #141 acceptance remain.
 No QA, provider/native/scheduler activation, DB action, generation, migration,
 build/browser/CI or release ran. #141 remains open.
+
+
+## Reward atomic claim source contract — 2026-10-25 (source authored; unverified)
+
+Add a DB-generated immutable notification_generation to Reward plus a nullable,
+write-once notification_claim_id transition UUID.
+These are domain state, not caller keys or inferred legacy history. Existing
+claim/approval timestamps remain the actual accepted event time. Additive source
+only; no migration/generation/rollout. Existing row defaults assign a birth fence
+without retroactively creating transitions or notifications. No new User FK or
+provider credential; current Reward export/household erasure already owns the row.
+
+First connect fresh claims only behind REWARD_CLAIM_NOTIFICATION_EVENTS_ENABLED,
+general event-admission readiness and an explicitly configured private dispatch
+window. Bound the accepted parent roster to100, reject overflow rather than
+truncate, lock all candidate User IDs in sorted order before household/source/
+receipt rows, then compare the entire current parent roster before effects.
+Current original actor role/session/features and actual principal rows must hold.
+Persist the transition UUID, XP deduction, event, all parent terminal slots and
+existing HTTP receipt in one transaction. Source/recipient failure throws to
+rollback all effects; never fall back to a postcommit send for this cohort.
+Nonparent event dispatch is allowed only for reward.claim to a current parent,
+with canonical source guard; other event kinds retain parent-only admission.
+Approval producer identities are not added by this claim slice. Remaining
+approval/source creation/reassignment, durable recovery and all acceptance stay
+open. No paid provider or autonomous worker is introduced.
+
+
+The fresh canonical claim path now prepares that bounded original-parent roster,
+locks/compares it before receipt/source rows, persists the UUID only with the
+successful available→claimed conditional write, then composes the existing XP
+charge, event/terminal decisions and HTTP receipt before commit. Original session
+generation comes from HTTP auth and is never renewed from a later DB value.
+Unsafe stored costs hold the enabled cohort before XP charge. Every event or
+recipient hold throws to roll back the claim/XP/receipt; disabled mode does no
+new roster preflight and retains the original postcommit send. The HTTP route
+skips that legacy fanout only when atomic handling completed, so muted slots or
+an accepted empty roster cannot accidentally fall back to a second send.
+
+Nonparent delivery policy is expanded ONLY for reward.claim to current parents,
+with the same canonical guard and original token checks. Other event kinds
+remain parent-produced. Stored parent slots are terminal even after inbox deletion
+or recipient-reference clearing. Historical claims get no invented transition.
+Source generation/reward ID/family and assigned transition UUID cannot be changed
+by ordinary updates under the authored SQL trigger. No new User relation is added:
+existing Reward scalar export and row erasure own these two fields, while event/
+recipient evidence follows the existing parent export/deletion contract.
+
+Rollout requires the additive Reward migration and regenerated Prisma client
+BEFORE deploying regenerated ORM code, including flag-off mode; the flag alone
+is not old-schema compatibility. Both migration and generation remain unrun.
+Switching the claim flag off preserves stored identity/event/terminal evidence;
+never clear it to replay an old operation. Real backup/restore epoch, original
+receipt horizon and legacy-client retirement acceptance remain separate gates.
+The existing transaction timeout is retained; latency for100 parent decisions
+has not been measured and may hold/rollback. No capacity or throughput promise.
+
+Authored unrun cases cover disabled no-op, roster overflow/change, same-tx event/
+recipient composition, recipient refusal rollback propagation and narrow child
+producer admission. Actual SQL trigger, claim/XP/receipt atomicity, competing keys,
+roster/role/token/feature races, preference/quiet-hour/expiry/deletion/export and
+rendered/device/provider acceptance remain. Approval still uses the existing
+best-effort producer and exact link; it is NOT adopted by this claim slice.

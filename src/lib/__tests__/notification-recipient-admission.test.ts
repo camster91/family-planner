@@ -68,3 +68,22 @@ it("keeps default-off admission out of the storage/delivery path", async () => {
   expect(await admitNotificationRecipientInTx(tx as any, actor, input, async () => true, clock)).toEqual({ kind: "held" });
   expect(tx.$queryRaw).not.toHaveBeenCalled(); expect(deliver).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: only accepted reward-claim events permit a nonparent producer.
+it("holds child producers for chore events before central delivery", async () => {
+  const tx = txFor(); tx.$queryRaw.mockReset().mockResolvedValue([
+    { id: actor.userId, family_id: actor.familyId, role: "child", token_version: 4 },
+    { id: input.userId, family_id: actor.familyId, role: "parent", token_version: 1 },
+  ]);
+  expect(await admitNotificationRecipientInTx(tx as any, { ...actor, role: "child" }, input, async () => true, clock)).toEqual({ kind: "held" });
+  expect(deliver).not.toHaveBeenCalled();
+});
+it("admits an own accepted claim from a child only to a current parent", async () => {
+  const claimEvent = { ...event, kind: "reward.claim" };
+  const tx = txFor(); tx.notificationEventOccurrence.findFirst.mockResolvedValue({ envelope: claimEvent } as any);
+  tx.$queryRaw.mockReset().mockResolvedValueOnce([
+    { id: actor.userId, family_id: actor.familyId, role: "child", token_version: 4 },
+    { id: input.userId, family_id: actor.familyId, role: "parent", token_version: 1 },
+  ]).mockResolvedValueOnce([{ envelope: claimEvent }]);
+  expect(await admitNotificationRecipientInTx(tx as any, { ...actor, role: "child" }, { ...input, content: { ...input.content, type: "reward" } }, async () => true, clock)).toMatchObject({ kind: "created" });
+});

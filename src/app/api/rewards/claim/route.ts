@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
       select: { name: true },
     })
 
-    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     let applied = false
+    let notificationHandled = false
     let chargedCost = reward.cost
     const response = await withIdempotency(
       prisma!,
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
       async ({ recordId }) => {
         const mutation = await claimReward(prisma!, parsed.data, actor, recordId)
         applied = mutation.applied
+        notificationHandled = mutation.notificationHandled === true
         chargedCost = mutation.cost ?? chargedCost
         return mutation.result
       },
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
 
       // Notify parents only for the fresh mutation. A lost-response replay
       // cannot duplicate the metric or notification fanout.
-      try {
+      if (!notificationHandled) try {
         const parents = await prisma!.user.findMany({
           where: { family_id: auth.user.family_id, role: 'parent' },
           select: { id: true },

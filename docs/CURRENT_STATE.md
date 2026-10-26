@@ -54,15 +54,16 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): exact reward claim/approval notification
-links and role-aware focus source are connected. Fresh original-session/household/
-Rewards authority is renewed under locks; children/teens require their own claim.
-The focused card sits outside the24-row page, deduplicates its loaded counterpart
-and reuses existing approval/idempotency/recovery. Failed focus returns neutral
-navigation without serializing earlier shelf/balance reads. EN/ES and source cases
-are authored/unrun; directory now18 embedded sources. Durable reward event/recipient
-admission and broader notification/native/restore/role/concurrency/rendered work
-remain. No QA, activation, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): default-off atomic reward-claim
+notification source is connected to canonical claim/XP/receipt writes. An actual
+stored transition UUID and bounded original-parent roster replace retry fanout
+for that cohort; sorted locks/current original session/features and full-roster
+comparison precede effects. All terminal parent decisions commit together or
+throw for rollback, with no legacy double send. Additive Reward identity schema/
+SQL and narrow child→parent claim policy are authored/unrun. Migration and Prisma
+generation are prerequisites even for deploying regenerated flag-off code; neither
+ran. Approval/recovery/rollout/restore and all acceptance remain open. No QA,
+activation, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
