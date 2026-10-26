@@ -24,3 +24,10 @@ it("refuses a changed original role even when the operation is not parent-only",
   const { tx } = setup(); tx.user.findUnique.mockResolvedValue({ id: actor.userId, family_id: actor.familyId, role: "child", token_version: 2 });
   expect(await authorizeRewardActorInTx(tx as any, actor, false)).toMatchObject({ status: 401 });
 });
+
+it("marks an original household move as access withdrawal rather than disclosing an old receipt", async () => {
+  const { tx, db } = setup(); tx.user.findUnique.mockResolvedValue({ id: actor.userId, family_id: "other-family", role: actor.role, token_version: 2 });
+  const result = await createReward(db as any, { name: "Fixture", cost: 10 } as any, actor, "fixture-receipt");
+  expect(result.result).toMatchObject({ status: 401, body: { code: "REWARD_ACCESS_CHANGED" } });
+  expect(tx.idempotencyRecord.findFirst).not.toHaveBeenCalled();
+});

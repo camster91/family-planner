@@ -898,3 +898,44 @@ time, exact frozen request and old approval→read→still-held retry without a 
 POST. All receipt/clock/expiry/concurrency/role/device/rendered acceptance remains
 open. No QA/schema/migration/generation, flags/providers/schedulers/native,
 build/browser/CI or release actions ran.
+
+
+## Reward API/SSR original-authority reads — 2026-10-25
+
+Current issue reconciliation still finds39 genuine open trackers; inspected
+#473/#464/#470/#465 include runtime or external-input requirements, not completed
+planning-only duplicates. The outside-worktree issue snapshot preserves current
+bodies. No acceptance criteria are closed solely from source authorship.
+
+Reward one-target, opt-in keyset and compatible unpaged GET now read inside one
+shared original-actor transaction scope. The existing authorizer takes ordered
+User/household and actual User/Family FOR SHARE locks, renewing original session/
+role/household and effective Rewards/Points feature before canonical queries.
+The same low-level readRewardPage remains the paged reader; no second collection
+engine or altered cursor/status/target semantics. API success renews original
+access once more before disclosure and always uses private/no-store. Read-only
+holds have reload guidance, without implying an attempted write may have saved.
+
+SSR balance/current role plus24-row reward page use that same transaction scope,
+not independent unguarded data reads. Before client serialization, original access
+renews again after focused-context and projection waits. The outer household
+header also carries its original cookie generation and renews access before
+returning private family-name context. Ordinary failures use a typed EN/ES read
+unavailable view; notification failures keep their neutral focus fallback. A
+changed original family or deleted family is now REWARD_ACCESS_CHANGED for
+session-bound actors, so the client privacy hold recognizes it. Internal legacy
+callers lacking generation retain their existing No family compatibility error.
+
+Read transactions keep the existing5-second timeout/max-wait budget. Legacy
+unpaged response is still unbounded in row cardinality; timeout is not pagination,
+query-plan/capacity proof or justification for silent truncation. Related-person
+projection and browser-to-server original-owner command protocol are separate
+concerns; this scope is not whole-app privacy or isolation certification.
+
+Authored unrun cases cover supplied original actor/transaction, refusal before
+private read, missing original generation, household move before receipt and
+read-only late response masking without save language. All actual PG locks,
+concurrent role/token/feature/family/XP changes, cursors, multi-household/privacy,
+load/timeout and rendered/device acceptance remain. No QA, schema/DB/migration/
+generation, flags/providers/schedulers/native activation, build/browser/CI or
+release ran.

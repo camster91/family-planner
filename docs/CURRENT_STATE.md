@@ -54,14 +54,15 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work (2026-10-25): reward claim/approval retains frozen
-original action/ID/body/key/creation time. Retries and status reads never renew
-the packet; conflicts or age at/past the existing7-day receipt upper bound,
-invalid/future timing hold before transport. Retry disables outside that local
-window while status reads remain available. EN/ES and regression source authored,
-unrun. Client timing is not server-clock/receipt/outcome proof; owner-bound server
-intents, restore/arrival-age/disk recovery and all concurrency/role/device/rendered
-acceptance remain. No QA, activation, push, merge or deployment ran.
+Latest bounded source work (2026-10-25): reward target/paged/legacy GET and
+SSR balance/page reads share original-session/role/household/Rewards authorization
+under lifecycle and actual User/Family row locks. API/SSR renew access before
+successful disclosure; ordinary read failures have neutral EN/ES reload guidance,
+and family movement is recognized as access withdrawal. Existing cursor/response
+and legacy unpaged behavior retained; row cardinality/load and related-person/
+original-owner-command concerns remain. Current39 issue bodies reconciled; no
+unfinished runtime/owner-input tracker closed. Regression source authored/unrun.
+No QA, activation, push, merge or deployment ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

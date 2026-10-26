@@ -1,3 +1,4 @@
+import { withRewardReadAccess } from "@/lib/reward-read-access"
 import { protectRewardResponse } from "@/lib/reward-response"
 import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
 import { NextRequest, NextResponse } from 'next/server'
@@ -24,35 +25,42 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
+    const respond = async (result: Awaited<ReturnType<typeof withRewardReadAccess>>) => {
+      const response = result.kind === 'held'
+        ? NextResponse.json(result.result.body, { status: result.result.status, headers: { 'Cache-Control': 'private, no-store' } })
+        : NextResponse.json(result.value, { headers: { 'Cache-Control': 'private, no-store' } })
+      return protectRewardResponse(prisma!, actor, false, response, "read")
+    }
     // Exact target inspection is separate from collection absence. Legacy
     // servers may ignore this opt-in filter; the client still matches the ID.
     if (searchParams.has('rewardId')) {
       const id = searchParams.get('rewardId')!
       if (searchParams.getAll('rewardId').length !== 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(id) || ['limit', 'cursor', 'status'].some(key => searchParams.has(key)))
         return NextResponse.json({ error: 'Invalid reward target', code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
-      const rewards = await prisma!.reward.findMany({
-        where: { family_id: auth.user.family_id, id }, take: 1,
+      const result = await withRewardReadAccess(prisma!, actor, async tx => ({ rewards: await tx.reward.findMany({
+        where: { family_id: actor.familyId, id }, take: 1,
         include: { creator: { select: { id: true, name: true } }, claimer: { select: { id: true, name: true } } },
-      })
-      return NextResponse.json({ rewards }, { headers: { 'Cache-Control': 'private, no-store' } })
+      }) }))
+      return respond(result)
     }
     const paging = parseRewardPaging(searchParams, auth.user.family_id)
     if (!paging.ok) return NextResponse.json({ error: paging.error, code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
-    if (paging.paged) return NextResponse.json(await readRewardPage(prisma!, auth.user.family_id, paging), { headers: { 'Cache-Control': 'private, no-store' } })
+    if (paging.paged) return respond(await withRewardReadAccess(prisma!, actor, tx => readRewardPage(tx, actor.familyId, paging)))
 
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
 
-    const rewards = await prisma!.reward.findMany({
+    const result = await withRewardReadAccess(prisma!, actor, async tx => ({ rewards: await tx.reward.findMany({
       where,
       include: {
         creator: { select: { id: true, name: true } },
         claimer: { select: { id: true, name: true } },
       },
       orderBy: { created_at: 'desc' },
-    })
+    }) }))
 
-    return NextResponse.json({ rewards })
+    return respond(result)
   } catch (error) {
     logRouteError('GET /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

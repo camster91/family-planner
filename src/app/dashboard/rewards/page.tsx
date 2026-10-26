@@ -1,12 +1,14 @@
+import { withRewardReadAccess } from "@/lib/reward-read-access"
+import { authorizeRewardReplay, type RewardActor } from "@/lib/reward-mutations"
 import { readRewardNotificationFocus } from "@/lib/reward-notification-focus"
 import { parseRewardPaging, readRewardPage } from '@/lib/reward-paging'
 import { Suspense } from 'react'
-import { getServerUser, getServerActor } from '@/lib/supabase/server'
+import { getServerActor } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import RewardsBoard, { type RewardCard } from './RewardsBoard'
-import { RewardsNoFamilyState, RewardsPageHeader, RewardsPagingFailure, RewardNotificationUnavailable } from '@/components/rewards/RewardsPageHeader'
+import { RewardsNoFamilyState, RewardsPageHeader, RewardsPagingFailure, RewardNotificationUnavailable, RewardsReadUnavailable } from '@/components/rewards/RewardsPageHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,9 +36,15 @@ async function RewardsContent({
   if (cursor !== undefined) params.set('cursor', cursor)
   const paging = parseRewardPaging(params, familyId)
   if (!paging.ok || !paging.paged) return <RewardsPagingFailure />
-  const user = await prisma!.user.findUnique({ where: { id: userId }, select: { xp: true, role: true, family_id: true } })
-  if (!user || user.family_id !== familyId) return null
-  const { rewards, nextCursor } = await readRewardPage(prisma!, familyId, paging)
+  const unavailable = focus !== undefined ? <RewardNotificationUnavailable /> : <RewardsReadUnavailable />
+  const original: RewardActor = { userId, familyId, role: sessionUser.role ?? '', tokenVersion: sessionUser.tokenVersion }
+  if (sessionUser.family_id !== familyId) return unavailable
+  const scope = await withRewardReadAccess(prisma!, original, async tx => ({
+    user: await tx.user.findUnique({ where: { id: userId }, select: { xp: true, role: true, family_id: true } }),
+    page: await readRewardPage(tx, familyId, paging),
+  })).catch(() => null)
+  if (!scope || scope.kind !== 'data' || !scope.value.user || scope.value.user.family_id !== familyId) return unavailable
+  const { user, page: { rewards, nextCursor } } = scope.value
 
   const userXp = user?.xp || 0
   const isParent = user?.role === 'parent'
@@ -60,6 +68,7 @@ async function RewardsContent({
   } : undefined
   // Failed focus authority must not serialize the earlier shelf/balance reads.
   if (notificationFocus && !notificationFocus.target) return <RewardNotificationUnavailable />
+  if (await authorizeRewardReplay(prisma!, original, false).catch(() => ({ status: 503, body: {} }))) return unavailable
 
   return (
     <div className="space-y-8">
@@ -97,7 +106,7 @@ function RewardsSkeleton() {
 
 export default async function RewardsPage({ searchParams }: RewardsPageProps) {
   const params = await searchParams
-  const sessionUser = await getServerUser()
+  const sessionUser = await getServerActor()
   if (!sessionUser) return null
 
   const user = await prisma!.user.findUnique({
@@ -127,6 +136,10 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
     if (params.focus !== undefined) return <RewardNotificationUnavailable />
     return <FeatureOffState featureKey="rewards" canManage={sessionUser.role !== 'teen' && sessionUser.role !== 'child'} />
   }
+
+  if (sessionUser.family_id !== familyId || await authorizeRewardReplay(prisma!, {
+    userId: sessionUser.id, familyId, role: sessionUser.role ?? '', tokenVersion: sessionUser.tokenVersion,
+  }, false).catch(() => ({ status: 503, body: {} }))) return params.focus !== undefined ? <RewardNotificationUnavailable /> : <RewardsReadUnavailable />
 
   // Analytics is a parent-only surface and is also dependent on Points &
   // streaks. Compute this once on the server so the client cannot infer a

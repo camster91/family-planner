@@ -90,7 +90,8 @@ async function authorizeRewardActorLocked(
   ]);
 
   if (actor.tokenVersion !== undefined && (!Number.isSafeInteger(actor.tokenVersion) || actor.tokenVersion < 0
-      || !currentActor || currentActor.token_version !== actor.tokenVersion || currentActor.role !== actor.role)) {
+      || !currentActor || !family || currentActor.family_id !== actor.familyId
+      || currentActor.token_version !== actor.tokenVersion || currentActor.role !== actor.role)) {
     return { status: 401, body: { error: "Unauthorized", code: "REWARD_ACCESS_CHANGED" } };
   }
   if (!family || !currentActor || currentActor.family_id !== actor.familyId) {

@@ -60,3 +60,14 @@ export function RewardNotificationUnavailable() {
     </div>
   </section>
 }
+
+
+export function RewardsReadUnavailable() {
+  const text = useRewardsText()
+  return <section aria-label={text('pageTitle')} className="card-apple m-4 p-5 space-y-3">
+    <h2 className="section-header">{text('pageTitle')}</h2>
+    <p role="status">{text('readUnavailable')}</p>
+    <button type="button" onClick={() => window.location.reload()} className="btn-tinted min-h-[44px]">{text('reloadRewards')}</button>
+    <Link href="/dashboard/today" className="btn-plain inline-flex min-h-[44px] items-center">{text('focusToday')}</Link>
+  </section>
+}

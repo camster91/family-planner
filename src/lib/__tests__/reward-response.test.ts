@@ -22,3 +22,9 @@ it("preserves a known refusal without reclassifying it as an uncertain success",
   const original = NextResponse.json({ error: "This feature is turned off for your family" }, { status: 403 });
   expect(await protectRewardResponse({} as any, actor, true, original)).toBe(original); expect(renew).not.toHaveBeenCalled();
 });
+
+it("does not imply a write occurred when a readonly response loses access", async () => {
+  renew.mockResolvedValue({ status: 401, body: {} });
+  const response = await protectRewardResponse({} as any, actor, false, NextResponse.json({ rewards: [{ name: "Private fixture" }] }), "read");
+  const body = await response.json(); expect(body.error).not.toContain("saved"); expect(JSON.stringify(body)).not.toContain("Private fixture");
+});
