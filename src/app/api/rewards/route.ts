@@ -1,3 +1,4 @@
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body"
 import { projectRewardPeople } from "@/lib/reward-people"
 import { withRewardReadAccess } from "@/lib/reward-read-access"
 import { protectRewardResponse } from "@/lib/reward-response"
@@ -76,11 +77,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only parents can create rewards' }, { status: 403 })
     }
 
-    let body: any
+    let body: unknown
     try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      body = await readBoundedJson(request, 16 * 1024)
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
     }
     const parsed = createRewardSchema.safeParse(body)
     if (!parsed.success) {
@@ -147,11 +148,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Only parents can update rewards' }, { status: 403 })
     }
 
-    let body: any
+    let body: unknown
     try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      body = await readBoundedJson(request, 16 * 1024)
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
     }
     const parsed = updateRewardSchema.safeParse(body)
     if (!parsed.success) {

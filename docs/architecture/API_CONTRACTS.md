@@ -1843,3 +1843,10 @@ sender. Old envelope readers hold the new kind; this is no activation or univers
 keyless-create dedupe claim. Exact active-available focus uses existing personal
 claim confirmation. All source/rollback/client/runtime acceptance remains open;
 see the dated notification-delivery plan. No new schema or provider.
+
+
+### Reward JSON request byte bounds — 2026-10-25 (#135/#136)
+
+Ordinary POST/PATCH `/api/rewards` use the existing streamed JSON reader with a 16-KiB input limit. Legacy and owned POST claim/approve handlers share an 8-KiB limit. `Content-Length` can reject early; missing/inaccurate declarations do not bypass streamed byte accounting. Oversize input returns 413 with the existing `{ error: 'Invalid JSON' }` body; malformed JSON remains 400. Refusal occurs before idempotency receipt allocation or reward/XP/notification effects. Existing schema field validation, ordinary optional keys and owned packet/key requirements remain unchanged; no protocol rollout is enabled. Current bounded name/description/icon fields fit within the byte budget, including escaped/unicode text. Previously unbounded legacy reward ID strings, additional unknown fields and whitespace also consume that budget; this introduces no separate ID-format rule.
+
+Legacy bridges without a body stream have only the existing post-decoder byte limit, not bounded allocation. This change supplies no slow-stream time limit. Four ordinary handler streamed-oversize fixtures are authored in the existing idempotency suite, UNRUN. Actual transport, old/installed clients, timeout/rate/lifecycle and broader API/QA acceptance remain open. No QA/tests/checks/build/browser/DB/migrations/push/merge/deploy/activation ran.

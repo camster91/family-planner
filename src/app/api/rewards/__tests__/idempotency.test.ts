@@ -35,6 +35,30 @@ describe('Rewards idempotency', () => {
     metric.mockClear()
   })
 
+  // Authored UNRUN. No Content-Length: enforce the stream bound before effect/receipt allocation.
+  it.each([
+    ['create', rewards.POST, 'parentA', 16 * 1024],
+    ['edit', rewards.PATCH, 'parentA', 16 * 1024],
+    ['claim', claim, 'childA', 8192],
+    ['approve', approve, 'parentA', 8192],
+  ] as const)('bounds legacy %s streamed JSON before writes', async (_name, handle, as, limit) => {
+    const request = req({ as, headers: { 'Idempotency-Key': KEY } })
+    const decoder = jest.fn(async () => { throw new Error('Unbounded decoder must not run') })
+    request.json = decoder
+    request.body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(' '.repeat(limit + 1)))
+        controller.close()
+      },
+    })
+    const response = await handle(request)
+    expect(response.status).toBe(413)
+    expect(decoder).not.toHaveBeenCalled()
+    expect(writesTo('reward')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it('rejects malformed idempotency keys before any reward write', async () => {
     const response = await rewards.POST(req({
       as: 'parentA',

@@ -29,7 +29,7 @@ export async function handleRewardApprovalRequest(request: NextRequest, mode: "l
 
     let body: unknown
     try {
-      body = mode === "owned" ? await readBoundedJson(request, 8192) : await request.json()
+      body = await readBoundedJson(request, 8192)
     } catch (error) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
     }
