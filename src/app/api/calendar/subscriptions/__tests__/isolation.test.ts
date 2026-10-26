@@ -362,3 +362,21 @@ it("refuses subscription creation when the original session changes during URL v
   expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
   expect(writesTo("calendarSubscription")).toHaveLength(0);
 });
+
+// Authored UNRUN: parameter/body waits cannot renew a removed parent authority.
+it.each(["rename", "remove"] as const)("holds %s after the original role changes", async action => {
+  const context = {
+    get params() {
+      db.find("user", USER_IDS.parentA)!.role = "teen";
+      return Promise.resolve({ id: "sub-a" });
+    },
+  };
+  const res = action === "rename"
+    ? await item.PATCH(req({ as: "parentA", body: { name: "Changed fixture" } }), context)
+    : await item.DELETE(req({ as: "parentA" }), context);
+  expect(res.status).toBe(401);
+  expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
+  expect(writesTo("calendarSubscription")).toHaveLength(0);
+  expect(writesTo("event")).toHaveLength(0);
+  expect(db.find("calendarSubscription", "sub-a")).toBeDefined();
+});

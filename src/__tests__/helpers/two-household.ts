@@ -919,6 +919,10 @@ export const fakePrisma: any = new Proxy(
           const family = db.find('family', String(values[0]))
           return family ? [{ id: family.id }] : []
         }
+        if (sql === 'SELECT "id" FROM "CalendarSubscription" WHERE "id" = ? AND "family_id" = ? FOR UPDATE') {
+          const subscription = db.find('calendarSubscription', String(values[0]))
+          return subscription && subscription.family_id === values[1] ? [{ id: subscription.id }] : []
+        }
         // Only the three additive metadata-table probes used by deletion.
         if (/^SELECT to_regclass\('public\."(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
         // Exact source query for private scheduled-root metadata. Locks are

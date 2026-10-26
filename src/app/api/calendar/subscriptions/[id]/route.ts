@@ -1,9 +1,17 @@
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
+import {
+  withCalendarSubscriptionAccess,
+  protectCalendarSubscriptionResponse,
+  calendarSubscriptionAccessHeld,
+  lockCalendarSubscriptionInTx,
+  type CalendarSubscriptionActor,
+} from "@/lib/calendar-subscription-access";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import {
-  removeSubscription,
+  removeSubscriptionInTx,
   toSubscriptionDto,
 } from "@/lib/calendar-import/sync";
 
@@ -30,7 +38,7 @@ const updateSchema = z
 const NOT_FOUND = () =>
   NextResponse.json(
     { error: "Calendar subscription not found" },
-    { status: 404 },
+    { status: 404, headers: { "Cache-Control": "private, no-store" } },
   );
 
 // PATCH /api/calendar/subscriptions/[id] — rename / recolour. Parents only.
@@ -45,9 +53,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     let body: unknown;
     try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      body = await readBoundedJson(request, 4096);
+    } catch (cause) {
+      return NextResponse.json({ error: cause instanceof RequestBodyTooLargeError ? "Request body too large" : "Invalid JSON" },
+        { status: cause instanceof RequestBodyTooLargeError ? 413 : 400, headers: { "Cache-Control": "private, no-store" } });
     }
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
@@ -57,32 +66,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const existing = await prisma!.calendarSubscription.findFirst({
-      where: { id, family_id: auth.user.family_id },
-      select: { id: true },
+    const actor: CalendarSubscriptionActor = {
+      userId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0,
+    };
+    const result = await withCalendarSubscriptionAccess(prisma!, actor, "manage", async tx => {
+      if (!await lockCalendarSubscriptionInTx(tx, id, actor.familyId)) return null;
+      const data: Record<string, unknown> = {};
+      if (parsed.data.name !== undefined) data.name = parsed.data.name;
+      if (parsed.data.color !== undefined) data.color = parsed.data.color;
+      const updated = await tx.calendarSubscription.update({
+        where: { id, family_id: actor.familyId }, data,
+        select: { id: true, name: true, color: true, url_enc: true, last_fetched_at: true,
+          last_status: true, last_error: true, created_at: true },
+      });
+      return toSubscriptionDto(updated, { includeUrlHint: true });
     });
-    if (!existing) return NOT_FOUND();
-
-    const data: Record<string, unknown> = {};
-    if (parsed.data.name !== undefined) data.name = parsed.data.name;
-    if (parsed.data.color !== undefined) data.color = parsed.data.color;
-    const updated = await prisma!.calendarSubscription.update({
-      where: { id: existing.id },
-      data,
-      select: {
-        id: true,
-        name: true,
-        color: true,
-        url_enc: true,
-        last_fetched_at: true,
-        last_status: true,
-        last_error: true,
-        created_at: true,
-      },
-    });
-    return NextResponse.json({
-      subscription: toSubscriptionDto(updated, { includeUrlHint: true }),
-    });
+    if (result.kind === "held") return calendarSubscriptionAccessHeld();
+    if (!result.value) return NOT_FOUND();
+    return protectCalendarSubscriptionResponse(prisma!, actor, "manage", NextResponse.json({ subscription: result.value }));
   } catch {
     console.error("Error updating calendar subscription");
     return NextResponse.json(
@@ -102,18 +104,17 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (parentError) return parentError;
     const { id } = await context.params;
 
-    const existing = await prisma!.calendarSubscription.findFirst({
-      where: { id, family_id: auth.user.family_id },
-      select: { id: true },
+    const actor: CalendarSubscriptionActor = {
+      userId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0,
+    };
+    const result = await withCalendarSubscriptionAccess(prisma!, actor, "manage", async tx => {
+      if (!await lockCalendarSubscriptionInTx(tx, id, actor.familyId)) return null;
+      return { removedEvents: await removeSubscriptionInTx(tx, id, actor.familyId) };
     });
-    if (!existing) return NOT_FOUND();
-
-    const removedEvents = await removeSubscription(
-      prisma!,
-      existing.id,
-      auth.user.family_id,
-    );
-    return NextResponse.json({ success: true, removedEvents });
+    if (result.kind === "held") return calendarSubscriptionAccessHeld();
+    if (!result.value) return NOT_FOUND();
+    return protectCalendarSubscriptionResponse(prisma!, actor, "manage", NextResponse.json({ success: true, ...result.value }));
   } catch {
     console.error("Error removing calendar subscription");
     return NextResponse.json(

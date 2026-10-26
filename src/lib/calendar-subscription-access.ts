@@ -1,4 +1,4 @@
-/** Original authenticated account boundary for subscription list/create work.
+/** Original authenticated account boundary for subscription collection and management work.
  * This is HTTP actor renewal, not proof of the original browser session packet.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -11,7 +11,7 @@ export type CalendarSubscriptionActor = {
   role: string;
   generation: number;
 };
-type Mode = "read" | "create";
+type Mode = "read" | "create" | "manage";
 type Outcome<T> = { kind: "data"; value: T } | { kind: "held" };
 
 export async function withCalendarSubscriptionAccess<T>(
@@ -21,7 +21,7 @@ export async function withCalendarSubscriptionAccess<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<Outcome<T>> {
   if (!Number.isSafeInteger(original.generation) || original.generation < 0
-    || !(mode === "create" ? ["parent"] : ["parent", "teen"]).includes(original.role)) return { kind: "held" };
+    || !(mode === "read" ? ["parent", "teen"] : ["parent"]).includes(original.role)) return { kind: "held" };
   return db.$transaction(async tx => {
     await lockUser(tx, original.userId);
     await lockHousehold(tx, original.familyId);
@@ -57,4 +57,13 @@ export async function protectCalendarSubscriptionResponse(
     const renewed = await withCalendarSubscriptionAccess(db, original, mode, async () => null);
     return renewed.kind === "held" ? calendarSubscriptionAccessHeld() : response;
   } catch { return calendarSubscriptionAccessHeld(true); }
+}
+
+/** Lock the existing original-family target after principal/household admission. */
+export async function lockCalendarSubscriptionInTx(
+  tx: Prisma.TransactionClient, subscriptionId: string, familyId: string,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "CalendarSubscription" WHERE "id" = ${subscriptionId} AND "family_id" = ${familyId} FOR UPDATE`;
+  return rows.length === 1 && rows[0].id === subscriptionId;
 }

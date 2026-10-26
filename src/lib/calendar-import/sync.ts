@@ -6,6 +6,7 @@
 // See docs/architecture/CALENDAR_IMPORT.md.
 
 import { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/secret-box";
 import { checkRateLimit } from "@/lib/rate-limit-db";
@@ -397,19 +398,24 @@ export async function refreshStaleSubscriptions(
   return refreshed;
 }
 
-/** Remove a subscription and only the events it imported. */
+/** Canonical removal effects in an already-admitted transaction. */
+export async function removeSubscriptionInTx(
+  tx: Pick<Prisma.TransactionClient, "event" | "calendarSubscription">,
+  subscriptionId: string,
+  familyId: string,
+): Promise<number> {
+  const removed = await tx.event.deleteMany({
+    where: { family_id: familyId, source_subscription_id: subscriptionId },
+  });
+  await tx.calendarSubscription.deleteMany({ where: { id: subscriptionId, family_id: familyId } });
+  return removed.count;
+}
+
+/** Compatibility wrapper; callers with an admitted transaction reuse the same effects. */
 export async function removeSubscription(
   db: any,
   subscriptionId: string,
   familyId: string,
 ): Promise<number> {
-  return db.$transaction(async (tx: any) => {
-    const removed = await tx.event.deleteMany({
-      where: { family_id: familyId, source_subscription_id: subscriptionId },
-    });
-    await tx.calendarSubscription.deleteMany({
-      where: { id: subscriptionId, family_id: familyId },
-    });
-    return removed.count as number;
-  });
+  return db.$transaction((tx: Prisma.TransactionClient) => removeSubscriptionInTx(tx, subscriptionId, familyId));
 }
