@@ -170,6 +170,8 @@ export async function createReward(
   actor: RewardActor,
   recordId: string | null,
 ): Promise<RewardMutation> {
+  // Mutation results/receipts retain scalar effect history only. Current
+  // display people are added by the shared HTTP response boundary, not stored.
   const notificationPlan = await prepareRewardCreationNotifications(db, actor);
   return db.$transaction(async (tx) => {
     if (notificationPlan) await lockRewardCreationNotificationPlan(tx, notificationPlan);
@@ -189,7 +191,6 @@ export async function createReward(
         status: "available",
         created_by: actor.userId,
       },
-      include: { creator: { select: { id: true, name: true } } },
     });
     const result: EffectResult = { status: 200, body: { reward } };
     if (notificationPlan) await recordRewardCreationNotificationsInTx(tx, notificationPlan, reward);
@@ -235,10 +236,6 @@ export async function updateReward(
     const reward = await tx.reward.update({
       where: { id: input.rewardId },
       data: updateData,
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
-      },
     });
     const result: EffectResult = { status: 200, body: { reward } };
     await storeReceipt(tx, recordId, result);
@@ -342,10 +339,6 @@ export async function claimReward(
       tx.user.findUnique({ where: { id: actor.userId }, select: { xp: true } }),
       tx.reward.findUnique({
         where: { id: input.rewardId },
-        include: {
-          creator: { select: { id: true, name: true } },
-          claimer: { select: { id: true, name: true } },
-        },
       }),
     ]);
     const result: EffectResult = {
@@ -447,10 +440,6 @@ export async function approveReward(
 
     const reward = await tx.reward.findUnique({
       where: { id: input.rewardId },
-      include: {
-        creator: { select: { id: true, name: true } },
-        claimer: { select: { id: true, name: true } },
-      },
     });
     const result: EffectResult = { status: 200, body: { reward } };
     if (notificationPlan && transitionId) {

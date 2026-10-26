@@ -57,7 +57,6 @@ export async function handleRewardApprovalRequest(request: NextRequest, mode: "l
 
     const reward = await prisma!.reward.findUnique({
       where: { id: rewardId },
-      include: { claimer: { select: { id: true, name: true } } },
     })
 
     if (!reward || (mode === "owned" && reward.family_id !== auth.user.family_id)) return NextResponse.json({ error: 'Reward not found' }, { status: 404 })
