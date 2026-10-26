@@ -1,5 +1,31 @@
 # Reviewed food capture (#125)
 
+## Source reconciliation — 2026-10-25 (no QA)
+
+A current source read confirms that the barcode format/camera/manual-review
+foundation is already authored. `food-barcode.ts` includes UPC-A, EAN-13,
+GTIN-14, explicitly selected EAN-8/UPC-E, check digits, leading-zero identity and
+restricted-code review. `use-food-barcode-camera.ts` and `BarcodeFoodDialog.tsx`
+already provide tap-started local scanning, typed entry, review selection,
+deliberate extra-package/separate-lot controls and unknown-save holds. Do not
+recreate a detector, scanner-owned stock store or second product adapter.
+
+The existing `food-product-provider.ts`/products API supply a gated fixed-host
+read/apply path; configuration requires enabled lookup, approved data reuse and
+a valid contact. This source read does not establish licence approval, actual
+provider availability, coverage or activation. `inventory-intake.ts` writes the
+reviewed barcode/product/date/location snapshot to canonical stock; photo and
+receipt suggestions stay in `ScanFridgeDialog.tsx`, `food-photo-contract.ts` and
+the existing scan/intake paths. The source matrix below remains the canonical
+scope map, including stock lifecycle, recipe/prep and restock reuse.
+
+All original #125 behavioral/permission/isolation/provider/cost/device/locale
+acceptance stays open. No checkbox is completed from file presence, and the
+recipe workflow's newer owner/receipt source does not establish food-capture
+acceptance. No QA/tests/checks/build/browser/CI/DB/migration/generation,
+provider call/approval, permissions, activation, push/merge/deploy or live data
+change ran in this reconciliation. #125/#460/#135/#473/#567 remain distinct.
+
 ## Current source candidate — 2026-10-19
 
 The full approved target remains barcode/photo identification → editable review →
