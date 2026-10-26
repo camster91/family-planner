@@ -8,16 +8,7 @@ import {
 } from "@/lib/recipe-curation-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
 import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
-import { runOwnedForeground } from "@/lib/owned-request-http";
-import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
-async function requestOwnedJson(path: string, init: RequestInit, limit: number) {
-  return runOwnedForeground(async signal => {
-    const response = await fetch(path, { ...init, signal, credentials: "same-origin", cache: "no-store" });
-    const body = response.status === 401 || response.status === 403
-      ? null : await readBoundedJsonResponse(response, signal, limit);
-    return { kind: "reply" as const, response, body };
-  }, { signal: init.signal });
-}
+import { requestRecipeCurationJson as requestOwnedJson } from "@/lib/recipe-curation-client";
 type Current = {
   id: string;
   revision: number;

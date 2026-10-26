@@ -8,7 +8,8 @@ import {
   collectionName,
 } from "@/lib/recipe-curation-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
-import { requestOwnedJson } from "@/lib/owned-request-http";
+import { requestRecipeCurationJson as requestOwnedJson } from "@/lib/recipe-curation-client";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
 type Collection = { id: string; name: string; revision: number };
 export function RecipeCollections({
   value,
@@ -31,6 +32,21 @@ export function RecipeCollections({
   const [message, setMessage] = useState<
     "readError" | "writeError" | "refreshed" | "saved" | null
   >(null);
+  const [ownerHold, setOwnerHold] = useState(false);
+  const owner = useRef<RecipeOwner | null>(null);
+  const ownerHeld = useRef(false);
+  const controller = useRef<AbortController | null>(null);
+  const reloadFocus = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (ownerHold) reloadFocus.current?.focus(); }, [ownerHold]);
+  const holdOwner = useCallback(() => {
+    ownerHeld.current = true;
+    setOwnerHold(true);
+    setRows([]);
+    setEditing("");
+    setName("");
+    setConfirm(false);
+    setUncertain(true);
+  }, []);
   const generation = useRef(0);
   const action = useRef(false);
   const mutating = useRef(false);
@@ -38,19 +54,28 @@ export function RecipeCollections({
   latestValue.current = value;
   usePendingFormNavigationController(busy);
   const load = useCallback(async () => {
-    if (action.current) return;
+    if (action.current || ownerHeld.current) return;
     action.current = true;
     const own = ++generation.current;
+    const abort = new AbortController();
+    controller.current = abort;
     setLoading(true);
     try {
       const response = await requestOwnedJson(
         "/api/recipes/collections",
-        {},
+        { signal: abort.signal, ...(owner.current ? { headers: { [RECIPE_OWNER_HEADER]: JSON.stringify(owner.current) } } : {}) },
         128 * 1024,
       );
-      if (response.kind !== "reply" || !response.response.ok) throw new Error();
-      const result = collectionResponse.parse(response.body);
       if (own !== generation.current) return;
+      if (response.kind === "reply" && (response.response.status === 401 || response.response.status === 403 ||
+          (response.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED")) {
+        holdOwner(); return;
+      }
+      if (response.kind !== "reply" || !response.response.ok) throw new Error();
+      const receivedOwner = readRecipeOwner(response.response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+      if (!receivedOwner || (owner.current && !sameRecipeOwner(owner.current, receivedOwner))) { holdOwner(); return; }
+      const result = collectionResponse.parse(response.body);
+      owner.current = receivedOwner;
       setRows(result.collections);
       setUncertain(false);
       setMessage("refreshed");
@@ -65,17 +90,19 @@ export function RecipeCollections({
         setLoading(false);
       }
     }
-  }, []);
+  }, [holdOwner]);
   useEffect(() => {
     void load();
     return () => {
       generation.current++;
+      controller.current?.abort();
       action.current = false;
     };
   }, [load]);
   const selected = rows.find((row) => row.id === editing);
   async function write(remove = false) {
-    if (action.current || uncertain || !canEdit || (editing && !selected))
+    if (action.current || ownerHeld.current || !owner.current || !["parent", "teen"].includes(owner.current.role)
+        || uncertain || !canEdit || (editing && !selected))
       return;
     const parsed = collectionName.safeParse(name);
     if (!remove && !parsed.success) return;
@@ -95,6 +122,9 @@ export function RecipeCollections({
     action.current = true;
     mutating.current = true;
     const own = generation.current;
+    const originalOwner = owner.current;
+    const abort = new AbortController();
+    controller.current = abort;
     setBusy(true);
     setMessage(null);
     try {
@@ -102,11 +132,18 @@ export function RecipeCollections({
         "/api/recipes/collections",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", [RECIPE_OWNER_HEADER]: JSON.stringify(originalOwner) },
+          signal: abort.signal,
           body: JSON.stringify(input),
         },
         32 * 1024,
       );
+      if (own !== generation.current) return;
+      if (response.kind === "reply" && (response.response.status === 401 || response.response.status === 403 ||
+          (response.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+          (response.response.ok && !sameRecipeOwner(originalOwner, readRecipeOwner(response.response.headers?.get(RECIPE_OWNER_HEADER) ?? null))))) {
+        holdOwner(); return;
+      }
       if (response.kind !== "reply" || !response.response.ok) throw new Error();
       const body = response.body as {
         deleted?: unknown;
@@ -145,6 +182,12 @@ export function RecipeCollections({
       }
     }
   }
+  if (ownerHold) return (
+    <div role="alert" className="space-y-2">
+      <p>{text.ownerChanged}</p>
+      <button ref={reloadFocus} type="button" className="btn-secondary min-h-[44px]" onClick={() => window.location.reload()}>{text.reload}</button>
+    </div>
+  );
   return (
     <div className="space-y-2">
       <label className="block space-y-1">
@@ -168,7 +211,7 @@ export function RecipeCollections({
           )}
         </select>
       </label>
-      {canEdit && (
+      {canEdit && owner.current && ["parent", "teen"].includes(owner.current.role) && (
         <button
           type="button"
           className="btn-tinted min-h-[44px]"
