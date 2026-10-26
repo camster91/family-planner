@@ -1,3 +1,4 @@
+import { readChoreCreateReceiptIdentity } from "@/lib/chore-create-receipt-identity";
 import type { Prisma } from "@prisma/client";
 import type { EffectResult } from "@/lib/idempotency";
 import { NextRequest, NextResponse } from "next/server";
@@ -26,7 +27,6 @@ async function receiptAuthority(tx: Prisma.TransactionClient, actor: ReceiptActo
   if (users.length !== 1 || families.length !== 1) return { status: 401, body: { error: "Unauthorized" } };
   return personChoreCreateAuthority(tx, actor);
 }
-const generationPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 /** Read-only proof for the original chore create. No cached title, assignment,
  * points, routine or other private content leaves this route. No replay/pruning.
@@ -82,28 +82,15 @@ export async function GET(request: NextRequest) {
         return { status: 200, body: { state: "expired" } };
       if (record.response_status === null)
         return { status: 200, body: { state: "pending" } };
-      const body = record.response_body;
-      const id =
-        body && typeof body === "object" && !Array.isArray(body)
-          ? body.choreId
-          : null;
-      const generation = body && typeof body === "object" && !Array.isArray(body) ? body.choreGeneration : null;
-      if (
-        record.response_status < 200 ||
-        record.response_status >= 300 ||
-        typeof id !== "string" || !id || id.length > 128 ||
-        typeof generation !== "string" || !generationPattern.test(generation)
-      )
-        return {
-          status: 200,
-          body: { state: "committed", current: "unknown" },
-        };
+      const identity = readChoreCreateReceiptIdentity(record.response_body);
+      if (record.response_status < 200 || record.response_status >= 300 || !identity)
+        return { status: 200, body: { state: "committed", current: "unknown" } };
       const chore = await tx.chore.findFirst({
         where: {
-          id,
+          id: identity.choreId,
           family_id: auth.user.family_id,
           member_subject_erased: false,
-          responsibility_generation: generation,
+          responsibility_generation: identity.choreGeneration,
           created_by: actor.userId,
         },
         select: { id: true },

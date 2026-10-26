@@ -1,3 +1,4 @@
+import { isChoreBirthGeneration } from "@/lib/chore-create-receipt-identity";
 import type { AssistantSourceGuard } from "./assistant-source-proof";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 /** Canonical account-assigned chore create. Effect and compact keyed receipt
@@ -188,17 +189,23 @@ export function readCreatedPersonChore(
   db: Pick<PrismaClient, "$transaction">,
   actor: Actor,
   choreId: string,
+  choreGeneration: string,
 ) {
   return db.$transaction(async (tx) => {
     await lockUser(tx, actor.userId);
     await lockHousehold(tx, actor.familyId);
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE`;
+    await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
     const denied = await personChoreCreateAuthority(tx, actor);
     if (denied) return { ok: false as const, result: denied };
+    if (!isChoreBirthGeneration(choreGeneration)) return { ok: false as const, result: refusal(409, "CHORE_CREATE_SOURCE_UNKNOWN") };
     const chore = await tx.chore.findFirst({
       where: {
         id: choreId,
         family_id: actor.familyId,
         member_subject_erased: false,
+        responsibility_generation: choreGeneration,
+        created_by: actor.userId,
       },
       include: CHORE_CREATE_INCLUDE,
     });
@@ -208,5 +215,5 @@ export function readCreatedPersonChore(
         result: refusal(409, "CHORE_CREATE_REMOVED"),
       };
     return { ok: true as const, chore };
-  });
+  }, { timeout: 5000, maxWait: 5000 });
 }

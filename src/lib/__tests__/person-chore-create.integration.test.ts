@@ -92,7 +92,7 @@ suite("canonical chore create receipt integrity", () => {
     });
   it("replays a lost reply and never resurrects a subsequently removed chore", async () => {
     const first = await (await run()).json();
-    expect(first).toEqual({ choreId: expect.any(String) });
+    expect(first).toEqual({ choreId: expect.any(String), choreGeneration: expect.any(String) });
     expect(await (await run()).json()).toEqual(first);
     expect(
       await db.activity.count({
@@ -103,6 +103,16 @@ suite("canonical chore create receipt integrity", () => {
     await db.chore.delete({ where: { id: first.choreId } });
     expect(await (await run()).json()).toEqual(first);
     expect(await db.chore.count({ where: { family_id: familyId } })).toBe(0);
+    // Reusing the row id must not satisfy the old create's birth identity.
+    await db.chore.create({ data: {
+      id: first.choreId, family_id: familyId, created_by: userId, assigned_to: userId,
+      title: "Synthetic replacement", due_date: new Date("2099-10-05T00:00:00Z"),
+      difficulty: "medium", frequency: "once", points: 10,
+    } });
+    const { readCreatedPersonChore } = await import("@/lib/person-chore-create");
+    const projection = await readCreatedPersonChore(db, actor, first.choreId, first.choreGeneration);
+    expect(projection).toMatchObject({ ok: false, result: { status: 409, body: { error: { code: "CHORE_CREATE_REMOVED" } } } });
+    expect(await db.chore.count({ where: { family_id: familyId } })).toBe(1);
   });
   it("serializes overlapping original and takeover effects on the same receipt", async () => {
     const saved = await receipt();

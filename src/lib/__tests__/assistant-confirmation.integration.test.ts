@@ -426,7 +426,7 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
     ).toBe(0);
     const key = randomUUID();
     const result = await (await run(key, profile.revision + 1)).json();
-    expect(result).toEqual({ choreId: expect.any(String) });
+    expect(result).toEqual({ choreId: expect.any(String), choreGeneration: expect.any(String) });
     const created = await db.chore.findUnique({
       where: { id: result.choreId },
     });

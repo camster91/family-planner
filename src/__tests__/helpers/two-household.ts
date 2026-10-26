@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 // Shared two-household harness for route-level isolation tests (#102).
 //
 // This file is NOT a test (jest only collects `*.test.ts`). It provides:
@@ -798,6 +799,7 @@ function delegate(model: string) {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
       if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
+      if (model === 'chore') row.responsibility_generation = randomUUID()
       applyData(model, row, args.data)
       if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
@@ -810,6 +812,7 @@ function delegate(model: string) {
       for (const d of data) {
         const row: Row = { id: db.nextId(model), created_at: new Date() }
         if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
+        if (model === 'chore') row.responsibility_generation = randomUUID()
         applyData(model, row, d)
         if (violatesUnique(model, all(), row)) {
           if (args.skipDuplicates) continue

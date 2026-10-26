@@ -1,3 +1,4 @@
+import { readChoreCreateReceiptIdentity } from "@/lib/chore-create-receipt-identity";
 import { ASSISTANT_PROFILE_REVISION_HEADER } from "@/lib/assistant-reference-contract";
 import {
   assistantSourceGuard,
@@ -320,8 +321,8 @@ export async function POST(request: NextRequest) {
     response.headers.set("Cache-Control", "private, no-store");
     if (!response.ok || request.headers.has(REVIEW_SUBMIT_HEADERS.contract))
       return response;
-    const result = (await response.json()) as { choreId?: unknown };
-    if (typeof result.choreId !== "string")
+    const result = readChoreCreateReceiptIdentity(await response.json());
+    if (!result)
       return choreJson(
         { error: "Chore confirmation unavailable" },
         { status: 409 },
@@ -330,6 +331,7 @@ export async function POST(request: NextRequest) {
       prisma!,
       actor,
       result.choreId,
+      result.choreGeneration,
     );
     if (!projection.ok)
       return choreJson(projection.result.body, {
@@ -339,6 +341,8 @@ export async function POST(request: NextRequest) {
     const chore = (await isGamificationOn(auth.user.family_id))
       ? projection.chore
       : omitChorePoints(projection.chore);
+    const disclosureDenied = await authorizePersonChoreCreation(prisma!, actor);
+    if (disclosureDenied) return choreJson(disclosureDenied.body, { status: disclosureDenied.status, headers: response.headers });
     return choreJson({ chore }, { headers: response.headers });
   } catch (error) {
     if (error instanceof AssistantSourceRefused) return error.response();
