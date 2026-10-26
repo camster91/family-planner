@@ -829,3 +829,39 @@ follow-through does not add disk recovery, original-session HTTP owner commands,
 receipt-age retirement, request cancellation or account/unmount retirement. Those
 source/acceptance gaps and real concurrency/receipt/role/device/rendered evidence
 remain open. No QA, schema/migration/generation, flag activation or release ran.
+
+
+## Reward board owner/lifecycle retirement — 2026-10-25
+
+The Rewards SSR projects only feature-specific original account/family/role/
+session-generation fields to the board. A keyed inner board remounts on any owner
+boundary, removing old rows, balance, confirmations and local recoveries before
+a new owner renders. This is not a generic internal actor DTO or action grant.
+Older internal/fixture callers may omit added context; current SSR supplies it.
+
+Every claim/approval/status foreground request now has an AbortController under
+the existing15-second bounded request/body helper. Unmount increments the work
+epoch and aborts owned transports; all post-await/catch/finally paths ignore
+retired work, so it cannot update rows/XP, raise toast, refresh the new route or
+clear another request's state. One synchronous board latch serializes mutations
+and recovery reads, including rapid activations before React state commits.
+Pending state disables actions/recovery/page links, provides read feedback and
+uses the existing Back/draft-navigation guard. Local raw create/analytics/page
+links also refuse while the work latch is held. No server rollback/cancellation
+claim follows browser abort; a request may already have committed.
+
+Current401/403 and explicit access-changed/unconfirmed results mask the private
+board and its dialogs/recovery. Their original uncertain keys stay in the mounted
+owner scope, but only explicit full-document Reload rewards is offered. Typed
+EN/ES copy says a request may have saved and that this local recovery will not
+survive leaving. A full reload deliberately discards in-memory state; no durable
+journal, original-owner HTTP header or process-death recovery is invented. This
+also avoids a same-owner router.refresh leaving a permanently masked inner board.
+
+Authored unrun cases cover owner replacement/unmount with abort-ignoring late
+responses, no late refresh/toast, access-loss masking and shared rapid-activation
+latch. The prior unknown→later refusal source case now uses400;401/403 instead
+retain uncertainty behind the privacy hold. Receipt-age hold, owner-bound HTTP
+contracts, durable recovery and all real Back/navigation/lifecycle/concurrency/
+role/device/rendered acceptance remain open. No QA/schema/migration/generation,
+flag/provider/scheduler/native activation, build/browser/CI or release ran.

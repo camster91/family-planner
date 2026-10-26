@@ -69,6 +69,9 @@ async function RewardsContent({
         userXp={userXp}
         isParent={isParent}
         currentUserId={userId}
+        familyId={familyId}
+        viewerRole={user.role}
+        sessionGeneration={sessionUser.tokenVersion}
         canViewAnalytics={canViewAnalytics && user.role === 'parent'}
         pageInfo={{ older: cursor !== undefined, nextCursor }}
       />

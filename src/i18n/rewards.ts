@@ -65,6 +65,9 @@ export const rewardsEnglish = {
   recoveryDescription: 'The result is not confirmed. Try again with the original request, or check the current reward.',
   tryAgain: 'Try again',
   checkStatus: 'Check status',
+  checkingStatus: 'Checking the current reward…',
+  accessHeld: 'Your reward access changed. A request may already have saved. Reload before continuing; this local recovery will not survive leaving the page.',
+  reloadRewards: 'Reload rewards',
   statusError: 'We could not check the current rewards.',
   statusUnconfirmed: 'The current reward does not confirm your original request. Keep this recovery and check again.',
 } as const
@@ -132,6 +135,9 @@ export const rewardsSpanish: Record<keyof typeof rewardsEnglish, string> = {
   recoveryDescription: 'El resultado no está confirmado. Reintenta la solicitud original o consulta la recompensa actual.',
   tryAgain: 'Intentar de nuevo',
   checkStatus: 'Comprobar estado',
+  checkingStatus: 'Consultando la recompensa actual…',
+  accessHeld: 'Tu acceso a recompensas cambió. Una solicitud puede haberse guardado. Vuelve a cargar antes de continuar; esta recuperación local no se conservará al salir de la página.',
+  reloadRewards: 'Volver a cargar recompensas',
   statusError: 'No se pudieron comprobar las recompensas actuales.',
   statusUnconfirmed: 'La recompensa actual no confirma tu solicitud original. Conserva esta recuperación y consulta de nuevo.',
 }

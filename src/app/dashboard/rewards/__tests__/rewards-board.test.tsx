@@ -439,33 +439,32 @@ it('retains the original uncertain approval key across a later known refusal', a
   const calls: RequestInit[] = [];
   global.fetch = jest.fn(async (_input, init) => {
     calls.push(init ?? {});
-    const status = calls.length === 1 ? 500 : calls.length === 2 ? 403 : 200;
-    return { ok: status === 200, status, json: async () => status === 200 ? GIVEN_ICE_CREAM : { error: status === 500 ? 'First outcome unknown' : 'Later access refusal' } } as Response;
+    const status = calls.length === 1 ? 500 : calls.length === 2 ? 400 : 200;
+    return { ok: status === 200, status, json: async () => status === 200 ? GIVEN_ICE_CREAM : { error: status === 500 ? 'First outcome unknown' : 'Later validation refusal' } } as Response;
   }) as typeof fetch;
   const user = userEvent.setup();
   renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
   await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
   await user.click(await screen.findByRole('button', { name: 'Try again' }));
-  await screen.findByText('Later access refusal');
+  await screen.findByText('Later validation refusal');
   await user.click(screen.getByRole('button', { name: 'Try again' }));
   await waitFor(() => expect(refresh).toHaveBeenCalled());
   expect(calls).toHaveLength(3);
   expect(calls.every(call => call.body === calls[0].body)).toBe(true);
   expect(calls.every(call => new Headers(call.headers).get('Idempotency-Key') === new Headers(calls[0].headers).get('Idempotency-Key'))).toBe(true);
 });
-it('holds a first late-access response as uncertain rather than inventing a fresh key', async () => {
+it('masks private state after a late-access hold without sending another request', async () => {
   const calls: RequestInit[] = [];
   global.fetch = jest.fn(async (_input, init) => {
     calls.push(init ?? {});
-    return calls.length === 1 ? { ok: false, status: 401, json: async () => ({ error: 'May already be saved', code: 'REWARD_ACCESS_CHANGED' }) } as Response
-      : { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response;
+    return { ok: false, status: 401, json: async () => ({ error: 'May already be saved', code: 'REWARD_ACCESS_CHANGED' }) } as Response;
   }) as typeof fetch;
   const user = userEvent.setup(); renderBoard({ rewards: [MOVIE] });
   await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
-  await user.click(await screen.findByRole('button', { name: 'Try again' }));
-  await waitFor(() => expect(refresh).toHaveBeenCalled());
-  expect(calls[1].headers).toEqual(calls[0].headers); expect(calls[1].body).toBe(calls[0].body);
+  await screen.findByRole('button', { name: 'Reload rewards' });
+  expect(screen.queryByText('Movie night')).toBeNull(); expect(screen.queryByRole('dialog')).toBeNull();
+  expect(calls).toHaveLength(1); expect(refresh).not.toHaveBeenCalled();
 });
 it('does not resolve an uncertain own claim from another account’s current claim', async () => {
   mockFetch(url => url === '/api/rewards/claim' ? 'throw' : { status: 200, body: { rewards: [{ ...MOVIE, status: 'claimed', claimedById: 'another-child', claimedByName: 'Fixture other' }] } });
@@ -475,4 +474,38 @@ it('does not resolve an uncertain own claim from another account’s current cla
   await user.click(await screen.findByRole('button', { name: 'Check status' }));
   await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
   expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy(); expect(refresh).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: retired transport cannot update another owner or toast.
+it('aborts foreground approval on owner replacement and ignores its late result', async () => {
+  let settle!: (value: Response) => void;
+  let requestSignal: AbortSignal | null | undefined;
+  global.fetch = jest.fn(async (_input, init) => { requestSignal = init?.signal; return new Promise<Response>(resolve => { settle = resolve }); }) as typeof fetch;
+  const user = userEvent.setup();
+  const { rerender } = renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1', familyId: 'family-one', viewerRole: 'parent', sessionGeneration: 2 });
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  rerender(<I18nProvider locale="en"><ToastProvider><RewardsBoard rewards={[]} userXp={0} isParent={false} currentUserId="other-account" familyId="other-family" viewerRole="child" sessionGeneration={1} canViewAnalytics={false} /></ToastProvider></I18nProvider>);
+  expect(requestSignal?.aborted).toBe(true); expect(screen.queryByText('Ice cream')).toBeNull();
+  await act(async () => { settle({ ok: true, status: 200, json: async () => GIVEN_ICE_CREAM } as Response); });
+  expect(refresh).not.toHaveBeenCalled(); expect(screen.queryByText('Ice cream marked as given')).toBeNull();
+});
+it('retires a pending claim after unmount without a late success toast or refresh', async () => {
+  let settle!: (value: Response) => void;
+  let requestSignal: AbortSignal | null | undefined;
+  global.fetch = jest.fn(async (_input, init) => { requestSignal = init?.signal; return new Promise<Response>(resolve => { settle = resolve }); }) as typeof fetch;
+  const user = userEvent.setup(); const { unmount } = renderBoard({ rewards: [MOVIE] });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  unmount(); expect(requestSignal?.aborted).toBe(true);
+  await act(async () => { settle({ ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response); });
+  expect(refresh).not.toHaveBeenCalled();
+});
+
+it('shares one synchronous latch across rapid approval activations', async () => {
+  const requests: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input, init) => { requests.push(init ?? {}); return new Promise<Response>(() => {}) }) as typeof fetch;
+  renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
+  const button = screen.getByRole('button', { name: 'Mark Ice cream as given' });
+  act(() => { button.click(); button.click(); });
+  await waitFor(() => expect(requests).toHaveLength(1));
 });
