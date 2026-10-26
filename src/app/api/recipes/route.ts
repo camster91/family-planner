@@ -1,3 +1,4 @@
+import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { RECIPE_OWNER_HEADER, RECIPE_OWNER_PROTOCOL, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
@@ -206,13 +207,13 @@ export async function POST(request: NextRequest) {
     );
     response.headers.set("Cache-Control", "private, no-store");
     if (!response.ok) return response;
-    const receipt = (await response.json()) as { recipeId?: unknown };
-    if (typeof receipt.recipeId !== "string")
+    const receipt = readRecipeCreateReceiptIdentity(await response.json());
+    if (!receipt)
       return NextResponse.json(
         { error: "Recipe confirmation unavailable" },
         { status: 409, headers: { "Cache-Control": "private, no-store" } },
       );
-    const detail = await readCreatedRecipe(prisma!, actor, receipt.recipeId);
+    const detail = await readCreatedRecipe(prisma!, actor, receipt.recipeId, receipt.recipeGeneration);
     const finalRefusal = await authorizeRecipeCreation(prisma!, actor);
     if (finalRefusal) return NextResponse.json(finalRefusal.body, { status: finalRefusal.status, headers: { "Cache-Control": "private, no-store" } });
     if (detail.status === 200) for (const [name, value] of Object.entries(recipeReadOwnerHeaders(original))) response.headers.set(name, value);

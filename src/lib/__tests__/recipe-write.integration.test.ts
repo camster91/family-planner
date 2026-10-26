@@ -67,6 +67,14 @@ suite("recipe create replay containment", () => {
       },
     });
   }
+  // Authored UNRUN; requires the existing food source identity migration/trigger.
+  it("hydrates only the stored insertion generation for an ordinary create response", async () => {
+    const result = await createRecipeWithReceipt(db, actor, input, null);
+    const identity = result.body as { recipeId: string; recipeGeneration: string };
+    expect(identity.recipeGeneration).toMatch(/^[a-f0-9-]{36}$/i);
+    expect((await readCreatedRecipe(db, actor, identity.recipeId, identity.recipeGeneration)).status).toBe(200);
+    expect((await readCreatedRecipe(db, actor, identity.recipeId, '00000000-0000-4000-8000-000000000000')).status).toBe(409);
+  });
   it("concurrent exact retries create one recipe and one ingredient set, even with a long method", async () => {
     const record = await receipt();
     const results = await Promise.all([

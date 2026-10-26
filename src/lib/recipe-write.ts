@@ -1,3 +1,5 @@
+import { foodSourceStorageAvailable } from "@/lib/food-planning/source-versions";
+import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 /** Recipe creation and a compact durable receipt commit together (#460). */
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -116,6 +118,9 @@ export async function createRecipeWithReceipt(
         };
       }
     }
+    // Require the existing DB insertion-identity trigger before any new effect.
+    // A missing migration is a hold, never permission to fabricate a birth.
+    if (!(await foodSourceStorageAvailable(tx))) return failure(503, "RECIPE_IDENTITY_UNAVAILABLE");
     const lines = await resolveIngredientLines(
       tx,
       actor.familyId,
@@ -136,6 +141,11 @@ export async function createRecipeWithReceipt(
       },
       select: { id: true },
     });
+    const births = await tx.$queryRaw<Array<{ recipeId: string; recipeGeneration: string }>>`
+      SELECT "id" AS "recipeId", "food_generation" AS "recipeGeneration" FROM "Recipe"
+      WHERE "id" = ${recipe.id} AND "family_id" = ${actor.familyId} AND "created_by" = ${actor.userId} FOR SHARE`;
+    const identity = births.length === 1 ? readRecipeCreateReceiptIdentity(births[0]) : null;
+    if (!identity || identity.recipeId !== recipe.id) throw new Error("Recipe insertion identity unavailable");
     if (lines.length)
       await tx.recipeIngredient.createMany({
         data: lines.map((line) => ({ ...line, recipe_id: recipe.id })),
@@ -146,7 +156,7 @@ export async function createRecipeWithReceipt(
       kind: "recipe",
       id: recipe.id,
     });
-    const body = { recipeId: recipe.id };
+    const body = identity;
     if (recordId)
       await tx.idempotencyRecord.update({
         where: { id: recordId },
@@ -159,6 +169,7 @@ export async function readCreatedRecipe(
   db: Db,
   actor: Actor,
   recipeId: string,
+  recipeGeneration?: string,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
     const refused = await recipeWriteAuthority(tx, actor);
@@ -167,7 +178,14 @@ export async function readCreatedRecipe(
     // contract; nested Prisma relation reads can start parallel tx queries.
     // Existing PATCH takes the recipe row before replacing ingredients.
     // Hold it through projection so those separate reads represent one version.
-    await tx.$queryRaw`SELECT "id" FROM "Recipe" WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} FOR SHARE`;
+    if (recipeGeneration !== undefined) {
+      if (!readRecipeCreateReceiptIdentity({ recipeId, recipeGeneration })) return failure(409, "RECIPE_CONFIRMATION_UNAVAILABLE");
+      if (!(await foodSourceStorageAvailable(tx))) return failure(503, "RECIPE_IDENTITY_UNAVAILABLE");
+      const matches = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Recipe"
+        WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} AND "created_by" = ${actor.userId}
+        AND "food_generation" = ${recipeGeneration} FOR SHARE`;
+      if (matches.length !== 1 || matches[0].id !== recipeId) return failure(409, "RECIPE_NO_LONGER_AVAILABLE");
+    } else await tx.$queryRaw`SELECT "id" FROM "Recipe" WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} FOR SHARE`;
     const recipe = await tx.recipe.findFirst({
       where: { id: recipeId, family_id: actor.familyId },
       select: { ...RECIPE_SUMMARY_SELECT, instructions: true },

@@ -1,8 +1,10 @@
+import { foodSourceStorageAvailable } from "@/lib/food-planning/source-versions";
+import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { isValidIdempotencyKey } from "@/lib/idempotency-key";
-import { recipeWriteAuthority, RECIPE_CREATE_ACTION } from "@/lib/recipe-write";
+import { authorizeRecipeCreation, recipeWriteAuthority, RECIPE_CREATE_ACTION } from "@/lib/recipe-write";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 
@@ -23,19 +25,20 @@ export async function GET(request: NextRequest) {
       error.headers.set("Cache-Control", "private, no-store");
       return error;
     }
+    const actor = Object.freeze({ userId: auth.user.id, familyId: auth.user.family_id,
+      tokenVersion: auth.payload.tv ?? 0, originalRole: auth.user.role });
     const key = request.headers.get("Idempotency-Key")?.trim() ?? "";
     const hash = request.headers.get("X-Recipe-Request-Hash") ?? "";
     if (!isValidIdempotencyKey(key) || !/^[a-f0-9]{64}$/.test(hash))
       return reply({ error: "Invalid recipe receipt headers" }, 400);
     const result = await prisma!.$transaction(async (tx) => {
-      const refusal = await recipeWriteAuthority(tx, {
-        userId: auth.user.id,
-        familyId: auth.user.family_id,
-        tokenVersion: auth.payload.tv ?? 0,
-      });
+      const refusal = await recipeWriteAuthority(tx, actor);
       if (refusal) return refusal;
+      const scope = `user:${actor.userId}`;
+      await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "scope" = ${scope} AND "key" = ${key}
+        AND "family_id" = ${actor.familyId} AND "user_id" = ${actor.userId} FOR SHARE`;
       const record = await tx.idempotencyRecord.findFirst({
-        where: { scope: `user:${auth.user.id}`, key },
+        where: { scope, key, family_id: actor.familyId, user_id: actor.userId },
         select: {
           family_id: true,
           action: true,
@@ -86,27 +89,25 @@ export async function GET(request: NextRequest) {
             },
           };
       }
-      const id =
-        body && typeof body === "object" && !Array.isArray(body)
-          ? body.recipeId
-          : null;
-      if (typeof id !== "string" || !id)
-        return {
-          status: 200,
-          body: { state: "committed", current: "unknown" },
-        };
-      const recipe = await tx.recipe.findFirst({
-        where: { id, family_id: auth.user.family_id },
-        select: { id: true },
-      });
+      const identity = readRecipeCreateReceiptIdentity(body);
+      if (!identity) return { status: 200, body: { state: "committed", current: "unknown" } };
+      if (!(await foodSourceStorageAvailable(tx))) return { status: 503, body: { error: { code: "RECIPE_IDENTITY_UNAVAILABLE" } } };
+      const matches = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Recipe"
+        WHERE "id" = ${identity.recipeId} AND "family_id" = ${actor.familyId} AND "created_by" = ${actor.userId}
+        AND "food_generation" = ${identity.recipeGeneration} FOR SHARE`;
+      const present = matches.length === 1 && matches[0].id === identity.recipeId;
       return {
         status: 200,
         body: {
           state: "committed",
-          current: recipe ? "present" : "removed",
+          current: present ? "present" : "removed",
         },
       };
-    });
+    }, { timeout: 5000, maxWait: 5000 });
+    if (result.status === 200) {
+      const refusal = await authorizeRecipeCreation(prisma!, actor);
+      if (refusal) return reply(refusal.body, refusal.status);
+    }
     return reply(result.body, result.status);
   } catch (error) {
     logRouteError("GET recipe receipt", error, getRequestId(request));

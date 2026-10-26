@@ -9,3 +9,12 @@ it('requires a complete bounded owner marker and compares every authority dimens
   for (const change of [{ actorId: 'parent-b' }, { familyId: 'family-b' }, { role: 'teen' }, { generation: 1 }])
     expect(sameRecipeOwner(parsed, readRecipeOwner(JSON.stringify({ ...owner, ...change })))).toBe(false);
 });
+
+// Authored UNRUN: legacy pointers do not acquire inferred insertion identity.
+it('requires stored recipe birth identity without inventing one for legacy receipts', async () => {
+  const { readRecipeCreateReceiptIdentity } = await import('../recipe-create-receipt-identity');
+  const identity = { recipeId: 'recipe-a', recipeGeneration: '33f917f8-028d-4d85-b05b-27d67cc1de84' };
+  expect(readRecipeCreateReceiptIdentity(identity)).toEqual(identity);
+  for (const value of [null, [], { recipeId: 'recipe-a' }, { ...identity, recipeGeneration: 'bad' }, { ...identity, recipeId: '../recipe-a' }])
+    expect(readRecipeCreateReceiptIdentity(value)).toBeNull();
+});
