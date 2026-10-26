@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
       summaryOnly ? Promise.resolve([]) : prisma!.activity.findMany({
         // Legacy page-view/click rows are not household activity (#136).
         where: { family_id: familyId, NOT: { type: legacyAnalyticsTypeFilter() }, type: {notIn: [...PRIVATE_TIMELINE_ACTIONS]} },
-        include: { user: { select: { name: true } } },
+        select: { id: true, user_id: true, type: true, title: true, description: true, created_at: true },
         orderBy: { created_at: 'desc' },
         take: 10,
       }),
@@ -238,6 +238,19 @@ export async function GET(request: NextRequest) {
       hard: allChores.filter(c => c.difficulty === 'hard').length,
     }
 
+    // An activity's scalar actor can outlive their household membership. Never
+    // traverse that relation without a separate current-household predicate.
+    // The legacy collection has at most ten rows; compact reads skip it entirely.
+    const activityActorIds = [...new Set(recentActivities.map(activity => activity.user_id))]
+    const activityPeople = activityActorIds.length ? await prisma!.user.findMany({
+      where: { family_id: familyId, id: { in: activityActorIds } },
+      select: { id: true, name: true, family_id: true },
+      take: activityActorIds.length,
+    }) : []
+    const activityNames = new Map(activityPeople
+      .filter(person => person.family_id === familyId && activityActorIds.includes(person.id))
+      .map(person => [person.id, person.name]))
+
     return await reply({
       ...(summaryOnly ? { coverage: ANALYTICS_SUMMARY_COVERAGE } : {}),
       summary: {
@@ -261,7 +274,8 @@ export async function GET(request: NextRequest) {
           title: a.title,
           description: a.description,
           createdAt: a.created_at,
-          userName: a.user.name,
+          // Preserve the legacy string field without substituting a foreign name.
+          userName: activityNames.get(a.user_id) ?? '',
         })),
       } : {}),
     })

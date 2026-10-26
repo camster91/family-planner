@@ -2268,3 +2268,18 @@ in-time checks, not a transactional snapshot or membership/feature serialization
 related-person projection and browser original-owner/session-ID continuity
 remain separate. No runtime authority/concurrency/feature-flip/legacy acceptance
 was run in this no-QA pass.
+
+
+Legacy analytics activity names now use an independently household-scoped User
+projection instead of traversing `Activity.user` without a household predicate.
+The activity collection remains capped at ten; its unique actor IDs feed at
+most one bounded User lookup with the original household plus exact IDs, a
+minimal id/name/family projection and a defensive household/ID filter. Scalar
+activity history stays in its original household. `recentActivity.userName`
+retains its legacy string type; missing/moved actors receive an empty string,
+not a foreign name or a fabricated localized person. Compact reads skip both
+activity and actor-name queries. The existing final principal/feature renewal
+runs after this additional lookup. Projection is point-in-time, not a lock on
+related-person membership; subsequent moves, profile/erasure provenance,
+historical title/description policy and original compatibility/privacy/runtime
+acceptance remain separate. No QA or database/provider/release action ran.
