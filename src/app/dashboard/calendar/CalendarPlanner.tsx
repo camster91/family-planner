@@ -328,6 +328,29 @@ export function CalendarPlanner({
         </nav>
         <div className={styles.headerActions}>
           {headerAction}
+          {canEditEvents && (
+            <details className={styles.connectionMenu}>
+              <summary>{msg("addConnection")}</summary>
+              <div>
+                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                  {calendarSyncAvailable
+                    ? msg("connectionHelp")
+                    : msg("providerUnavailableHelp")}
+                </p>
+                {calendarSyncAvailable && (
+                  <Link href="/dashboard/settings#calendar-sync">
+                    {msg("connectProvider")}
+                  </Link>
+                )}
+                <Link href="/dashboard/settings#calendar-subscriptions">
+                  {msg("subscribeLink")}
+                </Link>
+                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                  {msg("subscriptionHelp")}
+                </p>
+              </div>
+            </details>
+          )}
           <Link href="/dashboard/calendar/create" className="btn-filled">
             {msg("add")}
           </Link>
@@ -362,29 +385,6 @@ export function CalendarPlanner({
                 </option>
               ))}
             </select>
-            {canEditEvents && (
-              <details className={styles.connectionMenu}>
-                <summary>{msg("addConnection")}</summary>
-                <div>
-                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                    {calendarSyncAvailable
-                      ? msg("connectionHelp")
-                      : msg("providerUnavailableHelp")}
-                  </p>
-                  {calendarSyncAvailable && (
-                    <Link href="/dashboard/settings#calendar-sync">
-                      {msg("connectProvider")}
-                    </Link>
-                  )}
-                  <Link href="/dashboard/settings#calendar-subscriptions">
-                    {msg("subscribeLink")}
-                  </Link>
-                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                    {msg("subscriptionHelp")}
-                  </p>
-                </div>
-              </details>
-            )}
             {sourceState === "loading" && (
               <p role="status">{msg("loadingSources")}</p>
             )}

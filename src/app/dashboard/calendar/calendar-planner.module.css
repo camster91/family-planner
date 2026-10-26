@@ -182,11 +182,13 @@
   margin: 12px 0;
 }
 .connectionMenu {
-  margin: 12px 0;
+  position: relative;
+  margin: 0;
   border: 1px solid var(--surface-separator-opaque);
   border-radius: 12px;
   background: var(--surface-elevated);
   color: var(--label-primary);
+  z-index: 3;
 }
 .connectionMenu summary {
   display: flex;
@@ -197,6 +199,7 @@
   cursor: pointer;
   font-weight: 600;
   list-style: none;
+  white-space: nowrap;
 }
 .connectionMenu summary::-webkit-details-marker {
   display: none;
@@ -207,6 +210,17 @@
 }
 .connectionMenu[open] summary::before {
   content: "−";
+}
+.connectionMenu > div {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  width: min(320px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--surface-separator-opaque);
+  border-radius: 14px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-md);
 }
 .connectionMenu a {
   display: flex;
@@ -496,6 +510,12 @@
   }
   .header > .headerActions {
     flex-basis: 100%;
+  }
+  .headerActions .connectionMenu {
+    flex: 1 1 auto;
+  }
+  .headerActions .connectionMenu summary {
+    justify-content: center;
   }
   .header h1 {
     font-size: 28px;

@@ -41,6 +41,10 @@ export function RecipeCuration({
   const [base, setBase] = useState<Current | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [starred, setStarred] = useState(false);
+  // Keep the compact trigger in sync with the last confirmed server value.
+  // The parent list can refresh asynchronously after a save, so relying only
+  // on the incoming prop leaves a newly-favorited recipe looking unstarred.
+  const [savedFavorite, setSavedFavorite] = useState(favorite);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
@@ -60,6 +64,9 @@ export function RecipeCuration({
   const action = useRef(false);
   const mutating = useRef(false);
   usePendingFormNavigationController(busy);
+  useEffect(() => {
+    setSavedFavorite(favorite);
+  }, [id, favorite]);
   useEffect(() => {
     generation.current++;
     owner.current = expectedOwner ?? null;
@@ -118,6 +125,7 @@ export function RecipeCuration({
       owner.current = stateOwner;
       setCollections(c.collections);
       setBase(s);
+      setSavedFavorite(s.favorite);
       setNeedsRefresh(false);
       if (!preserve) {
         setChosen(s.collectionIds);
@@ -184,6 +192,7 @@ export function RecipeCuration({
         throw new Error();
       if (own !== generation.current) return;
       setBase(result);
+      setSavedFavorite(result.favorite);
       setMessage("saved");
       onChanged?.();
     } catch {
@@ -208,7 +217,7 @@ export function RecipeCuration({
         aria-label={`${text.organize}: ${title}`}
         onClick={() => void load(false)}
       >
-        {favorite ? "★ " : ""}
+        {savedFavorite ? "★ " : ""}
         {text.organize}
       </button>
       <Dialog

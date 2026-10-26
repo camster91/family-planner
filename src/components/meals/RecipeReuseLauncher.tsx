@@ -85,7 +85,13 @@ export function RecipeReuseLauncher({
           <button
             type="button"
             className="btn-filled min-h-[44px]"
-            onClick={() => onUse(recipe)}
+            onClick={() => {
+              // The destination owns the day/portion editor. Once it has the
+              // canonical recipe, clear only this one-shot intent so closing
+              // that editor does not reopen the same saved recipe launcher.
+              onUse(recipe);
+              onDismiss();
+            }}
           >
             {text(kind === "prep" ? "usePrep" : "useMeal")}
           </button>

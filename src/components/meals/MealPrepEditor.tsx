@@ -186,6 +186,28 @@ export function MealPrepEditor({
     setValidation(false);
     mutation.clearError();
   };
+  const duplicateDish = () => {
+    if (mutation.locked || dishes.length >= 8) return;
+    const source = dishes[selectedDish];
+    if (!source) return;
+    const nextIndex = dishes.length;
+    setDishes((prev) => [
+      ...prev,
+      {
+        name: source.name,
+        portions: source.portions,
+        recipe: source.recipe ? { ...source.recipe } : null,
+        cookId: source.cookId,
+        storage: source.storage,
+        // Allocations are intentionally not copied: the duplicate is a new
+        // dish draft and must not double-schedule the original meals.
+        meals: [],
+      },
+    ]);
+    setSelectedDish(nextIndex);
+    setValidation(false);
+    mutation.clearError();
+  };
   const requestClose = () => {
     if (mutation.owned) {
       if (!mutation.closeBlocked) void navigateAfterOwnedDrafts(onClose);
@@ -347,6 +369,14 @@ export function MealPrepEditor({
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={mutation.locked || dishes.length >= 8}
+                onClick={duplicateDish}
+              >
+                {tBulk("duplicateDish")}
+              </button>
               {step === 1 ? (
                 <>
                   <RecipePicker
