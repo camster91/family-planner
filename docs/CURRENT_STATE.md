@@ -22,7 +22,8 @@ ran. Authored regression source is not a passing result.
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only and consolidated the full #105 final-
-candidate packet into #377 as duplicate tracking, leaving **39 open issues**.
+candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is now
+consolidated into #464 with its full original requirements preserved, leaving **38 open issues**.
 #105 closure does not mark any acceptance item done.
 Twelve documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480; all
 runtime/device/customer/production criteria remain separate and unchecked.
@@ -54,7 +55,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work serializes Settings subscription writes, freezes each original request, uses bounded foreground transport and retires late write completions on unmount. Unknown outcomes retain mounted-only recovery evidence and hold further mutations while explicit list inspection stays read-only; 401/403 masks cached fields. Success summaries/counts are admitted before changing local state, and drafts stay disabled during pending/held work. A regression fixture was authored, UNRUN. Durable retry/receipt protocols, original-session server admission, provider/device/rendered acceptance remain unfinished. The 39 issues remain open; no QA, release or activation ran.
+Latest bounded source work consolidates redundant contextual-AI tracker #123 into #464 while preserving its entire original requirements verbatim, all unchecked acceptance, six coordination workflows, original boundaries and a canonical source-plan map. #144 remains shared AI quality, #499 design and #567 provider eligibility; source history stays on #123. Closure is redundant tracking only, not feature completion. The live GitHub directory contains 38 open issues. No QA, release or activation ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.

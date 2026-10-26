@@ -33,3 +33,20 @@ CI, push, merge, deployment, provider, hardware or store work runs under the
 current no-QA instruction. Closing a planning tracker never establishes native
 or production acceptance. Current source/checkpoint status belongs in #128 and
 the existing completion ledger; do not create duplicate feature issues.
+
+
+## 2026-10-25 — contextual-AI tracking consolidation (no QA)
+
+#464 now owns all original #123 product and coordination requirements; #123 is
+closed as redundant tracking, not completed delivery. Its entire original body
+is preserved verbatim in #464, including six initial jobs, architecture, nine
+acceptance criteria, the schedule-constrained dinner journey and six coordination
+workflows. The source-plan map links grounded-food-planning, schedule-conflict-review,
+responsibility-and-backup, weekly-reset, event-preparation and review-inbox plans;
+change history/owned Undo remains canonical domain/recovery work in #134/#135.
+Shared quality #144, design #499, provider eligibility #567 and native #473/#138
+retain their separate acceptance. Existing text-only baseline is not broadened
+to automatic household attachment or shared-device chat. No provider/feature
+activation, permission widening, implementation acceptance or QA follows.
+
+Closure record: https://github.com/camster91/family-planner/issues/123#issuecomment-6406251429

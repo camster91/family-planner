@@ -22,7 +22,8 @@ ran. Authored regression source is not a passing result.
 The earlier clearing pass reviewed68 and retired27 duplicate trackers after
 preserving complete requirements. The subsequent41-issue pass closed #566 for
 its complete planning deliverable only and consolidated the full #105 final-
-candidate packet into #377 as duplicate tracking, leaving **39 open issues**.
+candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is now
+consolidated into #464 with its full original requirements preserved, leaving **38 open issues**.
 #105 closure does not mark any acceptance item done.
 Twelve documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480; all
 runtime/device/customer/production criteria remain separate and unchecked.
@@ -54,7 +55,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work serializes Settings subscription writes, freezes each original request, uses bounded foreground transport and retires late write completions on unmount. Unknown outcomes retain mounted-only recovery evidence and hold further mutations while explicit list inspection stays read-only; 401/403 masks cached fields. Success summaries/counts are admitted before changing local state, and drafts stay disabled during pending/held work. A regression fixture was authored, UNRUN. Durable retry/receipt protocols, original-session server admission, provider/device/rendered acceptance remain unfinished. The 39 issues remain open; no QA, release or activation ran.
+Latest bounded source work consolidates redundant contextual-AI tracker #123 into #464 while preserving its entire original requirements verbatim, all unchecked acceptance, six coordination workflows, original boundaries and a canonical source-plan map. #144 remains shared AI quality, #499 design and #567 provider eligibility; source history stays on #123. Closure is redundant tracking only, not feature completion. The live GitHub directory contains 38 open issues. No QA, release or activation ran.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
@@ -126,7 +127,6 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #128 — [Program] Fridge tablet household command centre — end-to-end roadmap | Canonical programme | Codex + Cameron | Use this reduced issue directory and the latest recorded next action; do not recreate superseded trackers. |
 | #125 — [Fridge Phase 7] Validate faster capture: barcode, receipt, recipe import and voice | Capture scope and acceptance retained | Codex + Cameron | Choose a bounded capture slice using observed friction and existing review/privacy contracts. |
 | #124 — Calendar interoperability and provider setup | Calendar/provider dependency retained | Codex; Cameron provider accounts | Own Google/Microsoft registration/callbacks/secrets and original interoperability/ICS acceptance. |
-| #123 — [Fridge Phase 5] Add grounded contextual AI with confirmation-gated actions | AI product source; acceptance pending | Codex | Keep grounded household proposals, explicit confirmation and recovery separate from provider eligibility and quality gates. |
 | #110 — [P2][Commercial] Validate packaging and price before implementing billing | Deferred commercial decision | Cameron/product | Use real beta evidence before pricing/provider/billing decisions; do not add billing code now. |
 | #108 — [P1][Beta] Run four weekly scorecards and five exit interviews | Waiting for beta cohort | Cameron + operations | Start four weekly scorecards and exit interviews only after the consented cohort exists. |
 | #107 — [P1][Beta] Recruit, consent, and onboard five design-partner households | Recruitment/consent input pending | Cameron | Separately authorize and consent five independent households; no external recruitment in this goal. |
@@ -134,6 +134,12 @@ The unchanged older release/checkpoint notes below are historical evidence.
 | #103 — [P0][Email] Configure and prove verification and password recovery delivery | Email provider/delivery input pending | Cameron/operator + Codex | Approve sender/domain/secret/test inbox and later prove real verification/recovery delivery through the runbook. |
 
 ### Remaining scope and next gates — 2026-10-25
+
+Current directory: 38 open issues after redundant #123 consolidation into #464.
+The full body and unchecked criteria are preserved verbatim in #464; no delivery
+or acceptance was closed. Closure record: https://github.com/camster91/family-planner/issues/123#issuecomment-6406251429
+
+Historical reconciliation before that consolidation:
 
 The fresh GitHub read contains39 open records. The local receipt previously kept
 40 rows and an old remaining=40 alongside remainingOpenIssues=39; a named backup
