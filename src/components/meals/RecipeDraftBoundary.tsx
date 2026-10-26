@@ -25,7 +25,7 @@ import {
 } from "@/lib/review-document-store";
 import { inspectReviewDocumentReceipt } from "@/lib/review-document-receipts";
 import { submitReviewDocumentRequest } from "@/lib/review-document-submit";
-import { sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { sameQueueOwner } from "@/lib/queue-owner-contract";
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
@@ -511,7 +511,7 @@ export function RecipeDraftBoundary(
       document.requests[0].key,
       inspectReviewDocumentReceipt,
       (request, context) =>
-        submitReviewDocumentRequest(request, context, document.expiresAt),
+        submitReviewDocumentRequest(request, context, document.expiresAt, originalRecipeOwner.current ?? undefined),
     );
     if (!live(token)) return;
     if (!result.sent) {
@@ -524,6 +524,12 @@ export function RecipeDraftBoundary(
     }
     const response = result.result,
       data = response.body;
+    const expectedOwner = originalRecipeOwner.current;
+    if (expectedOwner && ([401, 403].includes(response.response.status) ||
+        (data as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+        (response.response.ok && !sameRecipeOwner(expectedOwner,
+          readRecipeOwner(response.response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     if (!response.response.ok) {
       const refusal = z
         .object({

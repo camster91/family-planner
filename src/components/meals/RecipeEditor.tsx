@@ -6,6 +6,7 @@ import Link from "next/link";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
@@ -82,6 +83,8 @@ export function RecipeEditor(props: RecipeEditorProps) {
 }
 
 function RecipeEditorForm({
+  expectedRecipeOwner,
+  onOwnerHold,
   onCreated,
   onCancel,
   initialRecipe,
@@ -94,6 +97,7 @@ function RecipeEditorForm({
   onDraftChange,
   onOwnedSubmit,
 }: RecipeEditorProps & RecipeOwnedFormProps) {
+  const originalRecipeOwner = React.useRef(expectedRecipeOwner ? Object.freeze({ ...expectedRecipeOwner }) : null);
   const text = useRecipeEditorText();
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
@@ -263,6 +267,10 @@ function RecipeEditorForm({
     setLines((prev) => prev.filter((l) => l.key !== key));
 
   async function writeRecipe(body: Record<string, unknown>) {
+    const expectedOwner = originalRecipeOwner.current;
+    if ((expectedOwner || expectedRecipeOwner) && !sameRecipeOwner(expectedOwner, expectedRecipeOwner ?? null)) {
+      onOwnerHold?.(); return;
+    }
     if (onOwnedSubmit && !initialRecipe) {
       await onOwnedSubmit(
         {
@@ -310,6 +318,7 @@ function RecipeEditorForm({
             headers: {
               "Content-Type": "application/json",
               ...(attempt ? { [IDEMPOTENCY_HEADER]: attempt.key } : {}),
+              ...(expectedOwner ? { [RECIPE_OWNER_HEADER]: JSON.stringify(expectedOwner) } : {}),
             },
             body: attempt?.body ?? JSON.stringify(body),
             signal,
@@ -329,6 +338,13 @@ function RecipeEditorForm({
       return;
     }
     const res = result.response;
+    if (expectedOwner && ([401, 403].includes(res.status) ||
+        (result.reply as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+        (res.ok && !sameRecipeOwner(expectedOwner, readRecipeOwner(res.headers?.get(RECIPE_OWNER_HEADER) ?? null))))) {
+      markUncertain();
+      onOwnerHold?.();
+      return;
+    }
     const data = result.reply as {
       recipe?: RecipeDetailData;
       error?: { code?: string };

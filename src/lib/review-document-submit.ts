@@ -1,3 +1,4 @@
+import { RECIPE_OWNER_HEADER, type RecipeOwner } from "@/lib/recipe-owner-contract";
 import {
   REVIEW_DOCUMENT_CONTRACT,
   type ReviewExactRequest,
@@ -14,6 +15,7 @@ export function submitReviewDocumentRequest(
   request: ReviewExactRequest,
   context: ReviewDocumentContext,
   expiresAt: number,
+  expectedRecipeOwner?: RecipeOwner,
 ) {
   if (
     ((request.action === "chore.create" ||
@@ -33,6 +35,7 @@ export function submitReviewDocumentRequest(
       [H.owner]: context.owner.scope,
       [H.action]: request.action,
       [H.expires]: String(expiresAt),
+      ...(request.action === "recipe.create" && expectedRecipeOwner ? { [RECIPE_OWNER_HEADER]: JSON.stringify(expectedRecipeOwner) } : {}),
     },
     body: request.body,
   });

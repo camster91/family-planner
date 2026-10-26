@@ -19,7 +19,7 @@ import {
 } from "@/lib/recipe-curation-contract";
 
 type Db = Pick<PrismaClient, "$transaction">;
-type Actor = { userId: string; familyId: string; tokenVersion: number };
+type Actor = { userId: string; familyId: string; tokenVersion: number; originalRole?: string };
 type Input = z.infer<typeof createRecipeSchema>;
 export const RECIPE_CREATE_ACTION = "recipe.create";
 const failure = (status: number, code: string): EffectResult => ({
@@ -33,12 +33,20 @@ export async function recipeWriteAuthority(
 ): Promise<EffectResult | null> {
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
+  if (actor.originalRole !== undefined) {
+    // Fence ordinary role/session/feature updates through effects and replay
+    // projection, including writers which do not take the advisory locks.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE`;
+    await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
+  }
   const user = await tx.user.findUnique({
     where: { id: actor.userId },
     select: { family_id: true, role: true, token_version: true },
   });
   if (!user || user.token_version !== actor.tokenVersion)
     return failure(401, "UNAUTHORIZED");
+  if (actor.originalRole !== undefined && user.role !== actor.originalRole)
+    return failure(403, "RECIPE_OWNER_CHANGED");
   if (user.family_id !== actor.familyId || !canEditRecipe(user.role))
     return failure(403, "FORBIDDEN");
   const family = await tx.family.findUnique({

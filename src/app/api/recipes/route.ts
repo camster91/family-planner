@@ -1,5 +1,5 @@
 import { RECIPE_OWNER_HEADER, RECIPE_OWNER_PROTOCOL, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
-import { renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { REVIEW_SUBMIT_HEADERS } from "@/lib/review-document-submit-contract";
@@ -132,6 +132,10 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+    if (ownerRefusal) return ownerRefusal;
     const reviewRefusal = guardReviewDocumentSubmission(
       request,
       auth,
@@ -173,9 +177,10 @@ export async function POST(request: NextRequest) {
     if (data.creation_protocol && !key)
       return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
     const actor = {
-      userId: auth.user.id,
-      familyId: auth.user.family_id,
-      tokenVersion: auth.payload.tv ?? 0,
+      userId: original.actorId,
+      familyId: original.familyId,
+      tokenVersion: original.generation,
+      originalRole: original.role,
     };
     const response = await withIdempotency(
       prisma!,
@@ -208,6 +213,9 @@ export async function POST(request: NextRequest) {
         { status: 409, headers: { "Cache-Control": "private, no-store" } },
       );
     const detail = await readCreatedRecipe(prisma!, actor, receipt.recipeId);
+    const finalRefusal = await authorizeRecipeCreation(prisma!, actor);
+    if (finalRefusal) return NextResponse.json(finalRefusal.body, { status: finalRefusal.status, headers: { "Cache-Control": "private, no-store" } });
+    if (detail.status === 200) for (const [name, value] of Object.entries(recipeReadOwnerHeaders(original))) response.headers.set(name, value);
     return NextResponse.json(detail.body, {
       status: detail.status === 200 ? response.status : detail.status,
       headers: response.headers,

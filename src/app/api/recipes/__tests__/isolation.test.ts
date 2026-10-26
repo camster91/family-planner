@@ -285,3 +285,27 @@ it('refuses a retired recipe curation owner before parsing or writing', async ()
   expect(input.json).not.toHaveBeenCalled(); expect(mockGate).not.toHaveBeenCalled();
   expect(db.writes).toHaveLength(0);
 });
+
+// Authored UNRUN: original imported-create authority is checked before effects.
+describe('recipe original create owner', () => {
+  beforeEach(() => { db.reset(); mockGate.mockReset(); mockGate.mockResolvedValue(null) })
+  const original = { protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-a', familyId: 'family-A', role: 'parent', generation: 0 }
+  it('rejects a different original session before allocating a recipe receipt', async () => {
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: { title: 'Reviewed soup', servings: 2 }, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify({ ...original, generation: 9 }),
+    } }))
+    expect(response.status).toBe(409)
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+  })
+  it('does not adopt a new allowed role after a pre-write wait', async () => {
+    mockGate.mockImplementation(async () => { db.find('user', 'parent-a')!.role = 'teen'; return null })
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: { title: 'Reviewed soup', servings: 2, ingredients: [] }, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify(original),
+    } }))
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('ingredient')).toHaveLength(0)
+  })
+})
