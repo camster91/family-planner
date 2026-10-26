@@ -27,6 +27,12 @@ const messages = {
       languageSpanish: 'Español',
       language: 'Language',
       preferredLanguage: 'Preferred language',
+      clockFormat: 'Time format on this device',
+      clockAuto: 'Device default',
+      clock12: '12-hour',
+      clock24: '24-hour',
+      clockExample: 'Time example: {time}',
+      clockVisitOnly: 'This choice applies for this visit. Your browser could not remember it.',
       theme: 'Theme',
       themeDescription: 'Auto matches your phone or computer. Saved on this device.',
       themeLight: 'Light',
@@ -590,6 +596,12 @@ const messages = {
       languageSpanish: 'Español',
       language: 'Idioma',
       preferredLanguage: 'Idioma preferido',
+      clockFormat: 'Formato de hora en este dispositivo',
+      clockAuto: 'Predeterminado del dispositivo',
+      clock12: '12 horas',
+      clock24: '24 horas',
+      clockExample: 'Ejemplo de hora: {time}',
+      clockVisitOnly: 'Esta opción se aplica durante esta visita. Tu navegador no pudo guardarla.',
       theme: 'Tema',
       themeDescription: 'Automático usa el tema de tu teléfono o computadora. Se guarda en este dispositivo.',
       themeLight: 'Claro',
@@ -1172,7 +1184,8 @@ export function useTranslation() {
     },
     [context.locale, context.provided, context.pseudolocalize]
   )
-  return { locale: context.locale, t, setLocale: context.setLocale }
+  return { locale: context.locale, t, setLocale: context.setLocale, clockFormat: context.clockFormat,
+    setClockFormat: context.setClockFormat, clockRemembered: context.clockRemembered }
 }
 
 export { messages }

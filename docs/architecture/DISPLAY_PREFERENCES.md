@@ -72,3 +72,30 @@ save/Undo conflicts, defaults inheritance, existing personal overrides, corrupt
 and future-version records, response loss, offline/cache/read failures, blocked
 storage, EN/ES and keyboard/Back/responsive states. This document does not claim
 those checks have run.
+
+
+## Device clock presentation — #142, 2026-10-26, source only
+
+Settings → Language includes Device default /12-hour /24-hour with typed EN/ES
+copy, a deterministic UTC example and visit-only feedback when browser storage
+cannot retain the choice. Like the existing device language/theme, this is
+local presentation, stored under `herewoven:clock-format:v1`; Auto removes that
+key. It is not an account-synced preference or a new field in strict version1
+account/default records. No API/schema/migration or native capability changes.
+
+The shell starts Auto during SSR/hydration, then reads validated device storage
+when its existing persistence option is enabled. Other-tab storage/clear changes
+update the mounted shell, with listener cleanup. Unsupported values become Auto;
+a blocked save still applies for the visit and is not described as remembered.
+`useDisplayLocale` adds the selected h12/h23 Unicode hour-cycle setting to the
+existing app-language/device-region locale. Existing Intl consumers of that hook
+inherit it; explicit hour12/hourCycle options remain authoritative. Older Intl
+implementations that lack the Locale option keep the usable device format.
+
+Stored UTC instants, date-only records, time zones, recurrence, input parsing,
+account display revisions and explicit fridge clock settings are unchanged.
+Direct formatters that do not use this hook still need the broader #142 pass;
+this is not complete all-screen/native clock coverage. No QA/tests/checks/build/
+browser/DB/CI/push/merge/deploy ran. Later checks must cover Auto/reset, noon/
+midnight, EN/ES/region changes, hydration, blocked/invalid storage, other-tab
+changes, unmount cleanup, explicit format overrides and representative devices.

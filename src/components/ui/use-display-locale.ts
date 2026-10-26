@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { useCoreI18n } from '@/i18n/core'
 import { deviceLanguages, pickDisplayLocale } from '@/lib/display-locale'
+import { withClockFormat } from '@/lib/clock-format'
 
 function subscribe(onChange: () => void) {
   window.addEventListener('languagechange', onChange)
@@ -20,7 +21,7 @@ const serverSnapshot = () => ''
  * client render match; the device region applies right after.
  */
 export function useDisplayLocale(): string {
-  const { locale } = useCoreI18n()
+  const { locale, clockFormat } = useCoreI18n()
   const languages = React.useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot)
-  return React.useMemo(() => pickDisplayLocale(locale, languages ? languages.split(',') : []), [locale, languages])
+  return React.useMemo(() => withClockFormat(pickDisplayLocale(locale, languages ? languages.split(',') : []), clockFormat), [locale, languages, clockFormat])
 }
