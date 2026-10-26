@@ -664,23 +664,21 @@ export function BulkCookingPanel({
                     setModal({ kind: "next-prep", sessionId: current.id })
                   }
                 >
-                  {tBulk("changeNext")}
+                  {tBulk(current.next_prep_on ? "changeNext" : "setNextDate")}
                 </button>
-                {current.next_prep_on && (
-                  <button
-                    type="button"
-                    className="btn-filled min-h-[44px]"
-                    disabled={mutationsBlocked}
-                    onClick={() =>
-                      setEditor({
-                        day: toDateOnlyUTC(current.next_prep_on!),
-                        seed: current,
-                      })
-                    }
-                  >
-                    {tBulk("planNext")}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn-filled min-h-[44px]"
+                  disabled={mutationsBlocked}
+                  onClick={() =>
+                    setEditor({
+                      day: current.next_prep_on ? toDateOnlyUTC(current.next_prep_on) : defaultDay,
+                      seed: current,
+                    })
+                  }
+                >
+                  {tBulk("planNext")}
+                </button>
               </div>
             </div>
             <p className="text-footnote text-label-secondary">
