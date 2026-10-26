@@ -25,12 +25,13 @@ export async function readRoutineScheduleCatalog(
   actor: RoutineScheduleActor,
   cursor: string | null,
 ): Promise<EffectResult> {
+  const capturedActor = Object.freeze({ ...actor });
   if (cursor !== null && (!cursor || cursor.length > 128))
     return { status: 400, body: { error: { code: "INVALID_QUERY" } } };
   try {
     return await db.$transaction(
       async (tx) => {
-        const capabilities = await routineScheduleAuthority(tx, actor);
+        await routineScheduleAuthority(tx, capturedActor);
         const rows = await tx.$queryRaw<
           {
             id: string;
@@ -40,19 +41,19 @@ export async function readRoutineScheduleCatalog(
           }[]
         >`
         SELECT "id", "label", "version", "schedule_config" FROM "RoutineStack"
-        WHERE "family_id" = ${actor.familyId} AND "schedule_config" IS NOT NULL AND "id" > ${cursor ?? ""}
+        WHERE "family_id" = ${capturedActor.familyId} AND "schedule_config" IS NOT NULL AND "id" > ${cursor ?? ""}
         ORDER BY "id" ASC LIMIT 21`;
         const users = await tx.user.findMany({
-          where: { family_id: actor.familyId },
+          where: { family_id: capturedActor.familyId },
           select: { id: true, name: true, role: true },
           orderBy: [{ name: "asc" }, { id: "asc" }],
           take: 1001,
         });
         const profiles =
-          actor.memberProtocol === 2 && isProfileChoreEnabled()
+          capturedActor.memberProtocol === 2 && isProfileChoreEnabled()
             ? await tx.householdMember.findMany({
                 where: {
-                  family_id: actor.familyId,
+                  family_id: capturedActor.familyId,
                   archived_at: null,
                   erasure_user_id: null,
                   legacy_mapping: { is: null },
@@ -69,7 +70,7 @@ export async function readRoutineScheduleCatalog(
             body: { error: { code: "ROUTINE_MEMBERS_REQUIRE_REVIEW" } },
           };
         const assignments: RoutineAssignmentOption[] = [];
-        const accountEligibility = await readChoreAssigneesInTx(tx, actor.familyId, users.map(user => user.id));
+        const accountEligibility = await readChoreAssigneesInTx(tx, capturedActor.familyId, users.map(user => user.id));
         for (const user of users) {
           const eligibility = accountEligibility.get(user.id);
           if (eligibility?.kind !== "eligible") continue;
@@ -81,7 +82,7 @@ export async function readRoutineScheduleCatalog(
         }
         for (const profile of profiles) {
           if (
-            profileChoreAssigneeFromSnapshot(profile, actor.familyId, profile.id, false)
+            profileChoreAssigneeFromSnapshot(profile, capturedActor.familyId, profile.id, false)
           )
             assignments.push({
               subject: { kind: "profile", member_id: profile.id },
@@ -91,12 +92,14 @@ export async function readRoutineScheduleCatalog(
             });
         }
         const page = rows.slice(0, 20);
+        // Recheck the original principal after catalog/identity query waits.
+        const capabilities = await routineScheduleAuthority(tx, capturedActor);
         return {
           status: 200,
           body: routineScheduleCatalog.parse({
             protocol: ROUTINE_SCHEDULE_PROTOCOL,
-            userId: actor.userId,
-            familyId: actor.familyId,
+            userId: capturedActor.userId,
+            familyId: capturedActor.familyId,
             pointsEnabled: capabilities.pointsEnabled,
             routines: page.map((row) => {
               const config = routineScheduleConfig.safeParse(

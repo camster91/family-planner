@@ -196,3 +196,24 @@ are the expected reference-cardinality bound; actual deployed constraints,
 SQL/query plans, all concurrent lifecycle writers, latency and rollback/native
 acceptance have not been established. No schema/generation/DB/QA/tests/checks/
 build/browser/CI/push/merge/deploy or activation ran. #134/#450/#480 remain open.
+
+
+## Routine read original-principal renewal — 2026-10-26 source only
+
+Catalog and full schedule readers copy/freeze their server-supplied actor at
+entry and use that captured context for all household queries. They invoke the
+existing routine authority check both before private work and after the final
+DB/identity/root waits, before assembling a successful DTO. Parent role, original
+token generation, household, chores feature and readiness refusal withhold the
+loaded body. Current renewed gamification capability controls the catalog flag
+and full-detail point fields rather than the initial capability snapshot.
+
+Three catalog fixture cases describe late refusal without private choices,
+latest capability projection and caller-object changes not rebinding queries.
+They are UNRUN. The full-detail renewal is authored without a new runtime
+result; actual database/role/concurrency acceptance remains open. Existing
+transaction/lifecycle locks are retained, not newly certified. This is a final
+point-in-time principal check, not response recall, original browser-session-ID
+binding or serialization of every related person's later move. No schema,
+profile policy, flag activation, QA/tests/checks/build/browser/DB/CI/push/merge/
+deploy ran. #134/#450/#480/#136 remain open.
