@@ -1,3 +1,4 @@
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders } from "@/lib/recipe-read-authority";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
@@ -15,10 +16,10 @@ import {
   REVIEW_DOCUMENT_CONTRACT,
 } from "@/lib/review-document-contract";
 export const dynamic = "force-dynamic";
-const reply = (body: unknown, status = 200) =>
+const reply = (body: unknown, status = 200, ownerHeaders: Record<string, string> = {}) =>
   NextResponse.json(body, {
     status,
-    headers: { "Cache-Control": "private, no-store" },
+    headers: { "Cache-Control": "private, no-store", ...ownerHeaders },
   });
 
 /** No provider work, canonical writes, receipt changes or local form contents.
@@ -37,6 +38,12 @@ export async function GET(request: NextRequest) {
     if (!domain.success) return reply({ error: "Invalid review domain" }, 400);
     if (auth.user.role !== "parent" && auth.user.role !== "teen")
       return reply({ error: "Forbidden" }, 403);
+    if (domain.data === "recipe") {
+      const ownerRefusal = recipeExpectedReadOwnerRefusal(request, {
+        actorId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0,
+      });
+      if (ownerRefusal) return ownerRefusal;
+    }
     const family = await prisma!.family.findUnique({
       where: { id: auth.user.family_id },
       select: { features: true },
@@ -78,6 +85,9 @@ export async function GET(request: NextRequest) {
         enabled:
           owner !== null && featureEnabled && reviewDocumentWritingEnabled(),
       }),
+      200,
+      domain.data === "recipe" ? recipeReadOwnerHeaders({ actorId: fresh.user.id, familyId: fresh.user.family_id,
+        role: fresh.user.role, generation: fresh.payload.tv ?? 0 }) : {},
     );
   } catch (error) {
     logRouteError("GET review document context", error, getRequestId(request));

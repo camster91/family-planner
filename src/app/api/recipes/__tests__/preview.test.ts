@@ -220,3 +220,15 @@ it.each([['preview', POST, { url: 'https://example.org/soup' }],
     expect(mockFetch).not.toHaveBeenCalled();
     expect(db.writes).toHaveLength(0);
   });
+
+// Authored UNRUN: preview continuity also applies when obtaining recipe review context.
+it('refuses a different original session before returning recipe review context', async () => {
+  const { GET } = await import('@/app/api/review-documents/context/route');
+  const response = await GET(req({ as: 'parentA', path: '/api/review-documents/context', query: { domain: 'recipe' }, headers: {
+    'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-a', familyId: 'family-A', role: 'parent', generation: 99 }),
+  } }));
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } });
+  expect(db.writes).toHaveLength(0);
+  expect(mockFetch).not.toHaveBeenCalled();
+});

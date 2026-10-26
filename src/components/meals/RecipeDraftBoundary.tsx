@@ -25,6 +25,7 @@ import {
 } from "@/lib/review-document-store";
 import { inspectReviewDocumentReceipt } from "@/lib/review-document-receipts";
 import { submitReviewDocumentRequest } from "@/lib/review-document-submit";
+import { sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { sameQueueOwner } from "@/lib/queue-owner-contract";
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
@@ -68,6 +69,7 @@ export function RecipeDraftBoundary(
   recoveryTextRef.current = recoveryText;
   const callbacks = React.useRef(props);
   callbacks.current = props;
+  const originalRecipeOwner = React.useRef(props.expectedRecipeOwner ? Object.freeze({ ...props.expectedRecipeOwner }) : null);
   const context = React.useRef<ReviewDocumentContext | null>(null);
   const store = React.useRef<ReturnType<typeof browserReviewDocument> | null>(
     null,
@@ -112,7 +114,13 @@ export function RecipeDraftBoundary(
     );
   }
   async function current() {
-    const next = await readReviewDocumentContext("recipe");
+    const originalOwner = originalRecipeOwner.current;
+    if ((originalOwner || callbacks.current.expectedRecipeOwner) &&
+        !sameRecipeOwner(originalOwner, callbacks.current.expectedRecipeOwner ?? null))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+    const next = await readReviewDocumentContext("recipe", originalOwner ?? undefined);
+    if (originalOwner && (next.userId !== originalOwner.actorId || next.familyId !== originalOwner.familyId || next.role !== originalOwner.role))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     const expected = callbacks.current.recoveryIdentity;
     if (
       expected &&
@@ -124,6 +132,7 @@ export function RecipeDraftBoundary(
       prior &&
       (prior.userId !== next.userId ||
         prior.familyId !== next.familyId ||
+        prior.role !== next.role ||
         prior.adopted !== next.adopted ||
         (prior.adopted &&
           (!prior.owner ||
@@ -168,6 +177,7 @@ export function RecipeDraftBoundary(
           setSeed(undefined);
           setDuplicate(null);
           setReceipt(null);
+          callbacks.current.onOwnerHold?.();
         }
       }
       return false;
@@ -213,7 +223,7 @@ export function RecipeDraftBoundary(
       }
       return;
     }
-    store.current ??= browserReviewDocument(next);
+    store.current ??= browserReviewDocument(next, originalRecipeOwner.current ?? undefined);
     const rows = initialized.current
       ? await store.current.refresh()
       : await store.current.initialize();

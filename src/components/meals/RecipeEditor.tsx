@@ -38,6 +38,8 @@ function toMinutes(value: string): number | null | "invalid" {
  * Exported for tests.
  */
 export type RecipeEditorProps = {
+  expectedRecipeOwner?: import("@/lib/recipe-owner-contract").RecipeOwner;
+  onOwnerHold?: () => void;
   recoveryIdentity?: { userId: string; familyId: string };
   recoveryOnly?: boolean;
   onCreated?: (recipe: RecipeOption & { source_url?: string | null }) => void;

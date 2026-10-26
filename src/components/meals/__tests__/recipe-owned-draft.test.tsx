@@ -230,3 +230,17 @@ it("keeps the unadopted legacy editor independent of browser recovery stores", a
   await screen.findByLabelText("Recipe name");
   expect(browserReviewDocument).not.toHaveBeenCalled();
 });
+
+// Authored UNRUN: imported review context retains the original full recipe owner.
+it("forwards the preview owner and propagates a context session hold before opening an editor", async () => {
+  const { OwnedRequestRecoveryError } = await import("@/lib/owned-request-journal");
+  const expected = { protocol: "herewoven.recipe-owner.v1", actorId: "fixture-parent", familyId: "fixture-family", role: "parent", generation: 7 } as const;
+  jest.mocked(readReviewDocumentContext).mockRejectedValueOnce(new OwnedRequestRecoveryError("OWNER_CHANGED"));
+  const held = jest.fn();
+  render(<RecipeEditor expectedRecipeOwner={expected} onOwnerHold={held} onCancel={jest.fn()} />);
+  await waitFor(() => expect(held).toHaveBeenCalledTimes(1));
+  expect(readReviewDocumentContext).toHaveBeenCalledWith("recipe", expected);
+  expect(screen.queryByLabelText("Recipe name")).toBeNull();
+  expect(store.freeze).not.toHaveBeenCalled();
+  expect(store.sendExact).not.toHaveBeenCalled();
+});

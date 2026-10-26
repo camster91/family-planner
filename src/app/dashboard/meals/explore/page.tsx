@@ -711,6 +711,8 @@ export default function RecipeExplorePage() {
                   {text("reviewBeforeSaving")}
                 </p>
                 <RecipeEditor
+                  expectedRecipeOwner={libraryOwner.current ?? undefined}
+                  onOwnerHold={holdLibraryOwner}
                   recoveryIdentity={libraryOwner.current ? { userId: libraryOwner.current.actorId, familyId: libraryOwner.current.familyId } : undefined}
                   initialDraft={{
                     source_url: preview.source,
