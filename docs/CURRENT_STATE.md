@@ -26,7 +26,7 @@ candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is 
 consolidated into #464 with its full original requirements preserved. Redundant
 #448 tracking is now a named required defect section of #499, leaving **37 open issues**.
 #105 closure does not mark any acceptance item done.
-Fourteen documentation-only criteria are now reconciled in #134/#140/#146/#254/#563/#480/#136; all
+Bounded documentation/research criteria are now reconciled in #134/#140/#146/#254/#563/#480/#136/#110; all
 runtime/device/customer/production criteria remain separate and unchecked.
 No unverified feature is declared completed by source authorship.
 
@@ -56,7 +56,7 @@ No unverified feature is declared completed by source authorship.
 | #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
 | #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
 
-Latest bounded source work bounds the compact analytics current-User cohort at1000 with one lookahead row and stable ID order. A larger cohort uses the existing renewed/private typed422 limit response, without partial members/totals. Coverage now requires memberLimit1000 in addition to the chore budgets, preventing old/intermediate-server inference of complete cohort coverage. EN/ES limit guidance explicitly covers omitted people and work. No household creation/join cap changes; legacy unprojected member reads remain unbounded under their existing contract. Compact source row/retention budgets are explicit, but total candidate work, per-value bytes, snapshot/concurrency/owner/profile/scalable-aggregation/compatibility/runtime acceptance remain open. No QA/tests/checks/build/browser/DB/CI/push/merge/deploy ran.37 issues remain open.
+Latest bounded planning work completes #110's official-source competitor price refresh and a conditional definition of all nine subscription lifecycle areas in docs/plans/packaging-validation.md. Official Cozi, FamilyWall and AnyList observations retain currency/channel/tax limits and are not customer demand evidence. Trial/renewal/cancel/refund/tax/failure/entitlement/payer/deletion behaviors are reviewable proposals, with original beta, operator/channel/cost/price and setup/spend/charging decisions preserved. No billing code, provider setup, offer adoption, participant contact, production read or QA/release action ran. Only the two research/definition criteria are eligible for reconciliation; demand/packaging experiment/go-or-stop/approval/future implementation acceptance and the overall issue remain open.37 issues remain open.
 
 Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
 Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
