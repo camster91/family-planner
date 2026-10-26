@@ -87,3 +87,21 @@ it("admits an own accepted claim from a child only to a current parent", async (
   ]).mockResolvedValueOnce([{ envelope: claimEvent }]);
   expect(await admitNotificationRecipientInTx(tx as any, { ...actor, role: "child" }, { ...input, content: { ...input.content, type: "reward" } }, async () => true, clock)).toMatchObject({ kind: "created" });
 });
+
+// Authored UNRUN: no-eligible-recipient is an explicit terminal reward slot.
+it("seals an empty reward recipient without a fake account or inbox item", async () => {
+  const approval = { ...event, kind: "reward.approval" };
+  const tx = txFor(); tx.notificationEventOccurrence.findFirst.mockResolvedValue({ envelope: approval } as any);
+  tx.$queryRaw.mockReset().mockResolvedValueOnce([{ id: actor.userId, family_id: actor.familyId, role: actor.role, token_version: 4 }]).mockResolvedValueOnce([{ envelope: approval }]);
+  expect(await admitNotificationRecipientInTx(tx as any, actor, { ...input, userId: null, content: { ...input.content, type: "reward" } }, async () => true, clock)).toEqual({ kind: "suppressed", notificationId: null });
+  expect(deliver).not.toHaveBeenCalled();
+  expect(tx.notificationRecipientDecision.create).toHaveBeenCalledWith({ data: expect.objectContaining({ user_id: null, status: "suppressed", notification_id: null }) });
+});
+it("does not refill a sealed empty reward slot with a later recipient", async () => {
+  const approval = { ...event, kind: "reward.approval" };
+  const tx = txFor({ family_id: actor.familyId, user_id: null, status: "suppressed", notification_id: null });
+  tx.notificationEventOccurrence.findFirst.mockResolvedValue({ envelope: approval } as any);
+  tx.$queryRaw.mockReset().mockResolvedValueOnce([{ id: actor.userId, family_id: actor.familyId, role: actor.role, token_version: 4 }, { id: input.userId, family_id: actor.familyId, role: "child", token_version: 1 }]).mockResolvedValueOnce([{ envelope: approval }]);
+  expect(await admitNotificationRecipientInTx(tx as any, actor, { ...input, content: { ...input.content, type: "reward" } }, async () => true, clock)).toEqual({ kind: "held" });
+  expect(deliver).not.toHaveBeenCalled();
+});

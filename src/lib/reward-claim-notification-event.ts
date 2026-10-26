@@ -2,8 +2,7 @@
  * receipt. Bounded frozen parent roster, never a reconstructed retry fanout.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { lockUser, lockHousehold } from "@/lib/household-lock";
-import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
+import { lockRewardNotificationParticipants } from "@/lib/reward-notification-owner";
 import { readPrivateNotificationDispatchWindow } from "@/lib/notification-event-policy";
 import { admitNotificationEventInTx, type NotificationEventActor } from "@/lib/notification-event-admission";
 import { admitNotificationRecipientInTx } from "@/lib/notification-recipient-admission";
@@ -34,16 +33,7 @@ export async function prepareRewardClaimNotifications(
  * never a partial/truncated delivery or late acquisition of a new User lock.
  */
 export async function lockRewardClaimNotificationPlan(tx: Prisma.TransactionClient, plan: RewardClaimNotificationPlan) {
-  const ids = [...new Set([plan.actor.userId, ...plan.recipients])].sort();
-  for (const id of ids) await lockUser(tx, id);
-  await lockHousehold(tx, plan.actor.familyId);
-  const people = await tx.$queryRaw<Array<{ id: string; family_id: string | null; role: string; token_version: number }>>`
-    SELECT "id", "family_id", "role", "token_version" FROM "User" WHERE "id" = ANY(${ids}::text[]) ORDER BY "id" FOR SHARE`;
-  const actor = people.find(row => row.id === plan.actor.userId);
-  if (actor?.family_id !== plan.actor.familyId || actor.role !== plan.actor.role || actor.token_version !== plan.actor.tokenVersion) throw held();
-  const families = await tx.$queryRaw<Array<{ features: unknown }>>`
-    SELECT "features" FROM "Family" WHERE "id" = ${plan.actor.familyId} FOR SHARE`;
-  if (families.length !== 1 || !isFeatureEnabled(normalizeFeatures(families[0].features), "rewards")) throw held();
+  const people = await lockRewardNotificationParticipants(tx, plan.actor, plan.recipients);
   const parents = await tx.user.findMany({ where: { family_id: plan.actor.familyId, role: "parent" }, select: { id: true }, orderBy: { id: "asc" }, take: 101 });
   if (parents.length > 100 || JSON.stringify(parents.map(row => row.id)) !== JSON.stringify(plan.recipients)
       || plan.recipients.some(id => !people.some(row => row.id === id && row.family_id === plan.actor.familyId && row.role === "parent"))) throw held();
@@ -75,7 +65,8 @@ export async function recordRewardClaimNotificationsInTx(
   if (event.kind === "held") throw held();
   const actionUrl = rewardNotificationDestination(input.rewardId);
   if (!actionUrl) throw held();
-  for (const [slot, userId] of plan.recipients.entries()) {
+  const recipients: Array<string | null> = plan.recipients.length ? plan.recipients : [null];
+  for (const [slot, userId] of recipients.entries()) {
     const result = await admitNotificationRecipientInTx(tx, plan.actor, { eventId: event.id, slot, userId,
       content: { title: "Reward claimed", message: `A family member claimed "${row.name}" for ${input.cost} points.`, type: "reward", actionUrl } },
       async (sourceTx, persisted) => compareNotificationOccurrence(envelope, persisted) === "same" && await sourceGuard(sourceTx), clock);

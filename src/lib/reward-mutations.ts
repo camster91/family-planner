@@ -1,3 +1,4 @@
+import { prepareRewardApprovalNotifications, lockRewardApprovalNotificationPlan, recordRewardApprovalNotificationInTx } from "@/lib/reward-approval-notification-event";
 import { randomUUID } from "node:crypto";
 import { prepareRewardClaimNotifications, lockRewardClaimNotificationPlan, recordRewardClaimNotificationsInTx } from "@/lib/reward-claim-notification-event";
 /**
@@ -337,8 +338,10 @@ export async function approveReward(
   actor: RewardActor,
   recordId: string | null,
 ): Promise<RewardMutation & { claimerId?: string | null }> {
+  const notificationPlan = await prepareRewardApprovalNotifications(db, actor, input.rewardId);
   return db.$transaction(async (tx) => {
-    await lockRewardMembership(tx, actor);
+    const recipientId = notificationPlan ? await lockRewardApprovalNotificationPlan(tx, notificationPlan) : null;
+    if (!notificationPlan) await lockRewardMembership(tx, actor);
     const replay = await receiptResult(tx, actor, recordId);
     if (replay) return { result: replay, applied: false };
     const denied = await authorizeRewardActorLocked(tx, actor, true);
@@ -349,6 +352,7 @@ export async function approveReward(
       select: {
         family_id: true,
         status: true,
+        claimed_by: true,
         claimer: { select: { id: true } },
       },
     });
@@ -362,6 +366,7 @@ export async function approveReward(
         result: { status: 403, body: { error: "Forbidden" } },
         applied: false,
       };
+    if (notificationPlan && current.claimed_by !== notificationPlan.claimantId) throw new Error("Reward approval claimant changed");
     if (current.status !== "claimed")
       return {
         result: {
@@ -373,6 +378,8 @@ export async function approveReward(
 
     // The status predicate is the approval transition guard. Two different
     // fresh keys cannot both redeem the same claimed reward or notify twice.
+    const approvedAt = new Date();
+    const transitionId = notificationPlan ? randomUUID() : null;
     const transitioned = await tx.reward.updateMany({
       where: {
         id: input.rewardId,
@@ -383,8 +390,9 @@ export async function approveReward(
         status: "redeemed",
         approved: true,
         approved_by: actor.userId,
-        approved_at: new Date(),
-        redeemed_at: new Date(),
+        approved_at: approvedAt,
+        redeemed_at: approvedAt,
+        ...(transitionId ? { notification_approval_id: transitionId } : {}),
       },
     });
     if (transitioned.count === 0) {
@@ -405,10 +413,14 @@ export async function approveReward(
       },
     });
     const result: EffectResult = { status: 200, body: { reward } };
+    if (notificationPlan && transitionId) {
+      await recordRewardApprovalNotificationInTx(tx, notificationPlan, { rewardId: input.rewardId, transitionId, approvedAt, recipientId });
+    }
     await storeReceipt(tx, recordId, result);
     return {
       result,
       applied: true,
+      notificationHandled: notificationPlan !== null,
       claimerId: current.claimer?.id ?? null,
     };
   });

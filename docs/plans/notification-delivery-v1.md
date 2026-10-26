@@ -715,3 +715,60 @@ producer admission. Actual SQL trigger, claim/XP/receipt atomicity, competing ke
 roster/role/token/feature races, preference/quiet-hour/expiry/deletion/export and
 rendered/device/provider acceptance remain. Approval still uses the existing
 best-effort producer and exact link; it is NOT adopted by this claim slice.
+
+
+## Atomic approval source contract — 2026-10-25 (source authored; unverified)
+
+Add a nullable write-once notification_approval_id on Reward, preserving the
+existing generation and claim ID. Use the actual accepted approved_at time and
+conditional claimed→redeemed transition; do not infer a historical approval.
+A separate default-off REWARD_APPROVAL_NOTIFICATION_EVENTS_ENABLED and explicit
+REWARD_APPROVAL_NOTIFICATION_DISPATCH_MS select adoption. Preflight only original
+actor and candidate claimant IDs; lock all participants before household/source/
+receipt, compare actual source claimant after waits, and renew current parent,
+original session and effective Rewards feature. A still-current household claimant
+gets slot0. A removed/erased/departed claimant gets no recipient projection; this
+must not invent a new person or block the ordinary parent approval solely because
+a former claimant cannot receive a notice. Persist approval event/eligible terminal
+slot and existing receipt atomically, skip only the adopted legacy send. Any
+admission failure throws for rollback. No new XP charge or second approval writer.
+
+
+Canonical approval now prepares the original claimant candidate, reuses the same
+participant authority lock primitive as claim, compares the current scalar
+claimed_by before effects, persists a fresh approval UUID only with the successful
+claimed→redeemed write, and composes approval event/recipient decision/HTTP receipt
+before commit. Approved/redeemed times use the same accepted transition instant.
+Original authenticated session generation is forwarded by the existing route;
+no new approval/XP engine or different claim-price calculation is introduced.
+The separate approval flag and general admission/window readiness remain off.
+Only an atomically handled approval skips its old aftercommit send. A changed
+claimant throws before effects, so a lost attempt cannot silently acquire an
+unlocked replacement recipient. Existing normal conditional/replay behavior stays.
+
+One shared participant primitive now locks sorted actual User candidates and
+Family, requiring original role/session/household and effective Rewards authority.
+Approval excludes a current departed/deleted claimant from delivery, without
+fabricating a recipient or changing the parent approval's business outcome. The
+recipient primitive now accepts an explicit null target ONLY for reward claim/
+approval events. It verifies the same accepted event/source, creates a suppressed
+null-user/null-notification terminal slot and never calls the central inbox writer.
+Claim's empty accepted parent roster now seals that same slot0. A later nonnull
+recipient cannot fill it. This is distinct from simply leaving the event without
+recipient evidence; erased existing slots also cannot redirect to another account.
+No absent/erased profile becomes a User, and no roster is rebuilt after acceptance.
+
+The additive approval migration extends the earlier immutable identity function;
+ordinary updates cannot clear/replace accepted claim or approval IDs. Both Reward
+identity migrations and regenerated Prisma client are still prerequisites, even
+for deploying regenerated code with flags off; none ran. Existing full Reward
+scalar export/row erasure and parent event/terminal-slot portability apply without
+a new User FK. Flag rollback must retain all identity and terminal evidence.
+
+Authored unrun cases cover disabled/no-actor admission, departed recipients,
+same-tx approval composition, explicit empty slots, refusal propagation and
+no refill of a sealed slot. No SQL trigger/transaction/expiry/concurrency/token/
+role/quiet-hour/erasure/export/runtime/rendered/provider/device acceptance is
+claimed. Durable dispatch/recovery, manual/new-reward/reassignment/summary source
+coverage and original #141 acceptance remain unfinished. No QA, DB, migration,
+generation, build/browser/CI, provider/scheduler/native activation or release ran.

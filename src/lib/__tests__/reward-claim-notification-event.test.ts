@@ -37,3 +37,9 @@ it("throws after recipient refusal so the enclosing claim/XP/receipt can roll ba
   jest.mocked(admitNotificationRecipientInTx).mockResolvedValueOnce({ kind: "held" } as any);
   await expect(recordRewardClaimNotificationsInTx({ $queryRaw: async () => [row] } as any, plan, input, () => claimedAt)).rejects.toThrow("held");
 });
+
+it("seals an empty accepted parent roster without an invented recipient", async () => {
+  const tx = { $queryRaw: async () => [row] };
+  await recordRewardClaimNotificationsInTx(tx as any, { ...plan, recipients: [] }, input, () => claimedAt);
+  expect(admitNotificationRecipientInTx).toHaveBeenCalledWith(tx, actor, expect.objectContaining({ slot: 0, userId: null }), expect.any(Function), expect.any(Function));
+});

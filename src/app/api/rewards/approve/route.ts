@@ -56,8 +56,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reward must be claimed before approval' }, { status: 400 })
     }
 
-    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role }
+    const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     let applied = false
+    let notificationHandled = false
     let claimerId: string | null | undefined
     const response = await withIdempotency(
       prisma!,
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
       async ({ recordId }) => {
         const mutation = await approveReward(prisma!, { rewardId }, actor, recordId)
         applied = mutation.applied
+        notificationHandled = mutation.notificationHandled === true
         claimerId = mutation.claimerId
         return mutation.result
       },
@@ -74,7 +76,7 @@ export async function POST(request: NextRequest) {
     )
 
     // Notify the child only for the fresh conditional transition.
-    if (applied && claimerId) {
+    if (applied && claimerId && !notificationHandled) {
       try {
         await notificationServiceServer.sendNotification({
           familyId: auth.user.family_id,
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
           title: 'Reward Approved!',
           message: `Your parent approved "${reward.name}". Enjoy your reward!`,
           type: 'reward',
-            actionUrl: rewardNotificationDestination(rewardId),
+          actionUrl: rewardNotificationDestination(rewardId),
         })
       } catch (err) {
         logRouteError('POST /api/rewards/approve (notification)', err, getRequestId(request))
