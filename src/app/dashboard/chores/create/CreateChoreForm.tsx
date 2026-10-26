@@ -37,7 +37,7 @@ import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
 } from "@/components/layout/pending-form-navigation";
-import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { IDEMPOTENCY_HEADER, IDEMPOTENCY_TTL_MS, newIdempotencyKey } from "@/lib/idempotency-key";
 import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   findActiveHouseholdProfile,
@@ -140,12 +140,12 @@ export default function CreateChoreForm({
   const submitPending = useRef(false);
   const live = useRef(true);
   const submitEpoch = useRef(0);
-  const accountController = useRef<AbortController | null>(null);
+  const submitController = useRef<AbortController | null>(null);
   const accountRequest = useRef<{ key: string; body: string; issuedAt: number } | null>(null);
   const [accountSaveState, setAccountSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
   useEffect(() => {
     live.current = true;
-    return () => { live.current = false; submitEpoch.current++; accountController.current?.abort(); submitPending.current = false; };
+    return () => { live.current = false; submitEpoch.current++; submitController.current?.abort(); submitPending.current = false; };
   }, []);
   const [error, setError] = useState<string | null>(null);
   const [familyMembers, setFamilyMembers] = useState<
@@ -181,19 +181,29 @@ export default function CreateChoreForm({
   const profileIdempotencyKey = useRef<{
     key: string;
     signature: string;
+    issuedAt: number;
   } | null>(null);
-  const profileAmbiguousKeys = useRef(new Map<string, string>());
+  const profileAmbiguousKeys = useRef(new Map<string, { key: string; issuedAt: number; body: Record<string, unknown> }>());
+  const [profileRetryAgeHeld, setProfileRetryAgeHeld] = useState(false);
   const profileDraftRevision = useRef(0);
   const profilePendingRequest = useRef<{
     body: Record<string, unknown>;
     key: string;
     signature: string;
+    issuedAt: number;
     draftRevision: number;
   } | null>(null);
   const markProfileDraftEdited = () => {
     profileIdempotencyKey.current = null;
     profilePendingRequest.current = null;
     profileDraftRevision.current += 1;
+    setProfileRetryAgeHeld(false);
+  };
+  const retainProfileRequest = (original?: typeof profilePendingRequest.current) => {
+    const pending = original ?? profilePendingRequest.current;
+    if (pending) profileAmbiguousKeys.current.set(pending.signature, {
+      key: pending.key, issuedAt: pending.issuedAt, body: pending.body,
+    });
   };
   const assignedTo =
     assignmentTarget.kind === "account" ? assignmentTarget.id : "";
@@ -435,6 +445,7 @@ export default function CreateChoreForm({
     const submittedProfileDraftRevision = isProfileTarget
       ? profileDraftRevision.current
       : null;
+    let submittedProfileRequest: typeof profilePendingRequest.current = null;
 
     try {
       const headers: Record<string, string> = {
@@ -469,26 +480,23 @@ export default function CreateChoreForm({
         const pending = profilePendingRequest.current;
         let signature: string;
         let key: string;
+        let issuedAt: number;
         if (pending && pending.draftRevision === profileDraftRevision.current) {
-          requestBody = pending.body;
-          signature = pending.signature;
-          key = pending.key;
+          requestBody = pending.body; signature = pending.signature; key = pending.key; issuedAt = pending.issuedAt;
         } else {
-          requestBody = computedRequestBody;
-          signature = canonicalBodySignature(requestBody);
-          key =
-            (profileIdempotencyKey.current?.signature === signature
-              ? profileIdempotencyKey.current.key
-              : profileAmbiguousKeys.current.get(signature)) ??
-            newIdempotencyKey();
-          profilePendingRequest.current = {
-            body: requestBody,
-            key,
-            signature,
-            draftRevision: profileDraftRevision.current,
-          };
+          signature = canonicalBodySignature(computedRequestBody);
+          const previous = profileAmbiguousKeys.current.get(signature);
+          requestBody = previous?.body ?? JSON.parse(JSON.stringify(computedRequestBody));
+          key = previous?.key ?? (profileIdempotencyKey.current?.signature === signature ? profileIdempotencyKey.current.key : newIdempotencyKey());
+          issuedAt = previous?.issuedAt ?? (profileIdempotencyKey.current?.signature === signature ? profileIdempotencyKey.current.issuedAt : Date.now());
+          profilePendingRequest.current = { body: requestBody, key, signature, issuedAt, draftRevision: profileDraftRevision.current };
         }
-        profileIdempotencyKey.current = { key, signature };
+        profileIdempotencyKey.current = { key, signature, issuedAt };
+        const now = Date.now();
+        if (!Number.isSafeInteger(issuedAt) || issuedAt < 0 || now < issuedAt || now - issuedAt >= IDEMPOTENCY_TTL_MS) {
+          setProfileRetryAgeHeld(true); setError(message("profileRetryExpired")); return;
+        }
+        submittedProfileRequest = profilePendingRequest.current;
         headers[IDEMPOTENCY_HEADER] = key;
       } else {
         requestBody = {
@@ -519,13 +527,17 @@ export default function CreateChoreForm({
       let res: Response;
       let raw: unknown;
       if (isProfileTarget) {
-        // Preserve the existing strict profile protocol/recovery path.
-        res = await fetch("/api/chores/create", { method: "POST", headers, body: JSON.stringify(requestBody) });
-        raw = await res.json().catch(() => null);
+        const controller = new AbortController(); submitController.current = controller;
+        const result = await requestOwnedJson("/api/chores/create", {
+          method: "POST", signal: controller.signal, headers, body: JSON.stringify(requestBody),
+        }, 512 * 1024);
+        if (!current()) return;
+        if (result.kind !== "reply") { retainProfileRequest(submittedProfileRequest); setError(profileText("profileTargetError")); return; }
+        res = result.response; raw = result.body;
       } else {
         const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now() });
         accountRequest.current = packet;
-        const controller = new AbortController(); accountController.current = controller;
+        const controller = new AbortController(); submitController.current = controller;
         const result = await requestOwnedJson("/api/chores/create", {
           method: "POST", signal: controller.signal,
           headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key }, body: packet.body,
@@ -540,12 +552,16 @@ export default function CreateChoreForm({
       if (!res.ok) {
         if (isProfileTarget) {
           const code = readApiErrorCode(data);
+          if (res.status >= 500 || [401, 403, 408, 409, 425, 429].includes(res.status)) retainProfileRequest(submittedProfileRequest);
+          if ([401, 403].includes(res.status)) { setAccountSaveState("unknown"); return; }
           if (code === "MEMBER_PROTOCOL_UNAVAILABLE") {
-            profileAmbiguousKeys.current.delete(
-              profileIdempotencyKey.current?.signature ?? "",
-            );
-            profileIdempotencyKey.current = null;
-            profilePendingRequest.current = null;
+            const signature = submittedProfileRequest?.signature;
+            // A later capability refusal cannot prove an earlier uncertain
+            // request did not commit. Keep its original body/key/issue time.
+            if (!signature || !profileAmbiguousKeys.current.has(signature)) {
+              profileIdempotencyKey.current = null;
+              profilePendingRequest.current = null;
+            }
             setError(
               profileText(
                 frequency !== "once"
@@ -554,12 +570,6 @@ export default function CreateChoreForm({
               ),
             );
           } else {
-            if (res.status >= 500 && profileIdempotencyKey.current) {
-              profileAmbiguousKeys.current.set(
-                profileIdempotencyKey.current.signature,
-                profileIdempotencyKey.current.key,
-              );
-            }
             setError(profileText("profileTargetError"));
           }
         } else {
@@ -580,6 +590,7 @@ export default function CreateChoreForm({
         isProfileTarget &&
         !readProfileChoreCreateSuccess(data, profileTarget?.id)
       ) {
+        retainProfileRequest(submittedProfileRequest);
         setError(profileText("invalidResponse"));
         return;
       }
@@ -617,19 +628,14 @@ export default function CreateChoreForm({
     } catch {
       if (!current()) return;
       if (!isProfileTarget && accountRequest.current) { setAccountSaveState("unknown"); return; }
-      if (isProfileTarget && profileIdempotencyKey.current) {
-        profileAmbiguousKeys.current.set(
-          profileIdempotencyKey.current.signature,
-          profileIdempotencyKey.current.key,
-        );
-      }
+      if (isProfileTarget) retainProfileRequest(submittedProfileRequest);
       setError(
         isProfileTarget
           ? profileText("profileTargetError")
           : message("unexpected"),
       );
     } finally {
-      if (current()) { accountController.current = null; submitPending.current = false; setLoading(false); }
+      if (current()) { submitController.current = null; submitPending.current = false; setLoading(false); }
     }
   };
 
@@ -686,6 +692,7 @@ export default function CreateChoreForm({
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
             <p className="text-body text-[var(--danger-text)]">{error}</p>
+            {profileRetryAgeHeld && <Link href="/dashboard/chores" className="btn-plain inline-flex min-h-11 items-center">{message("checkChores")}</Link>}
           </div>
         )}
 
@@ -1185,7 +1192,7 @@ export default function CreateChoreForm({
         >
           <button
             type="submit"
-            disabled={busy || submitHint !== null}
+            disabled={busy || profileRetryAgeHeld || submitHint !== null}
             aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
             className="btn-filled w-full"
           >

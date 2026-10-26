@@ -669,4 +669,34 @@ describe("profile target in the create chore form", () => {
     expect(title.value).toBe("Edited while waiting");
     expect(push).not.toHaveBeenCalled();
   });
+  // Authored UNRUN: a later refusal cannot erase an earlier unknown profile save.
+  it("keeps the original request after an unknown result and a capability refusal", async () => {
+    const read = global.fetch; let attempts = 0;
+    global.fetch = jest.fn(async (url, init) => {
+      if (url !== "/api/chores/create") return read(url, init);
+      calls.push({ url: String(url), init }); attempts++;
+      if (attempts === 1) throw new Error("Fixture response lost");
+      return attempts === 2
+        ? { ok: false, status: 404, json: async () => ({ error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } }) }
+        : { ok: true, status: 200, json: async () => validProfileCreateResponse };
+    }) as typeof fetch;
+    const user = userEvent.setup(); render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.selectOptions(screen.getByLabelText("Assign To"), "profile:profile-jamie");
+    await user.type(screen.getByLabelText("Title"), "Pack a bag");
+    fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await screen.findByText(profileSetupMessages.en.profileTargetError);
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await screen.findByText(profileSetupMessages.en.profileTargetUnsupported);
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+    const writes = calls.filter(call => call.url === "/api/chores/create");
+    expect(writes).toHaveLength(3);
+    for (const write of writes.slice(1)) {
+      expect(write.init?.body).toBe(writes[0].init?.body);
+      expect(new Headers(write.init?.headers).get("Idempotency-Key")).toBe(new Headers(writes[0].init?.headers).get("Idempotency-Key"));
+    }
+  });
+
 });
