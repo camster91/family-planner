@@ -1,9 +1,16 @@
+import {
+  withCalendarSubscriptionAccess,
+  protectCalendarSubscriptionResponse,
+  calendarSubscriptionAccessHeld,
+  type CalendarSubscriptionActor,
+} from "@/lib/calendar-subscription-access";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import {
   syncSubscriptionExclusive,
+  CalendarSubscriptionSyncHeld,
   toSubscriptionDto,
 } from "@/lib/calendar-import/sync";
 
@@ -27,10 +34,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
     const { id } = await context.params;
 
-    const existing = await prisma!.calendarSubscription.findFirst({
-      where: { id, family_id: auth.user.family_id },
-      select: { id: true },
-    });
+    const actor: CalendarSubscriptionActor = {
+      userId: auth.user.id, familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0,
+    };
+    const admitted = await withCalendarSubscriptionAccess(prisma!, actor, "refresh", tx => tx.calendarSubscription.findFirst({
+      where: { id, family_id: actor.familyId }, select: { id: true },
+    }));
+    if (admitted.kind === "held") return calendarSubscriptionAccessHeld();
+    const existing = admitted.value;
     if (!existing) {
       return NextResponse.json(
         { error: "Calendar subscription not found" },
@@ -59,7 +70,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const result = await syncSubscriptionExclusive(
       existing.id,
-      auth.user.family_id,
+      actor.familyId,
+      { actor },
     );
     if (!result) {
       return NextResponse.json(
@@ -68,26 +80,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const sub = await prisma!.calendarSubscription.findFirst({
-      where: { id: existing.id, family_id: auth.user.family_id },
-      select: {
-        id: true,
-        name: true,
-        color: true,
-        url_enc: true,
-        last_fetched_at: true,
-        last_status: true,
-        last_error: true,
-        created_at: true,
-      },
+    const status = await withCalendarSubscriptionAccess(prisma!, actor, "refresh", async tx => {
+      const sub = await tx.calendarSubscription.findFirst({
+        where: { id: existing.id, family_id: actor.familyId },
+        select: { id: true, name: true, color: true, url_enc: true,
+          last_fetched_at: true, last_status: true, last_error: true, created_at: true },
+      });
+      return sub ? toSubscriptionDto(sub, { includeUrlHint: role === "parent" }) : null;
     });
-    return NextResponse.json({
-      result,
-      subscription: sub
-        ? toSubscriptionDto(sub, { includeUrlHint: role === "parent" })
-        : null,
-    });
-  } catch {
+    if (status.kind === "held") return calendarSubscriptionAccessHeld();
+    return protectCalendarSubscriptionResponse(prisma!, actor, "refresh", NextResponse.json({ result, subscription: status.value }));
+  } catch (cause) {
+    if (cause instanceof CalendarSubscriptionSyncHeld) {
+      if (cause.reason === "access") return calendarSubscriptionAccessHeld();
+      return NextResponse.json({ error: "The original calendar changed. Check its status before refreshing again.", code: "CALENDAR_SUBSCRIPTION_SOURCE_CHANGED" },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    }
     console.error("Error refreshing calendar subscription");
     return NextResponse.json(
       { error: "Internal server error" },

@@ -380,3 +380,16 @@ it.each(["rename", "remove"] as const)("holds %s after the original role changes
   expect(writesTo("event")).toHaveLength(0);
   expect(db.find("calendarSubscription", "sub-a")).toBeDefined();
 });
+
+// Authored UNRUN: a remote feed response cannot authorize effects after session loss.
+it("holds manual refresh effects when the original session changes during fetch", async () => {
+  fetchMock.mockImplementationOnce(async () => {
+    db.find("user", USER_IDS.parentA)!.token_version += 1;
+    return icsResponse(FEED);
+  });
+  const res = await refresh.POST(req({ as: "parentA" }), params({ id: "sub-a" }));
+  expect(res.status).toBe(401);
+  expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
+  expect(writesTo("event")).toHaveLength(0);
+  expect(writesTo("calendarSubscription")).toHaveLength(0);
+});

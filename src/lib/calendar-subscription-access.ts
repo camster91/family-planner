@@ -11,7 +11,7 @@ export type CalendarSubscriptionActor = {
   role: string;
   generation: number;
 };
-type Mode = "read" | "create" | "manage";
+type Mode = "read" | "create" | "manage" | "refresh";
 type Outcome<T> = { kind: "data"; value: T } | { kind: "held" };
 
 export async function withCalendarSubscriptionAccess<T>(
@@ -21,7 +21,7 @@ export async function withCalendarSubscriptionAccess<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<Outcome<T>> {
   if (!Number.isSafeInteger(original.generation) || original.generation < 0
-    || !(mode === "read" ? ["parent", "teen"] : ["parent"]).includes(original.role)) return { kind: "held" };
+    || !(["read", "refresh"].includes(mode) ? ["parent", "teen"] : ["parent"]).includes(original.role)) return { kind: "held" };
   return db.$transaction(async tx => {
     await lockUser(tx, original.userId);
     await lockHousehold(tx, original.familyId);
@@ -34,7 +34,8 @@ export async function withCalendarSubscriptionAccess<T>(
       SELECT "id" FROM "Family" WHERE "id" = ${original.familyId} FOR SHARE`;
     if (families.length !== 1) return { kind: "held" as const };
     return { kind: "data" as const, value: await work(tx) };
-  }, { timeout: 5000, maxWait: 5000 });
+  }, { timeout: mode === "refresh" ? 30_000 : 5000, maxWait: 5000,
+    ...(mode === "refresh" ? { isolationLevel: "RepeatableRead" as const } : {}) });
 }
 
 export function calendarSubscriptionAccessHeld(unconfirmed = false): NextResponse {
