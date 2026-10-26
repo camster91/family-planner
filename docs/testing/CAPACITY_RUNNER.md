@@ -297,3 +297,44 @@ checks must cover refusal before dispatch, original target/cookie/input capture,
 route/query/redirect limits, streaming/legacy body bounds, stalled and abort-
 ignoring reads, unknown vs confirmed outcomes, metric naming, input mutation
 through every awaited phase and clean callback/signal retirement.
+
+
+## Canonical calendar range-read case — 2026-10-26, dormant/unrun
+
+`src/lib/capacity/calendar-read-case.ts` now supplies the range-read portion of
+the calendar scenario. Creation captures one declared fabricated ordinal/role,
+strict calendar-owner metadata, exact start/end (at most45 days), a copied set
+of expected event IDs for that exact range and the guarded transport. Calling
+it with another scenario, shared surface, ordinal or role refuses before dispatch.
+It neither obtains a session nor proves cookie/owner/fixture provenance; the
+adoption/session pool must bind these independently to the isolated backend.
+
+The case invokes the real `fetchPlanningRange`, retaining its canonical page,
+event, interval/overlap, cursor, whole-job deadline and truncation behavior.
+The transport sends only the admitted original calendar comparison header on
+events reads and validates successful response-owner metadata before private
+body decoding. A different successful owner becomes unsafe; absent metadata is
+an unsupported/failed case, not fabricated old-server proof. Explicit401/403/
+409/429 is a measured refusal; malformed/transport/timeout uncertainty never
+becomes a confirmed range. Foreign/unexpected IDs are unsafe; missing expected
+IDs fail; only complete exact membership confirms the range read. Truncation is
+unknown even when the returned rows themselves are valid.
+
+The transport returns only the parsed calendar-owner comparison header, never
+Set-Cookie or arbitrary response headers. Its parsed JSON is reconstructed as a
+Response for the real reader, adding client-side encoding/decoding overhead.
+Metrics retain requests and decodedJsonBytes; they are not wire-byte/server-only
+latency measurements. The case result deliberately is not a full CapacityResult
+and is not wired as the engine's calendar adapter. Expected-ID membership alone
+does not prove correct titles/source values or timing; dataset reconciliation,
+sentinels and field-level canonical evidence remain necessary.
+
+Still unfinished: source-filter/create/edit/ICS parts of the calendar scenario,
+Toronto semantic/exception fixtures, the other mixed scenarios, authenticated
+session resolution/cadence, provider fakes, full fixture/schema/source binding,
+resource sampling/reconciliation and actual clean-environment execution. No
+CLI, seed/reset, network/provider/DB/load/QA/check/build/browser/CI/release ran.
+Deferred cases include exact empty/multipage membership, omitted/unexpected IDs,
+owner mismatch/missing marker before decoding, session/intent mismatch before
+HTTP, refusal buckets, cursor/body/deadline errors, truncation, caller input
+mutation and unsafe/unknown outcome propagation without retaining private data.

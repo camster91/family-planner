@@ -1,3 +1,4 @@
+import { CALENDAR_OWNER_HEADER, calendarOwnerSchema, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "../calendar-read-owner";
 /** Dormant fabricated-capacity read primitive. No import-time or factory HTTP,
  * database, provider, seed/reset, CLI or stage activation. */
 import { assertFixtureTargetAllowed } from "../fixtures/guard";
@@ -8,9 +9,9 @@ import { readBoundedJsonResponse } from "../bounded-json-response";
 const ROUTES = ["/api/auth/me", "/api/capabilities", "/api/events", "/api/lists",
   "/api/chores", "/api/inventory", "/api/notifications", "/api/device/today"] as const;
 export type CapacityReadRoute = typeof ROUTES[number];
-export type CapacityReadReply = { kind: "reply"; status: number; data: unknown;
+export type CapacityReadReply = { kind: "reply"; status: number; data: unknown; calendarOwner: CalendarReadOwner | null;
   /** Re-encoded admitted JSON, NOT compressed/wire/partial response bytes. */
-  decodedJsonBytes: number; elapsedMs: number } | { kind: "unknown" };
+  decodedJsonBytes: number; elapsedMs: number } | { kind: "unknown" | "owner-unavailable" | "owner-mismatch" };
 
 /** One exact fabricated session per transport. Guards validate declared targets,
  * not actual server/database/session binding; adoption must establish those.
@@ -32,8 +33,12 @@ export function createCapacityReadTransport(input: {
     throw new Error("A fabricated session is required");
   const request = input.request ?? fetch;
   return {
-    async read(route: CapacityReadRoute, query: Readonly<Record<string, string>>, signal: AbortSignal): Promise<CapacityReadReply> {
+    async read(route: CapacityReadRoute, query: Readonly<Record<string, string>>, signal: AbortSignal, expectedCalendarOwner?: CalendarReadOwner): Promise<CapacityReadReply> {
       if (!(ROUTES as readonly string[]).includes(route)) throw new Error("Capacity read route unavailable");
+      const parsedOwner = expectedCalendarOwner === undefined ? null : calendarOwnerSchema.safeParse(expectedCalendarOwner);
+      if (parsedOwner && (!parsedOwner.success || route !== "/api/events"))
+        throw new Error("Invalid calendar read owner");
+      const owner = parsedOwner?.success ? parsedOwner.data : null;
       const url = new URL(route, origin);
       for (const [key, value] of Object.entries(query)) {
         if (typeof value !== "string" || !key || key.length > 128 || value.length > 2048)
@@ -45,7 +50,8 @@ export function createCapacityReadTransport(input: {
       const result = await runOwnedForeground(async ownedSignal => {
         const response = await request(url.href, {
           method: "GET", cache: "no-store", redirect: "error", credentials: "omit",
-          headers: { Cookie: cookie, Accept: "application/json" }, signal: ownedSignal,
+          headers: { Cookie: cookie, Accept: "application/json",
+            ...(owner ? { [CALENDAR_OWNER_HEADER]: JSON.stringify(owner) } : {}) }, signal: ownedSignal,
         });
         if (ownedSignal.aborted) throw new Error("Capacity read aborted");
         // Node fetch's redirect:error is the dispatch barrier. This additional
@@ -53,9 +59,14 @@ export function createCapacityReadTransport(input: {
         // it cannot recall credentials already sent by arbitrary adapter code.
         if (response.redirected || (response.url && new URL(response.url).origin !== origin))
           throw new Error("Capacity read redirected");
+        const calendarOwner = readCalendarOwner(response.headers.get(CALENDAR_OWNER_HEADER));
+        if (response.ok && owner && (!calendarOwner || !sameCalendarOwner(owner, calendarOwner))) {
+          void response.body?.cancel().catch(() => undefined);
+          return { kind: calendarOwner ? "owner-mismatch" as const : "owner-unavailable" as const };
+        }
         const data = await readBoundedJsonResponse(response, ownedSignal, 8 * 1024 * 1024);
         if (ownedSignal.aborted) throw new Error("Capacity read aborted");
-        return { kind: "reply" as const, status: response.status, data,
+        return { kind: "reply" as const, status: response.status, data, calendarOwner,
           decodedJsonBytes: new TextEncoder().encode(JSON.stringify(data)).byteLength,
           elapsedMs: performance.now() - began };
       }, { signal, timeoutMs: 15_000 });
