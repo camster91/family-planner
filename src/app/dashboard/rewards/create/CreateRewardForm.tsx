@@ -18,6 +18,7 @@ import {
   rewardCreateOwnerKey,
   rewardCreateSignature,
   rewardCreateWithinRetryWindow,
+  rewardCreateStorageHeld,
   type RewardCreateIntent,
   type RewardCreateDraft,
   type RewardCreateOwner,
@@ -123,6 +124,7 @@ function CreateRewardFormInner({
   const uncertainRequests = useRef(new Set<string>());
   const [recoveryIntent, setRecoveryIntent] = useState<RewardCreateIntent | null>(null);
   const [accessHeld, setAccessHeld] = useState(false);
+  const [storageHeld, setStorageHeld] = useState(false);
   const live = useRef(true);
   const workEpoch = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
@@ -165,6 +167,7 @@ function CreateRewardFormInner({
         setError(rewardCreateWithinRetryWindow(pending) ? "recoveryTitle" : "retryAgeHold");
       }
     }
+    setStorageHeld(rewardCreateStorageHeld(scopedOwner));
     setHydrated(true);
   }, [scopedOwner]);
 
@@ -177,6 +180,7 @@ function CreateRewardFormInner({
 
   const submit = async (retry?: RewardCreateIntent) => {
     if (!live.current || !canCreate || accessHeld || submittingRef.current) return;
+    if (rewardCreateStorageHeld(scopedOwner)) { setStorageHeld(true); return; }
     const draft: RewardCreateDraft = retry?.draft ?? { name: name.trim(), description: description.trim(), cost, icon };
     if (!draft.name.trim()) return;
     const signature = rewardCreateSignature(draft);
@@ -260,6 +264,10 @@ function CreateRewardFormInner({
     event.preventDefault();
     await submit();
   };
+
+  if (storageHeld) return <div role="alert" className="card-apple p-5 space-y-3">
+    <p>{copy.storageHold}</p><button type="button" onClick={() => void checkRewards()} className="btn-tinted inline-flex min-h-[44px] items-center">{copy.checkRewards}</button>
+  </div>;
 
   if (accessHeld) return <div role="alert" className="card-apple p-5 space-y-3">
     <p>{copy.accessHold}</p><button type="button" onClick={() => void checkRewards()} className="btn-tinted inline-flex min-h-[44px] items-center">{copy.checkRewards}</button>

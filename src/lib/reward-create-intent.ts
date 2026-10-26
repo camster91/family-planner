@@ -135,6 +135,7 @@ function persist(
   owner: RewardCreateOwner,
   store: RewardCreateOwnerStore,
 ): void {
+  if (store.storageHeld) return;
   const target = rewardCreateStorage();
   if (!target) return;
   const intents: Record<string, RewardCreateIntent> = {};
@@ -168,7 +169,7 @@ function getStore(owner?: RewardCreateOwner): RewardCreateOwnerStore | null {
     try {
       raw = target.getItem(rewardCreateStorageKey(owner));
     } catch {
-      raw = null;
+      store.storageHeld = true;
     }
     const persisted = parsePersistedState(raw, owner);
     if (persisted) {
@@ -180,15 +181,20 @@ function getStore(owner?: RewardCreateOwner): RewardCreateOwnerStore | null {
         ]),
       );
     } else if (raw !== null) {
-      try {
-        target.removeItem(rewardCreateStorageKey(owner));
-      } catch {
-        // Browser storage can be blocked or quota-limited.
-      }
+      // Preserve the exact bytes for a compatible reader or explicit cleanup.
+      // A foreign/unsupported/corrupt envelope is not evidence of no work.
+      store.storageHeld = true;
     }
+  } else {
+    store.storageHeld = true;
   }
   rewardCreateStores.set(scope, store);
   return store;
+}
+
+/** Sticky for this owner store; storage becoming available is not an empty-history proof. */
+export function rewardCreateStorageHeld(owner?: RewardCreateOwner): boolean {
+  return Boolean(getStore(owner)?.storageHeld);
 }
 
 export function rewardCreateSignature(draft: RewardCreateDraft): string {
@@ -236,6 +242,7 @@ export function rememberRewardCreateIntent(
   const store = getStore(owner);
   if (
     !store ||
+    store.storageHeld ||
     !isValidIdempotencyKey(key) ||
     !validDraft(draft, false) ||
     rewardCreateSignature(draft) !== signature ||

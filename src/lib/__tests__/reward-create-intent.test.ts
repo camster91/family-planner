@@ -11,6 +11,7 @@ import {
   rewardCreateIntent,
   rewardCreateSignature,
   rewardCreateWithinRetryWindow,
+  rewardCreateStorageHeld,
   rewardCreateStorageKey,
   type RewardCreateDraft,
   type RewardCreateOwner,
@@ -83,7 +84,7 @@ it("removes a validated draft and intent from durable storage", () => {
   expect(rewardCreateIntent(parent, signature)).toBeNull();
 });
 
-it("rejects malformed, mismatched-owner and stale-key envelopes", () => {
+it("holds unsupported and mismatched-owner envelopes without deleting them", () => {
   const storageKey = rewardCreateStorageKey(parent);
   window.localStorage.setItem(
     storageKey,
@@ -95,7 +96,12 @@ it("rejects malformed, mismatched-owner and stale-key envelopes", () => {
     }),
   );
   expect(latestRewardCreateDraft(parent)).toBeNull();
-  expect(window.localStorage.getItem(storageKey)).toBeNull();
+  expect(window.localStorage.getItem(storageKey)).not.toBeNull();
+  expect(rewardCreateStorageHeld(parent)).toBe(true);
+  const before = window.localStorage.getItem(storageKey);
+  rememberRewardCreateDraft(parent, { ...draft, name: "Later draft" });
+  expect(rememberRewardCreateIntent(parent, rewardCreateSignature(draft), draft, key)).toBe(false);
+  expect(window.localStorage.getItem(storageKey)).toBe(before);
 
   clearRewardCreateIntents();
   window.localStorage.setItem(
@@ -108,7 +114,8 @@ it("rejects malformed, mismatched-owner and stale-key envelopes", () => {
     }),
   );
   expect(latestRewardCreateDraft(parent)).toBeNull();
-  expect(window.localStorage.getItem(storageKey)).toBeNull();
+  expect(window.localStorage.getItem(storageKey)).not.toBeNull();
+  expect(rewardCreateStorageHeld(parent)).toBe(true);
 });
 
 it("keeps live in-memory recovery when browser storage writes fail", () => {
@@ -138,7 +145,11 @@ it("fails closed when browser storage reads are unavailable", () => {
   expect(
     rewardCreateIntent(parent, rewardCreateSignature(draft)),
   ).toBeNull();
+  expect(rewardCreateStorageHeld(parent)).toBe(true);
+  expect(rememberRewardCreateIntent(parent, rewardCreateSignature(draft), draft, key)).toBe(false);
   getItem.mockRestore();
+  // Merely recovering storage access cannot renew an unknown original history.
+  expect(rewardCreateStorageHeld(parent)).toBe(true);
 });
 
 it("does not dispatch a new intent beyond the durable capacity", () => {
