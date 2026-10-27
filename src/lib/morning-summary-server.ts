@@ -87,6 +87,7 @@ interface Recipient {
   id: string
   name: string
   role: string
+  token_version: number
   family_id: string | null
   morning_summary_time_zone: string | null
   morning_summary_sent_on: string | null
@@ -240,6 +241,7 @@ export async function runMorningSummary(
         id: true,
         name: true,
         role: true,
+        token_version: true,
         family_id: true,
         morning_summary_time_zone: true,
         morning_summary_sent_on: true,
@@ -314,6 +316,9 @@ export async function runMorningSummary(
           const claim = await db.user.updateMany({
             where: {
               id: user.id,
+              family_id: familyId,
+              role: user.role,
+              token_version: user.token_version,
               morning_summary_enabled: true,
               OR: [{ morning_summary_sent_on: null }, { morning_summary_sent_on: { not: dayKey } }],
             },
@@ -328,6 +333,7 @@ export async function runMorningSummary(
             {
               userId: user.id,
               familyId: user.family_id!,
+              recipientContext: { role: user.role, tokenVersion: user.token_version },
               type: 'summary',
               title: 'Your morning summary',
               message: summary.text,
@@ -341,6 +347,7 @@ export async function runMorningSummary(
             {
               userId: user.id,
               familyId: user.family_id!,
+              recipientContext: { role: user.role, tokenVersion: user.token_version },
               ...morningSummaryEmail({
                 name: user.name,
                 dayLabel: summary.dayLabel,

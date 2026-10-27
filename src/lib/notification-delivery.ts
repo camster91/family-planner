@@ -35,10 +35,17 @@ import {
 import { QUIET_HOURS_SELECT, isInQuietHours, quietHoursFromRow } from '@/lib/quiet-hours'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
 
+export interface SummaryRecipientContext {
+  role: string
+  tokenVersion: number
+}
+
 export interface NotificationInput {
   userId: string
   /** Required for household-originated content; retained optional for legacy account notices. */
   familyId?: string
+  /** Snapshot required by summary producers; invalidated by removal/rejoin. */
+  recipientContext?: SummaryRecipientContext
   /** Manual parent sends revalidate their sender under the same locks. */
   senderId?: string
   title: string
@@ -62,8 +69,12 @@ export async function deliverNotification(input: NotificationInput, now: Date = 
         await lockUser(tx, id)
       }
       await lockHousehold(tx, familyId)
-      const recipient = await tx.user.findUnique({ where: { id: input.userId }, select: { family_id: true } })
+      const recipient = await tx.user.findUnique({ where: { id: input.userId }, select: { family_id: true, role: true, token_version: true } })
       if (recipient?.family_id !== familyId) return { delivered: false, notification: null } as const
+      if (input.recipientContext && (recipient.role !== input.recipientContext.role ||
+        recipient.token_version !== input.recipientContext.tokenVersion)) {
+        return { delivered: false, notification: null } as const
+      }
       if (input.senderId) {
         const sender = await tx.user.findUnique({ where: { id: input.senderId }, select: { family_id: true, role: true } })
         if (sender?.family_id !== familyId || sender?.role !== 'parent') {
@@ -143,7 +154,7 @@ const OPT_IN_MAIL_MARGIN_MS = 2_000
 
 export async function sendOptInMail(
   kind: OptInMailKind,
-  options: { userId: string; familyId: string; subject: string; html: string; text: string },
+  options: { userId: string; familyId: string; recipientContext: SummaryRecipientContext; subject: string; html: string; text: string },
   now: Date = new Date()
 ): Promise<OptInMailResult> {
   const column = OPT_IN_COLUMN[OPT_IN_MAIL_POLICY[kind]]
@@ -155,9 +166,12 @@ export async function sendOptInMail(
     await lockHousehold(tx, options.familyId)
     const row = (await tx.user.findUnique({
       where: { id: options.userId },
-      select: { family_id: true, email: true, email_verified: true, [column]: true, ...QUIET_HOURS_SELECT },
+      select: { family_id: true, role: true, token_version: true, email: true, email_verified: true, [column]: true, ...QUIET_HOURS_SELECT },
     })) as (Record<string, unknown> & { family_id?: string | null; email?: string | null; email_verified?: boolean | null }) | null
     if (!row || row.family_id !== options.familyId) return { sent: false, reason: 'membership_changed' }
+    if (row.role !== options.recipientContext.role || row.token_version !== options.recipientContext.tokenVersion) {
+      return { sent: false, reason: 'membership_changed' }
+    }
     if (row[column] !== true) return { sent: false, reason: 'opted_out' }
     if (row.email_verified !== true || !row.email) return { sent: false, reason: 'unverified' }
     if (isInQuietHours(now, quietHoursFromRow(row as Parameters<typeof quietHoursFromRow>[0]))) {

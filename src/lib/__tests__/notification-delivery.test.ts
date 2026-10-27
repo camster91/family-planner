@@ -166,7 +166,7 @@ describe('deliverNotification and quiet hours (#141, O-32)', () => {
 })
 
 describe('sendOptInMail (morning summary, O-40)', () => {
-  const mail = { userId: CHILD, familyId: FAMILY_A, subject: 'Your day', html: '<p>x</p>', text: 'x' }
+  const mail = { userId: CHILD, familyId: FAMILY_A, recipientContext: { role: 'child', tokenVersion: 0 }, subject: 'Your day', html: '<p>x</p>', text: 'x' }
   const optIn = (extra: Record<string, unknown> = {}) =>
     Object.assign(db.find('user', CHILD)!, { morning_summary_enabled: true, ...extra })
 
@@ -187,7 +187,6 @@ describe('sendOptInMail (morning summary, O-40)', () => {
     expect(sendMail).toHaveBeenCalledWith({ to: 'child-a@example.test', subject: 'Your day', html: '<p>x</p>', text: 'x', signal: expect.any(AbortSignal) })
   })
 
-  // Authored only; execution deferred by the user.
   it('refuses content from the original household after membership changes', async () => {
     optIn({ family_id: FAMILY_B })
     expect(await sendOptInMail('morning_summary', mail)).toEqual({ sent: false, reason: 'membership_changed' })
