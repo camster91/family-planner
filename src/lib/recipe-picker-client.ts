@@ -4,7 +4,11 @@ import { readRecipeJson } from "@/lib/recipe-read-client";
 export const RECIPE_PICKER_PAGE_SIZE = 24;
 const recipe = z.object({
   id: z.string().min(1).max(128),
-  title: z.string().min(1).max(200),
+  // Imported legacy recipes predate the current write-side title limit. The
+  // response body and page-size bounds below still cap the read, so do not
+  // reject an otherwise valid household recipe merely because its persisted
+  // title is longer than a new recipe may be.
+  title: z.string().min(1),
   prep_time: z.number().finite().nonnegative().nullable(),
   cook_time: z.number().finite().nonnegative().nullable(),
   servings: z.number().finite().positive().nullable(),

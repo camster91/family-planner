@@ -12,6 +12,18 @@ describe("recipe picker page read", () => {
       { cache: "no-store", signal: expect.any(AbortSignal) });
     expect(transport).toHaveBeenCalledTimes(1);
   });
+  it("keeps a long imported title when another recipe shares the page", async () => {
+    const legacy = {
+      ...row,
+      id: "legacy-imported-recipe",
+      title: "A legacy imported recipe title ".repeat(12),
+    };
+    const body = { recipes: [legacy, row], nextOffset: null };
+    await expect(
+      readRecipePickerPage("", 0, new AbortController().signal,
+        jest.fn(async () => response(body))),
+    ).resolves.toEqual(body);
+  });
   it.each([
     {}, { recipes: [row], nextOffset: 24 },
     { recipes: [row, row], nextOffset: null },
