@@ -68,3 +68,22 @@ hardware/store acceptance, real email delivery, or beta acceptance. The review
 uses source, targeted tests and local browser evidence. Final commands and
 results belong to the follow-through PR. PR #602's required build/test and fresh
 image checks passed; it was still unmerged when this review began.
+
+## Final local validation
+
+Application candidate `8c9c33bd` passed typecheck, affected-source ESLint, the
+production build, nine focused suites (122 tests), and independent final review.
+The revised all-feature browser journey passed21 checks: three sign-in setups
+and parent/teen/child × EN/ES at390×844,1280×800 and1366×768. It checks opened-menu
+bounds, role controls, navigation, feature toggles and serious/critical axe
+findings in the tested navigation/pickup surfaces. No retries were configured.
+
+The phone menu's measured left edge moved from-52px to16px, with its full224px
+width inside390px. The after screenshot was visually checked. A separate real
+browser/DB fixture check verified that a notification for Monday01:00UTC opens
+Sunday December6 in Toronto, and an explicit January12 date still wins. The
+fixture event was restored afterward.
+
+Final local artifacts: `/tmp/family-app-review-fixed-report/index.html`,
+`/tmp/family-today-controls-after.png`, `/tmp/family-calendar-focus-after.png`.
+These are local results, not deployment or native-hardware evidence.
