@@ -368,13 +368,21 @@ async function createProfileWeeklyChore(
   await expect(page.getByTestId("weekly-schedule-summary")).toContainText(
     "Monday, Wednesday",
   );
-  const response = page.waitForResponse(
-    (r) =>
-      r.url().endsWith("/api/chores/create") && r.request().method() === "POST",
-  );
+  let responseBody: Promise<Buffer> | undefined;
+  const response = page.waitForResponse((r) => {
+    if (
+      !r.url().endsWith("/api/chores/create") ||
+      r.request().method() !== "POST"
+    )
+      return false;
+    responseBody = r.body();
+    return true;
+  });
   await page.getByRole("button", { name: "Create Chore", exact: true }).click();
   const result = await response;
-  const resultText = await result.text();
+  if (!responseBody)
+    throw new Error("Weekly profile chore response body was not captured");
+  const resultText = (await responseBody).toString("utf8");
   expect(result.status(), resultText).toBe(200);
   const body = JSON.parse(resultText) as {
     chore?: {
@@ -439,13 +447,24 @@ async function createProfileRoutineChore(
     await page.locator("#chore-routine").fill(input.routine);
     await page.locator("#chore-routine-order").fill(String(input.order ?? 1));
   }
-  const response = page.waitForResponse(
-    (r) =>
-      r.url().endsWith("/api/chores/create") && r.request().method() === "POST",
-  );
+  // Capture the body at the response event. The successful create navigates
+  // immediately, and Chromium can discard a response body before a later
+  // `response.text()` call observes it.
+  let responseBody: Promise<Buffer> | undefined;
+  const response = page.waitForResponse((r) => {
+    if (
+      !r.url().endsWith("/api/chores/create") ||
+      r.request().method() !== "POST"
+    )
+      return false;
+    responseBody = r.body();
+    return true;
+  });
   await page.getByRole("button", { name: "Create Chore" }).click();
   const result = await response;
-  const resultText = await result.text();
+  if (!responseBody)
+    throw new Error("Profile chore response body was not captured");
+  const resultText = (await responseBody).toString("utf8");
   expect(result.status(), resultText).toBe(200);
   const body = JSON.parse(resultText) as {
     chore?: {
@@ -1330,16 +1349,23 @@ test.describe.serial("email-free profile chore vertical", () => {
         page.locator("select[id^='routine-assignee-']").first(),
       ).toContainText(chores[0].profileName);
 
-      const saveResponse = page.waitForResponse(
-        (response) =>
-          response.url().endsWith("/api/chores/stacks") &&
-          response.request().method() === "POST",
-      );
+      let savedResponseBody: Promise<Buffer> | undefined;
+      const saveResponse = page.waitForResponse((response) => {
+        if (
+          !response.url().endsWith("/api/chores/stacks") ||
+          response.request().method() !== "POST"
+        )
+          return false;
+        savedResponseBody = response.body();
+        return true;
+      });
       await page
         .getByRole("button", { name: "Save routine", exact: true })
         .click();
       const saved = await saveResponse;
-      const savedText = await saved.text();
+      if (!savedResponseBody)
+        throw new Error("Routine save response body was not captured");
+      const savedText = (await savedResponseBody).toString("utf8");
       expect(saved.status(), savedText).toBe(200);
       const savedBody = JSON.parse(savedText) as { stack_id?: string };
       expect(savedBody.stack_id).toMatch(/^[a-z0-9-]+$/);

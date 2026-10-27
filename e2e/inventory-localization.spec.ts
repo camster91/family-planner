@@ -696,6 +696,11 @@ test.describe("inventory localization synthetic server", () => {
                 title: "Synthetic pending note",
                 body: "No database row",
                 color: "yellow",
+                // Match the canonical create reply contract so the mounted
+                // client can confirm the fabricated write and close its
+                // dialog after the held response is released.
+                family_id: A.family,
+                created_by: A.parent,
                 created_at: "2026-01-05T12:00:00.000Z",
               },
             },
