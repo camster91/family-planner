@@ -7,6 +7,11 @@ export const routineStackEnglish = {
   scheduleRequired: "Open Routine plans to edit this shared schedule.",
   stacksLabel: "Routine stacks",
   focusNext: "Focus on the next step",
+  viewMode: "Routine view",
+  guided: "Guided",
+  list: "List",
+  guidedHint: "One next step at a time",
+  listHint: "See every step",
   noRoutines:
     "No routines in this range. Give related chores the same routine name and step numbers to stack them.",
   doneAction: "Done",
@@ -55,8 +60,10 @@ export const routineStackEnglish = {
   saveError: "Routine could not save",
   retrySave: "Retry save",
   inspectSave: "Check saved status",
-  inspectUnknown: "The original save is still unconfirmed. Keep this draft unchanged; no new save was sent.",
-  retryWindowClosed: "This save is too old to retry safely, or your device clock changed. Keep the draft and check the saved routine before starting again.",
+  inspectUnknown:
+    "The original save is still unconfirmed. Keep this draft unchanged; no new save was sent.",
+  retryWindowClosed:
+    "This save is too old to retry safely, or your device clock changed. Keep the draft and check the saved routine before starting again.",
   unknownSave:
     "We could not confirm whether the routine was saved. Keep this draft unchanged and retry.",
   conflict:
@@ -90,6 +97,11 @@ export const routineStackSpanish: RoutineStackMessages = {
     "Abre Planes de rutinas para editar este horario compartido.",
   stacksLabel: "Rutinas paso a paso",
   focusNext: "Enfocarse en el siguiente paso",
+  viewMode: "Vista de rutina",
+  guided: "Guiada",
+  list: "Lista",
+  guidedHint: "Un paso siguiente a la vez",
+  listHint: "Ver todos los pasos",
   noRoutines:
     "No hay rutinas en estas fechas. Usa el mismo nombre de rutina y números de paso para agrupar tareas relacionadas.",
   doneAction: "Hecha",
@@ -138,8 +150,10 @@ export const routineStackSpanish: RoutineStackMessages = {
   saveError: "No se pudo guardar la rutina",
   retrySave: "Reintentar guardado",
   inspectSave: "Consultar estado del guardado",
-  inspectUnknown: "El guardado original sigue sin confirmarse. Conserva este borrador sin cambios; no se envió un nuevo guardado.",
-  retryWindowClosed: "Este guardado es demasiado antiguo para reintentarlo con seguridad o cambió el reloj del dispositivo. Conserva el borrador y revisa la rutina guardada antes de empezar de nuevo.",
+  inspectUnknown:
+    "El guardado original sigue sin confirmarse. Conserva este borrador sin cambios; no se envió un nuevo guardado.",
+  retryWindowClosed:
+    "Este guardado es demasiado antiguo para reintentarlo con seguridad o cambió el reloj del dispositivo. Conserva el borrador y revisa la rutina guardada antes de empezar de nuevo.",
   unknownSave:
     "No pudimos confirmar si se guardó la rutina. Conserva este borrador sin cambios y reintenta.",
   conflict:

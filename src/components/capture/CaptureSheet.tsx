@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Sparkles } from "lucide-react";
 import { useCoreTranslation } from "@/i18n/core";
@@ -14,7 +15,15 @@ type CaptureAvailability = "available" | "unavailable" | "retry";
  * the first page load so a dismissed proposal remains available, while the
  * shared Dialog owns the actual overlay, focus and scroll boundary.
  */
-export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
+export function CaptureSheet({
+  onSaved,
+  requested = false,
+  canCreateManually = false,
+}: {
+  onSaved?: () => void;
+  requested?: boolean;
+  canCreateManually?: boolean;
+}) {
   const { t } = useCoreTranslation();
   const msg = (key: CaptureMessage) => t(key, undefined, captureMessages);
   const [open, setOpen] = React.useState(false);
@@ -23,6 +32,17 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
   >("loading");
   const [portalReady, setPortalReady] = React.useState(false);
   const available = availability === "available" || availability === "retry";
+  const requestConsumed = React.useRef(false);
+  React.useEffect(() => {
+    if (!requested) {
+      requestConsumed.current = false;
+      return;
+    }
+    if (available && !requestConsumed.current) {
+      requestConsumed.current = true;
+      setOpen(true);
+    }
+  }, [requested, available]);
   const openRef = React.useRef(open);
   openRef.current = open;
   const pageLock = React.useRef<{
@@ -82,6 +102,25 @@ export function CaptureSheet({ onSaved }: { onSaved?: () => void }) {
 
   return (
     <>
+      {requested && !available && (
+        <div className="rounded-xl bg-[var(--surface-fill-secondary)] p-3 text-footnote text-label-secondary">
+          <p role="status">
+            {msg(
+              availability === "loading"
+                ? "openingCapture"
+                : "captureUnavailable",
+            )}
+          </p>
+          {availability === "unavailable" && canCreateManually && (
+            <Link
+              href="/dashboard/calendar/create"
+              className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] underline"
+            >
+              {msg("addManually")}
+            </Link>
+          )}
+        </div>
+      )}
       {available && (
         <button
           type="button"

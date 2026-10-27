@@ -12,6 +12,7 @@ import CalendarPageClient from "./CalendarPageClient";
 
 interface CalendarPageProps {
   searchParams: Promise<{
+    capture?: string | string[];
     focus?: string | string[];
     month?: string;
     year?: string;
@@ -108,6 +109,8 @@ export default async function CalendarPage({
     <CalendarPageClient
       events={[]}
       initialOwner={owner}
+      captureRequested={params.capture === "1"}
+      canCreateEvents={canImportEvents(user?.role)}
       notificationFocus={notificationFocus}
       focusStart={focusStart}
       initialDate={initialDate}

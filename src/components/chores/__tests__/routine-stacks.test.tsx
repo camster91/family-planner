@@ -214,13 +214,30 @@ it('uses the viewer local day when an empty routine list opens the builder near 
 it('can focus on one next step without completing or deleting the other steps', async () => {
   const complete = jest.fn()
   render(<RoutineStacks chores={[step('first', 1), step('second', 2)]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={complete} />)
-  await userEvent.click(screen.getByRole('checkbox', { name: 'Focus on the next step' }))
+  const controls = screen.getByTestId('routine-view-controls')
+  await userEvent.click(within(controls).getByRole('radio', { name: 'Guided' }))
   expect(screen.getByRole('button', { name: 'Complete first' })).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Complete second' })).toBeNull()
   expect(screen.getByText('0 of 2 done · 0 checked')).toBeTruthy()
   expect(complete).not.toHaveBeenCalled()
-  await userEvent.click(screen.getByRole('checkbox', { name: 'Focus on the next step' }))
+  await userEvent.click(within(controls).getByRole('radio', { name: 'List' }))
   expect(screen.getByRole('button', { name: 'Complete second' })).toBeTruthy()
+})
+
+it('offers guided and list views without changing the routine steps or permissions', async () => {
+  const complete = jest.fn()
+  render(<RoutineStacks chores={[step('first', 1), step('second', 2)]} userRole="teen" currentUserId="adult" locale="en-CA" onComplete={complete} />)
+  const controls = screen.getByTestId('routine-view-controls')
+  expect(within(controls).getByRole('radio', { name: 'List' })).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByRole('button', { name: 'Complete first' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Complete second' })).toBeTruthy()
+  await userEvent.click(within(controls).getByRole('radio', { name: 'Guided' }))
+  expect(within(controls).getByRole('radio', { name: 'Guided' })).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByRole('button', { name: 'Complete first' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Complete second' })).toBeNull()
+  await userEvent.click(within(controls).getByRole('radio', { name: 'List' }))
+  expect(screen.getByRole('button', { name: 'Complete second' })).toBeTruthy()
+  expect(complete).not.toHaveBeenCalled()
 })
 
 it('identifies unstacked repeated chores by member and date and keeps each completion canonical', async () => {

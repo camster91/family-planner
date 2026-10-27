@@ -4,8 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import {
   Plus,
-  CalendarPlus,
-  ListPlus,
   ShoppingCart,
   Utensils,
   SlidersHorizontal,
@@ -40,11 +38,12 @@ export default function TodayControls({
 }) {
   const text = useTodayBoardText();
   const details = React.useRef<HTMLDetailsElement>(null);
-  const add = React.useRef<HTMLDetailsElement>(null);
   const parent = role === "parent";
   const canCreateEvent = (parent || role === "teen") && Boolean(links.calendar);
   const canCreateChore = parent && Boolean(links.chores);
   const canAddList = canCreateList(role) && Boolean(links.lists);
+  const canAddMeal =
+    Boolean(links.meals) && canRoleAccessPath(role, "/dashboard/meals");
   const closeOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
     if (event.key !== "Escape" || !event.currentTarget.open) return;
     event.preventDefault();
@@ -54,8 +53,9 @@ export default function TodayControls({
   };
   React.useEffect(() => {
     const dismiss = (event: PointerEvent) => {
-      for (const control of [details.current, add.current]) {
-        if (control && !control.contains(event.target as Node)) control.open = false;
+      for (const control of [details.current]) {
+        if (control && !control.contains(event.target as Node))
+          control.open = false;
       }
     };
     document.addEventListener("pointerdown", dismiss);
@@ -67,49 +67,25 @@ export default function TodayControls({
       aria-label={text("todayQuickActions")}
       className="relative mb-4 flex flex-wrap items-center gap-2 md:mb-5"
     >
-      {(canCreateEvent || canCreateChore || canAddList) && (
-        <details
-          ref={add}
-          className="relative"
-          onKeyDown={closeOnEscape}
-          onToggle={(event) => {
-            if (event.currentTarget.open && details.current) details.current.open = false;
+      {(canCreateEvent || canCreateChore || canAddList || canAddMeal) && (
+        <button
+          type="button"
+          className={targetClass}
+          aria-haspopup="dialog"
+          onClick={() => {
+            if (details.current) details.current.open = false;
+            window.dispatchEvent(new Event("herewoven:quick-add"));
           }}
         >
-          <summary className={`${targetClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
-            <Plus size={18} aria-hidden="true" />
-            {text("addAction")}
-          </summary>
-          <div className="absolute left-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
-            {canCreateEvent && (
-              <Link prefetch={false} href="/dashboard/calendar/create" className={menuClass}>
-                <CalendarPlus size={18} aria-hidden="true" />
-                {text("addEvent")}
-              </Link>
-            )}
-            {canCreateChore && (
-              <Link prefetch={false} href="/dashboard/chores/create" className={menuClass}>
-                <ListPlus size={18} aria-hidden="true" />
-                {text("addChore")}
-              </Link>
-            )}
-            {canAddList && (
-              <Link prefetch={false} href="/dashboard/lists/create" className={menuClass}>
-                <ListPlus size={18} aria-hidden="true" />
-                {text("addList")}
-              </Link>
-            )}
-          </div>
-        </details>
+          <Plus size={18} aria-hidden="true" />
+          {text("addOrAsk")}
+        </button>
       )}
       <ExplorePanel role={role} />
       <details
         ref={details}
         className="sm:relative"
         onKeyDown={closeOnEscape}
-        onToggle={(event) => {
-          if (event.currentTarget.open && add.current) add.current.open = false;
-        }}
       >
         <summary
           className={`${targetClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}

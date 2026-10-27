@@ -25,6 +25,8 @@ const LazyImportEventsDialog = React.lazy(() =>
 );
 interface CalendarPageClientProps {
   events: unknown[];
+  captureRequested?: boolean;
+  canCreateEvents?: boolean;
   initialOwner?: CalendarReadOwner;
   notificationFocus?: { target: Focus | null };
   focusStart?: string;
@@ -43,6 +45,8 @@ export function calendarMonthHref(year: number, month: number): string {
 }
 export default function CalendarPageClient({
   events,
+  captureRequested = false,
+  canCreateEvents = false,
   initialOwner,
   notificationFocus,
   focusStart,
@@ -95,7 +99,7 @@ export default function CalendarPageClient({
         canEditEvents={canEditEvents}
         calendarSyncAvailable={calendarSyncAvailable}
         refreshKey={`${refreshKey}:${JSON.stringify(events)}`}
-        headerAction={<CaptureSheet onSaved={refresh} />}
+        headerAction={<CaptureSheet onSaved={refresh} requested={captureRequested} canCreateManually={canCreateEvents} />}
       />
       {importEnabled && (
         <div className="px-4 mb-5">

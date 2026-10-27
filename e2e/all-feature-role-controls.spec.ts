@@ -228,18 +228,17 @@ for (const role of ["parent", "teen", "child"] as const) {
           info.project.use.viewport!.width,
         );
         await todayMenu.locator("summary").press("Escape");
-        const event = controls.getByRole("link", {
+        const event = page.getByRole("link", {
           name: locale === "es" ? "Añadir evento" : "Add event",
           exact: true,
         });
         if (role === "child") await expect(event).toHaveCount(0);
         else {
-          // Compact Today actions use a native disclosure. Exercise the same
-          // visible entry point a person uses before checking its links.
+          // Today actions share one modal entry point. Exercise it before
+          // checking the role-filtered links.
           await controls
-            .locator("summary")
-            .filter({
-              hasText: locale === "es" ? /^Añadir$/ : /^Add$/,
+            .getByRole("button", {
+              name: locale === "es" ? /^Añadir o preguntar$/ : /^Add or ask$/,
             })
             .click();
           await expect(event).toHaveAttribute(

@@ -5,6 +5,9 @@ import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
 import { useHydrated } from "@/components/ui/use-hydrated";
+import { useFeatures } from "@/components/providers/features-provider";
+import { isFeatureEnabled } from "@/lib/features";
+import { QuickAddDialog } from "@/components/layout/QuickAddDialog";
 import { useCoreTranslation } from "@/i18n/core";
 import {
   assistantShellMessages,
@@ -52,6 +55,7 @@ export default function AssistantHost({
   const params = useSearchParams();
   const { locale, t } = useCoreTranslation();
   const hydrated = useHydrated();
+  const { features } = useFeatures();
   const msg = (key: AssistantShellMessage) =>
     hydrated || locale === "en"
       ? t(key, undefined, assistantShellMessages)
@@ -59,6 +63,7 @@ export default function AssistantHost({
   const [tab, setTab] = React.useState<AssistantPanelTab | null>(null);
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);
+  const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const canChat = role === "parent" || role === "teen";
   const hidden =
     params.get("mode") === "fridge" || pathname.startsWith("/device");
@@ -123,20 +128,49 @@ export default function AssistantHost({
     if (hidden) {
       setTab(null);
       setPanelBusy(false);
+      setQuickAddOpen(false);
     }
   }, [hidden]);
 
-  const open = (next: AssistantPanelTab) => {
-    if (panelBusy) return;
-    setPanelLoaded(true);
-    setTab(next);
-  };
+  const open = React.useCallback(
+    (next: AssistantPanelTab) => {
+      if (panelBusy) return;
+      setPanelLoaded(true);
+      setTab(next);
+    },
+    [panelBusy],
+  );
   const close = () => {
     if (panelBusy) return;
     setTab(null);
   };
 
+  React.useEffect(() => {
+    if (hidden) return;
+    const openQuickAdd = () => {
+      if (!panelBusy && canChat) setQuickAddOpen(true);
+    };
+    const openAssistant = () => {
+      if (canChat) open("chat");
+    };
+    window.addEventListener("herewoven:quick-add", openQuickAdd);
+    window.addEventListener("herewoven:assistant-open", openAssistant);
+    return () => {
+      window.removeEventListener("herewoven:quick-add", openQuickAdd);
+      window.removeEventListener("herewoven:assistant-open", openAssistant);
+    };
+  }, [canChat, hidden, open, panelBusy]);
+
   if (hidden) return null;
+  const shellLinks = {
+    calendar: isFeatureEnabled(features, "calendar")
+      ? "/dashboard/calendar"
+      : null,
+    chores: isFeatureEnabled(features, "chores") ? "/dashboard/chores" : null,
+    lists: isFeatureEnabled(features, "lists") ? "/dashboard/lists" : null,
+    meals: isFeatureEnabled(features, "meals") ? "/dashboard/meals" : null,
+    notes: isFeatureEnabled(features, "notes") ? "/dashboard/notes" : null,
+  };
   return (
     <>
       <div
@@ -145,6 +179,18 @@ export default function AssistantHost({
         aria-hidden={launcherSuppressed ? "true" : undefined}
         className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-[calc(max(5rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)] transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
       >
+        {canChat && (
+          <button
+            type="button"
+            tabIndex={launcherSuppressed ? -1 : undefined}
+            onClick={() => setQuickAddOpen(true)}
+            disabled={panelBusy}
+            className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
+          >
+            <Sparkles size={20} aria-hidden="true" />
+            <span className="max-[320px]:sr-only">{msg("launcherAddAsk")}</span>
+          </button>
+        )}
         <button
           type="button"
           tabIndex={launcherSuppressed ? -1 : undefined}
@@ -155,21 +201,19 @@ export default function AssistantHost({
           <MessageSquareWarning size={20} aria-hidden="true" />
           <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>
         </button>
-        {canChat && (
-          <button
-            type="button"
-            tabIndex={launcherSuppressed ? -1 : undefined}
-            onClick={() => open("chat")}
-            disabled={panelBusy}
-            className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 bg-[var(--accent-fill)] text-white shadow-lg inline-flex items-center gap-2`}
-          >
-            <Sparkles size={20} aria-hidden="true" />
-            <span className="max-[320px]:sr-only">
-              {msg("launcherAssistant")}
-            </span>
-          </button>
-        )}
       </div>
+      <QuickAddDialog
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        role={role}
+        links={shellLinks}
+        captureHref={
+          canChat && shellLinks.calendar
+            ? "/dashboard/calendar?capture=1"
+            : null
+        }
+        onAsk={canChat ? () => open("chat") : undefined}
+      />
       {panelLoaded && (
         <AssistantPanel
           role={role}

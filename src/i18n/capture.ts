@@ -17,6 +17,9 @@ export const captureEnglish = {
   openQuickAdd: "Open quick add",
   availabilityRetry:
     "Quick add could not connect. Try again when you have a connection.",
+  openingCapture: "Opening photo and quick add…",
+  captureUnavailable: "Photo and quick add are not available for this account right now.",
+  addManually: "Add an event manually",
   quickAdd: "Quick add",
   quickAddDescription:
     "Add an event, task, or grocery item by typing or taking a photo.",
@@ -128,6 +131,9 @@ export const captureSpanish: Record<CaptureMessage, string> = {
   openQuickAdd: "Abrir adición rápida",
   availabilityRetry:
     "No se pudo conectar la adición rápida. Inténtalo de nuevo cuando tengas conexión.",
+  openingCapture: "Abriendo fotos y adición rápida…",
+  captureUnavailable: "Las fotos y la adición rápida no están disponibles para esta cuenta ahora.",
+  addManually: "Añadir un evento manualmente",
   quickAdd: "Adición rápida",
   quickAddDescription:
     "Añade un evento, una tarea o un artículo de supermercado escribiendo o tomando una foto.",
