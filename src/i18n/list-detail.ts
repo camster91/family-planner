@@ -11,10 +11,19 @@ const en = {
   connection: "Check your connection and try again.",
   restoreFailed: "Couldn't put back “{item}”",
   deleteFailed: "Couldn't delete “{item}”",
+  deleteUnknown: "Delete status is unknown. Check before trying again.",
+  deleteRecovery: "Check delete status for {item}",
+  checkDelete: "Check delete status",
+  checkingDelete: "Checking…",
+  deleteCheckFailed: "Couldn't check whether “{item}” was deleted",
+  deleteStillPresent:
+    "“{item}” is still on the list. The delete result is still unknown; check again.",
+  alreadyGone: "“{item}” was already removed from the list.",
   deleted: "Deleted “{item}”",
   restored: "Restored “{item}”",
   added: "Added “{item}”",
-  savedPageHint: "Saved at the end of your list. It may appear on a later page.",
+  savedPageHint:
+    "Saved at the end of your list. It may appear on a later page.",
   addOffline:
     "You're offline. “{item}” wasn't added. Try again when you're back online.",
   addFailed: "Couldn't add “{item}”. Check your connection and try again.",
@@ -93,6 +102,15 @@ const es: Record<keyof typeof en, string> = {
   connection: "Comprueba la conexión e inténtalo de nuevo.",
   restoreFailed: "No se pudo restaurar «{item}»",
   deleteFailed: "No se pudo eliminar «{item}»",
+  deleteUnknown:
+    "No se sabe si se eliminó. Compruébalo antes de intentarlo otra vez.",
+  deleteRecovery: "Comprobar eliminación de {item}",
+  checkDelete: "Comprobar estado de eliminación",
+  checkingDelete: "Comprobando…",
+  deleteCheckFailed: "No se pudo comprobar si se eliminó «{item}»",
+  deleteStillPresent:
+    "«{item}» sigue en la lista. El resultado de la eliminación aún no se conoce; compruébalo de nuevo.",
+  alreadyGone: "«{item}» ya se había eliminado de la lista.",
   deleted: "Se eliminó «{item}»",
   restored: "Se restauró «{item}»",
   added: "Se añadió «{item}»",

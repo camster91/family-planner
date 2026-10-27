@@ -58,6 +58,10 @@ interface Item {
   updated_at?: string;
   /** Local recovery for a queued tick whose canonical row was removed. */
   removedElsewhere?: boolean;
+  /** Delete response was lost; do not present the row as restored or deleted. */
+  deleteUnknown?: boolean;
+  /** Checked state captured before an ambiguous delete, for truthful Undo. */
+  deleteWasChecked?: boolean;
   quantity: number;
   category: string | null;
   added_by: { name: string };
@@ -123,6 +127,8 @@ interface ListDetailClientProps {
   listType: ListType;
   items: Item[];
   userId: string;
+  /** Session generation captured with the server-rendered list. */
+  ownerGeneration?: number;
   /** D9 (#102): deleting an item is parent-only. */
   canDeleteItems?: boolean;
   /** Store sections (#273); only used on grocery/shopping lists. */
@@ -147,6 +153,7 @@ export default function ListDetailClient({
   listType,
   items: initialItems,
   userId,
+  ownerGeneration,
   canDeleteItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
   paging,
@@ -168,6 +175,12 @@ export default function ListDetailClient({
   const [listItems, setListItems] = React.useState<Item[]>(initialItems);
   const localDeletes = React.useRef(new Set<string>());
   const pendingDeletes = React.useRef(new Set<string>());
+  const [heldDeletes, setHeldDeletes] = React.useState<Record<string, Item>>(
+    {},
+  );
+  const [reconcilingDeletes, setReconcilingDeletes] = React.useState<
+    Set<string>
+  >(() => new Set());
   const [newItemText, setNewItemText] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const addingRef = React.useRef(false);
@@ -233,12 +246,23 @@ export default function ListDetailClient({
 
   React.useLayoutEffect(() => {
     const queuedIds = new Set(sync.operations.map((op) => op.payload.itemId));
-    const canonical = initialItems.filter(
-      (item) => !localDeletes.current.has(item.id),
-    );
+    const canonical = initialItems
+      .filter((item) => !localDeletes.current.has(item.id))
+      .map((item) =>
+        heldDeletes[item.id]
+          ? {
+              ...item,
+              deleteUnknown: true,
+              deleteWasChecked: heldDeletes[item.id].deleteWasChecked,
+            }
+          : item,
+      );
     const canonicalIds = new Set(initialItems.map((item) => item.id));
     setListItems((previous) => [
       ...canonical,
+      ...Object.values(heldDeletes)
+        .filter((item) => !canonicalIds.has(item.id))
+        .map((item) => ({ ...item, deleteUnknown: true })),
       ...previous
         .filter(
           (item) =>
@@ -255,7 +279,7 @@ export default function ListDetailClient({
       if (!pendingDeletes.current.has(id) && !canonicalIds.has(id))
         localDeletes.current.delete(id);
     }
-  }, [initialItems, sync.operations, partialPage]);
+  }, [initialItems, sync.operations, partialPage, heldDeletes]);
 
   React.useEffect(() => {
     setSortBySection(sectionSort.enabled);
@@ -373,6 +397,79 @@ export default function ListDetailClient({
     void sync.setChecked(itemId, checked);
   };
 
+  const holdDeleteUnknown = (item: Item, wasChecked: boolean): Item => {
+    const held = { ...item, deleteUnknown: true, deleteWasChecked: wasChecked };
+    localDeletes.current.delete(item.id);
+    setHeldDeletes((prev) => ({ ...prev, [item.id]: held }));
+    setListItems((prev) =>
+      prev.some((row) => row.id === item.id)
+        ? prev.map((row) => (row.id === item.id ? held : row))
+        : [...prev, held],
+    );
+    return held;
+  };
+
+  const reconcileDelete = async (item: Item) => {
+    if (reconcilingDeletes.has(item.id)) return;
+    setReconcilingDeletes((prev) => new Set(prev).add(item.id));
+    try {
+      const query = new URLSearchParams({ listId, userId });
+      if (Number.isSafeInteger(ownerGeneration))
+        query.set("generation", String(ownerGeneration));
+      const response = await fetch(
+        `/api/lists/items/${encodeURIComponent(item.id)}?${query.toString()}`,
+        {
+          cache: "no-store",
+        },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        state?: unknown;
+      } | null;
+      if (response.ok && body?.state === "found") {
+        addToast({
+          type: "info",
+          title: text("deleteStillPresent", { item: item.content }),
+        });
+        return;
+      }
+      if (response.ok && body?.state === "missing") {
+        localDeletes.current.add(item.id);
+        setHeldDeletes((prev) => {
+          if (!prev[item.id]) return prev;
+          const next = { ...prev };
+          delete next[item.id];
+          return next;
+        });
+        setListItems((prev) => prev.filter((row) => row.id !== item.id));
+        const queued = sync.stateFor(item.id);
+        if (queued) void sync.discard(queued.id);
+        showUndo({
+          title: text("deleted", { item: item.content }),
+          onUndo: () =>
+            void restoreItem(item, item.deleteWasChecked ?? item.checked),
+        });
+        return;
+      }
+      addToast({
+        type: "error",
+        title: text("deleteCheckFailed", { item: item.content }),
+        message: text("connection"),
+      });
+    } catch {
+      addToast({
+        type: "error",
+        title: text("deleteCheckFailed", { item: item.content }),
+        message: text("connection"),
+      });
+    } finally {
+      setReconcilingDeletes((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
   // Undo over confirm (#269): the item goes at once and Undo puts it back by
   // re-creating it (same text, quantity, category, amount, unit and
   // ingredient; ticked again if it was ticked). The restored row is a new row
@@ -434,18 +531,35 @@ export default function ListDetailClient({
     localDeletes.current.add(itemId);
     pendingDeletes.current.add(itemId);
     setListItems((prev) => prev.filter((i) => i.id !== itemId));
-    let ok = false;
+    let response: Response | null = null;
+    let unknown = false;
     try {
-      const res = await fetch(
-        `/api/lists/items/${encodeURIComponent(itemId)}`,
-        { method: "DELETE" },
-      );
-      ok = res.ok;
+      response = await fetch(`/api/lists/items/${encodeURIComponent(itemId)}`, {
+        method: "DELETE",
+      });
     } catch {
-      ok = false;
+      unknown = true;
     }
     pendingDeletes.current.delete(itemId);
-    if (!ok) {
+    if (response?.status === 404) {
+      // A received 404 is authoritative: another device may have removed the
+      // row already. It is not an uncertain transport outcome, so never offer
+      // Undo for a row the server says is gone.
+      localDeletes.current.add(itemId);
+      if (queued) void sync.discard(queued.id);
+      router.refresh();
+      addToast({
+        type: "info",
+        title: text("alreadyGone", { item: item.content }),
+      });
+      return;
+    }
+    if (unknown || (response?.status ?? 0) >= 500) {
+      const held = holdDeleteUnknown(item, wasChecked);
+      void reconcileDelete(held);
+      return;
+    }
+    if (!response?.ok) {
       localDeletes.current.delete(itemId);
       setListItems((prev) =>
         prev.some((i) => i.id === itemId) ? prev : [...prev, item],
@@ -555,13 +669,15 @@ export default function ListDetailClient({
       checked && item.checked_by ? `✓ ${item.checked_by.name}` : undefined;
     const subtitle = item.removedElsewhere
       ? text("removed")
-      : (status ??
-        ([detail, checkedBy].filter(Boolean).join(" · ") || undefined));
+      : item.deleteUnknown
+        ? text("deleteUnknown")
+        : (status ??
+          ([detail, checkedBy].filter(Boolean).join(" · ") || undefined));
     return (
       <SwipeRow
         key={item.id}
         onSwipeLeft={
-          canDeleteItems && !item.removedElsewhere
+          canDeleteItems && !item.removedElsewhere && !item.deleteUnknown
             ? () => handleDeleteItem(item.id)
             : undefined
         }
@@ -570,6 +686,7 @@ export default function ListDetailClient({
           data-item-id={item.id}
           data-sync-state={syncState}
           data-removed-elsewhere={item.removedElsewhere || undefined}
+          data-delete-state={item.deleteUnknown ? "unknown" : undefined}
           data-section={storeSort ? sectionOf(item) : undefined}
           data-testid="list-item"
         >
@@ -577,7 +694,11 @@ export default function ListDetailClient({
             <div className="min-w-0 flex-1">
               <CheckboxRow
                 checked={checked}
-                disabled={item.removedElsewhere || sync.storageBlocked}
+                disabled={
+                  item.removedElsewhere ||
+                  item.deleteUnknown ||
+                  sync.storageBlocked
+                }
                 onChange={() => handleToggle(item.id, !checked)}
                 title={item.content}
                 subtitle={subtitle}
@@ -585,39 +706,66 @@ export default function ListDetailClient({
                 className={cn(isLast && !needsAction(op) && "border-b-0")}
               />
             </div>
-            {isGrocery && item.updated_at && !item.removedElsewhere && (
-              <button
-                type="button"
-                disabled={Boolean(op)}
-                onClick={() =>
-                  setEditTarget({
-                    id: item.id,
-                    content: item.content,
-                    quantity: item.quantity,
-                    updated_at: item.updated_at!,
-                  })
-                }
-                aria-label={text("editLabel", { item: item.content })}
-                aria-haspopup="dialog"
-                className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
-              >
-                {text("edit")}
-              </button>
-            )}
-            {storeSort && !checked && !item.removedElsewhere && (
-              <button
-                type="button"
-                onClick={() => openMove(item)}
-                aria-label={storeText("moveItem", { item: item.content })}
-                aria-haspopup="dialog"
-                data-testid="move-section"
-                className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
-              >
-                {storeText("move")}
-              </button>
-            )}
+            {isGrocery &&
+              item.updated_at &&
+              !item.removedElsewhere &&
+              !item.deleteUnknown && (
+                <button
+                  type="button"
+                  disabled={Boolean(op)}
+                  onClick={() =>
+                    setEditTarget({
+                      id: item.id,
+                      content: item.content,
+                      quantity: item.quantity,
+                      updated_at: item.updated_at!,
+                    })
+                  }
+                  aria-label={text("editLabel", { item: item.content })}
+                  aria-haspopup="dialog"
+                  className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+                >
+                  {text("edit")}
+                </button>
+              )}
+            {storeSort &&
+              !checked &&
+              !item.removedElsewhere &&
+              !item.deleteUnknown && (
+                <button
+                  type="button"
+                  onClick={() => openMove(item)}
+                  aria-label={storeText("moveItem", { item: item.content })}
+                  aria-haspopup="dialog"
+                  data-testid="move-section"
+                  className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
+                >
+                  {storeText("move")}
+                </button>
+              )}
           </div>
-          {op && needsAction(op) && (
+          {item.deleteUnknown && (
+            <div
+              role="group"
+              aria-label={text("deleteRecovery", { item: item.content })}
+              className={cn(
+                "flex flex-wrap items-center gap-2 px-4 pb-3",
+                isLast && "border-b-0",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => void reconcileDelete(item)}
+                disabled={reconcilingDeletes.has(item.id)}
+                className="btn-tinted min-h-[44px] px-4"
+              >
+                {reconcilingDeletes.has(item.id)
+                  ? text("checkingDelete")
+                  : text("checkDelete")}
+              </button>
+            </div>
+          )}
+          {!item.deleteUnknown && op && needsAction(op) && (
             <div
               role="group"
               aria-label={text("syncOptions", { item: item.content })}

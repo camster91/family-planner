@@ -13,10 +13,22 @@ export async function mutateBatchedMeal(
   actor: { userId: string; familyId: string; tokenVersion: number },
   id: string,
   data?: Prisma.FamilyMealUncheckedUpdateInput,
+  expectedOwner?: {
+    userId: string;
+    familyId: string;
+    generation: number;
+  },
 ) {
   return prisma!.$transaction(async (tx) => {
     const refusal = await authorizeMealBatchInTx(tx, actor, true);
     if (refusal) return batchJson(refusal);
+    if (
+      expectedOwner &&
+      (expectedOwner.userId !== actor.userId ||
+        expectedOwner.familyId !== actor.familyId ||
+        expectedOwner.generation !== actor.tokenVersion)
+    )
+      return batchJson(batchFailure(409, "AUTH_CONTEXT_CHANGED"));
     const meal = await tx.familyMeal.findFirst({
       where: { id, family_id: actor.familyId },
     });

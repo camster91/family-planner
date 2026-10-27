@@ -77,14 +77,19 @@ function setup({
   mealsStatus = 200,
   membersStatus = 200,
   saveError,
+  deleteResponse = 200,
+  deleteRead,
 }: {
   meals: unknown[];
   mealsStatus?: number;
   membersStatus?: number;
   /** Answer meal POST/PATCH with this status and server error. */
   saveError?: { status: number; error: string };
+  deleteResponse?: number | "network" | "abort";
+  deleteRead?: "network" | Array<{ status: number; body?: unknown }>;
 }) {
   const calls: Call[] = [];
+  const deleteReadQueue = Array.isArray(deleteRead) ? [...deleteRead] : null;
   const fetchMock = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -116,6 +121,25 @@ function setup({
         });
       if (url.startsWith("/api/recipes"))
         return json(200, { recipes: [LASAGNA], nextOffset: null });
+      if (url.startsWith("/api/meals/") && method === "GET") {
+        if (deleteRead === "network") throw new TypeError("network");
+        const next = deleteReadQueue?.shift();
+        const mealId = new URL(url, "https://example.test").searchParams.get(
+          "id",
+        );
+        return json(
+          next?.status ?? 200,
+          next?.body ?? {
+            state: "present",
+            meal: { id: mealId },
+            context: {
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+              generation: 0,
+            },
+          },
+        );
+      }
       if (
         saveError &&
         (method === "POST" || method === "PATCH") &&
@@ -128,8 +152,15 @@ function setup({
         return json(201, { meal: { id: "new" } });
       if (url.startsWith("/api/meals/") && method === "PATCH")
         return json(200, { meal: { id: "x" } });
-      if (url.startsWith("/api/meals/") && method === "DELETE")
-        return json(200, { success: true });
+      if (url.startsWith("/api/meals/") && method === "DELETE") {
+        if (deleteResponse === "network") throw new TypeError("network");
+        if (deleteResponse === "abort") {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          throw error;
+        }
+        return json(deleteResponse, { success: deleteResponse < 300 });
+      }
       return json(404, {});
     },
   );
@@ -1138,7 +1169,7 @@ describe("/dashboard/meals", () => {
       expect(calls.some((c) => c.method === "DELETE")).toBe(true),
     );
     expect(calls.find((c) => c.method === "DELETE")!.url).toBe(
-      "/api/meals/meal_b?id=meal_b",
+      "/api/meals/meal_b?id=meal_b&expected_user_id=fixture_parent&expected_family_id=fixture_family&expected_generation=0",
     );
     // Undo over confirm (#269): no confirm dialog; Undo re-creates the meal.
     expect(window.confirm).not.toHaveBeenCalled();
@@ -1162,6 +1193,131 @@ describe("/dashboard/meals", () => {
       meal_type: "dinner",
       recipe_name: "Green salad",
     });
+  });
+
+  it("reconciles a committed delete with a lost response and keeps Undo", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [dinnerB],
+      deleteResponse: "abort",
+      // First exact read captures the original owner; the second proves the
+      // meal is absent under that same owner after the lost DELETE response.
+      deleteRead: [
+        { status: 200 },
+        {
+          status: 200,
+          body: {
+            state: "missing",
+            meal: { id: "meal_b" },
+            context: {
+              userId: "fixture_parent",
+              familyId: "fixture_family",
+              generation: 0,
+            },
+          },
+        },
+      ],
+    });
+    const card = await todayCard();
+    await user.click(within(card).getByTestId("meal-row"));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+
+    const toast = await screen.findByTestId("undo-toast");
+    expect(toast.textContent).toContain("Deleted Green salad");
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+    expect(
+      calls.some(
+        (call) =>
+          call.method === "GET" &&
+          call.url.includes("expected_user_id=fixture_parent") &&
+          call.url.includes("expected_family_id=fixture_family") &&
+          call.url.includes("expected_generation=0"),
+      ),
+    ).toBe(true);
+
+    await user.click(within(toast).getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) => call.url === "/api/meals/create" && call.method === "POST",
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("closes an already-gone meal without offering Undo", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({ meals: [dinnerB], deleteResponse: 404 });
+    await user.click(within(await todayCard()).getByTestId("meal-row"));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(await screen.findByText("Green salad was already removed.")).toBeVisible();
+    expect(screen.queryByTestId("undo-toast")).toBeNull();
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("keeps a genuinely unknown delete explicit and does not retry DELETE", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [dinnerB],
+      deleteResponse: "network",
+      // Capture succeeds; reconciliation is unavailable.
+      deleteRead: [{ status: 200 }, { status: 503 }],
+    });
+    const card = await todayCard();
+    await user.click(within(card).getByTestId("meal-row"));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+
+    expect(
+      await screen.findByText(/couldn't confirm deleting Green salad/i),
+    ).toBeVisible();
+    expect(screen.queryByTestId("undo-toast")).toBeNull();
+    const deletes = calls.filter((call) => call.method === "DELETE");
+    expect(deletes).toHaveLength(1);
+
+    await user.click(
+      screen.getByRole("button", { name: "Check deletion" }),
+    );
+    await waitFor(() =>
+      expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1),
+    );
+  });
+
+  it("does not turn a legacy or malformed 404 into an Undo", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      meals: [dinnerB],
+      deleteResponse: "network",
+      deleteRead: [
+        { status: 200 },
+        { status: 404, body: { error: "Meal not found" } },
+      ],
+    });
+    await user.click(within(await todayCard()).getByTestId("meal-row"));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+
+    expect(
+      await screen.findByText(/couldn't confirm deleting Green salad/i),
+    ).toBeVisible();
+    expect(screen.queryByTestId("undo-toast")).toBeNull();
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
   });
 
   it("edits the second meal of a slot with the old free-text body (no recipe_id)", async () => {
