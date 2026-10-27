@@ -12,7 +12,13 @@ import * as project from "../[id]/route";
 import * as tasks from "../[id]/tasks/route";
 import * as task from "../[id]/tasks/[taskId]/route";
 import { POST as sendToCalendar } from "../[id]/send-to-calendar/route";
-import { db, req, params, bodyOf, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, req, params, bodyOf, writesTo, expectDenied, expectNoForeignData, fakePrisma, type UserKey } from "@/__tests__/helpers/two-household";
+
+// The shared in-memory Prisma fixture supports grouped rows but intentionally
+// only implements the aggregate shapes used by most routes.  This overview
+// asks for Prisma's `_count._all` shape, so provide that narrow adapter here
+// while retaining the route's household filter and completed grouping.
+const originalProjectTaskGroupBy = fakePrisma.projectTask.groupBy;
 
 describe("projects — two households", () => {
   beforeEach(() => {
@@ -21,6 +27,27 @@ describe("projects — two households", () => {
     // transaction-level effective-feature check honest with an enabled family.
     db.find("family", "family-A")!.features = { projects: true };
     db.find("family", "family-B")!.features = { projects: true };
+    fakePrisma.projectTask.groupBy = async ({ where }: { where: { project_id: { in: string[] }; project: { family_id: string } } }) => {
+      const allowed = new Set(where.project_id.in);
+      const grouped = new Map<string, { project_id: string; completed: boolean; count: number }>();
+      for (const task of db.rows("projectTask")) {
+        if (!allowed.has(String(task.project_id))) continue;
+        if (db.find("project", String(task.project_id))?.family_id !== where.project.family_id) continue;
+        const key = `${task.project_id}\u0000${Boolean(task.completed)}`;
+        const current = grouped.get(key);
+        if (current) current.count += 1;
+        else grouped.set(key, { project_id: String(task.project_id), completed: Boolean(task.completed), count: 1 });
+      }
+      return [...grouped.values()].map(({ project_id, completed, count }) => ({
+        project_id,
+        completed,
+        _count: { _all: count },
+      }));
+    };
+  });
+
+  afterEach(() => {
+    fakePrisma.projectTask.groupBy = originalProjectTaskGroupBy;
   });
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {

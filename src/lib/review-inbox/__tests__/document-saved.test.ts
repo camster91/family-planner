@@ -127,7 +127,7 @@ it("keeps submitted/unknown work distinct from an editable draft", async () => {
           {
             key: "private_request_key",
             action: "recipe.create",
-            body: '{"creation_protocol":"herewoven.recipe-create.v1","title":"PRIVATE RECIPE"}',
+            body: '{"creation_protocol":"herewoven.recipe-create.v1","title":"PRIVATE RECIPE","description":null,"instructions":null,"prep_time":null,"cook_time":null,"servings":4,"ingredients":[{"name":"PRIVATE INGREDIENT","amount":0.5,"unit":"cup","note":null}]}',
           },
         ],
       },

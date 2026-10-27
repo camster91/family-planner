@@ -112,11 +112,12 @@ it('refuses an oversized page without decoding it', async () => {
   await expect(fetchPlanningRange(start,end,new AbortController().signal,request)).rejects.toThrow('could not load');
   expect(json).not.toHaveBeenCalled();
 });
-it.each([
-  [{...event('a'),title:{private:'invalid'}}],
-  [{...event('a'),end_time:'invalid'}],
-  [event('a'),event('a')],
-])('refuses inconsistent event objects before rendering', async events => {
+const inconsistentEventPages: Array<{ events: unknown[] }> = [
+  { events: [{ ...event("a"), title: { private: "invalid" } }] },
+  { events: [{ ...event("a"), end_time: "invalid" }] },
+  { events: [event("a"), event("a")] },
+];
+it.each(inconsistentEventPages)("refuses inconsistent event objects before rendering", async ({ events }) => {
   await expect(fetchPlanningRange(start,end,new AbortController().signal,
     jest.fn(async () => response({events,hasMore:false,nextCursor:null})))).rejects.toThrow('paging');
 });

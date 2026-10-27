@@ -1,4 +1,7 @@
-// Authored UNRUN. No rendered/keyboard/native/concurrency acceptance claimed.
+/** @jest-environment jsdom */
+// These assertions exercise the rendered owned-review recovery surface. They
+// keep the command client mocked so the tests do not grant or bypass any
+// profile/owner authorization.
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { OwnedChoreReview } from "../OwnedChoreReview";
 import { choreVerificationEnglish } from "@/i18n/chore-verification";

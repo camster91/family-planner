@@ -5,6 +5,7 @@ const rows = (count: number) => Array.from({ length: count }, (_, i) => ({
   id: `synthetic-${String(i).padStart(4, "0")}`,
   due_date: new Date("2026-10-24T00:00:00Z"),
 }));
+type TestChore = ReturnType<typeof rows>[number];
 function reader(source: ReturnType<typeof rows>, order: ChoreOrder, publicCursor: ChoreCursor | null = null) {
   const sorted = [...source].sort((a, b) => compareChoreOrder(a, b) * (order === "asc" ? 1 : -1));
   return jest.fn(async (after: ChoreCursor | null, take: number) => sorted.filter((row) => {
@@ -30,14 +31,14 @@ it.each(["asc", "desc"] as const)("preserves public %s pagination across hidden 
   const seen: string[] = [];
   let cursor: ChoreCursor | null = null;
   for (let page = 0; page < 30; page++) {
-    const visible = await readVisibleChoreRows({
+    const visible: TestChore[] = await readVisibleChoreRows<TestChore>({
       take: 3, order, read: reader(source, order, cursor),
       hidden: async (ids) => ids.filter((id) => hiddenIds.has(id)),
     });
-    const returned = visible.slice(0, 2);
+    const returned: TestChore[] = visible.slice(0, 2);
     seen.push(...returned.map((row) => row.id));
     if (visible.length <= 2) break;
-    const last = returned[returned.length - 1];
+    const last: TestChore = returned[returned.length - 1]!;
     cursor = { id: last.id, dueDate: last.due_date };
   }
   const expected = source.filter((row) => !hiddenIds.has(row.id)).map((row) => row.id);

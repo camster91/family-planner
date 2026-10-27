@@ -34,6 +34,7 @@ import { NextResponse } from "next/server";
 const K1 = "11111111-1111-4111-8111-111111111111";
 const K2 = "22222222-2222-4222-8222-222222222222";
 const row = () => db.find("listItem", "item-a")!;
+const originalIdempotencyCreate = fakePrisma.idempotencyRecord.create;
 const data = () => ({
   itemId: "item-a",
   expectedUpdatedAt: row().updated_at.toISOString(),
@@ -58,7 +59,18 @@ beforeEach(() => {
   db.reset();
   jest.mocked(featureGate).mockResolvedValue(null);
   idempotencyRuntime.random = () => 0.99;
+  jest.spyOn(fakePrisma.idempotencyRecord, "create").mockImplementation(async (args: any) => {
+    const created = await originalIdempotencyCreate(args);
+    const record = db.find("idempotencyRecord", String(created.id));
+    if (record) {
+      record.response_status = null;
+      record.response_body = null;
+    }
+    return created;
+  });
 });
+
+afterEach(() => jest.restoreAllMocks());
 
 it.each(["parentA", "teenA", "childA"] as const)(
   "allows the existing %s grocery edit permission with a current version",

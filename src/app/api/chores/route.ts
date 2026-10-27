@@ -4,7 +4,10 @@ import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-so
 import { assistantDeleteTargetGuard } from '@/lib/assistant-delete-target'
 import { deletePersonRecord, authorizePersonDeleteReplay } from '@/lib/person-record-delete'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
-import { scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import {
+  hiddenRoutineOccurrenceIds,
+  scheduledOnceRoutineOccurrenceIds,
+} from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
 import { readVisibleChoreRows } from "@/lib/chore-visible-read";

@@ -90,7 +90,7 @@ function ProjectsSkeleton() {
 
 export default async function ProjectsPage({ searchParams }: {
   searchParams?: Promise<{ cursor?: string | string[] }>;
-} = {}) {
+}) {
   const params = await searchParams;
   const sessionUser = await getServerUser();
   if (!sessionUser || !canReadProjectRoute(sessionUser.role)) return null;

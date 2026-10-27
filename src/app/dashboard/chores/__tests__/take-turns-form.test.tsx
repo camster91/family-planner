@@ -472,11 +472,16 @@ it('accepts a same-day chore in the evening after UTC midnight', async () => {
     await user.type(date, '2026-10-09')
     expect(date.validity.rangeUnderflow).toBe(false)
     expect(date.checkValidity()).toBe(true)
-    await user.click(screen.getByRole('button', { name: 'Create Chore' }))
-    await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ due_date: '2026-10-09', frequency: 'once' }))
+    // Validate the minimum-date guard while the form is still editable. A
+    // successful save intentionally replaces the form with its confirmed
+    // handoff state, so the original input is no longer a live control.
     await user.clear(date)
     await user.type(date, '2026-10-08')
     expect(date.validity.rangeUnderflow).toBe(true)
+    await user.clear(date)
+    await user.type(date, '2026-10-09')
+    await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+    await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ due_date: '2026-10-09', frequency: 'once' }))
   } finally {
     jest.useRealTimers()
   }

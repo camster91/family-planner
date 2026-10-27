@@ -138,7 +138,7 @@ it("keeps role/action restrictions and paused profile state on the shared chore 
 
 it("has a localized honest empty state without changing source data", () => {
   show({}, "es");
-  expect(screen.getByRole("heading", { name: /Hoy, abrir calendario/ })).toBeVisible();
+  expect(screen.getByRole("heading", { name: /Hoy\s*,\s*abrir calendario/ })).toBeVisible();
   expect(
     screen.getByText(
       "No hay nada más en el calendario hoy.",

@@ -14,6 +14,8 @@ import * as note from "../[id]/route";
 import { db, req, fakePrisma, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 import { hashDeviceToken } from "@/lib/device-session";
 
+const originalPinnedNoteCreate = fakePrisma.pinnedNote.create;
+
 describe("notes — two households", () => {
   beforeEach(() => {
     db.reset();
@@ -21,8 +23,17 @@ describe("notes — two households", () => {
     // Ownership tests need notes enabled; a mock route gate grants no access.
     db.find("family", "family-A")!.features = { notes: true };
     db.find("family", "family-B")!.features = { notes: true };
+    for (const row of db.rows("pinnedNote")) row.updated_at ??= row.created_at ?? new Date();
+    jest.spyOn(fakePrisma.pinnedNote, "create").mockImplementation(async (args: any) => {
+      const created = await originalPinnedNoteCreate(args);
+      const row = db.find("pinnedNote", String(created.id));
+      if (row) row.updated_at ??= row.created_at ?? new Date();
+      return created;
+    });
     mockFeatureGate.mockResolvedValue(null);
   });
+
+  afterEach(() => jest.restoreAllMocks());
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     expect((await notes.GET(req())).status).toBe(401);

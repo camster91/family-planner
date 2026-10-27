@@ -84,7 +84,7 @@ it("a double tap on Create sends one request", async () => {
   expect(creates).toBe(1);
 });
 
-it("a failed create lets the parent try again", async () => {
+it("an uncertain create retries the original body and key without allowing edits", async () => {
   global.fetch = jest.fn(async () => {
     creates += 1;
     return {
@@ -98,11 +98,17 @@ it("a failed create lets the parent try again", async () => {
   await user.type(screen.getByLabelText("Name"), "Chores");
   await user.click(screen.getByRole("button", { name: /Create List/ }));
   expect((await screen.findByRole("alert")).textContent).toBe(
-    "The list could not be created. Try again.",
+    "The result is unknown. Keep these values and retry the same save; do not create another list.",
   );
-  await user.click(screen.getByRole("button", { name: /Create List/ }));
+  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.getByLabelText("Type")).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Retry the same save" }));
   await screen.findByRole("alert");
   expect(creates).toBe(2);
+  const calls = (global.fetch as jest.Mock).mock.calls;
+  expect(calls[1][1].body).toBe(calls[0][1].body);
+  expect(calls[1][1].headers["Idempotency-Key"]).toBeTruthy();
+  expect(calls[1][1].headers["Idempotency-Key"]).toBe(calls[0][1].headers["Idempotency-Key"]);
 });
 
 it("creates a named Custom checklist using the canonical API", async () => {
@@ -215,7 +221,7 @@ it("localizes the create form and keeps unexpected API errors out of the UI", as
 
   const alert = await screen.findByRole("alert");
   expect(alert).toHaveTextContent(
-    "No se pudo crear la lista. Inténtalo de nuevo.",
+    "No se conoce el resultado. Conserva estos valores y comprueba el mismo guardado; no crees otra lista.",
   );
   expect(alert).not.toHaveTextContent("Raw household detail");
 });

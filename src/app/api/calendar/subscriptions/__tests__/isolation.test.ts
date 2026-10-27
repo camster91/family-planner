@@ -26,10 +26,10 @@ jest.mock("@/lib/outbound-url", () => {
   const actual = jest.requireActual("@/lib/outbound-url");
   return {
     ...actual,
-    assertPublicProviderUrl: async (url: string) => {
+    assertPublicProviderUrl: jest.fn(async (url: string) => {
       const err = actual.checkProviderUrlShape(url);
       if (err) throw new Error(err);
-    },
+    }),
   };
 });
 
@@ -57,7 +57,7 @@ import {
   USER_IDS,
   type UserKey,
 } from "@/__tests__/helpers/two-household";
-import * as outbound from "@/lib/outbound-url";
+import { assertPublicProviderUrl } from "@/lib/outbound-url";
 import { decryptSecret } from "@/lib/secret-box";
 import {
   ics,
@@ -355,7 +355,7 @@ describe("calendar subscriptions — audit statuses (F-4)", () => {
 
 // Authored UNRUN: URL validation may outlive the original authenticated session.
 it("refuses subscription creation when the original session changes during URL validation", async () => {
-  jest.spyOn(outbound, "assertPublicProviderUrl").mockImplementationOnce(async () => {
+  jest.mocked(assertPublicProviderUrl).mockImplementationOnce(async () => {
     const user = db.find("user", USER_IDS.parentA)!;
     user.token_version += 1;
   });

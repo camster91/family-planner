@@ -18,101 +18,115 @@ const dateValue = z
 const archiveRecord = z.object({ id: z.string().min(1) }).passthrough();
 // Known source cent fields must survive JS parsing exactly. Passthrough archive
 // payloads remain untyped and are NOT approved monetary schemas by this guard.
-const sourceIntegerCents = z.number().int().refine(
-  value => Number.isSafeInteger(value) && !Object.is(value, -0),
-  'Source cents must be a safe integer',
-);
+const sourceIntegerCents = z
+  .number()
+  .int()
+  .refine(
+    (value) => Number.isSafeInteger(value) && !Object.is(value, -0),
+    "Source cents must be a safe integer",
+  );
 // Existing legacy mapping uses cents /100 into Float. Refuse a lossy target;
 // the fixed USD parser here checks that established two-digit numeric bridge,
 // not the original source currency or approval. No new denomination is inferred.
-const legacyFloatCents = sourceIntegerCents.refine(value => {
-  const candidate = readFinanceDecimal(String(value / 100), 'USD');
-  return candidate.kind === 'value' && candidate.value.minorUnits === String(value);
-}, 'Source cents cannot be represented exactly by the existing budget');
+const legacyFloatCents = sourceIntegerCents.refine((value) => {
+  const candidate = readFinanceDecimal(String(value / 100), "USD");
+  return (
+    candidate.kind === "value" && candidate.value.minorUnits === String(value)
+  );
+}, "Source cents cannot be represented exactly by the existing budget");
 
-
-export const budgetAppExportSchema = z.object({
-  version: z.string().min(1),
-  categories: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        icon: z.string().nullish(),
-        color: z.string().nullish(),
-        type: z.string().default("expense"),
-        dailyCap: sourceIntegerCents.nullish(),
-        parentId: z.string().nullish(),
-        rules: z.string().nullish(),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  transactions: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        amount: legacyFloatCents,
-        description: z.string(),
-        date: dateValue,
-        type: z.string().default("expense"),
-        categoryId: z.string().nullish(),
-        isRecurring: z.boolean().default(false),
-        recurringId: z.string().nullish(),
-        isDiscretionary: z.boolean().default(true),
-        isTransfer: z.boolean().default(false),
-        statementId: z.string().nullish(),
-        reconciled: z.boolean().default(false),
-        isDuplicate: z.boolean().default(false),
-        duplicateOfId: z.string().nullish(),
-        fingerprint: z.string().nullish(),
-        source: z.string().nullish(),
-        accountId: z.string().nullish(),
-        billId: z.string().nullish(),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  wishlistItems: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        price: legacyFloatCents.refine(value => value >= 0, 'Price must be nonnegative'),
-        link: z.string().nullish(),
-        priority: z.string().default("medium"),
-        purchased: z.boolean().default(false),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  accounts: z.array(archiveRecord).default([]),
-  bills: z.array(archiveRecord).default([]),
-  billPayments: z.array(archiveRecord).default([]),
-  budgets: z.array(archiveRecord).default([]),
-  goals: z.array(archiveRecord).default([]),
-  goalContributions: z.array(archiveRecord).default([]),
-  incomes: z.array(archiveRecord).default([]),
-  screenshotReceipts: z.array(archiveRecord).default([]),
-  spendingPatterns: z.array(archiveRecord).default([]),
-  dailyPeriods: z.array(archiveRecord).default([]),
-  noSpendEntries: z.array(archiveRecord).default([]),
-}).superRefine((source, context) => rejectDuplicateSourceIds({
-  categories: source.categories,
-  transactions: source.transactions,
-  wishlistItems: source.wishlistItems,
-  accounts: source.accounts,
-  bills: source.bills,
-  billPayments: source.billPayments,
-  budgets: source.budgets,
-  goals: source.goals,
-  goalContributions: source.goalContributions,
-  incomes: source.incomes,
-  screenshotReceipts: source.screenshotReceipts,
-  spendingPatterns: source.spendingPatterns,
-  dailyPeriods: source.dailyPeriods,
-  noSpendEntries: source.noSpendEntries,
-}, context));
+export const budgetAppExportSchema = z
+  .object({
+    version: z.string().min(1),
+    categories: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          icon: z.string().nullish(),
+          color: z.string().nullish(),
+          type: z.string().default("expense"),
+          dailyCap: sourceIntegerCents.nullish(),
+          parentId: z.string().nullish(),
+          rules: z.string().nullish(),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    transactions: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          amount: legacyFloatCents,
+          description: z.string(),
+          date: dateValue,
+          type: z.string().default("expense"),
+          categoryId: z.string().nullish(),
+          isRecurring: z.boolean().default(false),
+          recurringId: z.string().nullish(),
+          isDiscretionary: z.boolean().default(true),
+          isTransfer: z.boolean().default(false),
+          statementId: z.string().nullish(),
+          reconciled: z.boolean().default(false),
+          isDuplicate: z.boolean().default(false),
+          duplicateOfId: z.string().nullish(),
+          fingerprint: z.string().nullish(),
+          source: z.string().nullish(),
+          accountId: z.string().nullish(),
+          billId: z.string().nullish(),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    wishlistItems: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          price: legacyFloatCents.refine(
+            (value) => value >= 0,
+            "Price must be nonnegative",
+          ),
+          link: z.string().nullish(),
+          priority: z.string().default("medium"),
+          purchased: z.boolean().default(false),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    accounts: z.array(archiveRecord).default([]),
+    bills: z.array(archiveRecord).default([]),
+    billPayments: z.array(archiveRecord).default([]),
+    budgets: z.array(archiveRecord).default([]),
+    goals: z.array(archiveRecord).default([]),
+    goalContributions: z.array(archiveRecord).default([]),
+    incomes: z.array(archiveRecord).default([]),
+    screenshotReceipts: z.array(archiveRecord).default([]),
+    spendingPatterns: z.array(archiveRecord).default([]),
+    dailyPeriods: z.array(archiveRecord).default([]),
+    noSpendEntries: z.array(archiveRecord).default([]),
+  })
+  .superRefine((source, context) =>
+    rejectDuplicateSourceIds(
+      {
+        categories: source.categories,
+        transactions: source.transactions,
+        wishlistItems: source.wishlistItems,
+        accounts: source.accounts,
+        bills: source.bills,
+        billPayments: source.billPayments,
+        budgets: source.budgets,
+        goals: source.goals,
+        goalContributions: source.goalContributions,
+        incomes: source.incomes,
+        screenshotReceipts: source.screenshotReceipts,
+        spendingPatterns: source.spendingPatterns,
+        dailyPeriods: source.dailyPeriods,
+        noSpendEntries: source.noSpendEntries,
+      },
+      context,
+    ),
+  );
 
 const archiveFields = [
   "accounts",

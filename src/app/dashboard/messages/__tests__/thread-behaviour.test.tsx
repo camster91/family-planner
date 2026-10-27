@@ -477,7 +477,9 @@ describe('read recovery', () => {
       calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
       if (method === 'PATCH') {
         readAttempts += 1
-        return (readAttempts === 1 ? { ok: false, status: 503 } : { ok: true, status: 200 }) as Response
+        return (readAttempts === 1
+          ? { ok: false, status: 503, json: async () => ({}) }
+          : { ok: true, status: 200, json: async () => ({}) }) as Response
       }
       return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }) } as Response
     }) as unknown as typeof fetch
@@ -648,7 +650,8 @@ it('never sends after a photo upload finishes in a retired session context', asy
   render(<MessagesPage />)
   await screen.findByText('Message 3')
   await user.type(screen.getByLabelText('Message text'), 'Private original photo')
-  await user.upload(screen.getByLabelText('Add a photo'), new File(['fabricated-image'], 'fixture.png', { type: 'image/png' }))
+  const photoInput = screen.getAllByLabelText('Add a photo').find((element) => element.tagName === 'INPUT')!
+  await user.upload(photoInput, new File(['fabricated-image'], 'fixture.png', { type: 'image/png' }))
   await user.click(screen.getByRole('button', { name: 'Send' }))
   await waitFor(() => expect(finish).toBeDefined())
   generation = 1

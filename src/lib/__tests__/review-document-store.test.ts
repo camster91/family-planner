@@ -30,7 +30,7 @@ const baseContext = reviewDocumentContext.parse({
 const documentKey = "fixture_document_key";
 const requestKey = "fixture_recipe_request";
 const originalBody =
-  '{"creation_protocol":"herewoven.recipe-create.v1", "title":"Family soup","servings":4}';
+  '{"creation_protocol":"herewoven.recipe-create.v1","title":"Family soup","description":null,"instructions":null,"prep_time":null,"cook_time":null,"servings":4,"ingredients":[{"name":"Flour","amount":0.5,"unit":"cup","note":null}]}';
 const requests = [
   { key: requestKey, action: "recipe.create" as const, body: originalBody },
 ];

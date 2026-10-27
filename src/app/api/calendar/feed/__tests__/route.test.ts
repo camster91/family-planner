@@ -17,6 +17,20 @@ import { db, req, FOREIGN, fakePrisma } from "@/__tests__/helpers/two-household"
 describe("GET /api/calendar/feed", () => {
   beforeEach(() => db.reset());
 
+  type FeedFindManyArgs = {
+    take: number;
+    where: {
+      family_id: string;
+      AND?: Array<{
+        OR: Array<{
+          start_time?: { gt: Date };
+          id?: { gt: string };
+        }>;
+      }>;
+    };
+  };
+  type FeedFindMany = (args: FeedFindManyArgs) => Promise<Array<{ id: string }>>;
+
   it("returns 401 without a token or with an unknown token", async () => {
     expect((await GET(req())).status).toBe(401);
     expect((await GET(req({ query: { token: "nope" } }))).status).toBe(401);
@@ -85,9 +99,8 @@ describe("GET /api/calendar/feed", () => {
     const rows = Array.from({ length: count }, (_, index) => ({ ...original,
       id: `synthetic-${String(index).padStart(5, "0")}`,
     }));
-    return jest.spyOn(fakePrisma.event, "findMany").mockImplementation(async (args: {
-      take: number; where: { family_id: string; AND?: Array<{ OR: Array<{ id?: { gt: string } }> }> };
-    }) => {
+    const read = jest.spyOn(fakePrisma.event, "findMany") as unknown as jest.MockedFunction<FeedFindMany>;
+    return read.mockImplementation(async (args) => {
       expect(args.where.family_id).toBe("family-A");
       const cursor = args.where.AND?.[0].OR[1].id?.gt;
       const start = cursor ? rows.findIndex(row => row.id === cursor) + 1 : 0;

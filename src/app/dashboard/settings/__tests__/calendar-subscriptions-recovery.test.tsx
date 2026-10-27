@@ -185,9 +185,23 @@ it("localizes a saved feed failure on mounted locale change without another fetc
     last_status: "error", last_error: "Feed took too long to respond", url_hint: "Unavailable",
   }] }) })) as unknown as typeof fetch;
   const user = await mount();
-  await screen.findByText(settingsMessages.en.calendarFeedTimeout);
+  await waitFor(() =>
+    expect(
+      screen
+        .getAllByRole("status")
+        .some((node) =>
+          node.textContent?.includes(settingsMessages.en.calendarFeedTimeout),
+        ),
+    ).toBe(true),
+  );
   await user.click(screen.getByText("Switch presentation"));
-  expect(screen.getByText(settingsMessages.es.calendarFeedTimeout)).toBeInTheDocument();
+  expect(
+    screen
+      .getAllByRole("status")
+      .some((node) =>
+        node.textContent?.includes(settingsMessages.es.calendarFeedTimeout),
+      ),
+  ).toBe(true);
   expect(screen.getByText(settingsMessages.es.calendarHintUnavailable)).toBeInTheDocument();
   expect(fetch).toHaveBeenCalledTimes(1);
 });

@@ -59,7 +59,7 @@ it('offers direct setup shortcuts to parents without starting a provider request
   localized(<CalendarPlanner initialDate="2026-01-05" initialView="agenda" canEditEvents calendarSyncAvailable />, 'en');
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
   const count = (fetch as jest.Mock).mock.calls.length;
-  fireEvent.click(screen.getByText('Add connection'));
+  fireEvent.click(screen.getByText('Calendars & connections'));
   expect(screen.getByRole('link', { name: 'Connect Google or Outlook' })).toHaveAttribute('href', '/dashboard/settings#calendar-sync');
   expect(screen.getByRole('link', { name: 'Subscribe to a read-only calendar link' })).toHaveAttribute('href', '/dashboard/settings#calendar-subscriptions');
   expect(screen.getByText('Connect a supported calendar for two-way sync, or subscribe to a read-only calendar link.')).toBeVisible();
@@ -69,7 +69,7 @@ it('offers direct setup shortcuts to parents without starting a provider request
 it('explains unavailable provider sync while keeping the read-only subscription shortcut', async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" canEditEvents />, 'en');
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
-  fireEvent.click(screen.getByText('Add connection'));
+  fireEvent.click(screen.getByText('Calendars & connections'));
   expect(screen.queryByText('Connect Google or Outlook')).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Google or Outlook sync setup' })).not.toBeInTheDocument();
   expect(document.querySelector('a[href="/dashboard/settings#calendar-sync"]')).toBeNull();
@@ -79,13 +79,13 @@ it('explains unavailable provider sync while keeping the read-only subscription 
 it('keeps connections management hidden for a non-parent even if sync is configured', async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" calendarSyncAvailable />, 'en');
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
-  expect(screen.queryByText('Add connection')).not.toBeInTheDocument();
+  expect(screen.queryByText('Calendars & connections')).not.toBeInTheDocument();
   expect(screen.queryByText('Subscribe by calendar link')).not.toBeInTheDocument();
 });
 it('localizes the connections menu while preserving canonical setup URLs', async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" canEditEvents calendarSyncAvailable />);
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
-  fireEvent.click(screen.getByText('Añadir conexión'));
+  fireEvent.click(screen.getByText('Calendarios y conexiones'));
   expect(screen.getByRole('link', { name: 'Conectar Google u Outlook' })).toHaveAttribute('href', '/dashboard/settings#calendar-sync');
   expect(screen.getByRole('link', { name: 'Suscribirse a un enlace de calendario de solo lectura' })).toHaveAttribute('href', '/dashboard/settings#calendar-subscriptions');
   expect(screen.getByText(/Los enlaces pueden venir de Google Calendar, Apple iCloud/)).toBeVisible();

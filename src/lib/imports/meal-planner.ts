@@ -15,108 +15,119 @@ const dateValue = z
     return date;
   });
 
-export const mealPlannerExportSchema = z.object({
-  version: z.string().min(1),
-  users: z
-    .array(
-      z.object({ id: z.string().min(1), email: z.string(), name: z.string() }),
-    )
-    .default([]),
-  recipes: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        userId: z.string().min(1),
-        title: z.string().min(1),
-        description: z.string().nullish(),
-        instructions: z.string().nullish(),
-        prepTime: z.number().int().nonnegative().nullish(),
-        cookTime: z.number().int().nonnegative().nullish(),
-        servings: z.number().int().positive().default(2),
-        imageUrl: z.string().nullish(),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  ingredients: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        unit: z.string().nullish(),
-      }),
-    )
-    .default([]),
-  recipeIngredients: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        recipeId: z.string().min(1),
-        ingredientId: z.string().min(1),
-        amount: z.number().nonnegative(),
-        unit: z.string().nullish(),
-        note: z.string().nullish(),
-      }),
-    )
-    .default([]),
-  mealPlans: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        userId: z.string().min(1),
-        name: z.string().min(1),
-        startDate: dateValue,
-        endDate: dateValue,
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  mealPlanEntries: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        mealPlanId: z.string().min(1),
-        recipeId: z.string().min(1),
-        date: dateValue,
-        mealType: z.string().min(1),
-        servings: z.number().int().positive().default(2),
-      }),
-    )
-    .default([]),
-  shoppingLists: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        userId: z.string().min(1),
-        name: z.string().min(1),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  shoppingItems: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        shoppingListId: z.string().min(1),
-        ingredientName: z.string().min(1),
-        amount: z.number().nonnegative().nullish(),
-        unit: z.string().nullish(),
-        category: z.string().nullish(),
-        checked: z.boolean().default(false),
-        recipeId: z.string().nullish(),
-      }),
-    )
-    .default([]),
-}).superRefine((source, context) => rejectDuplicateSourceIds({
-  users: source.users,
-  recipes: source.recipes,
-  ingredients: source.ingredients,
-  recipeIngredients: source.recipeIngredients,
-  mealPlans: source.mealPlans,
-  mealPlanEntries: source.mealPlanEntries,
-  shoppingLists: source.shoppingLists,
-  shoppingItems: source.shoppingItems,
-}, context));
+export const mealPlannerExportSchema = z
+  .object({
+    version: z.string().min(1),
+    users: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          email: z.string(),
+          name: z.string(),
+        }),
+      )
+      .default([]),
+    recipes: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          userId: z.string().min(1),
+          title: z.string().min(1),
+          description: z.string().nullish(),
+          instructions: z.string().nullish(),
+          prepTime: z.number().int().nonnegative().nullish(),
+          cookTime: z.number().int().nonnegative().nullish(),
+          servings: z.number().int().positive().default(2),
+          imageUrl: z.string().nullish(),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    ingredients: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          unit: z.string().nullish(),
+        }),
+      )
+      .default([]),
+    recipeIngredients: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          recipeId: z.string().min(1),
+          ingredientId: z.string().min(1),
+          amount: z.number().nonnegative(),
+          unit: z.string().nullish(),
+          note: z.string().nullish(),
+        }),
+      )
+      .default([]),
+    mealPlans: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          userId: z.string().min(1),
+          name: z.string().min(1),
+          startDate: dateValue,
+          endDate: dateValue,
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    mealPlanEntries: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          mealPlanId: z.string().min(1),
+          recipeId: z.string().min(1),
+          date: dateValue,
+          mealType: z.string().min(1),
+          servings: z.number().int().positive().default(2),
+        }),
+      )
+      .default([]),
+    shoppingLists: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          userId: z.string().min(1),
+          name: z.string().min(1),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    shoppingItems: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          shoppingListId: z.string().min(1),
+          ingredientName: z.string().min(1),
+          amount: z.number().nonnegative().nullish(),
+          unit: z.string().nullish(),
+          category: z.string().nullish(),
+          checked: z.boolean().default(false),
+          recipeId: z.string().nullish(),
+        }),
+      )
+      .default([]),
+  })
+  .superRefine((source, context) =>
+    rejectDuplicateSourceIds(
+      {
+        users: source.users,
+        recipes: source.recipes,
+        ingredients: source.ingredients,
+        recipeIngredients: source.recipeIngredients,
+        mealPlans: source.mealPlans,
+        mealPlanEntries: source.mealPlanEntries,
+        shoppingLists: source.shoppingLists,
+        shoppingItems: source.shoppingItems,
+      },
+      context,
+    ),
+  );
 
 export type MealPlannerImportPlan = ReturnType<typeof planMealPlannerImport>;
 

@@ -53,7 +53,28 @@ export default function CalendarFeedReview({ scope }: { scope: string }) {
       {state === "loading" && <p role="status">{copy("feedReviewLoading")}</p>}
       {state === "scope-changed" && <div role="alert" className="space-y-3">
         <p>{copy("feedReviewScopeChanged")}</p>
-        <a href="/dashboard/settings" className="btn-tinted inline-flex items-center min-h-[44px]">{copy("feedReviewReload")}</a>
+        <Link
+          href="/dashboard/settings"
+          className="btn-tinted inline-flex items-center min-h-[44px]"
+          onClick={(event) => {
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            )
+              return;
+            // Scope changes require a fresh settings/session projection. Keep
+            // the old full-document reload behavior while using Next's Link
+            // for the internal destination and modifier-key semantics.
+            event.preventDefault();
+            close();
+            window.location.assign("/dashboard/settings");
+          }}
+        >
+          {copy("feedReviewReload")}
+        </Link>
       </div>}
       {state === "error" && <div role="alert" className="space-y-3">
         <p>{copy("feedReviewFailed")}</p>

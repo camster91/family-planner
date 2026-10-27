@@ -461,6 +461,19 @@ describe("refreshStaleSubscriptions", () => {
 
 // Authored/unrun. The fake verifies shapes/equivalence only; it does not model
 // PostgreSQL snapshots, locks or rollback after a later failed batch.
+type ExistingEventBatchQuery = {
+  where: {
+    family_id: string;
+    source_subscription_id: string;
+    id?: { gt: string };
+  };
+  orderBy: { id: "asc" };
+  take: number;
+};
+type EventCreateBatchQuery = {
+  data: Array<Record<string, unknown>>;
+  skipDuplicates?: boolean;
+};
 it("reconciles multiple existing/import batches while preserving valid old history and moved identities", async () => {
   const original = { ...db.find("event", "event-a")! };
   const sub = { id: "sub-a", family_id: FAMILY_A, created_by: "parent-a" };
@@ -478,8 +491,12 @@ it("reconciles multiple existing/import batches while preserving valid old histo
     title: "Synthetic new event", description: null, location: null,
   }));
   occurrences.push({ ...occurrences[0], uid: "moved", occurrenceStart: past, title: "Moved existing" });
-  const read = jest.spyOn(fakePrisma.event, "findMany");
-  const create = jest.spyOn(fakePrisma.event, "createMany");
+  const read = jest.spyOn(fakePrisma.event, "findMany") as unknown as jest.MockedFunction<
+    (query: ExistingEventBatchQuery) => Promise<unknown[]>
+  >;
+  const create = jest.spyOn(fakePrisma.event, "createMany") as unknown as jest.MockedFunction<
+    (query: EventCreateBatchQuery) => Promise<{ count: number }>
+  >;
   const transaction = jest.fn((work: (tx: any) => Promise<unknown>, options: unknown) => fakePrisma.$transaction(work, options));
   try {
     const counts = await reconcileOccurrences({ $transaction: transaction }, sub, occurrences, importWindow(NOW));
@@ -492,7 +509,8 @@ it("reconciles multiple existing/import batches while preserving valid old histo
     for (const [query] of read.mock.calls) {
       expect(query).toMatchObject({ where: { family_id: FAMILY_A, source_subscription_id: "sub-a" }, orderBy: { id: "asc" }, take: 200 });
     }
-    expect(read.mock.calls[1][0].where.id.gt).toBeDefined();
+    const continuation = read.mock.calls[1]?.[0];
+    expect(continuation?.where.id?.gt).toBeDefined();
     expect(create.mock.calls.map(([query]) => query.data.length)).toEqual([200, 5]);
     for (const write of writesTo("event").filter(w => w.op === "deleteMany")) {
       expect(write.args.where.id.in.length).toBeLessThanOrEqual(200);

@@ -278,7 +278,7 @@ export default function ElevationSheet({
           <div className="flex flex-wrap gap-3">
             <button type="submit" disabled={busy || !password} className={primaryButtonClass}>
               {busy && <Loader2 className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />}
-              Unlock
+              {text("unlock")}
             </button>
             {step.parent.hasPin && (
               <button

@@ -20,6 +20,16 @@ import { browserResponsibilityRecovery } from "@/lib/responsibility-browser";
 import { RESPONSIBILITY_PROTOCOL } from "@/lib/responsibility";
 import type { ResponsibilityView } from "@/lib/responsibility-http-contract";
 import type { ResponsibilityRecoveryEntry } from "@/lib/responsibility-recovery";
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  forward: jest.fn(),
+  refresh: jest.fn(),
+};
+jest.mock("next/navigation", () => ({
+  useRouter: () => mockRouter,
+}));
 jest.mock("@/components/ui/use-display-locale", () => ({
   useDisplayLocale: () => "en-CA",
 }));

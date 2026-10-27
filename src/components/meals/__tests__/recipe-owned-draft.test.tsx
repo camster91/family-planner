@@ -5,6 +5,7 @@ import * as React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("@/components/layout/pending-form-navigation", () => ({
   usePendingFormNavigationController: () => ({
@@ -199,7 +200,7 @@ it("locks an unknown create and checks the identical saved request on retry", as
     screen.queryByRole("textbox", { name: "Recipe name" }),
   ).not.toBeInTheDocument();
   fireEvent.click(
-    await screen.findByRole("button", { name: "Check the same save" }),
+    await screen.findByRole("button", { name: "Retry original save" }),
   );
   await waitFor(() => expect(store.sendExact).toHaveBeenCalledTimes(2));
   expect(store.sendExact.mock.calls[1].slice(0, 3)).toEqual(first);

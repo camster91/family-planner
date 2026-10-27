@@ -284,10 +284,10 @@ function NotesPageInner() {
     setRecoveryState('loading')
     void (async () => {
       try {
-        const module = await import('@/lib/note-create-recovery-browser')
+        const recoveryApi = await import('@/lib/note-create-recovery-browser')
         if (!active) return
-        const journal = module.browserNoteRecovery(recoveryTarget)
-        recoveryModule.current = module; recoveryJournal.current = journal
+        const journal = recoveryApi.browserNoteRecovery(recoveryTarget)
+        recoveryModule.current = recoveryApi; recoveryJournal.current = journal
         const rows = await journal.initialize()
         if (active) adoptRecoveredRows(rows)
       } catch (cause) { if (active) {

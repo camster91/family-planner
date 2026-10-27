@@ -8,6 +8,7 @@ import ReviewInbox from "../ReviewInbox";
 import { I18nProvider } from "@/i18n";
 import type { InboxPage } from "@/lib/review-inbox/read";
 jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 jest.mock("@/components/calendar/preparation/PreparationProvider", () => ({

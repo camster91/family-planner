@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RecipeReuseLauncher } from "../RecipeReuseLauncher";
 const reply = (id: string) => ({
   ok: true,
@@ -55,6 +55,7 @@ it("drops old metadata when a route names another recipe", async () => {
       onDismiss={jest.fn()}
     />,
   );
+  await waitFor(() => expect(finish).toBeDefined());
   const old = finish;
   view.rerender(
     <RecipeReuseLauncher

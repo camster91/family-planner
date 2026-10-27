@@ -55,7 +55,7 @@ it("settles a bridge that ignores cancellation without accepting its late body",
 it.each([null, JSON.stringify({ ...owner, familyId: "family-b" })])("holds missing or changed detail ownership before decoding household data", async marker => {
   const { RecipeDetailOwnerChanged } = await import("../recipe-detail-client");
   const json = jest.fn();
-  const transport = jest.fn(async (_path: string, _init?: RequestInit) => ({ ok: true, status: 200,
+  const transport = jest.fn(async (_path: RequestInfo | URL, _init?: RequestInit) => ({ ok: true, status: 200,
     headers: new Headers(marker ? { "X-Herewoven-Recipe-Owner": marker } : {}), json }) as unknown as Response);
   await expect(readRecipeDetail("recipe-a", new AbortController().signal,
     { fetchImpl: transport, expectedOwner: owner })).rejects.toBeInstanceOf(RecipeDetailOwnerChanged);

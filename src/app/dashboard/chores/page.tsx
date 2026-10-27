@@ -37,7 +37,7 @@ import {
 
 export default async function ChoresPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   const sessionUser = await getServerActor();
 
   if (!sessionUser) {

@@ -125,7 +125,7 @@ const exactRequest = z
           ? createEventSchema.strict()
           : request.action === "capture.grocery.add"
             ? captureGrocerySchema.strict()
-            : createRecipeSchema.extend({
+            : createRecipeSchema.safeExtend({
                 creation_protocol: z.literal("herewoven.recipe-create.v1"),
               });
       if (

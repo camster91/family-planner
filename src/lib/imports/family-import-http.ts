@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { parseImportJson, ImportJsonError } from "@/lib/imports/import-json";
-import { IMPORT_OWNER_HEADER, IMPORT_OWNER_PROTOCOL, importOwner, sameImportOwner } from "@/lib/imports/import-owner-contract";
+import {
+  IMPORT_OWNER_HEADER,
+  IMPORT_OWNER_PROTOCOL,
+  importOwner,
+  sameImportOwner,
+} from "@/lib/imports/import-owner-contract";
 import { sourceDuplicateDiagnostics } from "@/lib/imports/source-identity-validation";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import {
@@ -17,10 +22,12 @@ import { RequestBodyTooLargeError, readBoundedText } from "@/lib/bounded-body";
 
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
-const scopeSchema = z.object({
-  actorId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
-  familyId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
-}).strict();
+const scopeSchema = z
+  .object({
+    actorId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+    familyId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  })
+  .strict();
 const requestSchema = z.object({
   data: z.unknown(),
   identityMap: z.record(z.string(), z.string().min(1)).default({}),
@@ -40,15 +47,39 @@ async function handleFamilyImport(
   const parentError = requireParent(auth.user.role);
   if (parentError) return parentError;
 
-  const originalOwner = { protocol: IMPORT_OWNER_PROTOCOL, actorId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 } as const;
+  const originalOwner = {
+    protocol: IMPORT_OWNER_PROTOCOL,
+    actorId: auth.user.id,
+    familyId: auth.user.family_id,
+    generation: auth.payload.tv ?? 0,
+  } as const;
   const rawOwner = request.headers.get(IMPORT_OWNER_HEADER);
   if (requireOwner && rawOwner === null)
-    return NextResponse.json({ error: "Original import account context is required", code: "IMPORT_OWNER_REQUIRED" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Original import account context is required",
+        code: "IMPORT_OWNER_REQUIRED",
+      },
+      { status: 400 },
+    );
   if (rawOwner !== null) {
     try {
-      if (rawOwner.length > 1024 || !sameImportOwner(importOwner.parse(parseImportJson(rawOwner)), originalOwner)) throw new Error();
+      if (
+        rawOwner.length > 1024 ||
+        !sameImportOwner(
+          importOwner.parse(parseImportJson(rawOwner)),
+          originalOwner,
+        )
+      )
+        throw new Error();
     } catch {
-      return NextResponse.json({ error: "The original import account or household changed", code: "IMPORT_SCOPE_CHANGED" }, { status: 409 });
+      return NextResponse.json(
+        {
+          error: "The original import account or household changed",
+          code: "IMPORT_SCOPE_CHANGED",
+        },
+        { status: 409 },
+      );
     }
   }
 
@@ -68,8 +99,16 @@ async function handleFamilyImport(
     body = parseImportJson(raw);
   } catch (error) {
     if (error instanceof ImportJsonError) {
-      const code = error.code === 'DUPLICATE_KEY' ? 'IMPORT_DUPLICATE_JSON_KEY' : error.code === 'DEPTH_LIMIT' ? 'IMPORT_JSON_DEPTH' : 'IMPORT_JSON_TOO_LARGE';
-      return NextResponse.json({ error: 'Import JSON requires review', code }, { status: error.code === 'TEXT_LIMIT' ? 413 : 400 });
+      const code =
+        error.code === "DUPLICATE_KEY"
+          ? "IMPORT_DUPLICATE_JSON_KEY"
+          : error.code === "DEPTH_LIMIT"
+            ? "IMPORT_JSON_DEPTH"
+            : "IMPORT_JSON_TOO_LARGE";
+      return NextResponse.json(
+        { error: "Import JSON requires review", code },
+        { status: error.code === "TEXT_LIMIT" ? 413 : 400 },
+      );
     }
     if (error instanceof RequestBodyTooLargeError) {
       return NextResponse.json(
@@ -89,13 +128,39 @@ async function handleFamilyImport(
   }
 
   if (requireOwner && parsed.data.reviewProtocol !== 1)
-    return NextResponse.json({ error: "Review the current household before importing", code: "IMPORT_REVIEW_REQUIRED" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: "Review the current household before importing",
+        code: "IMPORT_REVIEW_REQUIRED",
+      },
+      { status: 400 },
+    );
 
-  if (parsed.data.reviewProtocol === 1 && !parsed.data.dryRun && !parsed.data.expectedScope)
-    return NextResponse.json({ error: "Review the current household before importing", code: "IMPORT_REVIEW_REQUIRED" }, { status: 400 });
+  if (
+    parsed.data.reviewProtocol === 1 &&
+    !parsed.data.dryRun &&
+    !parsed.data.expectedScope
+  )
+    return NextResponse.json(
+      {
+        error: "Review the current household before importing",
+        code: "IMPORT_REVIEW_REQUIRED",
+      },
+      { status: 400 },
+    );
   const expected = parsed.data.expectedScope;
-  if (expected && (expected.actorId !== auth.user.id || expected.familyId !== auth.user.family_id))
-    return NextResponse.json({ error: "The reviewed account or household changed", code: "IMPORT_SCOPE_CHANGED" }, { status: 409 });
+  if (
+    expected &&
+    (expected.actorId !== auth.user.id ||
+      expected.familyId !== auth.user.family_id)
+  )
+    return NextResponse.json(
+      {
+        error: "The reviewed account or household changed",
+        code: "IMPORT_SCOPE_CHANGED",
+      },
+      { status: 409 },
+    );
 
   const mappedUserIds = [...new Set(Object.values(parsed.data.identityMap))];
   if (mappedUserIds.length > 0) {
@@ -131,24 +196,48 @@ async function handleFamilyImport(
       // A later refusal does not prove an earlier write rolled back.
       const [current, currentError] = await authenticateWithFamily(request);
       if (currentError) return currentError;
-      if (current.user.role !== 'parent' || !sameImportOwner(originalOwner, {
-        protocol: IMPORT_OWNER_PROTOCOL, actorId: current.user.id,
-        familyId: current.user.family_id, generation: current.payload.tv ?? 0,
-      })) return NextResponse.json({ error: "The original import account or household changed", code: "IMPORT_SCOPE_CHANGED" }, { status: 409 });
+      if (
+        current.user.role !== "parent" ||
+        !sameImportOwner(originalOwner, {
+          protocol: IMPORT_OWNER_PROTOCOL,
+          actorId: current.user.id,
+          familyId: current.user.family_id,
+          generation: current.payload.tv ?? 0,
+        })
+      )
+        return NextResponse.json(
+          {
+            error: "The original import account or household changed",
+            code: "IMPORT_SCOPE_CHANGED",
+          },
+          { status: 409 },
+        );
     }
-    return NextResponse.json({
-      ...result,
-      ...(requireOwner ? { originalOwner } : {}),
-      ...(parsed.data.reviewProtocol === 1 ? { review: {
-        protocol: 1, actorId: auth.user.id, familyId: auth.user.family_id,
-      } } : {}),
-    }, {
-      status: parsed.data.dryRun ? 200 : 201,
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return NextResponse.json(
+      {
+        ...result,
+        ...(requireOwner ? { originalOwner } : {}),
+        ...(parsed.data.reviewProtocol === 1
+          ? {
+              review: {
+                protocol: 1,
+                actorId: auth.user.id,
+                familyId: auth.user.family_id,
+              },
+            }
+          : {}),
+      },
+      {
+        status: parsed.data.dryRun ? 200 : 201,
+        headers: { "Cache-Control": "private, no-store" },
+      },
+    );
   } catch (error) {
     if (error instanceof ImportSessionChangedError)
-      return NextResponse.json({ error: "Unauthorized", code: "SESSION_CHANGED" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized", code: "SESSION_CHANGED" },
+        { status: 401 },
+      );
     if (error instanceof HouseholdMemberIdentityConflict)
       return NextResponse.json(
         { error: error.message, code: "IDENTITY_CONFLICT" },
@@ -156,7 +245,11 @@ async function handleFamilyImport(
       );
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid source export", details: error.flatten(), duplicateSourceIds: sourceDuplicateDiagnostics(error) },
+        {
+          error: "Invalid source export",
+          details: error.flatten(),
+          duplicateSourceIds: sourceDuplicateDiagnostics(error),
+        },
         { status: 400 },
       );
     }
@@ -170,11 +263,15 @@ async function handleFamilyImport(
 }
 
 /** Shared legacy/strict handler. Strict callers never fall back to the old URL. */
-export async function postFamilyImport(request: NextRequest, context: { params: Promise<{ source: string }> }, requireOwner = false) {
+export async function postFamilyImport(
+  request: NextRequest,
+  context: { params: Promise<{ source: string }> },
+  requireOwner = false,
+) {
   const response = await handleFamilyImport(request, context, requireOwner);
   if (requireOwner || request.headers.has(IMPORT_OWNER_HEADER)) {
-    response.headers.set('Cache-Control', 'private, no-store');
-    response.headers.set('Vary', `Cookie, ${IMPORT_OWNER_HEADER}`);
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Vary", `Cookie, ${IMPORT_OWNER_HEADER}`);
   }
   return response;
 }

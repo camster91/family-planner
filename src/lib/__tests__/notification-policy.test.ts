@@ -158,8 +158,8 @@ describe('notification policy table', () => {
 describe('every notification in the source goes through the policy', () => {
   it('finds the known senders (guards the scan itself)', () => {
     const rels = new Set(sentTypes().map((s) => s.rel))
-    expect(rels).toContain(path.join('app', 'api', 'chores', 'verify', 'route.ts'))
-    expect(rels).toContain(path.join('app', 'api', 'rewards', 'claim', 'route.ts'))
+    expect(rels).toContain(path.join('lib', 'chore-check-http.ts'))
+    expect(rels).toContain(path.join('lib', 'reward-claim-http.ts'))
     expect(rels).toContain(path.join('app', 'api', 'notifications', 'route.ts'))
   })
 

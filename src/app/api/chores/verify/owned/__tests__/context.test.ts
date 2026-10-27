@@ -15,7 +15,7 @@ import { CHORE_CHECK_OWNER_HEADER } from "@/lib/chore-check-command-shared";
 const renew = jest.mocked(renewChoreCheckOwner); const read = jest.mocked(readCanonicalChoreDetail);
 const owner = { userId: "parent-a", familyId: FAMILY_A, role: "parent", generation: 0 };
 const request = () => req({ as: "parentA", query: { choreId: "chore-a" }, headers: { [CHORE_CHECK_OWNER_HEADER]: JSON.stringify(owner) } });
-beforeEach(() => { db.reset(); renew.mockReset().mockResolvedValue(true); read.mockReset().mockResolvedValue(nextServerMock.NextResponse.json({ chore: { id: "chore-a", family_id: FAMILY_A, title: "Private fixture", status: "completed", responsibility_generation: "5b58743a-1f01-40fe-adb1-4628148495cb", responsibility_epoch: 2, preparation_epoch: 7 } })); });
+beforeEach(() => { db.reset(); renew.mockReset().mockResolvedValue(true); read.mockReset().mockResolvedValue(nextServerMock.NextResponse.json({ chore: { id: "chore-a", family_id: FAMILY_A, title: "Private fixture", status: "completed", responsibility_generation: "5b58743a-1f01-40fe-adb1-4628148495cb", responsibility_epoch: 2, preparation_epoch: 7 } }) as unknown as import("next/server").NextResponse); });
 it("returns matching owner and original canonical version with a private response", async () => {
   const result = await GET(request()); expect(result.status).toBe(200);
   expect(await result.json()).toMatchObject({ owner, version: { materialEpoch: 2, completionEpoch: 7 } });

@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("@/lib/idempotency-request-json", () => ({
   ...jest.requireActual("@/lib/idempotency-request-json"),

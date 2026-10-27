@@ -117,13 +117,13 @@ export function FoodPlanSummary({
               {choice.servings} {text("servings")} ·{" "}
               {choice.totalMinutes === null
                 ? text("timeUnknown")
-                : `${choice.totalMinutes} min`}
+                : `${choice.totalMinutes} ${text("minutesShort")}`}
             </p>
             {choice.totalMinutes === null &&
               choice.authoredMinutes !== null && (
                 <p className="text-subhead text-label-secondary">
                   {text("recordedTime")}
-                  : {choice.authoredMinutes} min / {choice.baseServings}{" "}
+                  : {choice.authoredMinutes} {text("minutesShort")} / {choice.baseServings}{" "}
                   {text("scalingTime")}
                 </p>
               )}
@@ -220,7 +220,7 @@ export function FoodPlanSummary({
           :{" "}
           {plan.prepMinutes === null
             ? text("unknownPrep")
-            : `${plan.prepMinutes} min`}
+            : `${plan.prepMinutes} ${text("minutesShort")}`}
           .{" "}
           {plan.prepTime === "over-requested-limit" &&
             text("prepLimit")}{" "}

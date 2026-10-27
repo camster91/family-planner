@@ -498,5 +498,25 @@
     "file": "src/components/inventory/BarcodeFoodDialog.tsx",
     "text": "UPC-E ·",
     "count": 1
+  },
+  {
+    "file": "src/components/device/ElevationSheet.tsx",
+    "text": "0",
+    "count": 1
+  },
+  {
+    "file": "src/components/device/PairScreen.tsx",
+    "text": "ABCD-2345",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/CommandPalette.tsx",
+    "text": "esc",
+    "count": 1
+  },
+  {
+    "file": "src/components/layout/CommandPalette.tsx",
+    "text": "⌘K",
+    "count": 1
   }
 ]

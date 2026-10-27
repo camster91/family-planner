@@ -298,7 +298,7 @@ it("subscription rename draft and late refresh counts follow locale with private
     color: "#2563eb",
     url_hint: "synthetic.example.test",
     last_fetched_at: null,
-    last_status: "never",
+    last_status: "pending",
     last_error: null,
   };
   const calls = api(undefined, (url, init) => {
@@ -353,10 +353,14 @@ it("subscription rename draft and late refresh counts follow locale with private
   expect(
     screen.getByText("Refreshed: 2 new, 3 changed, 1 removed."),
   ).toBeVisible();
-  expect(calls.filter((x) => x.init?.method === "POST")).toEqual([
+  expect(
+    calls
+      .filter((x) => x.init?.method === "POST")
+      .map((x) => ({ url: x.url, method: x.init?.method })),
+  ).toEqual([
     {
       url: "/api/calendar/subscriptions/synthetic-sub/refresh",
-      init: { method: "POST" },
+      method: "POST",
     },
   ]);
   expect(calls).toHaveLength(before);

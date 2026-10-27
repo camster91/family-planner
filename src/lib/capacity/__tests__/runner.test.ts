@@ -6,7 +6,7 @@ const env = { NODE_ENV: "test", FIXTURES_ALLOW: "1", CAPACITY_ALLOW: "local-fabr
 function setup() {
   const action = jest.fn(async () => ({ outcome: "confirmed" as const, requests: 1, responseBytes: 0 }));
   return { plan: capacityPlan({ stage: "reference", profile: "ordinary" }), sourceCommit: "a".repeat(40), env,
-    adapters: Object.fromEntries(CAPACITY_SCENARIOS.map(({ name }) => [name, action])) as CapacityAdapters,
+    adapters: Object.fromEntries(CAPACITY_SCENARIOS.map(({ name }) => [name, action])) as unknown as CapacityAdapters,
     reconcile: jest.fn(async () => true), resourceLimitReached: jest.fn(async () => false), action };
 }
 afterEach(() => jest.useRealTimers());

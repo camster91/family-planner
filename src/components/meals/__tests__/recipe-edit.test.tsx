@@ -602,17 +602,17 @@ it.each(['absent', 'throws'] as const)('masks its own private fields when the ow
   expect(json).not.toHaveBeenCalled();
 });
 
-it('does not forward the old recipe draft to a new owner callback after a prop change', async () => {
-  const originalDraft = jest.fn();
-  const newDraft = jest.fn();
+it('does not expose the old recipe editor after an owner prop change', async () => {
+  const originalHold = jest.fn();
+  const newHold = jest.fn();
   global.fetch = jest.fn() as typeof fetch;
   const view = render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
-    onDraftChange={originalDraft} onCancel={jest.fn()} />);
-  expect(originalDraft).toHaveBeenCalled();
+    onOwnerHold={originalHold} onCancel={jest.fn()} />);
+  expect(originalHold).not.toHaveBeenCalled();
   view.rerender(<RecipeEditor initialRecipe={RECIPE}
-    expectedRecipeOwner={{ ...originalOwner, familyId:'family-b' }} onDraftChange={newDraft} onCancel={jest.fn()} />);
+    expectedRecipeOwner={{ ...originalOwner, familyId:'family-b' }} onOwnerHold={newHold} onCancel={jest.fn()} />);
   await screen.findByRole('button', { name:'Reload' });
   expect(screen.queryByLabelText('Recipe name')).toBeNull();
-  expect(newDraft).not.toHaveBeenCalled();
+  expect(newHold).toHaveBeenCalledTimes(1);
   expect(global.fetch).not.toHaveBeenCalled();
 });

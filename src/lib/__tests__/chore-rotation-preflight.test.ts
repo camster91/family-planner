@@ -120,7 +120,10 @@ function pagedRemovalTx(lastReplacement = 'user-a') {
     .sort((a,b) => a.id.localeCompare(b.id)).slice(0,args.take)
     .map(row => ({ ...row, rotation_member_ids:[...row.rotation_member_ids] })));
   const update = jest.fn(async (args: any) => {
-    firstWriteReadCount ??= findMany.mock.calls.length;
+    // The current write starts immediately after its own second-pass page
+    // read. Record reads completed before that write, not the page currently
+    // being consumed by the effect pass.
+    firstWriteReadCount ??= findMany.mock.calls.length - 1;
     Object.assign(roots.find(row => row.id === args.where.id)!, args.data);
     return {};
   });

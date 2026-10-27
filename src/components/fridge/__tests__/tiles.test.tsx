@@ -164,7 +164,7 @@ afterEach(() => {
 });
 
 describe('tile sections keep clear destinations (no "Open …" buttons)', () => {
-  it("keeps section links and the combined Next up heading readable", async () => {
+  it("keeps section links and the Today/Chores headings readable", async () => {
     await renderBoard();
     expect(
       screen.queryByRole("link", {
@@ -186,12 +186,12 @@ describe('tile sections keep clear destinations (no "Open …" buttons)', () => 
     ).toHaveAttribute("href", "/dashboard/lists");
     expect(
       within(screen.getByTestId("region-today")).getByRole("heading", {
-        name: "Next up",
+        name: /Today\s*, open calendar/,
       }),
     ).toBeTruthy();
     expect(
       within(screen.getByTestId("region-today")).getByRole("link", {
-        name: "Calendar",
+        name: /Today\s*, open calendar/,
       }),
     ).toHaveAttribute("href", "/dashboard/calendar");
     expect(

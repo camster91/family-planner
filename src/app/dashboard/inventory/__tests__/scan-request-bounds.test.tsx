@@ -22,7 +22,7 @@ it("releases a scan stalled in its response body and ignores late suggestions", 
   await act(async () => { await Promise.resolve(); });
   await act(async () => { jest.advanceTimersByTime(60000); });
   expect(screen.queryByTestId("scan-loading")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Try another photo" })).toBeEnabled();
   await act(async () => { finish({ items: [{ name: "Late beans", amount: 1, unit: null, location: "pantry", confidence: 0.9 }] }); });
   expect(screen.queryByTestId("scan-add")).not.toBeInTheDocument();
   expect(mockIntake).not.toHaveBeenCalled();
@@ -33,7 +33,7 @@ it("does not upload after late image preparation beyond the foreground deadline"
   global.fetch = jest.fn(); open(); pick();
   await act(async () => { await Promise.resolve(); });
   await act(async () => { jest.advanceTimersByTime(60000); });
-  expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Try another photo" })).toBeEnabled();
   const close = jest.fn();
   await act(async () => { finish({ width: 10, height: 10, close }); });
   expect(close).toHaveBeenCalled(); expect(fetch).not.toHaveBeenCalled();
@@ -51,6 +51,6 @@ it("rejects oversized response declarations without decoding suggestions", async
   global.fetch = jest.fn(async () => ({ ok: true, status: 200, headers: { get: () => "300000" }, json })) as unknown as typeof fetch;
   open(); pick(); await act(async () => { await Promise.resolve(); });
   expect(screen.queryByTestId("scan-add")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Try another photo" })).toBeEnabled();
   expect(json).not.toHaveBeenCalled();
 });

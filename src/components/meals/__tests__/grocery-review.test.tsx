@@ -535,7 +535,13 @@ it("starts a fresh reviewed payload and key after a definite response and honors
     ok: true,
     status: 200,
     headers: new Headers(),
-    json: async () => (init?.method === "POST" ? result : multi),
+    json: async () => {
+      if (init?.method !== "POST") return multi;
+      const body = JSON.parse(String(init?.body)) as { listId?: string };
+      return body.listId === "list-b"
+        ? { ...result, listId: "list-b", listName: "Weekend groceries" }
+        : result;
+    },
   }));
   render(<AddToGroceriesButton recipeId="recipe-a" />);
   for (const destination of ["list-a", "list-b"]) {

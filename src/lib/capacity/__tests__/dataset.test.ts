@@ -182,7 +182,8 @@ it.each(["ordinary", "calendar", "food", "history"] as const)("constructs %s pro
         if (project.status === "completed") expect(entry.row.completed).toBe(true);
         missingDate ||= entry.row.due_date === null;
         const createdAt = entry.row.created_at instanceof Date ? entry.row.created_at.toISOString() : String(entry.row.created_at);
-        if (last?.projectId === entry.row.project_id && last.position === entry.row.position && last.createdAt === createdAt) tied = true;
+        const previous = last as { projectId: string; position: number | undefined; createdAt: string } | null;
+        if (previous !== null && previous.projectId === entry.row.project_id && previous.position === entry.row.position && previous.createdAt === createdAt) tied = true;
         last = { projectId: entry.row.project_id, position: entry.row.position, createdAt };
       }
     }

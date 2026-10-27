@@ -15,129 +15,136 @@ const dateValue = z
     return date;
   });
 
-export const choreChampsExportSchema = z.object({
-  version: z.string().min(1),
-  family: z.object({ id: z.string().min(1), name: z.string().min(1) }),
-  kids: z.array(z.object({ id: z.string().min(1), name: z.string().min(1) })),
-  chores: z.array(
-    z.object({
-      id: z.string().min(1),
-      title: z.string().min(1),
-      description: z.string().nullish(),
-      basePoints: z.number().int().nonnegative().default(5),
-      difficulty: z.string().default("EASY"),
-      recurring: z.string().nullish(),
-      isActive: z.boolean().default(true),
-      createdAt: dateValue,
-    }),
-  ),
-  assignments: z.array(
-    z.object({
-      id: z.string().min(1),
-      choreId: z.string().min(1),
-      kidId: z.string().min(1),
-      dueDate: dateValue,
-      status: z.string().default("PENDING"),
-      completedAt: dateValue.nullish(),
-      createdAt: dateValue,
-    }),
-  ),
-  habits: z
-    .array(
+export const choreChampsExportSchema = z
+  .object({
+    version: z.string().min(1),
+    family: z.object({ id: z.string().min(1), name: z.string().min(1) }),
+    kids: z.array(z.object({ id: z.string().min(1), name: z.string().min(1) })),
+    chores: z.array(
       z.object({
         id: z.string().min(1),
         title: z.string().min(1),
         description: z.string().nullish(),
-        icon: z.string().nullish(),
-        points: z.number().int().nonnegative().default(5),
+        basePoints: z.number().int().nonnegative().default(5),
+        difficulty: z.string().default("EASY"),
+        recurring: z.string().nullish(),
         isActive: z.boolean().default(true),
         createdAt: dateValue,
       }),
-    )
-    .default([]),
-  habitLogs: z
-    .array(
+    ),
+    assignments: z.array(
       z.object({
         id: z.string().min(1),
-        habitId: z.string().min(1),
+        choreId: z.string().min(1),
         kidId: z.string().min(1),
-        loggedDate: dateValue,
-        loggedAt: dateValue,
-      }),
-    )
-    .default([]),
-  rewards: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        title: z.string().min(1),
-        description: z.string().nullish(),
-        cost: z.number().int().nonnegative(),
-        icon: z.string().nullish(),
-        isActive: z.boolean().default(true),
+        dueDate: dateValue,
+        status: z.string().default("PENDING"),
+        completedAt: dateValue.nullish(),
         createdAt: dateValue,
       }),
-    )
-    .default([]),
-  redemptions: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        rewardId: z.string().min(1),
-        kidId: z.string().min(1),
-        points: z.number().int().nonnegative(),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  familyGoals: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        title: z.string().min(1),
-        description: z.string().nullish(),
-        targetPoints: z.number().int().positive(),
-        currentPoints: z.number().int().nonnegative(),
-        reward: z.string().nullish(),
-        isActive: z.boolean().default(true),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  badges: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        name: z.string().min(1),
-        description: z.string(),
-        icon: z.string(),
-        requirement: z.string(),
-        createdAt: dateValue,
-      }),
-    )
-    .default([]),
-  earnedBadges: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        badgeId: z.string().min(1),
-        kidId: z.string().min(1),
-        earnedAt: dateValue,
-      }),
-    )
-    .default([]),
-}).superRefine((source, context) => rejectDuplicateSourceIds({
-  kids: source.kids,
-  chores: source.chores,
-  assignments: source.assignments,
-  habits: source.habits,
-  habitLogs: source.habitLogs,
-  rewards: source.rewards,
-  redemptions: source.redemptions,
-  familyGoals: source.familyGoals,
-  badges: source.badges,
-  earnedBadges: source.earnedBadges,
-}, context));
+    ),
+    habits: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          title: z.string().min(1),
+          description: z.string().nullish(),
+          icon: z.string().nullish(),
+          points: z.number().int().nonnegative().default(5),
+          isActive: z.boolean().default(true),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    habitLogs: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          habitId: z.string().min(1),
+          kidId: z.string().min(1),
+          loggedDate: dateValue,
+          loggedAt: dateValue,
+        }),
+      )
+      .default([]),
+    rewards: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          title: z.string().min(1),
+          description: z.string().nullish(),
+          cost: z.number().int().nonnegative(),
+          icon: z.string().nullish(),
+          isActive: z.boolean().default(true),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    redemptions: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          rewardId: z.string().min(1),
+          kidId: z.string().min(1),
+          points: z.number().int().nonnegative(),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    familyGoals: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          title: z.string().min(1),
+          description: z.string().nullish(),
+          targetPoints: z.number().int().positive(),
+          currentPoints: z.number().int().nonnegative(),
+          reward: z.string().nullish(),
+          isActive: z.boolean().default(true),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    badges: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          description: z.string(),
+          icon: z.string(),
+          requirement: z.string(),
+          createdAt: dateValue,
+        }),
+      )
+      .default([]),
+    earnedBadges: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          badgeId: z.string().min(1),
+          kidId: z.string().min(1),
+          earnedAt: dateValue,
+        }),
+      )
+      .default([]),
+  })
+  .superRefine((source, context) =>
+    rejectDuplicateSourceIds(
+      {
+        kids: source.kids,
+        chores: source.chores,
+        assignments: source.assignments,
+        habits: source.habits,
+        habitLogs: source.habitLogs,
+        rewards: source.rewards,
+        redemptions: source.redemptions,
+        familyGoals: source.familyGoals,
+        badges: source.badges,
+        earnedBadges: source.earnedBadges,
+      },
+      context,
+    ),
+  );
 
 export type ChoreChampsExport = z.input<typeof choreChampsExportSchema>;
 

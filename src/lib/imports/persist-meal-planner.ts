@@ -24,7 +24,11 @@
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { lockImportAuthorityInTx, startImportJob, recordImportFailure } from "./import-authority";
+import {
+  lockImportAuthorityInTx,
+  startImportJob,
+  recordImportFailure,
+} from "./import-authority";
 import {
   IMPORTED_LIST_DESCRIPTION,
   cleanContent,
@@ -106,7 +110,12 @@ export async function importMealPlanner(
     sessionVersion: options.sessionVersion,
     mappedUserIds: Object.values(options.sourceUserToTargetUser),
   };
-  const job = await startImportJob(prisma, authority, SOURCE_APP, plan.sourceVersion);
+  const job = await startImportJob(
+    prisma,
+    authority,
+    SOURCE_APP,
+    plan.sourceVersion,
+  );
   try {
     await prisma.$transaction(
       async (tx) => {

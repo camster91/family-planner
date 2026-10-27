@@ -29,6 +29,24 @@ function json(status: number, data: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => data } as unknown as Response
 }
 
+function responseWithJson(
+  status: number,
+  headers: HeadersInit,
+  decode: () => Promise<unknown>,
+) {
+  // jsdom does not expose a native Response and importing undici at module
+  // scope requires a ReadableStream that this Jest environment deliberately
+  // does not install. Keep the transport shape real at the boundary while
+  // using jsdom's native Headers implementation for the bounded-reader path.
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(headers),
+    body: null,
+    json: decode,
+  } as unknown as Response
+}
+
 /** `eventStatus(title)` decides each POST /api/events answer. */
 function mockFetch(eventStatus: (title: string) => number) {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -760,6 +778,7 @@ it('retires a typed preview after a committed-but-removed receipt', async () => 
 })
 
 it('retires an absent typed preview without clearing a newer preview', async () => {
+  const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true)
   let previewPosts = 0
   let eventPosts = 0
   global.fetch = jest.fn(async (url, init) => {
@@ -806,6 +825,7 @@ it('retires an absent typed preview without clearing a newer preview', async () 
   expect(screen.getByRole('button', { name: 'Add it' })).toBeTruthy()
   expect(previewPosts).toBe(2)
   expect(eventPosts).toBe(1)
+  confirm.mockRestore()
 })
 
 it('removes only the terminal photo row and preserves other unresolved proposals', async () => {
@@ -1159,6 +1179,7 @@ it('keeps a logical refusal when forbidden-role recovery purge cannot be confirm
 
 // Authored/unrun: a replacement parse failure must not erase the reviewed draft.
 it('keeps the existing typed draft when a later extraction is malformed', async () => {
+  const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true)
   mockFetch(() => 201)
   const baseFetch = global.fetch
   let previews = 0
@@ -1181,6 +1202,7 @@ it('keeps the existing typed draft when a later extraction is malformed', async 
   await screen.findByText(captureEnglish.couldNotRead)
   expect(screen.getByText('Dentist')).toBeVisible()
   expect((global.fetch as jest.Mock).mock.calls.some(([url]) => String(url) === '/api/events')).toBe(false)
+  confirm.mockRestore()
 })
 
 // Authored only; execution remains in the consolidated QA pass.
@@ -1256,9 +1278,10 @@ describe('bounded saved-capture status checks', () => {
   it('refuses a declared oversized receipt before decoding without discarding recovery', async () => {
     const { key, storageKey } = seedReceipt();
     const decode = jest.fn(async () => ({ state: 'committed', current: 'present' }));
+    const oversized = responseWithJson(200, { 'content-length': String(32 * 1024 + 1) }, decode);
     global.fetch = jest.fn(async url => String(url) === '/api/capture'
       ? json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
-      : { ok: true, status: 200, headers: new Headers({ 'content-length': String(32 * 1024 + 1) }), json: decode } as Response) as typeof fetch;
+      : oversized) as typeof fetch;
     render(<CaptureBox />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Check status for Dentist' }));
@@ -1355,8 +1378,9 @@ it('refuses an oversized initial write reply before decoding and leaves recovery
   const add = await screen.findByRole('button', { name: 'Add it' });
   const initialFetch = global.fetch;
   const decode = jest.fn(async () => ({ event: { id: 'not-confirmed' } }));
+  const oversized = responseWithJson(201, { 'content-length': String(256 * 1024 + 1) }, decode);
   global.fetch = jest.fn(async (url, init) => String(url) === '/api/events'
-    ? { ok: true, status: 201, headers: new Headers({ 'content-length': String(256 * 1024 + 1) }), json: decode } as Response
+    ? oversized
     : initialFetch(url, init)) as typeof fetch;
   await user.click(add);
   await screen.findByText(captureEnglish.uncertainSave);

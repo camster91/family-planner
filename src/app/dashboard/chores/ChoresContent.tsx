@@ -32,6 +32,7 @@ import { useToast, useUndoToast } from "@/components/ui/toast";
 import {
   checkChore,
   setChoreDone,
+  type ChoreTickResult,
   type CheckedChoreState,
 } from "@/lib/chore-tick-client";
 import { LongPressRow } from "@/components/ui/long-press-row";
@@ -579,7 +580,9 @@ export default function ChoresContent({
           title: target || focused ? overviewText("doneTitle", { title: (target ?? focused)!.title }) : overviewText("choreDone"),
           onUndo: async () => {
             if (!current()) return;
-            const undo = await runOwnedForeground(() => current() ? setChoreDone(choreId, false) : Promise.resolve({ kind: "unknown" as const }));
+            const undo = await runOwnedForeground<ChoreTickResult>(() => current()
+              ? setChoreDone(choreId, false)
+              : Promise.resolve({ ok: false, message: overviewText("completeUnconfirmed") }));
             if (!current()) return;
             if ("kind" in undo) {
               if (focusTargetRef.current?.id === choreId) setFocusNeedsRefresh(true);

@@ -98,9 +98,16 @@ export async function applyRotationEditInTx(
   // names) keeps that person too: the new order never undoes a hand pick.
   const oldRotation = template.rotation_member_ids ?? []
   const pending: Array<{ id: string; assigned_to: string | null; assigned_member_id: string | null; rotation_index: number | null }> = []
+  type RotationCandidate = {
+    id: string
+    assigned_to: string | null
+    assigned_member_id: string | null
+    rotation_index: number | null
+    due_date: Date
+  }
   let after: { day: Date; id: string } | null = null
   for (;;) {
-    const batch = await tx.chore.findMany({
+    const batch: RotationCandidate[] = await tx.chore.findMany({
       where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending',
         ...(after ? { OR: [{ due_date: { gt: after.day } }, { due_date: after.day, id: { gt: after.id } }] } : {}) },
       orderBy: [{ due_date: 'asc' }, { id: 'asc' }], take: 500,

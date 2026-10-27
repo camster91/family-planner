@@ -76,6 +76,17 @@ const stack = {
   },
 };
 
+const draft = {
+  scope: "occurrence",
+  family_id: "family-a",
+  stack_id: "stack-a",
+  occurrence_date: "2026-10-11",
+  label: "Morning",
+  steps: [],
+  remove_chore_ids: [],
+  expected_fingerprint: "fingerprint-a",
+};
+
 function request(
   url: string,
   body?: unknown,
@@ -228,17 +239,6 @@ describe("/api/chores/stacks authorization and scope", () => {
 });
 
 describe("POST /api/chores/stacks", () => {
-  const draft = {
-    scope: "occurrence",
-    family_id: "family-a",
-    stack_id: "stack-a",
-    occurrence_date: "2026-10-11",
-    label: "Morning",
-    steps: [],
-    remove_chore_ids: [],
-    expected_fingerprint: "fingerprint-a",
-  };
-
   it("requires a keyed parent mutation", async () => {
     jest.mocked(readIdempotencyKey).mockReturnValueOnce({
       key: null,

@@ -1,6 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { lockImportAuthorityInTx, startImportJob, recordImportFailure } from "./import-authority";
+import {
+  lockImportAuthorityInTx,
+  startImportJob,
+  recordImportFailure,
+} from "./import-authority";
 import { planBudgetAppImport, type BudgetAppImportPlan } from "./budget-app";
 
 const SOURCE_APP = "budget-app";
@@ -39,7 +43,12 @@ export async function importBudgetApp(
     startedBy: options.startedBy,
     sessionVersion: options.sessionVersion,
   };
-  const job = await startImportJob(prisma, authority, SOURCE_APP, plan.sourceVersion);
+  const job = await startImportJob(
+    prisma,
+    authority,
+    SOURCE_APP,
+    plan.sourceVersion,
+  );
   try {
     await prisma.$transaction(
       async (tx) => {

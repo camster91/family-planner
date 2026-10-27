@@ -77,7 +77,7 @@ describe("recipe library pages", () => {
 it("rejects a changed library owner before decoding private recipe data", async () => {
   const { readRecipeLibraryPage, RecipeLibraryOwnerChanged } = await import("../recipe-library-client");
   const json = jest.fn();
-  const transport = jest.fn(async (_path: string, _init?: RequestInit) => ({ ok: true, status: 200, headers: new Headers({
+  const transport = jest.fn(async (_path: RequestInfo | URL, _init?: RequestInit) => ({ ok: true, status: 200, headers: new Headers({
     "X-Herewoven-Recipe-Owner": JSON.stringify({ ...libraryOwner, familyId: "family-b" }),
   }), json }) as unknown as Response);
   await expect(readRecipeLibraryPage("", 100, new AbortController().signal, transport, libraryOwner))

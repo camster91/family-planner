@@ -115,7 +115,10 @@ describe('source: no chore route writes a completion or reopen itself', () => {
     ['chores/route.ts', []],
     ['chores/complete/route.ts', ['completeChore']],
     ['chores/uncomplete/route.ts', ['reopenCompletedChoreInTx']],
-    ['chores/verify/route.ts', ['reopenCompletedChoreInTx']],
+    // The verify endpoint now delegates to the shared check handler; the
+    // reject transition remains owned by that handler rather than this thin
+    // route wrapper.
+    ['chores/verify/route.ts', ['handleChoreCheckRequest']],
     ['device/chores/[id]/complete/route.ts', ['completeChore']],
     ['device/chores/[id]/uncomplete/route.ts', ['reopenCompletedChoreInTx']],
   ])('%s', (file, helpers) => {

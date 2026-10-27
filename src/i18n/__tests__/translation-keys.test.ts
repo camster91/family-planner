@@ -10,6 +10,7 @@ import path from 'path'
 import { messages } from '@/i18n'
 import { emergencyMessages } from '@/i18n/emergency'
 import { routineScheduleMessages } from '@/i18n/routine-schedule'
+import { calendarPageMessages } from '@/i18n/calendar-page'
 
 const SRC = path.join(__dirname, '..', '..')
 // These components bind their bare t() to the typed routine translator.
@@ -83,6 +84,8 @@ describe('translation keys', () => {
         // Other files still resolve against the global dictionary.
         const routeMessage = file === 'app/dashboard/emergency/page.tsx'
           ? lookup(emergencyMessages.en, key)
+          : ['components/calendar/CalendarReadScope.tsx', 'components/calendar/EventNotificationFocus.tsx'].includes(file)
+            ? lookup(calendarPageMessages.en, key)
           : ROUTINE_SCOPED_FILES.has(file)
             ? lookup(routineScheduleMessages.en, key)
             : undefined
@@ -101,7 +104,7 @@ describe('translation keys', () => {
   })
 
   it('Spanish has the same keys as English', () => {
-    for (const catalog of [messages, emergencyMessages, routineScheduleMessages]) {
+    for (const catalog of [messages, emergencyMessages, routineScheduleMessages, calendarPageMessages]) {
       const en = leafKeys(catalog.en).sort()
       const es = leafKeys(catalog.es).sort()
       expect(es.filter((k) => !en.includes(k))).toEqual([])

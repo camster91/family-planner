@@ -21,7 +21,7 @@ it("retains exact bytes across a new controller and requires explicit reviewed s
   await first.initialize(); await first.stage(fixture.entry);
   const restored = fixture.make(); const entries = await restored.initialize();
   expect(entries[0]).toMatchObject({ ...fixture.entry, reviewRequired: true });
-  expect(noteIntentFromEntry(entries[0])).toEqual(fixture.intent);
+  expect(noteIntentFromEntry(entries[0])).toEqual({ ...fixture.intent, context: { userId: base.userId, familyId: base.familyId } });
   const send = jest.fn(async () => ({ kind: "unknown" }));
   await expect(restored.send(fixture.entry.key, false, send)).rejects.toMatchObject({ reason: "REVIEW_REQUIRED" });
   expect(send).not.toHaveBeenCalled();

@@ -18,5 +18,14 @@ export default async function ImportsSettingsPage() {
   if (!user) redirect("/login?redirect=/dashboard/settings/imports");
   if (!isParentRole(user.role)) redirect("/dashboard");
   if (!user.family_id) redirect("/dashboard");
-  return <ImportsClient owner={{ protocol: IMPORT_OWNER_PROTOCOL, actorId: user.id, familyId: user.family_id, generation: user.tokenVersion }} />;
+  return (
+    <ImportsClient
+      owner={{
+        protocol: IMPORT_OWNER_PROTOCOL,
+        actorId: user.id,
+        familyId: user.family_id,
+        generation: user.tokenVersion,
+      }}
+    />
+  );
 }

@@ -1,7 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { lockImportAuthorityInTx, startImportJob, recordImportFailure } from "./import-authority";
+import {
+  lockImportAuthorityInTx,
+  startImportJob,
+  recordImportFailure,
+} from "./import-authority";
 import { choreAssigneeForCreateInTx } from "@/lib/chore-member-subject";
+import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 import {
   planChoreChampsImport,
   type ChoreChampsImportPlan,
@@ -55,7 +60,12 @@ export async function importChoreChamps(
     sessionVersion: options.sessionVersion,
     mappedUserIds: Object.values(options.kidToUserId),
   };
-  const job = await startImportJob(prisma, authority, SOURCE_APP, plan.sourceVersion);
+  const job = await startImportJob(
+    prisma,
+    authority,
+    SOURCE_APP,
+    plan.sourceVersion,
+  );
   try {
     await prisma.$transaction(
       async (tx) => {

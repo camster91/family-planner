@@ -831,7 +831,9 @@ it("does not let a late Reports failure overwrite Report state", async () => {
   const user = userEvent.setup();
   let releaseReports!: (value: unknown) => void;
   global.fetch = jest.fn(async (path, options) => {
-    if (path === "/api/feedback" && !options?.method)
+    // The reports loader sends an explicit GET; keep that pending while the
+    // report form performs its independent POST.
+    if (path === "/api/feedback" && (!options?.method || options.method === "GET"))
       return new Promise((resolve) => {
         releaseReports = resolve;
       });
@@ -843,6 +845,7 @@ it("does not let a late Reports failure overwrite Report state", async () => {
   await user.click(screen.getByRole("button", { name: "AI assistant" }));
   const dialog = screen.getByRole("dialog");
   await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await waitFor(() => expect(releaseReports).toEqual(expect.any(Function)));
   await user.click(
     within(dialog).getByRole("button", { name: "Report / Suggest" }),
   );
@@ -1434,7 +1437,9 @@ it("fails closed for a noncanonical or overlong freshness lease", async () => {
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
     "Today context is unavailable right now.",
   );
-  expect(within(dialog).queryByRole("region")).toBeNull();
+  expect(
+    within(dialog).queryByRole("region", { name: "Review proposed action" }),
+  ).toBeNull();
 });
 
 it("expires a Today preview when the tab backgrounds before confirmation", async () => {
@@ -1596,7 +1601,9 @@ it("rejects a Today response that arrives after the request-start lease", async 
       "Today context is unavailable right now.",
     );
     expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
-    expect(within(dialog).queryByRole("region")).toBeNull();
+    expect(
+      within(dialog).queryByRole("region", { name: "Review proposed action" }),
+    ).toBeNull();
   } finally {
     performanceSpy.mockRestore();
   }

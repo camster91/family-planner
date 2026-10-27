@@ -64,11 +64,28 @@ function matches(row: Row, where: Record<string, unknown>): boolean {
 const chore = {
   findUnique: async ({ where }: { where: { id: string } }) =>
     rows.find((r) => r.id === where.id) ?? null,
-  findFirst: async ({ where, orderBy }: { where: Record<string, unknown>; orderBy?: Record<string, string> }) => {
+  findFirst: async ({ where, orderBy }: {
+    where: Record<string, unknown>
+    orderBy?: Record<string, string> | Array<Record<string, string>>
+  }) => {
     let found = rows.filter((r) => matches(r, where))
-    if (orderBy?.due_date === 'desc') {
-      found = found.sort((a, b) => b.due_date.getTime() - a.due_date.getTime())
-    }
+    // Prisma accepts both a single order object and a stable list of tie
+    // breakers. The production expander uses the latter so a far-future
+    // occurrence is selected even when dates are tied.
+    const ordering = Array.isArray(orderBy) ? orderBy : orderBy ? [orderBy] : []
+    found = found.sort((a, b) => {
+      for (const item of ordering) {
+        const key = Object.keys(item)[0]
+        const direction = item[key]
+        const compared = key === 'due_date'
+          ? a.due_date.getTime() - b.due_date.getTime()
+          : key === 'id'
+            ? a.id.localeCompare(b.id)
+            : 0
+        if (compared !== 0) return direction === 'desc' ? -compared : compared
+      }
+      return 0
+    })
     return found[0] ?? null
   },
   findMany: async ({ where }: { where: Record<string, unknown> }) =>

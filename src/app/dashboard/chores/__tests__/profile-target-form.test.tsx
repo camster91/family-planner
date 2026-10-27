@@ -12,6 +12,16 @@ jest.mock("next/navigation", () => ({
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
 }));
+// This suite exercises create-form payloads and retry recovery. The pending
+// navigation sentinel owns browser history while a request is in flight; a
+// JSDOM history traversal is not part of these form contracts and can leave a
+// fake-timer retry waiting on a popstate that JSDOM never emits.
+jest.mock("@/components/layout/pending-form-navigation", () => ({
+  usePendingFormNavigationController: () => ({
+    releaseBeforeNavigation: async () => true,
+  }),
+  usePendingFormNavigation: () => null,
+}));
 
 const calls: Array<{ url: string; init?: RequestInit }> = [];
 const profile = {

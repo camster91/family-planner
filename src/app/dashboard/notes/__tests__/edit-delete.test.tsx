@@ -34,6 +34,7 @@ jest.mock('@/components/providers/features-provider', () => ({
 
 let mockRecoveryAdopted = false
 let mockRecoveryRows: Array<{ kind: 'note-create'; key: string; body: string; issuedAt: number }> = []
+type MockRecoveryEntry = (typeof mockRecoveryRows)[number]
 let mockFailStage = false, mockFailDismiss = false, mockUncertainStorage = false
 const mockJournal = {
   initialize: jest.fn(async () => mockRecoveryRows),
@@ -47,7 +48,7 @@ const mockJournal = {
 }
 jest.mock('@/lib/note-create-recovery-browser', () => ({
   browserNoteRecovery: () => mockJournal,
-  noteIntentFromEntry: (entry) => { const body = JSON.parse(entry.body); return { key: entry.key, body: entry.body, issuedAt: entry.issuedAt,
+  noteIntentFromEntry: (entry: MockRecoveryEntry) => { const body = JSON.parse(entry.body); return { key: entry.key, body: entry.body, issuedAt: entry.issuedAt,
     context: { userId: body.expected_user_id, familyId: body.expected_family_id } } },
 }))
 

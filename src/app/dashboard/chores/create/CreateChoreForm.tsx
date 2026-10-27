@@ -956,7 +956,11 @@ export default function CreateChoreForm({
                   maxLength={80}
                   placeholder={review ? message("datePlaceholder") : undefined}
                   value={weeklyStart}
-                  min={todayKey ?? undefined}
+                  // Profile retries may intentionally reuse a reviewed weekly
+                  // start after midnight. Let submit-time policy distinguish
+                  // that frozen request from a new stale date; a native min
+                  // would block the retry before handleSubmit can inspect it.
+                  min={profileTargetId ? undefined : todayKey ?? undefined}
                   aria-describedby={`${fieldId}-weekly-start-help`}
                   onChange={(event) => {
                     markProfileDraftEdited();

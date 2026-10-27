@@ -230,7 +230,7 @@ export default function PairScreen() {
               )}
               <button type="submit" disabled={busy} className={primaryButtonClass}>
                 {busy && <Loader2 className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true" />}
-                Connect
+                {text("connect")}
               </button>
             </form>
           </>

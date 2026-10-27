@@ -29,6 +29,7 @@ import {
 import { idempotencyRuntime } from '@/lib/idempotency'
 
 const KEY = '33333333-3333-4333-8333-333333333333'
+const originalIdempotencyCreate = fakePrisma.idempotencyRecord.create
 
 function update(as: UserKey, body: Record<string, unknown>, key?: string) {
   return updateItem(req({ as, method: 'PATCH', body, headers: key ? { 'Idempotency-Key': key } : {} }))
@@ -40,6 +41,18 @@ describe('lists — ADR-0007 API changes', () => {
     mockGate.mockReset()
     mockGate.mockImplementation(async () => null)
     idempotencyRuntime.random = () => 0.99
+    // The production schema defaults an in-progress receipt's nullable
+    // response columns to NULL.  Normalize the shared legacy fixture so the
+    // canonical writer can distinguish an open receipt from a completed one.
+    jest.spyOn(fakePrisma.idempotencyRecord, 'create').mockImplementation(async (args: any) => {
+      const created = await originalIdempotencyCreate(args)
+      const record = db.find('idempotencyRecord', String(created.id))
+      if (record) {
+        record.response_status = null
+        record.response_body = null
+      }
+      return created
+    })
   })
 
   afterEach(() => jest.restoreAllMocks())

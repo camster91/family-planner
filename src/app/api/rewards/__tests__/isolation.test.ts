@@ -10,13 +10,54 @@ jest.mock("@/lib/notifications-server", () => require("@/__tests__/helpers/two-h
 import * as rewards from "../route";
 import { POST as claim } from "../claim/route";
 import { POST as approve } from "../approve/route";
-import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, fakePrisma, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+
+const originalRewardCreate = fakePrisma.reward.create;
+const REWARD_NULLABLE_FIELDS = ["claimed_by", "claimed_at", "approved_by", "approved_at", "redeemed_at", "notification_claim_id", "notification_approval_id"] as const;
+function normalizeRewardDefaults(row: Record<string, any>) {
+  for (const field of REWARD_NULLABLE_FIELDS) row[field] ??= null;
+}
+
+const REWARD_NOTIFICATION_ENV = [
+  "NOTIFICATION_EVENT_ADMISSION_ENABLED",
+  "REWARD_CREATE_NOTIFICATION_EVENTS_ENABLED",
+  "REWARD_CREATE_NOTIFICATION_DISPATCH_MS",
+  "REWARD_CLAIM_NOTIFICATION_EVENTS_ENABLED",
+  "REWARD_CLAIM_NOTIFICATION_DISPATCH_MS",
+  "REWARD_APPROVAL_NOTIFICATION_EVENTS_ENABLED",
+  "REWARD_APPROVAL_NOTIFICATION_DISPATCH_MS",
+] as const;
+let previousRewardNotificationEnv: Partial<Record<(typeof REWARD_NOTIFICATION_ENV)[number], string | undefined>>;
+
+// These tests cover the legacy reward routes. Keep the opt-in notification
+// event cohort disabled even when another suite leaves process flags behind.
+beforeEach(() => {
+  previousRewardNotificationEnv = Object.fromEntries(REWARD_NOTIFICATION_ENV.map(key => [key, process.env[key]]));
+  for (const key of REWARD_NOTIFICATION_ENV) process.env[key] = "0";
+});
+
+afterEach(() => {
+  fakePrisma.reward.create = originalRewardCreate;
+  for (const key of REWARD_NOTIFICATION_ENV) {
+    const value = previousRewardNotificationEnv[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 describe("rewards — two households", () => {
   beforeEach(() => {
     db.reset();
     db.find("family", "family-A")!.features = { gamification: true, rewards: true };
     db.find("family", "family-B")!.features = { gamification: true, rewards: true };
+    for (const row of db.rows("reward")) normalizeRewardDefaults(row);
+    fakePrisma.reward.create = async (args: unknown) => {
+      const created = await originalRewardCreate(args);
+      normalizeRewardDefaults(created);
+      const stored = db.find("reward", String(created.id));
+      if (stored) normalizeRewardDefaults(stored);
+      return created;
+    };
   });
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
@@ -66,7 +107,11 @@ describe("rewards — two households", () => {
 });
 
 describe('opt-in reward pages and exact target inspection (source only)', () => {
-  beforeEach(() => db.reset())
+  beforeEach(() => {
+    db.reset();
+    db.find("family", "family-A")!.features = { gamification: true, rewards: true };
+    db.find("family", "family-B")!.features = { gamification: true, rewards: true };
+  })
   it('traverses tied timestamps without duplicates and refuses a foreign household/filter cursor', async () => {
     const original = db.find('reward', 'reward-a')!
     for (const id of ['tie-a', 'tie-b', 'tie-c']) db.rows('reward').push({ ...original, id, created_at: new Date('2026-10-25T12:00:00Z') })

@@ -3,11 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { parseImportJson, ImportJsonError } from "@/lib/imports/import-json";
-import { IMPORT_OWNER_HEADER, importOwner, sameImportOwner, type ImportOwner } from "@/lib/imports/import-owner-contract";
+import {
+  IMPORT_OWNER_HEADER,
+  importOwner,
+  sameImportOwner,
+  type ImportOwner,
+} from "@/lib/imports/import-owner-contract";
 import { runOwnedForeground } from "@/lib/owned-request-http";
-import { abortable, readBoundedJsonResponse } from "@/lib/bounded-json-response";
-import { duplicateSourceRows, type DuplicateSourceRow } from "@/lib/imports/source-identity-validation";
-import { useImportSettingsText, type ImportSettingsError } from "@/i18n/import-settings";
+import {
+  abortable,
+  readBoundedJsonResponse,
+} from "@/lib/bounded-json-response";
+import {
+  duplicateSourceRows,
+  type DuplicateSourceRow,
+} from "@/lib/imports/source-identity-validation";
+import {
+  useImportSettingsText,
+  type ImportSettingsError,
+} from "@/i18n/import-settings";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -28,22 +42,39 @@ type Source = "chore-champs" | "meal-planner" | "budget-app";
 
 // Validate the response envelope before it can enable approval. Source plans
 // and diagnostic records remain literal; this does not certify reconciliation.
-const reviewSchema = z.object({
-  protocol: z.literal(1),
-  actorId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
-  familyId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
-}).strict();
-const resultSchema = z.object({
-  plan: z.record(z.string(), z.unknown()),
-  summary: z.object({
-    created: z.record(z.string(), z.number().int().nonnegative()),
-    reused: z.record(z.string(), z.number().int().nonnegative()),
-    skipped: z.array(z.object({ sourceModel: z.string(), sourceId: z.string(), reason: z.string() }).passthrough()),
-  }).passthrough(),
-  jobId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/).nullable(),
-  review: reviewSchema.optional(),
-  originalOwner: importOwner.optional(),
-}).passthrough();
+const reviewSchema = z
+  .object({
+    protocol: z.literal(1),
+    actorId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+    familyId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  })
+  .strict();
+const resultSchema = z
+  .object({
+    plan: z.record(z.string(), z.unknown()),
+    summary: z
+      .object({
+        created: z.record(z.string(), z.number().int().nonnegative()),
+        reused: z.record(z.string(), z.number().int().nonnegative()),
+        skipped: z.array(
+          z
+            .object({
+              sourceModel: z.string(),
+              sourceId: z.string(),
+              reason: z.string(),
+            })
+            .passthrough(),
+        ),
+      })
+      .passthrough(),
+    jobId: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/)
+      .nullable(),
+    review: reviewSchema.optional(),
+    originalOwner: importOwner.optional(),
+  })
+  .passthrough();
 function responseError(body: unknown): ImportSettingsError | null {
   if (!body || typeof body !== "object") return null;
   const value = body as { code?: unknown; error?: unknown };
@@ -53,30 +84,45 @@ function responseError(body: unknown): ImportSettingsError | null {
   if (value.code === "IMPORT_OWNER_REQUIRED") return "reviewUnsupported";
   if (value.code === "IMPORT_SCOPE_CHANGED") return "scopeChanged";
   if (value.code === "IMPORT_REVIEW_REQUIRED") return "previewRequired";
-  if (value.code === "SESSION_CHANGED" || value.error === "Unauthorized") return "sessionChanged";
+  if (value.code === "SESSION_CHANGED" || value.error === "Unauthorized")
+    return "sessionChanged";
   if (value.code === "IDENTITY_CONFLICT") return "identityChanged";
-  if (value.error === "Identity map contains users outside this family") return "foreignMapping";
+  if (value.error === "Identity map contains users outside this family")
+    return "foreignMapping";
   if (value.error === "Invalid source export") return "invalidExport";
   if (value.error === "Import payload exceeds 10 MB") return "payloadTooLarge";
   return null;
 }
 
-export default function ImportsClient({ owner: ownerInput = null }: { owner?: ImportOwner | null }) {
+export default function ImportsClient({
+  owner: ownerInput = null,
+}: {
+  owner?: ImportOwner | null;
+}) {
   const text = useImportSettingsText();
   const suppliedOwner = importOwner.safeParse(ownerInput);
-  const suppliedOwnerKey = suppliedOwner.success ? JSON.stringify(suppliedOwner.data) : null;
-  const boundOwner = useRef<ImportOwner | null>(suppliedOwner.success ? suppliedOwner.data : null).current;
+  const suppliedOwnerKey = suppliedOwner.success
+    ? JSON.stringify(suppliedOwner.data)
+    : null;
+  const boundOwner = useRef<ImportOwner | null>(
+    suppliedOwner.success ? suppliedOwner.data : null,
+  ).current;
   const boundOwnerKey = boundOwner ? JSON.stringify(boundOwner) : null;
   const ownerChanged = suppliedOwnerKey !== boundOwnerKey;
-  const [authorityHold, setAuthorityHold] = useState<'scopeChanged' | 'sessionChanged' | 'reviewUnsupported' | null>(null);
-  const backendUnavailable = !boundOwner || authorityHold === 'reviewUnsupported';
+  const [authorityHold, setAuthorityHold] = useState<
+    "scopeChanged" | "sessionChanged" | "reviewUnsupported" | null
+  >(null);
+  const backendUnavailable =
+    !boundOwner || authorityHold === "reviewUnsupported";
   const [source, setSource] = useState<Source>("chore-champs");
   const [fileData, setFileData] = useState<unknown>(null);
   const [fileName, setFileName] = useState("");
   const [identityMap, setIdentityMap] = useState("{}");
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<ImportSettingsError | null>(null);
-  const [sourceDuplicates, setSourceDuplicates] = useState<DuplicateSourceRow[]>([]);
+  const [sourceDuplicates, setSourceDuplicates] = useState<
+    DuplicateSourceRow[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [writing, setWriting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -92,16 +138,23 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
   const activeRequest = useRef<AbortController | null>(null);
   const reloadControl = useRef<HTMLButtonElement | null>(null);
   const fileReading = useRef(false);
-  const reviewed = useRef<{ version: number; source: Source; body: string } | null>(null);
-  useEffect(() => () => {
-    fileRequest.current++;
-    activeFileRead.current?.abort();
-    activeFileRead.current = null;
-    operation.current++;
-    activeRequest.current?.abort();
-    activeRequest.current = null;
-    reviewed.current = null;
-  }, []);
+  const reviewed = useRef<{
+    version: number;
+    source: Source;
+    body: string;
+  } | null>(null);
+  useEffect(
+    () => () => {
+      fileRequest.current++;
+      activeFileRead.current?.abort();
+      activeFileRead.current = null;
+      operation.current++;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+      reviewed.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!ownerChanged) return;
@@ -115,12 +168,21 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
     reviewed.current = null;
     pending.current = false;
     fileReading.current = false;
-    setPreviewReady(false); setConfirmed(false); setResult(null);
-    setLoading(false); setReading(false); setAuthorityHold('scopeChanged');
+    setPreviewReady(false);
+    setConfirmed(false);
+    setResult(null);
+    setLoading(false);
+    setReading(false);
+    setAuthorityHold("scopeChanged");
   }, [ownerChanged]);
 
   useEffect(() => {
-    if ((ownerChanged || authorityHold === 'scopeChanged' || authorityHold === 'sessionChanged') && document.activeElement === document.body)
+    if (
+      (ownerChanged ||
+        authorityHold === "scopeChanged" ||
+        authorityHold === "sessionChanged") &&
+      document.activeElement === document.body
+    )
       reloadControl.current?.focus();
   }, [ownerChanged, authorityHold]);
 
@@ -153,19 +215,26 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
         if (fileInput.current) fileInput.current.value = "";
         return;
       }
-      const contents = await runOwnedForeground(signal => abortable(file.text(), signal), {
-        signal: controller.signal, timeoutMs: IMPORT_FILE_TIMEOUT_MS,
-      });
+      const contents = await runOwnedForeground(
+        (signal) => abortable(file.text(), signal),
+        {
+          signal: controller.signal,
+          timeoutMs: IMPORT_FILE_TIMEOUT_MS,
+        },
+      );
       if (request !== fileRequest.current) return;
-      if (typeof contents !== 'string') {
-        setError('fileUnreadable');
+      if (typeof contents !== "string") {
+        setError("fileUnreadable");
         if (fileInput.current) fileInput.current.value = "";
         return;
       }
       // Metadata can be incomplete on bridges; refuse decoded overflow BEFORE
       // JSON.parse. A text-only bridge has already allocated the source string.
-      if (contents.length > IMPORT_FILE_BYTES || new Blob([contents]).size > IMPORT_FILE_BYTES) {
-        setError('fileTooLarge');
+      if (
+        contents.length > IMPORT_FILE_BYTES ||
+        new Blob([contents]).size > IMPORT_FILE_BYTES
+      ) {
+        setError("fileTooLarge");
         if (fileInput.current) fileInput.current.value = "";
         return;
       }
@@ -174,7 +243,15 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
       setFileName(file.name);
     } catch (error) {
       if (request === fileRequest.current) {
-        setError(error instanceof ImportJsonError ? error.code === "DUPLICATE_KEY" ? "duplicateJson" : error.code === "DEPTH_LIMIT" ? "jsonTooDeep" : "fileTooLarge" : "fileUnreadable");
+        setError(
+          error instanceof ImportJsonError
+            ? error.code === "DUPLICATE_KEY"
+              ? "duplicateJson"
+              : error.code === "DEPTH_LIMIT"
+                ? "jsonTooDeep"
+                : "fileTooLarge"
+            : "fileUnreadable",
+        );
         if (fileInput.current) fileInput.current.value = "";
       }
     } finally {
@@ -187,7 +264,12 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
   };
 
   const runImport = async (dryRun: boolean) => {
-    if (pending.current || fileReading.current || inputVersion !== revision.current) return;
+    if (
+      pending.current ||
+      fileReading.current ||
+      inputVersion !== revision.current
+    )
+      return;
     if (!boundOwner || ownerChanged || authorityHold) return;
     setSourceDuplicates([]);
     if (!fileData) return setError("fileRequired");
@@ -196,19 +278,47 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
     const version = revision.current;
     if (dryRun) {
       let parsedMap: unknown;
-      try { parsedMap = parseImportJson(identityMap); }
-      catch (error) { return setError(error instanceof ImportJsonError ? error.code === 'DUPLICATE_KEY' ? 'mappingDuplicateKeys' : error.code === 'DEPTH_LIMIT' ? 'jsonTooDeep' : 'payloadTooLarge' : 'mappingInvalid'); }
-      if (!parsedMap || Array.isArray(parsedMap) || typeof parsedMap !== "object" ||
-        !Object.values(parsedMap).every(value => typeof value === "string" && value.length > 0))
+      try {
+        parsedMap = parseImportJson(identityMap);
+      } catch (error) {
+        return setError(
+          error instanceof ImportJsonError
+            ? error.code === "DUPLICATE_KEY"
+              ? "mappingDuplicateKeys"
+              : error.code === "DEPTH_LIMIT"
+                ? "jsonTooDeep"
+                : "payloadTooLarge"
+            : "mappingInvalid",
+        );
+      }
+      if (
+        !parsedMap ||
+        Array.isArray(parsedMap) ||
+        typeof parsedMap !== "object" ||
+        !Object.values(parsedMap).every(
+          (value) => typeof value === "string" && value.length > 0,
+        )
+      )
         return setError("mappingObject");
-      body = JSON.stringify({ data: fileData, identityMap: parsedMap, dryRun: true, reviewProtocol: 1 });
+      body = JSON.stringify({
+        data: fileData,
+        identityMap: parsedMap,
+        dryRun: true,
+        reviewProtocol: 1,
+      });
       reviewed.current = null;
       setPreviewReady(false);
       setConfirmed(false);
       setResult(null);
     } else {
       const preview = reviewed.current;
-      if (!confirmed || !previewReady || !preview || preview.version !== version) return setError("previewRequired");
+      if (
+        !confirmed ||
+        !previewReady ||
+        !preview ||
+        preview.version !== version
+      )
+        return setError("previewRequired");
       selectedSource = preview.source;
       body = preview.body;
       // Every persistence attempt consumes local review, including an unknown
@@ -225,63 +335,140 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
     setWriting(!dryRun);
     setError(null);
     try {
-      const outcome = await runOwnedForeground(async signal => {
-        const response = await fetch(`/api/admin/imports/${selectedSource}/owned`, {
-          method: "POST", headers: { "Content-Type": "application/json", [IMPORT_OWNER_HEADER]: JSON.stringify(boundOwner) }, body,
-          signal, cache: "no-store", credentials: "same-origin",
-        });
-        if (response.status === 401 || response.status === 403) return { kind: 'reply' as const, response, value: { code: response.status === 401 ? 'SESSION_CHANGED' : 'IMPORT_SCOPE_CHANGED' } };
-        if (response.status === 404) return { kind: 'reply' as const, response, value: { code: 'IMPORT_OWNER_REQUIRED' } };
-        const value = await readBoundedJsonResponse(response, signal, IMPORT_RESPONSE_BYTES);
-        return { kind: 'reply' as const, response, value };
-      }, { signal: controller.signal, timeoutMs: dryRun ? IMPORT_PREVIEW_TIMEOUT_MS : IMPORT_WRITE_TIMEOUT_MS });
+      const outcome = await runOwnedForeground(
+        async (signal) => {
+          const response = await fetch(
+            `/api/admin/imports/${selectedSource}/owned`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                [IMPORT_OWNER_HEADER]: JSON.stringify(boundOwner),
+              },
+              body,
+              signal,
+              cache: "no-store",
+              credentials: "same-origin",
+            },
+          );
+          if (response.status === 401 || response.status === 403)
+            return {
+              kind: "reply" as const,
+              response,
+              value: {
+                code:
+                  response.status === 401
+                    ? "SESSION_CHANGED"
+                    : "IMPORT_SCOPE_CHANGED",
+              },
+            };
+          if (response.status === 404)
+            return {
+              kind: "reply" as const,
+              response,
+              value: { code: "IMPORT_OWNER_REQUIRED" },
+            };
+          const value = await readBoundedJsonResponse(
+            response,
+            signal,
+            IMPORT_RESPONSE_BYTES,
+          );
+          return { kind: "reply" as const, response, value };
+        },
+        {
+          signal: controller.signal,
+          timeoutMs: dryRun
+            ? IMPORT_PREVIEW_TIMEOUT_MS
+            : IMPORT_WRITE_TIMEOUT_MS,
+        },
+      );
       if (own !== operation.current || version !== revision.current) return;
-      if (outcome.kind === 'unknown') {
+      if (outcome.kind === "unknown") {
         setError(dryRun ? "failed" : "writeUnconfirmed");
         return;
       }
       const { response, value } = outcome;
       if (!response.ok) {
         const reason = responseError(value);
-        if (response.status === 401 || reason === 'sessionChanged') setAuthorityHold('sessionChanged');
-        else if (response.status === 403 || reason === 'scopeChanged') setAuthorityHold('scopeChanged');
-        else if (reason === 'reviewUnsupported') setAuthorityHold('reviewUnsupported');
-        if (responseError(value) === 'invalidExport' && value && typeof value === 'object' && 'duplicateSourceIds' in value) {
+        if (response.status === 401 || reason === "sessionChanged")
+          setAuthorityHold("sessionChanged");
+        else if (response.status === 403 || reason === "scopeChanged")
+          setAuthorityHold("scopeChanged");
+        else if (reason === "reviewUnsupported")
+          setAuthorityHold("reviewUnsupported");
+        if (
+          responseError(value) === "invalidExport" &&
+          value &&
+          typeof value === "object" &&
+          "duplicateSourceIds" in value
+        ) {
           const rows = duplicateSourceRows.safeParse(value.duplicateSourceIds);
           if (rows.success) setSourceDuplicates(rows.data);
         }
-        setError(!dryRun && ["scopeChanged", "sessionChanged", "reviewUnsupported"].includes(reason ?? "") ? "writeUnconfirmed" : reason ?? (dryRun ? "failed" : "writeUnconfirmed"));
+        setError(
+          !dryRun &&
+            ["scopeChanged", "sessionChanged", "reviewUnsupported"].includes(
+              reason ?? "",
+            )
+            ? "writeUnconfirmed"
+            : (reason ?? (dryRun ? "failed" : "writeUnconfirmed")),
+        );
         return;
       }
-      const marker = importOwner.safeParse(value && typeof value === 'object' && 'originalOwner' in value ? value.originalOwner : null);
+      const marker = importOwner.safeParse(
+        value && typeof value === "object" && "originalOwner" in value
+          ? value.originalOwner
+          : null,
+      );
       if (!marker.success) {
-        setAuthorityHold('reviewUnsupported'); setError(dryRun ? 'reviewUnsupported' : 'writeUnconfirmed'); return;
+        setAuthorityHold("reviewUnsupported");
+        setError(dryRun ? "reviewUnsupported" : "writeUnconfirmed");
+        return;
       }
       if (!sameImportOwner(marker.data, boundOwner)) {
-        setAuthorityHold('scopeChanged'); setError(dryRun ? 'scopeChanged' : 'writeUnconfirmed'); return;
+        setAuthorityHold("scopeChanged");
+        setError(dryRun ? "scopeChanged" : "writeUnconfirmed");
+        return;
       }
       const parsed = resultSchema.safeParse(value);
-      if (!parsed.success || (dryRun ? parsed.data.jobId !== null : parsed.data.jobId === null)) {
+      if (
+        !parsed.success ||
+        (dryRun ? parsed.data.jobId !== null : parsed.data.jobId === null)
+      ) {
         setError(dryRun ? "failed" : "writeUnconfirmed");
         return;
       }
       if (!parsed.data.review || !parsed.data.originalOwner) {
-        setAuthorityHold('reviewUnsupported');
+        setAuthorityHold("reviewUnsupported");
         setError(dryRun ? "reviewUnsupported" : "writeUnconfirmed");
         return;
       }
       const { review, originalOwner: receiptOwner, ...report } = parsed.data;
-      if (!sameImportOwner(receiptOwner, boundOwner) || review.actorId !== boundOwner.actorId || review.familyId !== boundOwner.familyId) {
-        setAuthorityHold('scopeChanged'); setError(dryRun ? 'scopeChanged' : 'writeUnconfirmed'); return;
+      if (
+        !sameImportOwner(receiptOwner, boundOwner) ||
+        review.actorId !== boundOwner.actorId ||
+        review.familyId !== boundOwner.familyId
+      ) {
+        setAuthorityHold("scopeChanged");
+        setError(dryRun ? "scopeChanged" : "writeUnconfirmed");
+        return;
       }
       // Review IDs belong to request control, not the reconciliation display.
       setResult(report);
       if (dryRun && review) {
         const payload = JSON.parse(body) as Record<string, unknown>;
-        reviewed.current = { version, source: selectedSource, body: JSON.stringify({
-          ...payload, dryRun: false,
-          expectedScope: { actorId: review.actorId, familyId: review.familyId },
-        }) };
+        reviewed.current = {
+          version,
+          source: selectedSource,
+          body: JSON.stringify({
+            ...payload,
+            dryRun: false,
+            expectedScope: {
+              actorId: review.actorId,
+              familyId: review.familyId,
+            },
+          }),
+        };
         setPreviewReady(true);
       }
     } catch {
@@ -289,15 +476,41 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
         setError(dryRun ? "failed" : "writeUnconfirmed");
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
-      if (own === operation.current) { pending.current = false; setLoading(false); }
+      if (own === operation.current) {
+        pending.current = false;
+        setLoading(false);
+      }
     }
   };
 
-  if (ownerChanged || authorityHold === 'scopeChanged' || authorityHold === 'sessionChanged') return <div role="alert" className="card space-y-3 p-5">
-    <h1 className="text-title-1">{text('title')}</h1><p>{text('ownerChanged')}</p>
-    <p>{text(writing ? 'writeUnconfirmed' : authorityHold === 'sessionChanged' ? 'sessionChanged' : 'scopeChanged')}</p>
-    <button ref={reloadControl} type="button" className="btn-primary min-h-[44px]" onClick={() => window.location.reload()}>{text('reloadImports')}</button>
-  </div>;
+  if (
+    ownerChanged ||
+    authorityHold === "scopeChanged" ||
+    authorityHold === "sessionChanged"
+  )
+    return (
+      <div role="alert" className="card space-y-3 p-5">
+        <h1 className="text-title-1">{text("title")}</h1>
+        <p>{text("ownerChanged")}</p>
+        <p>
+          {text(
+            writing
+              ? "writeUnconfirmed"
+              : authorityHold === "sessionChanged"
+                ? "sessionChanged"
+                : "scopeChanged",
+          )}
+        </p>
+        <button
+          ref={reloadControl}
+          type="button"
+          className="btn-primary min-h-[44px]"
+          onClick={() => window.location.reload()}
+        >
+          {text("reloadImports")}
+        </button>
+      </div>
+    );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -310,11 +523,10 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
 
       <div>
         <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-          <Database className="w-8 h-8 text-primary" aria-hidden="true" /> {text("title")}
+          <Database className="w-8 h-8 text-primary" aria-hidden="true" />{" "}
+          {text("title")}
         </h1>
-        <p className="mt-2 text-muted-foreground">
-          {text("description")}
-        </p>
+        <p className="mt-2 text-muted-foreground">{text("description")}</p>
       </div>
 
       <div className="card space-y-6">
@@ -354,9 +566,7 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
             className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-input p-8 hover:border-primary"
           >
             <FileJson className="w-6 h-6 text-primary" aria-hidden="true" />
-            <span>
-              {fileName || text("chooseFile")}
-            </span>
+            <span>{fileName || text("chooseFile")}</span>
           </label>
           <input
             ref={fileInput}
@@ -369,7 +579,11 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
           />
         </div>
 
-        {reading && <p role="status" className="text-sm text-muted-foreground">{text("reading")}</p>}
+        {reading && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {text("reading")}
+          </p>
+        )}
 
         {source !== "budget-app" && (
           <div>
@@ -397,14 +611,29 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
           </div>
         )}
 
-        {backendUnavailable && error !== 'reviewUnsupported' && <p role="status" className="text-sm text-muted-foreground">{text('reviewUnsupported')}</p>}
+        {backendUnavailable && error !== "reviewUnsupported" && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {text("reviewUnsupported")}
+          </p>
+        )}
         {error && (
           <div
             role="alert"
             className="rounded-lg border border-[var(--danger-tint)] bg-[var(--danger-tint)] p-3 text-danger-text"
           >
             <p>{text(error)}</p>
-            {error === 'invalidExport' && sourceDuplicates.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5">{sourceDuplicates.map((row, index) => <li key={`${row.collection}:${row.rowIndex}:${index}`}>{text('duplicateSourceId', { collection: row.collection, row: row.rowIndex + 1 })}</li>)}</ul>}
+            {error === "invalidExport" && sourceDuplicates.length > 0 && (
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {sourceDuplicates.map((row, index) => (
+                  <li key={`${row.collection}:${row.rowIndex}:${index}`}>
+                    {text("duplicateSourceId", {
+                      collection: row.collection,
+                      row: row.rowIndex + 1,
+                    })}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -437,7 +666,12 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
               checked={confirmed}
               disabled={loading || !previewReady || backendUnavailable}
               onChange={(event) => {
-                if (pending.current || !reviewed.current || reviewed.current.version !== revision.current) return;
+                if (
+                  pending.current ||
+                  !reviewed.current ||
+                  reviewed.current.version !== revision.current
+                )
+                  return;
                 setConfirmed(event.target.checked);
               }}
               className="mt-1"
@@ -446,7 +680,9 @@ export default function ImportsClient({ owner: ownerInput = null }: { owner?: Im
           </label>
           <button
             type="button"
-            disabled={loading || !confirmed || !previewReady || backendUnavailable}
+            disabled={
+              loading || !confirmed || !previewReady || backendUnavailable
+            }
             onClick={() => void runImport(false)}
             className="btn-primary min-h-11 disabled:opacity-50"
           >
