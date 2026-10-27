@@ -50,3 +50,31 @@ Competitor documentation informed the principles, not copied layouts or claims
 of tested performance: Cozyla CalendarOS release notes, Skylight Sidekick/import
 help and Hearth routine help. No merge, production rollout or provider activation
 is implied by this interaction specification.
+
+## Local implementation and evidence
+
+Application candidate `05a72a25` implements the entry/composer/capture handoff and
+guided/list steps above. First browser run exposed focus restoration to an inert
+Today opener; c5f72204 releases the assistant page lock before Dialog cleanup.
+Independent source review additionally corrected draft-aware navigation on the
+manual fallback and current-step semantics on inline parent routine rows.
+
+Observed: 117 focused tests across host/Today, capture, routines and calendar
+suites passed across the slice; final affected ESLint, typecheck and production
+build passed. The first browser run passed18 EN/ES parent/teen/child role cases
+plus3 photo fallbacks and3 sign-in setups, and failed3 chat dismissal cases.
+After the fix, all12 targeted browser checks passed without retries:3 sign-in
+setups plus entry/chat, unavailable-photo handoff, and exact routine completion/
+Undo at390×844,1280×800 and1366×768. The 1280px run is the personal dashboard at a
+tablet-sized viewport, not shared-device assistant acceptance.
+
+Phone action sheet and composer screenshots were visually inspected. Composer
+was inside the viewport; collapsed help and restored focus were asserted. No AI
+submission occurs simply by opening the flow. Photo-unavailable responses in the
+browser test are explicitly stubbed; no provider output was tested. Routine
+completion/Undo used real local fixture writes with exact occurrence IDs.
+
+Artifacts: `/tmp/family-action-fixed-report/index.html`,
+`/tmp/family-action-phone-390x844-sheet.png`,
+`/tmp/family-action-phone-390x844-composer.png`.
+The remaining stages above are not implemented or deployed by this slice.

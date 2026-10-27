@@ -34,6 +34,9 @@ test("Today Add or ask leads to a composer without starting AI or writes", async
   await expect(
     sheet.getByRole("link", { name: "Add event", exact: true }),
   ).toHaveAttribute("href", "/dashboard/calendar/create");
+  await page.screenshot({
+    path: `/tmp/family-action-${info.project.name}-sheet.png`,
+  });
   await info.attach("01-add-or-ask", {
     body: await page.screenshot(),
     contentType: "image/png",
@@ -57,6 +60,9 @@ test("Today Add or ask leads to a composer without starting AI or writes", async
   expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(
     page.viewportSize()!.height,
   );
+  await page.screenshot({
+    path: `/tmp/family-action-${info.project.name}-composer.png`,
+  });
   await info.attach("02-composer", {
     body: await page.screenshot(),
     contentType: "image/png",
