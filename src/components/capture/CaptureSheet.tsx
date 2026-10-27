@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { createPortal } from "react-dom";
 import { Sparkles } from "lucide-react";
 import { useCoreTranslation } from "@/i18n/core";
@@ -25,6 +26,7 @@ export function CaptureSheet({
   canCreateManually?: boolean;
 }) {
   const { t } = useCoreTranslation();
+  const router = useDraftAwareRouter();
   const msg = (key: CaptureMessage) => t(key, undefined, captureMessages);
   const [open, setOpen] = React.useState(false);
   const [availability, setAvailability] = React.useState<
@@ -114,6 +116,18 @@ export function CaptureSheet({
           {availability === "unavailable" && canCreateManually && (
             <Link
               href="/dashboard/calendar/create"
+              onClick={(event) => {
+                if (
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  event.button !== 0
+                )
+                  return;
+                event.preventDefault();
+                void router.push("/dashboard/calendar/create");
+              }}
               className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] underline"
             >
               {msg("addManually")}

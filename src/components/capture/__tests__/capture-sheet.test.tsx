@@ -7,6 +7,9 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { CaptureSheet } from "../CaptureSheet";
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn() }),
+}));
 // These existing cases cover the pre-adoption sheet/legacy-envelope path.
 // Owned capture integration has its own actor/storage/batch cases.
 jest.mock("../CaptureBox", () => {

@@ -150,7 +150,20 @@ export function RoutineStacks({
     // Parent rows keep their existing sheets/Undo; other account roles retain
     // this component's own-step-only controls. Profile callbacks remain disabled.
     if (!done && renderOpenRow && (userRole === "parent" || profileOnly))
-      return <li key={chore.id}>{renderOpenRow(chore.id)}</li>;
+      return (
+        <li
+          key={chore.id}
+          aria-current={next && guided ? "step" : undefined}
+          data-guided-step={next && guided ? "true" : undefined}
+          className={
+            next && guided
+              ? "rounded-xl border-l-4 border-l-[var(--accent)] bg-[var(--surface-fill-secondary)] px-3"
+              : undefined
+          }
+        >
+          {renderOpenRow(chore.id)}
+        </li>
+      );
     const profilePaused = chore.actionAvailability?.state === "paused";
     const profileUnavailable = profileOnly && chore.subject?.kind !== "profile";
     const canComplete =
