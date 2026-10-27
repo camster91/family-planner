@@ -215,7 +215,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
               toast.action!.onClick()
               onDismiss()
             }}
-            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-subhead font-semibold text-[var(--accent-text)] hover:bg-[var(--surface-secondary)]"
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-subhead font-semibold text-[var(--accent-text)] hover:bg-[var(--surface-fill-secondary)]"
           >
             <Undo2 className="h-4 w-4" aria-hidden="true" />
             {toast.action.label}

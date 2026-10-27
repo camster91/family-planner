@@ -42,7 +42,7 @@ Each section is a `<section id="<id>" data-testid="gallery-section-<id>">`; each
 
 | Id | Production components |
 |---|---|
-| `foundations` | Warm Paper palette and colour tokens, typefaces (Fraunces, Inter), type scale, radii, shadows (`src/app/globals.css`); member colours (`src/lib/member-colors.ts`) |
+| `foundations` | Woven Grove palette and semantic colour tokens, typefaces (Newsreader, Manrope), type scale, radii, shadows (`src/app/globals.css`); member colours (`src/lib/member-colors.ts`) |
 | `controls` | `.btn-*` buttons (enabled/disabled), board action link, `.input-apple` fields with an error, select, `SearchField`, `RoutineFields`, `RoutineIconPicker`, `CheckboxRow` states |
 | `overlays` | `Dialog` and `MoveToSectionDialog` (bottom sheet on phones), opened by a button; `LongPressRow` action sheet; toasts (undo, success, error) in a contained frame plus a live Undo toast |
 | `people` | `LargeHeader`, `Avatar` sizes, `ProgressRing`, `Glyph`, `ListRow`/`InsetList`/`SectionHeader` |

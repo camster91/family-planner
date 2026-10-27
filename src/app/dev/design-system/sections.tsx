@@ -139,16 +139,16 @@ export function FoundationsSection({ fx }: SectionProps) {
       <Specimen
         name="Typefaces"
         source="src/app/layout.tsx (next/font) and src/app/globals.css"
-        note="Fraunces for titles (title-3 and up, .font-display), Inter for everything else. Both are self-hosted at build time."
+        note="Newsreader for titles (title-3 and up, .font-display), Manrope for everything else. Both are self-hosted at build time."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <div className="card-apple p-5">
-            <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Fraunces · serif</p>
+            <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Newsreader · serif</p>
             <p className="font-display text-[40px] leading-tight text-label-primary">Dinner at six</p>
             <p className="text-title-3 mt-2 text-label-primary">Everyone&apos;s week, on one page</p>
           </div>
           <div className="card-apple p-5">
-            <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Inter · sans</p>
+            <p className="text-caption-1 mb-2 uppercase tracking-wide text-label-secondary">Manrope · sans</p>
             <p className="text-headline text-label-primary">Take out the recycling</p>
             <p className="text-body mt-1 text-label-secondary">Due today · 10 points · tap to tick it off</p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -649,7 +649,7 @@ export function GroceriesSection({ fx }: SectionProps) {
       <Specimen
         name="Grocery list rows"
         source="src/app/dashboard/lists/[listId]/ListDetailClient.tsx (SwipeRow + CheckboxRow + groceryDetailText)"
-        note="Store sections, amount and recipe provenance; swipe left to delete on touch."
+        note="Store sections, amount and recipe provenance; swipe left to delete on touch or use the labeled Delete action."
       >
         {bySection.length === 0 ? (
           <EmptyState icon={CheckSquare} glyphColor="lists" title="No items yet" description="Add items using the field below." />
@@ -660,14 +660,27 @@ export function GroceriesSection({ fx }: SectionProps) {
                 <SectionHeader>{grocerySectionLabel(section)}</SectionHeader>
                 <InsetList>
                   {rows.map((row) => (
-                    <SwipeRow key={row.id} onSwipeLeft={noop}>
-                      <CheckboxRow
-                        checked={checked[row.id] ?? false}
-                        onChange={(v) => setChecked((c) => ({ ...c, [row.id]: v }))}
-                        title={row.content}
-                        subtitle={groceryDetailText(row) ?? undefined}
-                        wrap
-                      />
+                    <SwipeRow key={row.id} onSwipeLeft={noop} swipeLeftTone="delete">
+                      <div className="flex items-stretch">
+                        <div className="min-w-0 flex-1">
+                          <CheckboxRow
+                            checked={checked[row.id] ?? false}
+                            onChange={(v) => setChecked((c) => ({ ...c, [row.id]: v }))}
+                            title={row.content}
+                            subtitle={groceryDetailText(row) ?? undefined}
+                            wrap
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={noop}
+                          aria-label={`Delete ${row.content}`}
+                          className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-danger-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--danger)]"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </SwipeRow>
                   ))}
                 </InsetList>

@@ -159,6 +159,19 @@ function renderList(
   )
 }
 
+it('exposes a labeled delete action alongside the swipe gesture', async () => {
+  const user = userEvent.setup()
+  renderList()
+
+  const deleteButton = screen.getByRole('button', { name: 'Delete Tofu' })
+  expect(deleteButton).toHaveClass('min-w-[44px]')
+  await user.click(deleteButton)
+  expect(calls[0]).toMatchObject({
+    url: '/api/lists/items/a',
+    method: 'DELETE',
+  })
+})
+
 it('deletes without confirm and Undo re-creates the item (ticked again)', async () => {
   const user = userEvent.setup()
   renderList()

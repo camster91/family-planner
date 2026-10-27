@@ -589,7 +589,7 @@ export function BulkCookingPanel({
                 return (
                   <article
                     key={batch.id}
-                    className="rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-card)] p-4 space-y-3 min-w-0"
+                    className="rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-4 space-y-3 min-w-0"
                     aria-label={batch.name}
                   >
                     <h3 className="text-headline break-words">{batch.name}</h3>

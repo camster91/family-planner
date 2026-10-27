@@ -163,9 +163,9 @@ function FormField({ label, children }: { label: string; children: (id: string) 
 }
 
 const SELECT_CLASS =
-  'w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
+  'w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
 const TEXTAREA_CLASS =
-  'w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none'
+  'w-full px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none'
 // A text-style action ("+ Add temperature") with a 44px tap area.
 const TEXT_ACTION_CLASS =
   'inline-flex min-h-[44px] items-center -mr-3 px-3 rounded-[var(--radius-md)] text-subhead font-medium text-[var(--accent-text)] focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]'
@@ -198,7 +198,7 @@ function Input({
       placeholder={placeholder}
       step={step}
       inputMode={inputMode}
-      className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
+      className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
     />
   )
 }
@@ -836,7 +836,7 @@ function SickDaysPageInner() {
               {selectedSickDay.medications.length > 0 ? (
                 <div className="space-y-2">
                   {selectedSickDay.medications.map((med) => (
-                    <div key={med.id} className="bg-[var(--surface-secondary)] rounded-lg px-3 py-2">
+                    <div key={med.id} className="bg-[var(--surface-fill-secondary)] rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-subhead text-label-primary font-medium break-words">{med.name}</p>
@@ -977,7 +977,7 @@ function SickDaysPageInner() {
                   id={id}
                   value={tempForm.unit}
                   onChange={(e) => setTempForm({ ...tempForm, unit: e.target.value })}
-                  className="min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  className="min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 >
                   <option value="F">°F</option>
                   <option value="C">°C</option>

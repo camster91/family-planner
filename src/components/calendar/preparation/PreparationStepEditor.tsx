@@ -160,20 +160,20 @@ export default function PreparationStepEditor({
               }
             >
               <option
-                className="bg-[var(--surface-background)] text-label-primary"
+                className="bg-[var(--surface-elevated)] text-label-primary"
                 value="fixed"
               >
                 {copy.fixed}
               </option>
               <option
-                className="bg-[var(--surface-background)] text-label-primary"
+                className="bg-[var(--surface-elevated)] text-label-primary"
                 value="start"
                 disabled={!dateEditable}
               >
                 {copy.start}
               </option>
               <option
-                className="bg-[var(--surface-background)] text-label-primary"
+                className="bg-[var(--surface-elevated)] text-label-primary"
                 value="end"
                 disabled={!dateEditable}
               >
@@ -198,13 +198,13 @@ export default function PreparationStepEditor({
                   }
                 >
                   <option
-                    className="bg-[var(--surface-background)] text-label-primary"
+                    className="bg-[var(--surface-elevated)] text-label-primary"
                     value="before"
                   >
                     {copy.before}
                   </option>
                   <option
-                    className="bg-[var(--surface-background)] text-label-primary"
+                    className="bg-[var(--surface-elevated)] text-label-primary"
                     value="after"
                   >
                     {copy.after}

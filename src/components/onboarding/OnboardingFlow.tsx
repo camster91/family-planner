@@ -575,7 +575,7 @@ export default function OnboardingFlow({
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <section className="rounded-2xl border border-[var(--separator)] bg-card p-5">
+            <section className="rounded-2xl border border-[var(--surface-separator)] bg-card p-5">
               <Mail className="mb-3 h-6 w-6 text-primary" aria-hidden="true" />
               <h3 className="text-lg font-semibold text-foreground">
                 {text("accountOptionTitle")}
@@ -602,7 +602,7 @@ export default function OnboardingFlow({
               </Link>
             </section>
 
-            <section className="rounded-2xl border border-[var(--separator)] bg-card p-5">
+            <section className="rounded-2xl border border-[var(--surface-separator)] bg-card p-5">
               <UserPlus
                 className="mb-3 h-6 w-6 text-primary"
                 aria-hidden="true"

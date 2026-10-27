@@ -251,7 +251,7 @@ export default function FamilyPage() {
       <section aria-labelledby="family-members-heading" className="min-w-0">
         <h2 ref={rosterHeadingRef} id="family-members-heading" tabIndex={-1} className="mb-3 text-title-3 font-display outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded-[var(--radius-sm)]">{copy('people')}</h2>
         {notice && (
-          <p role="status" className="mb-3 rounded-[var(--radius-md)] bg-[var(--surface-secondary)] px-4 py-3 text-[15px] text-label-primary">
+          <p role="status" className="mb-3 rounded-[var(--radius-md)] bg-[var(--surface-fill-secondary)] px-4 py-3 text-[15px] text-label-primary">
             {feedbackText(notice)}
           </p>
         )}

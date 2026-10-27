@@ -10,8 +10,14 @@ interface SwipeRowProps {
   onSwipeRight?: () => void  // delete action (left side, red)
   leftContent?: React.ReactNode
   rightContent?: React.ReactNode
+  /** The semantic action revealed by a left swipe. Defaults to completion. */
+  swipeLeftTone?: SwipeActionTone
+  /** The semantic action revealed by a right swipe. Defaults to deletion. */
+  swipeRightTone?: SwipeActionTone
   className?: string
 }
+
+export type SwipeActionTone = 'complete' | 'delete'
 
 const SPRING = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const THRESHOLD_PX = 100
@@ -22,6 +28,8 @@ export function SwipeRow({
   onSwipeRight,
   leftContent,
   rightContent,
+  swipeLeftTone = 'complete',
+  swipeRightTone = 'delete',
   className,
 }: SwipeRowProps) {
   const [translateX, setTranslateX] = React.useState(0)
@@ -29,6 +37,7 @@ export function SwipeRow({
   const containerRef = React.useRef<HTMLDivElement>(null)
   const startXRef = React.useRef(0)
   const currentXRef = React.useRef(0)
+  const captureTargetRef = React.useRef<HTMLElement | null>(null)
 
   const rowWidth = React.useRef(0)
 
@@ -44,7 +53,17 @@ export function SwipeRow({
     setIsDragging(true)
     startXRef.current = e.clientX
     currentXRef.current = e.clientX
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    const target = e.target
+    if (target instanceof HTMLElement && target.setPointerCapture) {
+      try {
+        target.setPointerCapture(e.pointerId)
+        captureTargetRef.current = target
+      } catch {
+        // Pointer capture is optional on older WebViews. The gesture still
+        // works while the pointer remains over the row.
+        captureTargetRef.current = null
+      }
+    }
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -60,7 +79,10 @@ export function SwipeRow({
   const onPointerUp = (e: React.PointerEvent) => {
     if (!isDragging) return
     setIsDragging(false)
-    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+    const target = captureTargetRef.current
+    if (target?.hasPointerCapture?.(e.pointerId))
+      target.releasePointerCapture(e.pointerId)
+    captureTargetRef.current = null
 
     const dx = currentXRef.current - startXRef.current
 
@@ -76,10 +98,36 @@ export function SwipeRow({
     setTranslateX(0)
   }
 
-  const leftActionBg = 'bg-danger-fill'
-  const rightActionBg = 'bg-success'
-  const leftIcon = leftContent ?? <Trash2 className="w-5 h-5 text-white" />
-  const rightIcon = rightContent ?? <Check className="w-5 h-5 text-white" />
+  const onPointerCancel = (e: React.PointerEvent) => {
+    if (!isDragging) return
+    setIsDragging(false)
+    const target = captureTargetRef.current
+    if (target?.hasPointerCapture?.(e.pointerId))
+      target.releasePointerCapture(e.pointerId)
+    captureTargetRef.current = null
+    currentXRef.current = startXRef.current
+    // A cancelled pointer must never trigger either semantic action.
+    setTranslateX(0)
+  }
+
+  const leftActionBg =
+    swipeRightTone === 'delete' ? 'bg-danger-fill' : 'bg-success'
+  const rightActionBg =
+    swipeLeftTone === 'delete' ? 'bg-danger-fill' : 'bg-success'
+  const leftIcon =
+    leftContent ??
+    (swipeRightTone === 'delete' ? (
+      <Trash2 className="w-5 h-5 text-white" aria-hidden="true" />
+    ) : (
+      <Check className="w-5 h-5 text-white" aria-hidden="true" />
+    ))
+  const rightIcon =
+    rightContent ??
+    (swipeLeftTone === 'delete' ? (
+      <Trash2 className="w-5 h-5 text-white" aria-hidden="true" />
+    ) : (
+      <Check className="w-5 h-5 text-white" aria-hidden="true" />
+    ))
 
   // Opacity of action revealed — proportional to how far we've swiped
   const leftReveal = Math.max(0, Math.min(1, translateX / threshold))
@@ -114,13 +162,14 @@ export function SwipeRow({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerCancel={onPointerCancel}
         style={{
           transform: `translateX(${translateX}px)`,
           transition: isDragging ? 'none' : `transform 400ms ${SPRING}`,
           willChange: 'transform',
           touchAction: 'pan-y',
         }}
+        className="motion-reduce:!transition-none"
       >
         {children}
       </div>

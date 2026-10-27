@@ -326,7 +326,7 @@ export function ProfileSetupPanel({
                 </p>
               )}
             </form>
-            <details className="group rounded-[var(--radius-md)] border border-[var(--separator)] p-3">
+            <details className="group rounded-[var(--radius-md)] border border-[var(--surface-separator)] p-3">
               <summary className="min-h-[44px] cursor-pointer content-center text-body font-semibold text-label-primary">
                 {text("savedProfiles")} ({profiles.length})
               </summary>

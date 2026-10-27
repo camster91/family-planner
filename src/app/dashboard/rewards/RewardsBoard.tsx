@@ -457,7 +457,7 @@ function RewardsBoardContent({ rewards, ownedActions, notificationFocus, userXp,
     <div className="space-y-8" aria-busy={pending || undefined}>
       {checking && <p role="status">{rewardsText('checkingStatus')}</p>}
       {notificationFocus !== undefined && <section ref={focusRef} tabIndex={-1} aria-label={rewardsText('focusHeading')}
-        data-testid="notification-reward-focus" className="space-y-3 rounded-[var(--radius-xl)] border border-[var(--separator)] p-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+        data-testid="notification-reward-focus" className="space-y-3 rounded-[var(--radius-xl)] border border-[var(--surface-separator)] p-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
         <h2 className="section-header">{rewardsText('focusHeading')}</h2>
         <p className="text-footnote text-label-secondary">{rewardsText(focusedReward ? 'focusDescription' : 'focusUnavailable')}</p>
         {focusedReward && <ul><RewardRow busy={pending} reward={focusedReward} currentUserId={currentUserId} isParent={isParent}

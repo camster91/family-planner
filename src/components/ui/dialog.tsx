@@ -165,7 +165,7 @@ export function Dialog({
         <div
           className={
             variant === "form"
-              ? "flex shrink-0 items-start justify-between gap-4 border-b border-[var(--separator)] p-5"
+              ? "flex shrink-0 items-start justify-between gap-4 border-b border-[var(--surface-separator)] p-5"
               : "mb-4 flex items-start justify-between gap-4"
           }
         >
@@ -212,7 +212,7 @@ export function Dialog({
               {children}
             </div>
             {footer && (
-              <div className="shrink-0 border-t border-[var(--separator)] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <div className="shrink-0 border-t border-[var(--surface-separator)] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 {footer}
               </div>
             )}

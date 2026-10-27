@@ -79,14 +79,19 @@ test("list deletion committed before response loss still offers a working Undo",
   );
   const row = page.locator(`[data-item-id="${item}"]`);
   await expect(row).toBeVisible();
-  const bounds = await row.boundingBox();
-  if (!bounds) throw new Error("List row has no rendered bounds");
-  await page.mouse.move(bounds.x + bounds.width * 0.85, bounds.y + 20);
-  await page.mouse.down();
-  await page.mouse.move(bounds.x + bounds.width * 0.15, bounds.y + 20, {
-    steps: 12,
+  const checkbox = row.getByRole("checkbox");
+  await checkbox.click();
+  await expect(checkbox).toHaveAttribute("aria-checked", "true");
+  const deleteButton = row.getByRole("button", {
+    name: `Delete ${itemName}`,
+    exact: true,
   });
-  await page.mouse.up();
+  const bounds = await deleteButton.boundingBox();
+  expect(bounds?.width).toBeGreaterThanOrEqual(44);
+  expect(bounds?.height).toBeGreaterThanOrEqual(44);
+  await deleteButton.focus();
+  await expect(deleteButton).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(
     page.getByRole("button", { name: "Undo", exact: true }),
   ).toBeVisible();

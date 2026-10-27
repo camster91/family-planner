@@ -676,6 +676,7 @@ export default function ListDetailClient({
     return (
       <SwipeRow
         key={item.id}
+        swipeLeftTone="delete"
         onSwipeLeft={
           canDeleteItems && !item.removedElsewhere && !item.deleteUnknown
             ? () => handleDeleteItem(item.id)
@@ -741,6 +742,20 @@ export default function ListDetailClient({
                   className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
                 >
                   {storeText("move")}
+                </button>
+              )}
+            {canDeleteItems &&
+              !item.removedElsewhere &&
+              !item.deleteUnknown && (
+                <button
+                  type="button"
+                  disabled={Boolean(op)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={() => void handleDeleteItem(item.id)}
+                  aria-label={text("deleteLabel", { item: item.content })}
+                  className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-danger-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--danger)] disabled:opacity-40"
+                >
+                  {text("delete")}
                 </button>
               )}
           </div>

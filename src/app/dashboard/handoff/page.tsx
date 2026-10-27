@@ -186,7 +186,7 @@ function Input({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
+      className={`w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ''}`}
     />
   )
 }
@@ -211,7 +211,7 @@ function Textarea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
+      className="w-full px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
     />
   )
 }
@@ -273,11 +273,11 @@ function HandoffForm({
               <Input id={id} value={form.departure_time} onChange={(v) => set('departure_time', v)} type="datetime-local" />
             )}
           </FormField>
-          <details className="rounded-xl border border-[var(--separator)] bg-[var(--surface-secondary)]" data-testid="handoff-optional-details">
+          <details className="rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill-secondary)]" data-testid="handoff-optional-details">
             <summary className="flex min-h-[44px] cursor-pointer items-center px-4 py-2 text-subhead font-medium text-label-primary">
               {recoveryText('optionalDetails')}
             </summary>
-            <div className="space-y-4 border-t border-[var(--separator)] px-4 py-4">
+            <div className="space-y-4 border-t border-[var(--surface-separator)] px-4 py-4">
               <FormField label={t('handoff.sitterPhone')}>
                 {(id) => (
                   <Input
@@ -520,7 +520,7 @@ function ShareLinkDialog({
               readOnly
               value={url}
               onFocus={(e) => e.currentTarget.select()}
-              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             />
             {handoff.share_expires_at && (
               <p className="mt-1 text-caption-1 text-label-secondary">
@@ -590,7 +590,7 @@ function ShareLinkDialog({
 
 // Icon-only card actions: a 44px tap area around a 20px glyph.
 const ICON_BUTTON_CLASS =
-  'inline-flex h-11 w-11 items-center justify-center rounded-lg text-label-secondary hover:bg-[var(--surface-secondary)] focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]'
+  'inline-flex h-11 w-11 items-center justify-center rounded-lg text-label-secondary hover:bg-[var(--surface-fill-secondary)] focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]'
 
 function HandoffCard({
   handoff,

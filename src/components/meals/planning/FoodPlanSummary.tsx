@@ -143,7 +143,7 @@ export function FoodPlanSummary({
                 {choice.ingredients.map((line) => (
                   <li
                     key={line.ingredientId}
-                    className="border-t border-[var(--separator)] pt-3 break-words"
+                    className="border-t border-[var(--surface-separator)] pt-3 break-words"
                   >
                     <p className="font-semibold">{line.name}</p>
                     <p className="text-subhead">
