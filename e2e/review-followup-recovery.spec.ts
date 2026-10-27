@@ -77,9 +77,16 @@ test("list deletion committed before response loss still offers a working Undo",
       await route.abort("failed");
     },
   );
-  await page
-    .getByRole("button", { name: `Delete ${itemName}`, exact: true })
-    .click();
+  const row = page.locator(`[data-item-id="${item}"]`);
+  await expect(row).toBeVisible();
+  const bounds = await row.boundingBox();
+  if (!bounds) throw new Error("List row has no rendered bounds");
+  await page.mouse.move(bounds.x + bounds.width * 0.85, bounds.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.15, bounds.y + 20, {
+    steps: 12,
+  });
+  await page.mouse.up();
   await expect(
     page.getByRole("button", { name: "Undo", exact: true }),
   ).toBeVisible();

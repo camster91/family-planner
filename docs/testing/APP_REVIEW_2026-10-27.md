@@ -45,15 +45,6 @@ contains the correct Features page results. No production household data was use
 
 ## Retained follow-ups
 
-- List-item delete transport loss can temporarily restore a row that the server
-  already deleted. Reconcile the exact item before announcing failure; do not
-  treat absence from one paginated page as proof of deletion. Track in #499/#135.
-- Meal delete transport loss can remove the meal without exposing Undo. Preserve
-  truthful unknown-outcome handling and reconcile against canonical data before
-  offering restoration. Track in #460/#135.
-- With profile setup enabled, email-free profiles are discoverable inside the
-  profile panel rather than the main Family account roster. Roster integration
-  remains part of #480; identity/credit/erasure decisions are unchanged.
 - Some all-role APIs intentionally have narrower child/teen page access. The
   role matrix and UI policy need reconciliation under #499/#136; this review
   does not grant new permissions.
@@ -87,3 +78,30 @@ fixture event was restored afterward.
 Final local artifacts: `/tmp/family-app-review-fixed-report/index.html`,
 `/tmp/family-today-controls-after.png`, `/tmp/family-calendar-focus-after.png`.
 These are local results, not deployment or native-hardware evidence.
+
+## Follow-up fixes verified
+
+Application candidate `7666791f` addresses the three remaining recovery/roster
+findings. Lost list-item and meal DELETE responses use exact household-scoped
+reads before offering Undo; unresolved outcomes remain explicitly unknown.
+Received DELETE 404 responses remove stale UI without offering Undo for another
+device's deletion. Meal recovery deletes bind the captured owner/session context
+inside the existing authority transaction. Shared-device permissions are unchanged.
+
+When profile setup is enabled, the Family page lists email-free household profiles
+separately from login accounts. Latest-request guards prevent stale reads hiding
+newly saved profiles, and authorization loss clears profile cards. The production
+profile feature gate is unchanged.
+
+Validation: 129 focused tests across six suites passed; typecheck, affected-source
+ESLint, diff whitespace checks and the production build passed. Six browser cases
+plus three sign-in setups passed without retries on phone390 and desktop1366.
+Real local DELETEs committed before their responses were deliberately dropped;
+Undo restored exactly one list item and meal. The profile roster persisted across
+reload, with no horizontal overflow. Representative phone roster and Undo plus
+desktop meal Undo screenshots were visually inspected.
+
+Local report: `/tmp/family-review-followup-report/index.html`. Browser fixtures
+were fabricated and cleaned afterward. The browser spec's initial unexecuted
+button selector was changed to exercise the existing list swipe gesture. These
+are local results; this follow-up has not been merged or deployed.
