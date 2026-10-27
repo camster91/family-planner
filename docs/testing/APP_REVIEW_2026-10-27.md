@@ -105,3 +105,28 @@ Local report: `/tmp/family-review-followup-report/index.html`. Browser fixtures
 were fabricated and cleaned afterward. The browser spec's initial unexecuted
 button selector was changed to exercise the existing list swipe gesture. These
 are local results; this follow-up has not been merged or deployed.
+
+## Design-system corrections
+
+Candidate `b8471e1a` replaces undefined surface/border variables with existing
+semantic tokens across the affected forms, notices and shared overlays. The
+gallery now correctly names Newsreader/Manrope. Grocery left-swipe deletion uses
+the red trash treatment and has a visible, localized, keyboard-accessible Delete
+button with a minimum 44px target. Both paths retain the existing authorization,
+unknown-outcome recovery and Undo. Cancelled pointers do not invoke actions;
+ordinary checkbox taps remain functional and reduced motion disables the swipe
+transition.
+
+Validation: 47 focused component/gallery/font/palette tests passed; typecheck,
+scoped ESLint (four existing warnings, no errors), whitespace check and production
+build passed. Browser checks: 45 passed without retries (36 gallery cases on phone,
+portrait tablet and fridge; six recovery/profile cases on phone and desktop;
+three sign-in setups). Eighteen configured viewport exclusions skipped as designed.
+Gallery cases include light/dark/night/long-text, empty states, overflow, axe,
+dialog/sheet focus and error focus. Real grocery writes verified checkbox taps,
+44px Delete targets and keyboard Enter deletion followed by working Undo despite
+a deliberately lost response. Light/dark grocery specimen screenshots were
+visually inspected. Local report: `/tmp/family-design-fixed-report/index.html`.
+
+No production settings, permissions, migrations or provider calls changed. These
+are local browser results, not native-device or deployed acceptance.
