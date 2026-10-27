@@ -395,18 +395,33 @@ export default function AssistantPanel({
       reportsLoadGeneration.current += 1;
     };
   }, [panelOpen, tab]);
+  const pageLock = React.useRef<{
+    background: Element | null;
+    wasInert: boolean;
+    overflow: string;
+  } | null>(null);
+  const releasePageLock = React.useCallback(() => {
+    const lock = pageLock.current;
+    if (!lock) return;
+    if (!lock.wasInert) lock.background?.removeAttribute("inert");
+    document.body.style.overflow = lock.overflow;
+    pageLock.current = null;
+  }, []);
   React.useEffect(() => {
     if (!panelOpen) return;
     const background = document.querySelector("[data-dashboard-background]");
-    const wasInert = background?.hasAttribute("inert") ?? false;
-    const overflow = document.body.style.overflow;
+    const lock = {
+      background,
+      wasInert: background?.hasAttribute("inert") ?? false,
+      overflow: document.body.style.overflow,
+    };
+    pageLock.current = lock;
     background?.setAttribute("inert", "");
     document.body.style.overflow = "hidden";
     return () => {
-      if (!wasInert) background?.removeAttribute("inert");
-      document.body.style.overflow = overflow;
+      if (pageLock.current === lock) releasePageLock();
     };
-  }, [panelOpen]);
+  }, [panelOpen, releasePageLock]);
   const open = (next: AssistantPanelTab) => {
     if (busy) return;
     voice.stop();
@@ -449,6 +464,8 @@ export default function AssistantPanel({
     if (busy) return;
     voice.stop();
     if (tab === "reports") reportsLoadGeneration.current += 1;
+    // Release inert before Dialog cleanup restores the original Today opener.
+    releasePageLock();
     onClose();
   };
   async function requestChat(
