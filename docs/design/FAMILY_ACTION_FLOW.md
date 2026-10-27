@@ -78,3 +78,26 @@ Artifacts: `/tmp/family-action-fixed-report/index.html`,
 `/tmp/family-action-phone-390x844-sheet.png`,
 `/tmp/family-action-phone-390x844-composer.png`.
 The remaining stages above are not implemented or deployed by this slice.
+
+## Today composition follow-through
+
+For #499, keep Add or ask and Today controls as the two visible toolbar entries.
+Explore and customization live inside Today controls, with their existing dialogs
+and role gates. Portalled dialog interactions must not collapse the disclosure
+under its focus-return target. On desktop, give the schedule three fifths of its
+row and chores two fifths. Keep phone stacking, saved section order, compact mode,
+meal/grocery pairing and the dedicated shared-device board intact. No data,
+permission or preference migration; rollback is the toolbar/CSS change only.
+This is a bounded hierarchy refinement, not completion of the wider Today redesign.
+
+Local follow-through validation: production build (including TypeScript), affected
+ESLint, diff whitespace check and20 focused tests passed. All12 browser checks
+passed (3 fixture sign-ins plus3 journeys at390×844,1280×800,1366×768): Add/Ask
+composer, unavailable-photo manual fallback, and Today disclosure/Explore/customize
+Escape and focus restoration. The photo capability is stubbed unavailable; no AI
+provider execution is claimed. Fresh phone closed/open-menu and desktop screenshots
+were inspected, including long fixture event text. Layout sync/error messages stay
+outside the collapsed disclosure. No API/schema, shared-device or production
+change. Evidence: `/tmp/today-hierarchy-report/index.html` and
+`/tmp/today-hierarchy-{project}.png`; temporary artifacts may be removed by session
+cleanup. Broader Today/dinner composition remains a later stage.

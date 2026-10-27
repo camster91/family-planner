@@ -110,3 +110,45 @@ test("photo handoff explains unavailable capture and offers manual entry", async
     page.getByRole("link", { name: "Add an event manually" }),
   ).toHaveAttribute("href", "/dashboard/calendar/create");
 });
+
+test("Today keeps secondary actions tucked away and restores their dialog focus", async ({
+  page,
+}, info) => {
+  await page.goto("/dashboard/today");
+  const nav = page.getByRole("navigation", { name: "Today quick actions" });
+  const controls = nav.locator("summary", { hasText: "Today controls" });
+  const explore = nav.getByRole("button", { name: "Explore", exact: true });
+  await expect(explore).not.toBeVisible();
+  await page.screenshot({
+    path: `/tmp/today-hierarchy-${info.project.name}.png`,
+  });
+  await controls.click();
+  await page.screenshot({
+    path: `/tmp/today-hierarchy-${info.project.name}-controls.png`,
+  });
+  await explore.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("heading").first().click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(explore).toBeFocused();
+  const customize = nav.getByRole("button", {
+    name: "Customize Today",
+    exact: true,
+  });
+  await expect(customize).toBeEnabled();
+  await customize.click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(customize).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(controls).toBeFocused();
+  await expect(explore).not.toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});

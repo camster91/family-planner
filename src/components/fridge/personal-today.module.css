@@ -59,3 +59,11 @@
 .nextSections.singleSection {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* Give the schedule room for times, people and preparation without changing
+   saved order, phone stacking or the separate paired-device board. */
+@media (min-width: 1024px) {
+  .nextSections:not(.singleSection) {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}

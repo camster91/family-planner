@@ -46,6 +46,11 @@ export default function TodayControls({
     Boolean(links.meals) && canRoleAccessPath(role, "/dashboard/meals");
   const closeOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
     if (event.key !== "Escape" || !event.currentTarget.open) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest('[role="dialog"], [role="alertdialog"]')
+    )
+      return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.open = false;
@@ -53,6 +58,13 @@ export default function TodayControls({
   };
   React.useEffect(() => {
     const dismiss = (event: PointerEvent) => {
+      // A child action may open a portalled dialog. Keep its opener visible
+      // until that dialog closes so focus restoration remains reliable.
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="dialog"], [role="alertdialog"]')
+      )
+        return;
       for (const control of [details.current]) {
         if (control && !control.contains(event.target as Node))
           control.open = false;
@@ -81,12 +93,7 @@ export default function TodayControls({
           {text("addOrAsk")}
         </button>
       )}
-      <ExplorePanel role={role} />
-      <details
-        ref={details}
-        className="sm:relative"
-        onKeyDown={closeOnEscape}
-      >
+      <details ref={details} className="sm:relative" onKeyDown={closeOnEscape}>
         <summary
           className={`${targetClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
         >
@@ -94,6 +101,10 @@ export default function TodayControls({
           {text("todayControls")}
         </summary>
         <div className="absolute left-0 top-full z-20 mt-2 w-56 sm:left-auto sm:right-0 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
+          <div className="mb-2 flex flex-wrap gap-2 border-b border-[var(--surface-separator)] pb-2">
+            <ExplorePanel role={role} />
+            {children}
+          </div>
           {links.lists && (
             <>
               <Link href="/dashboard/lists/groceries" className={menuClass}>
@@ -144,7 +155,6 @@ export default function TodayControls({
           )}
         </div>
       </details>
-      {children}
     </nav>
   );
 }

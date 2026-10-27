@@ -91,7 +91,6 @@ function DeferredTodayLayoutEditor({
 
   return (
     <>
-      <DisplayPreferencesStatus />
       <button
         type="button"
         className="btn-tinted min-h-[44px]"
@@ -935,14 +934,17 @@ export default function TodayBoard({
         </header>
 
         {!fridgeMode && viewer && !tileActions && (
-          <TodayControls
-            links={data.links}
-            role={viewer.role}
-            onRefresh={refresh}
-            online={online}
-          >
-            <DeferredTodayLayoutEditor available={availableSections} />
-          </TodayControls>
+          <>
+            <DisplayPreferencesStatus />
+            <TodayControls
+              links={data.links}
+              role={viewer.role}
+              onRefresh={refresh}
+              online={online}
+            >
+              <DeferredTodayLayoutEditor available={availableSections} />
+            </TodayControls>
+          </>
         )}
         {viewer && !tileActions && (
           <PersonQueueStorageRecovery userId={viewer.id} />

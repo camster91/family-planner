@@ -145,3 +145,19 @@ it("dismisses on Escape and outside pointer", () => {
   fireEvent.pointerDown(document.body);
   expect(details.open).toBe(false);
 });
+
+it("leaves an open child dialog in charge of Escape", () => {
+  render(
+    <TodayControls role="parent" links={links} onRefresh={refresh} online>
+      <div role="dialog" aria-label="Customize Today">
+        <button type="button">Child action</button>
+      </div>
+    </TodayControls>,
+  );
+  const details = openDisclosure("Today controls");
+  const child = screen.getByRole("button", { name: "Child action" });
+  child.focus();
+  fireEvent.keyDown(child, { key: "Escape" });
+  expect(details.open).toBe(true);
+  expect(child).toHaveFocus();
+});
