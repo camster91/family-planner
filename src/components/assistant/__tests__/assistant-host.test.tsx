@@ -940,9 +940,9 @@ it("keeps a grocery item write uncertain after discovery succeeds", async () => 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "connection ended before confirmation",
   );
-  expect(screen.getByRole("link", { name: "Check Lists" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Check Groceries" })).toHaveAttribute(
     "href",
-    "/dashboard/lists",
+    "/dashboard/lists/groceries",
   );
   expect(screen.queryByRole("button", { name: "Confirm and save" })).toBeNull();
   expect(calls).toEqual([

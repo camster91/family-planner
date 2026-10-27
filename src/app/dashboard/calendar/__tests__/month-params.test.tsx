@@ -135,7 +135,19 @@ describe("calendar edit links by role", () => {
 it("passes an exact authorized event focus to the canonical calendar client", async () => {
   const element = await CalendarPage({searchParams:Promise.resolve({focus:"event-a",month:"1",year:"2027"})});
   expect(element?.props.notificationFocus).toEqual({target:{id:"event-a",title:"Focused event",start:"2026-12-04T16:00:00.000Z",end:"2026-12-04T17:00:00.000Z"}});
+  expect(element?.props).toMatchObject({initialDate:"2027-01-01",focusStart:undefined,monthFromUrl:true});
   expect(mockEventFocus).toHaveBeenCalledWith(expect.anything(),{userId:"parent-a",familyId:"family-A",role:"parent",tokenVersion:0},"event-a");
+});
+it("passes the verified focus instant for viewer-local hydration when no date or month is named", async () => {
+  const element = await CalendarPage({searchParams:Promise.resolve({focus:"event-a"})});
+  expect(element?.props).toMatchObject({
+    focusStart:"2026-12-04T16:00:00.000Z",
+    monthFromUrl:false,
+  });
+});
+it("keeps an explicit calendar date ahead of the focused event fallback", async () => {
+  const element = await CalendarPage({searchParams:Promise.resolve({focus:"event-a",date:"2027-01-12",view:"day"})});
+  expect(element?.props).toMatchObject({initialDate:"2027-01-12",focusStart:undefined,initialView:"day",monthFromUrl:true});
 });
 it("keeps focus unavailable when the verified actor no longer matches the page household", async () => {
   require("@/lib/supabase/server").getServerActor.mockResolvedValueOnce({id:"parent-a",family_id:"family-B",role:"parent",tokenVersion:0});

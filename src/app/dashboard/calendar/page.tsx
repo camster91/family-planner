@@ -65,22 +65,6 @@ export default async function CalendarPage({
   const month = validMonth ? monthParam : now.getUTCMonth() + 1;
   const year = validYear ? yearParam : now.getUTCFullYear();
 
-  // UTC-only SSR shell: viewer-local ranges are fetched after mount through the
-  // reviewed bounded/paged API. Never serialize a partial start-only month list.
-  const explicitDate = parsePlanningDate(params.date);
-  const initialDate =
-    explicitDate ||
-    (validMonth
-      ? `${year}-${String(month).padStart(2, "0")}-01`
-      : dayKey(now, false));
-  const initialView =
-    params.view === "day" ||
-    params.view === "week" ||
-    params.view === "agenda" ||
-    params.view === "month"
-      ? params.view
-      : undefined;
-
   let notificationFocus: { target: Awaited<ReturnType<typeof readEventNotificationFocus>> } | undefined;
   if (params.focus !== undefined) {
     let target: Awaited<ReturnType<typeof readEventNotificationFocus>> = null;
@@ -91,6 +75,26 @@ export default async function CalendarPage({
     } catch { /* All unsupported/failed targets retain the neutral fallback. */ }
     notificationFocus = { target };
   }
+
+  // UTC-only SSR shell: viewer-local ranges are fetched after mount through the
+  // reviewed bounded/paged API. Never serialize a partial start-only month list.
+  // A verified notification target is a client-local fallback only when the
+  // link does not already name a date or legacy month; explicit navigation wins.
+  const explicitDate = parsePlanningDate(params.date);
+  const initialDate =
+    explicitDate ||
+    (validMonth
+      ? `${year}-${String(month).padStart(2, "0")}-01`
+      : dayKey(now, false));
+  const focusStart =
+    !explicitDate && !validMonth ? notificationFocus?.target?.start : undefined;
+  const initialView =
+    params.view === "day" ||
+    params.view === "week" ||
+    params.view === "agenda" ||
+    params.view === "month"
+      ? params.view
+      : undefined;
 
   // Do not serialize the focused private record after a membership/role or
   // revocation change while its read was waiting. Browser reads retain this
@@ -105,6 +109,7 @@ export default async function CalendarPage({
       events={[]}
       initialOwner={owner}
       notificationFocus={notificationFocus}
+      focusStart={focusStart}
       initialDate={initialDate}
       initialView={initialView}
       currentMonth={month}

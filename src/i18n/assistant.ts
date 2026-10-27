@@ -212,6 +212,7 @@ export const assistantEnglish = {
   checkCalendar: "Check Calendar",
   checkChores: "Check Chores",
   checkLists: "Check Lists",
+  checkGroceries: "Check Groceries",
   checkNotes: "Check Notes",
   checkHelp: "Open Help",
   actionFailed: "Action failed. Check the app before retrying.",
@@ -387,6 +388,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   checkCalendar: "Revisar Calendario",
   checkChores: "Revisar Tareas",
   checkLists: "Revisar Listas",
+  checkGroceries: "Revisar Compras",
   checkNotes: "Revisar Notas",
   checkHelp: "Abrir Ayuda",
   sourceChanged:

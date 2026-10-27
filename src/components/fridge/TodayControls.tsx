@@ -105,7 +105,7 @@ export default function TodayControls({
       <ExplorePanel role={role} />
       <details
         ref={details}
-        className="relative"
+        className="sm:relative"
         onKeyDown={closeOnEscape}
         onToggle={(event) => {
           if (event.currentTarget.open && add.current) add.current.open = false;
@@ -117,7 +117,7 @@ export default function TodayControls({
           <SlidersHorizontal size={18} aria-hidden="true" />
           {text("todayControls")}
         </summary>
-        <div className="absolute right-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
+        <div className="absolute left-0 top-full z-20 mt-2 w-56 sm:left-auto sm:right-0 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
           {links.lists && (
             <>
               <Link href="/dashboard/lists/groceries" className={menuClass}>

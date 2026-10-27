@@ -46,6 +46,7 @@ export function CalendarPlanner({
   readScope: suppliedReadScope,
   initialDate,
   initialView,
+  focusStart,
   canEditEvents = false,
   calendarSyncAvailable = false,
   refreshKey = 0,
@@ -55,6 +56,7 @@ export function CalendarPlanner({
   readScope?: CalendarReadScope;
   initialDate: string;
   initialView?: PlanningView;
+  focusStart?: string;
   canEditEvents?: boolean;
   calendarSyncAvailable?: boolean;
   refreshKey?: unknown;
@@ -121,12 +123,19 @@ export function CalendarPlanner({
   }, []);
   React.useEffect(() => {
     setLocal(true);
-    setDate(chooseLocalToday ? dayKey(new Date(), true) : initialDate);
+    const focusedLocalDate =
+      chooseLocalToday && focusStart && Number.isFinite(Date.parse(focusStart))
+        ? dayKey(new Date(focusStart), true)
+        : null;
+    setDate(
+      focusedLocalDate ||
+        (chooseLocalToday ? dayKey(new Date(), true) : initialDate),
+    );
     setView(
       initialView ||
         (window.matchMedia?.("(max-width: 639px)").matches ? "agenda" : "week"),
     );
-  }, [initialDate, initialView, chooseLocalToday]);
+  }, [initialDate, initialView, chooseLocalToday, focusStart]);
   const days = visibleDays(date, view, local),
     range = planningRange(date, view, local),
     start = range?.start || "",

@@ -27,6 +27,7 @@ interface CalendarPageClientProps {
   events: unknown[];
   initialOwner?: CalendarReadOwner;
   notificationFocus?: { target: Focus | null };
+  focusStart?: string;
   currentMonth: number;
   currentYear: number;
   initialDate?: string;
@@ -44,6 +45,7 @@ export default function CalendarPageClient({
   events,
   initialOwner,
   notificationFocus,
+  focusStart,
   currentMonth,
   currentYear,
   initialDate,
@@ -87,6 +89,7 @@ export default function CalendarPageClient({
           initialDate ||
           `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`
         }
+        focusStart={focusStart}
         initialView={initialView}
         chooseLocalToday={!monthFromUrl}
         canEditEvents={canEditEvents}

@@ -76,6 +76,12 @@ export function MealPrepActionSheet({
   const [servings, setServings] = React.useState(
     restoredDraft?.servings ?? "1",
   );
+  // A reload can reveal that another device consumed the final portion while
+  // this sheet was open. Keep that fresh result separate from the mounted
+  // batch prop so the stale form cannot submit a guaranteed-invalid `1`.
+  const [eatenUnavailable, setEatenUnavailable] = React.useState(
+    () => kind === "eaten" && !!counts && counts.remaining <= 0,
+  );
   const [meals, setMeals] = React.useState<AllocationDraft[]>(
     restoredDraft?.meals ?? [],
   );
@@ -145,7 +151,12 @@ export function MealPrepActionSheet({
             : tBulk("undoEaten");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mutation.isPending() || freshWritesBlocked) return;
+    if (
+      mutation.isPending() ||
+      freshWritesBlocked ||
+      (kind === "eaten" && eatenUnavailable)
+    )
+      return;
     const scope = {
       expected_family_id: origin.current.familyId,
       expected_user_id: origin.current.userId,
@@ -195,6 +206,9 @@ export function MealPrepActionSheet({
     setReloading(true);
     try {
       const latest = await onReload();
+      // A failed reload does not prove that the batch is empty. Only apply
+      // the unavailable guard after receiving a canonical result.
+      if (kind === "eaten" && latest !== null) setEatenUnavailable(true);
       const current = latest?.find((row) => row.id === session.id);
       if (current) {
         expectedNext.current = current.next_prep_on
@@ -227,9 +241,16 @@ export function MealPrepActionSheet({
                       ?.id ?? "");
             const max = choice ? outstanding(choice) : available.unplanned;
             setMealId(choice);
+            const hasRemaining = available.remaining > 0;
+            setEatenUnavailable(!hasRemaining);
             setServings(
-              String(Math.max(1, Math.min(Number(servings) || 1, max))),
+              hasRemaining
+                ? String(Math.max(1, Math.min(Number(servings) || 1, max)))
+                : "",
             );
+          } else {
+            setMealId("");
+            setServings("");
           }
         }
         mutation.clearError();
@@ -258,6 +279,11 @@ export function MealPrepActionSheet({
               {tBulk("unplanned", { count: counts.unplanned })}
             </p>
           )}
+          {kind === "eaten" && eatenUnavailable && (
+            <p className="text-subhead text-label-secondary" role="status">
+              {tBulk("reuseFull")}
+            </p>
+          )}
           {kind === "allocate" && counts && (
             <MealAllocationEditor
               meals={meals}
@@ -275,7 +301,7 @@ export function MealPrepActionSheet({
                   id={`${prefix}-meal`}
                   className="input-field w-full mt-1"
                   value={mealId}
-                  disabled={mutation.locked}
+                  disabled={mutation.locked || eatenUnavailable}
                   onChange={(e) => setMealId(e.target.value)}
                 >
                   <option value="" disabled={counts.unplanned <= 0}>
@@ -302,7 +328,7 @@ export function MealPrepActionSheet({
                   step={1}
                   required
                   value={servings}
-                  disabled={mutation.locked}
+                  disabled={mutation.locked || eatenUnavailable}
                   onChange={(e) => setServings(e.target.value)}
                 />
               </label>
@@ -382,6 +408,7 @@ export function MealPrepActionSheet({
                   mutation.locked ||
                   reloading ||
                   freshWritesBlocked ||
+                  (kind === "eaten" && eatenUnavailable) ||
                   (kind === "allocate" && meals.length === 0)
                 }
               >

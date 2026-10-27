@@ -214,12 +214,34 @@ for (const role of ["parent", "teen", "child"] as const) {
             locale === "es" ? "Acciones rápidas de hoy" : "Today quick actions",
           exact: true,
         });
+        const todayMenu = controls.locator("details").filter({
+          has: page.locator("summary").filter({
+            hasText:
+              locale === "es" ? /^Controles de hoy$/ : /^Today controls$/,
+          }),
+        });
+        await todayMenu.locator("summary").click();
+        const menuBox = await todayMenu.locator(":scope > div").boundingBox();
+        expect(menuBox).not.toBeNull();
+        expect(menuBox!.x).toBeGreaterThanOrEqual(0);
+        expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(
+          info.project.use.viewport!.width,
+        );
+        await todayMenu.locator("summary").press("Escape");
         const event = controls.getByRole("link", {
           name: locale === "es" ? "Añadir evento" : "Add event",
           exact: true,
         });
         if (role === "child") await expect(event).toHaveCount(0);
         else {
+          // Compact Today actions use a native disclosure. Exercise the same
+          // visible entry point a person uses before checking its links.
+          await controls
+            .locator("summary")
+            .filter({
+              hasText: locale === "es" ? /^Añadir$/ : /^Add$/,
+            })
+            .click();
           await expect(event).toHaveAttribute(
             "href",
             "/dashboard/calendar/create",
@@ -236,7 +258,7 @@ for (const role of ["parent", "teen", "child"] as const) {
             }),
           ).toHaveCount(0);
           await expect(
-            page.locator('a[href="/dashboard/family/features"]'),
+            page.locator('a[href="/dashboard/features"]'),
           ).toHaveCount(0);
         }
         const userMenu = page.getByRole("button", {

@@ -169,6 +169,7 @@ function actionRecoveryPath(action: AssistantAction): string {
   if (action.kind === "chore_create" || action.kind === "chore_delete")
     return "/dashboard/chores";
   if (action.kind === "note_create") return "/dashboard/notes";
+  if (action.kind === "grocery_add") return "/dashboard/lists/groceries";
   return "/dashboard/lists";
 }
 
@@ -176,6 +177,7 @@ function actionRecoveryMessage(path: string): AssistantMessage {
   if (path === "/dashboard/calendar") return "checkCalendar";
   if (path === "/dashboard/chores") return "checkChores";
   if (path === "/dashboard/notes") return "checkNotes";
+  if (path === "/dashboard/lists/groceries") return "checkGroceries";
   return path === "/dashboard/lists" ? "checkLists" : "checkHelp";
 }
 

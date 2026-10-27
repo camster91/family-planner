@@ -28,6 +28,7 @@ import {
   toDateOnlyUTC,
 } from "@/lib/dates";
 import { groupByRoutine, normalizeRoutineName } from "@/lib/routine-icons";
+import { canRoleAccessPath } from "@/lib/kid-access";
 import KidRoutines from "./KidRoutines";
 import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
 import type { OwnPreparationContext } from "@/lib/event-preparation/discovery";
@@ -191,6 +192,10 @@ export default function KidHome({
   const [claimingReward, setClaimingReward] = useState(false);
   const rewardClaimKeys = useRef(new Map<string, string>());
   const rewardsEnabled = useFeatureEnabled("rewards");
+  const canViewFamilyRewards = canRoleAccessPath(
+    user.role,
+    "/dashboard/rewards",
+  );
   // Points & streaks (#248). When off the server also omits xp/level and the
   // chores' points, so this only decides what to draw.
   const { quiet } = useDisplayPreferences();
@@ -1060,12 +1065,14 @@ export default function KidHome({
                   {rewardsText("claimableHint")}
                 </p>
               </div>
-              <Link
-                href="/dashboard/rewards"
-                className="min-h-[44px] inline-flex items-center text-footnote text-rewards"
-              >
-                {rewardsText("allFamily")}
-              </Link>
+              {canViewFamilyRewards && (
+                <Link
+                  href="/dashboard/rewards"
+                  className="min-h-[44px] inline-flex items-center text-footnote text-rewards"
+                >
+                  {rewardsText("allFamily")}
+                </Link>
+              )}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {availableRewards.map((reward) => {

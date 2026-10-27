@@ -13,6 +13,9 @@ function href(source: InboxPage["source"], after?: string | null) {
   if (after) params.set("after", after);
   return `/dashboard/review?${params}`;
 }
+function choreHref(id: string) {
+  return `/dashboard/chores?focus=${encodeURIComponent(id)}`;
+}
 export default function ReviewInbox({
   page,
   identity,
@@ -98,8 +101,8 @@ export default function ReviewInbox({
                   {item.kind === "check" ? (
                     <Link
                       className="btn-plain min-h-11"
-                      href="/dashboard/chores"
-                      onClick={(event) => navigate(event, "/dashboard/chores")}
+                      href={choreHref(item.id)}
+                      onClick={(event) => navigate(event, choreHref(item.id))}
                     >
                       {copy.openChecks}
                     </Link>
