@@ -79,6 +79,17 @@ export async function applyRotationEditInTx(
   if (!template) return false
   if (sameRotation(template.rotation_member_ids, rotation)) return false
 
+  // Clearing never reassigns occurrences, so no candidate plan or identity
+  // resolution is needed. Keep both effects in the caller's locked transaction.
+  if (rotation.length === 0) {
+    await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: [] } })
+    await tx.chore.updateMany({
+      where: { family_id: familyId, recurrence_id: template.id },
+      data: { rotation_index: null },
+    })
+    return true
+  }
+
   // Due dates are stored at UTC midnight (src/lib/recurringChores.ts).
   const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
   // Only copies nobody started take turns. A started or finished copy keeps
@@ -86,11 +97,30 @@ export async function applyRotationEditInTx(
   // copy a parent gave to someone by hand (its person is not the one its place
   // names) keeps that person too: the new order never undoes a hand pick.
   const oldRotation = template.rotation_member_ids ?? []
-  const pending = await tx.chore.findMany({
-    where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending' },
-    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
-    select: { id: true, assigned_to: true, assigned_member_id: true, rotation_index: true },
-  })
+  const pending: Array<{ id: string; assigned_to: string | null; assigned_member_id: string | null; rotation_index: number | null }> = []
+  type RotationCandidate = {
+    id: string
+    assigned_to: string | null
+    assigned_member_id: string | null
+    rotation_index: number | null
+    due_date: Date
+  }
+  let after: { day: Date; id: string } | null = null
+  for (;;) {
+    const batch: RotationCandidate[] = await tx.chore.findMany({
+      where: { family_id: familyId, recurrence_id: template.id, due_date: { gte: tomorrow }, status: 'pending',
+        ...(after ? { OR: [{ due_date: { gt: after.day } }, { due_date: after.day, id: { gt: after.id } }] } : {}) },
+      orderBy: [{ due_date: 'asc' }, { id: 'asc' }], take: 500,
+      select: { id: true, assigned_to: true, assigned_member_id: true, rotation_index: true, due_date: true },
+    })
+    // Keep the complete atomic plan, but do not retain the extra paging dates.
+    pending.push(...batch.map(row => ({ id: row.id, assigned_to: row.assigned_to, assigned_member_id: row.assigned_member_id, rotation_index: row.rotation_index })))
+    if (batch.length < 500) break
+    const last = batch[batch.length - 1]
+    if (!Number.isFinite(last.due_date.getTime()) || (after && last.id === after.id && last.due_date.getTime() === after.day.getTime()))
+      throw new Error('Rotation candidate cursor did not advance')
+    after = { day: last.due_date, id: last.id }
+  }
   // In a series that already takes turns, every copy it planned has a place,
   // so a copy without one was set aside (a hand pick from an earlier edit)
   // and stays set aside. Only a series starting to take turns plans them all.
@@ -100,18 +130,29 @@ export async function applyRotationEditInTx(
       : row.rotation_index != null && oldRotation[row.rotation_index] === row.assigned_to
   )
 
+  const turns = planRotationTurns(rotation, null, future.length)
+  // Identity checks are per distinct canonical participant, not per occurrence.
+  // The existing household lifecycle lock stays held across preflight/effects.
+  // Resolve every required canonical mapping before touching the template/rows.
+  const requiredCanonical = new Set<string>()
+  for (let index = 0; index < future.length; index++) {
+    const assignee = turns[index]?.assignee
+    if (future[index].assigned_member_id && assignee) requiredCanonical.add(assignee)
+  }
+  const canonicalAssignees = new Map<string, { assigned_to: string; assigned_member_id: string }>()
+  for (const userId of [...requiredCanonical].sort())
+    canonicalAssignees.set(userId, await canonicalChoreAssigneeInTx(tx, familyId, userId))
+
   await tx.chore.update({ where: { id: template.id }, data: { rotation_member_ids: [...rotation] } })
   await tx.chore.updateMany({
     where: { family_id: familyId, recurrence_id: template.id },
     data: { rotation_index: null },
   })
-  if (rotation.length === 0) return true
-  const turns = planRotationTurns(rotation, null, future.length)
   for (let i = 0; i < future.length; i++) {
     const turn = turns[i]
     const assignee = turn.assignee
       ? future[i].assigned_member_id
-        ? await canonicalChoreAssigneeInTx(tx, familyId, turn.assignee)
+        ? canonicalAssignees.get(turn.assignee)!
         : { assigned_to: turn.assignee }
       : {}
     await tx.chore.update({
@@ -123,6 +164,40 @@ export async function applyRotationEditInTx(
     })
   }
   return true
+}
+
+type RotationRemovalTemplate = {
+  id: string
+  rotation_member_ids: string[]
+  assigned_to: string | null
+  assigned_member_id: string | null
+  status: string
+}
+const ROTATION_REMOVAL_PAGE_SIZE = 100
+async function* rotationRemovalPages(tx: Prisma.TransactionClient, familyId: string, memberId: string) {
+  let after: string | null = null
+  for (;;) {
+    const rows: RotationRemovalTemplate[] = await tx.chore.findMany({
+      where: { family_id: familyId, rotation_member_ids: { has: memberId },
+        ...(after ? { id: { gt: after } } : {}) },
+      orderBy: { id: 'asc' }, take: ROTATION_REMOVAL_PAGE_SIZE,
+      select: { id: true, rotation_member_ids: true, assigned_to: true, assigned_member_id: true, status: true },
+    })
+    if (rows.length === 0) return
+    const next = rows[rows.length - 1].id
+    if (rows.length > ROTATION_REMOVAL_PAGE_SIZE || !next || next === after)
+      throw new Error('Rotation removal cursor did not advance')
+    yield rows
+    if (rows.length < ROTATION_REMOVAL_PAGE_SIZE) return
+    after = next
+  }
+}
+function rotationRemovalPlan(template: RotationRemovalTemplate, memberId: string) {
+  const removedAt = template.rotation_member_ids.indexOf(memberId)
+  const rest = template.rotation_member_ids.filter((id) => id !== memberId)
+  const retainedHistory = template.assigned_member_id && ['completed', 'verified', 'approved'].includes(template.status)
+  const nextAssignee = !retainedHistory && template.assigned_to === memberId && rest.length > 0 ? rest[removedAt % rest.length] : null
+  return { removedAt, rest, nextAssignee }
 }
 
 /**
@@ -146,44 +221,58 @@ export async function dropMemberFromRotationsInTx(
   familyId: string,
   memberId: string
 ): Promise<number> {
-  const templates = await tx.chore.findMany({
-    where: { family_id: familyId, rotation_member_ids: { has: memberId } },
-    select: { id: true, rotation_member_ids: true, assigned_to: true, assigned_member_id: true, status: true },
-  })
-  for (const template of templates) {
-    const removedAt = template.rotation_member_ids.indexOf(memberId)
-    const rest = template.rotation_member_ids.filter((id) => id !== memberId)
-    const series = { family_id: familyId, recurrence_id: template.id }
-    if (removedAt === 0) {
-      await tx.chore.updateMany({ where: { ...series, rotation_index: 0 }, data: { rotation_index: null } })
-    } else {
-      await tx.chore.updateMany({ where: { ...series, rotation_index: removedAt }, data: { rotation_index: removedAt - 1 } })
+  // First pass resolves all distinct canonical replacements before effects.
+  // A second keyset pass applies every root without retaining the full roster.
+  // The caller's existing household lifecycle lock spans both passes.
+  const requiredCanonical = new Set<string>()
+  let found = false
+  for await (const templates of rotationRemovalPages(tx, familyId, memberId)) {
+    found = true
+    for (const template of templates) {
+      const plan = rotationRemovalPlan(template, memberId)
+      if (template.assigned_member_id && plan.nextAssignee) requiredCanonical.add(plan.nextAssignee)
     }
-    await tx.chore.updateMany({
-      where: { ...series, rotation_index: { gt: removedAt } },
-      data: { rotation_index: { decrement: 1 } },
-    })
-    if (rest.length === 0) {
-      await tx.chore.updateMany({ where: series, data: { rotation_index: null } })
-    }
-    // A completed canonical template is also recorded history. Its rotation
-    // changes, but its accepted subject must not become another person's work.
-    const retainedHistory = template.assigned_member_id && ['completed', 'verified', 'approved'].includes(template.status)
-    const nextAssignee = !retainedHistory && template.assigned_to === memberId && rest.length > 0 ? rest[removedAt % rest.length] : null
-    const assignee = nextAssignee
-      ? template.assigned_member_id
-        ? await canonicalChoreAssigneeInTx(tx, familyId, nextAssignee)
-        : { assigned_to: nextAssignee }
-      : {}
-    await tx.chore.update({
-      where: { id: template.id },
-      data: {
-        rotation_member_ids: rest,
-        // The series itself goes to the next person, so it is not removed or
-        // handed over with the leaving member's own chores.
-        ...assignee,
-      },
-    })
   }
-  return templates.length
+  if (!found) return 0
+  const canonicalAssignees = new Map<string, { assigned_to: string; assigned_member_id: string }>()
+  for (const userId of [...requiredCanonical].sort())
+    canonicalAssignees.set(userId, await canonicalChoreAssigneeInTx(tx, familyId, userId))
+
+  let changed = 0
+  for await (const templates of rotationRemovalPages(tx, familyId, memberId)) {
+    for (const template of templates) {
+      const { removedAt, rest, nextAssignee } = rotationRemovalPlan(template, memberId)
+      if (template.assigned_member_id && nextAssignee && !canonicalAssignees.has(nextAssignee))
+        throw new HouseholdMemberIdentityConflict()
+      const series = { family_id: familyId, recurrence_id: template.id }
+      if (removedAt === 0) {
+        await tx.chore.updateMany({ where: { ...series, rotation_index: 0 }, data: { rotation_index: null } })
+      } else {
+        await tx.chore.updateMany({ where: { ...series, rotation_index: removedAt }, data: { rotation_index: removedAt - 1 } })
+      }
+      await tx.chore.updateMany({
+        where: { ...series, rotation_index: { gt: removedAt } },
+        data: { rotation_index: { decrement: 1 } },
+      })
+      if (rest.length === 0) {
+        await tx.chore.updateMany({ where: series, data: { rotation_index: null } })
+      }
+      const assignee = nextAssignee
+        ? template.assigned_member_id
+          ? canonicalAssignees.get(nextAssignee)!
+          : { assigned_to: nextAssignee }
+        : {}
+      await tx.chore.update({
+        where: { id: template.id },
+        data: {
+          rotation_member_ids: rest,
+          // The series itself goes to the next person, so it is not removed or
+          // handed over with the leaving member's own chores.
+          ...assignee,
+        },
+      })
+      changed++
+    }
+  }
+  return changed
 }

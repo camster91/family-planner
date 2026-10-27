@@ -57,7 +57,6 @@ export function BulkCookingPanel({
   const tBulk = useBulkCookingText();
   const locale = useDisplayLocale();
   const id = React.useId();
-  const es = locale.startsWith("es");
   const reuseKey =
     preparedReuse.state === "target"
       ? `${preparedReuse.target.sessionId}/${preparedReuse.target.batchId}`
@@ -329,6 +328,25 @@ export function BulkCookingPanel({
   const current = sessions.find((row) => row.id === selected) ?? sessions[0];
   const modalSession =
     modal && sessions.find((row) => row.id === modal.sessionId);
+  const sessionCounts = current
+    ? current.batches.reduce(
+        (totals, batch) => {
+          const counts = batchPortionCounts(
+            batch.total_servings,
+            batch.meals,
+            batch.consumption,
+          );
+          return {
+            total: totals.total + batch.total_servings,
+            eaten: totals.eaten + counts.eaten,
+            remaining: totals.remaining + counts.remaining,
+            planned: totals.planned + counts.planned,
+            unplanned: totals.unplanned + counts.unplanned,
+          };
+        },
+        { total: 0, eaten: 0, remaining: 0, planned: 0, unplanned: 0 },
+      )
+    : null;
   const formScope =
     scope ??
     (recoveryRequested && recovery.context
@@ -444,21 +462,9 @@ export function BulkCookingPanel({
             className="space-y-2 rounded-xl border border-[var(--surface-separator)] p-3"
           >
             <p>
-              {preparedReuse.state === "invalid"
-                ? es
-                  ? "El enlace de porciones no es válido. No se ha elegido otro plato."
-                  : "This portions link is invalid. No other dish was selected for reuse."
-                : reuseProblem === "unprepared"
-                  ? es
-                    ? "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones."
-                    : "This dish is not currently recorded as prepared. Review the session before reusing portions."
-                  : reuseProblem === "full"
-                    ? es
-                      ? "Este plato no tiene porciones sin planificar. No se cambió ninguna comida."
-                      : "This dish has no unplanned portions. No meals were changed."
-                    : es
-                      ? "No se pudo comprobar el plato solicitado. No se abrió otro plato."
-                      : "The requested dish could not be checked. No other dish was opened."}
+              {tBulk(preparedReuse.state === "invalid" ? "reuseInvalid"
+                : reuseProblem === "unprepared" ? "reuseUnprepared"
+                  : reuseProblem === "full" ? "reuseFull" : "reuseUnavailable")}
             </p>
             {preparedReuse.state === "target" && (
               <button
@@ -476,7 +482,7 @@ export function BulkCookingPanel({
               disabled={loading}
               onClick={onDismissPreparedReuse}
             >
-              {es ? "Quitar solicitud de reutilización" : "Clear reuse request"}
+              {tBulk("clearReuse")}
             </button>
           </div>
         )}
@@ -553,6 +559,26 @@ export function BulkCookingPanel({
                 </button>
               )}
             </div>
+            {sessionCounts && (
+              <div
+                className="rounded-xl bg-[var(--surface-fill)] p-3 space-y-1"
+                role="status"
+                aria-label={tBulk("sessionSummary")}
+              >
+                <p className="text-subhead font-semibold">
+                  {tBulk("sessionSummary")}
+                </p>
+                <p className="text-subhead text-label-secondary">
+                  {tBulk("total", { count: sessionCounts.total })} ·{" "}
+                  {tBulk("eaten", { count: sessionCounts.eaten })} ·{" "}
+                  {tBulk("remaining", { count: sessionCounts.remaining })}
+                </p>
+                <p className="text-footnote text-label-secondary">
+                  {tBulk("planned", { count: sessionCounts.planned })} ·{" "}
+                  {tBulk("unplanned", { count: sessionCounts.unplanned })}
+                </p>
+              </div>
+            )}
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
               {current.batches.map((batch) => {
                 const counts = batchPortionCounts(
@@ -592,9 +618,7 @@ export function BulkCookingPanel({
                           }}
                           href={`/dashboard/inventory?cookBatch=${encodeURIComponent(batch.id)}`}
                         >
-                          {locale.startsWith("es")
-                            ? "Revisar alimentos usados"
-                            : "Review food used"}
+                          {tBulk("reviewFoodUsed")}
                         </Link>
                       )}
                       <button
@@ -679,23 +703,21 @@ export function BulkCookingPanel({
                     setModal({ kind: "next-prep", sessionId: current.id })
                   }
                 >
-                  {tBulk("changeNext")}
+                  {tBulk(current.next_prep_on ? "changeNext" : "setNextDate")}
                 </button>
-                {current.next_prep_on && (
-                  <button
-                    type="button"
-                    className="btn-filled min-h-[44px]"
-                    disabled={mutationsBlocked}
-                    onClick={() =>
-                      setEditor({
-                        day: toDateOnlyUTC(current.next_prep_on!),
-                        seed: current,
-                      })
-                    }
-                  >
-                    {tBulk("planNext")}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn-filled min-h-[44px]"
+                  disabled={mutationsBlocked}
+                  onClick={() =>
+                    setEditor({
+                      day: current.next_prep_on ? toDateOnlyUTC(current.next_prep_on) : defaultDay,
+                      seed: current,
+                    })
+                  }
+                >
+                  {tBulk("planNext")}
+                </button>
               </div>
             </div>
             <p className="text-footnote text-label-secondary">

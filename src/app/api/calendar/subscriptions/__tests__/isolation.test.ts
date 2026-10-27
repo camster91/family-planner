@@ -1,3 +1,5 @@
+import { CALENDAR_OWNER_HEADER } from "@/lib/calendar-read-owner";
+import { calendarReadOwnerFixture } from "@/__tests__/helpers/calendar-read-owner";
 // Two-household isolation + role gates for /api/calendar/subscriptions (#232).
 
 jest.mock(
@@ -24,10 +26,10 @@ jest.mock("@/lib/outbound-url", () => {
   const actual = jest.requireActual("@/lib/outbound-url");
   return {
     ...actual,
-    assertPublicProviderUrl: async (url: string) => {
+    assertPublicProviderUrl: jest.fn(async (url: string) => {
       const err = actual.checkProviderUrlShape(url);
       if (err) throw new Error(err);
-    },
+    }),
   };
 });
 
@@ -52,8 +54,10 @@ import {
   expectDenied,
   expectNoForeignData,
   FAMILY_A,
+  USER_IDS,
   type UserKey,
 } from "@/__tests__/helpers/two-household";
+import { assertPublicProviderUrl } from "@/lib/outbound-url";
 import { decryptSecret } from "@/lib/secret-box";
 import {
   ics,
@@ -347,4 +351,61 @@ describe("calendar subscriptions — audit statuses (F-4)", () => {
     expect(db.writes).toHaveLength(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
+
+// Authored UNRUN: URL validation may outlive the original authenticated session.
+it("refuses subscription creation when the original session changes during URL validation", async () => {
+  jest.mocked(assertPublicProviderUrl).mockImplementationOnce(async () => {
+    const user = db.find("user", USER_IDS.parentA)!;
+    user.token_version += 1;
+  });
+  const res = await collection.POST(req({ as: "parentA", body: newSub }));
+  expect(res.status).toBe(401);
+  expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
+  expect(writesTo("calendarSubscription")).toHaveLength(0);
+});
+
+// Authored UNRUN: parameter/body waits cannot renew a removed parent authority.
+it.each(["rename", "remove"] as const)("holds %s after the original role changes", async action => {
+  const context = {
+    get params() {
+      db.find("user", USER_IDS.parentA)!.role = "teen";
+      return Promise.resolve({ id: "sub-a" });
+    },
+  };
+  const res = action === "rename"
+    ? await item.PATCH(req({ as: "parentA", body: { name: "Changed fixture" } }), context)
+    : await item.DELETE(req({ as: "parentA" }), context);
+  expect(res.status).toBe(401);
+  expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
+  expect(writesTo("calendarSubscription")).toHaveLength(0);
+  expect(writesTo("event")).toHaveLength(0);
+  expect(db.find("calendarSubscription", "sub-a")).toBeDefined();
+});
+
+// Authored UNRUN: a remote feed response cannot authorize effects after session loss.
+it("holds manual refresh effects when the original session changes during fetch", async () => {
+  fetchMock.mockImplementationOnce(async () => {
+    db.find("user", USER_IDS.parentA)!.token_version += 1;
+    return icsResponse(FEED);
+  });
+  const res = await refresh.POST(req({ as: "parentA" }), params({ id: "sub-a" }));
+  expect(res.status).toBe(401);
+  expect(await res.json()).toMatchObject({ code: "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" });
+  expect(writesTo("event")).toHaveLength(0);
+  expect(writesTo("calendarSubscription")).toHaveLength(0);
+});
+
+// Authored UNRUN: planner comparison metadata is additive to legacy reads.
+it("echoes the original owner only on an authorized successful source read", async () => {
+  const response = await collection.GET(req({as:"parentA",headers:{[CALENDAR_OWNER_HEADER]:JSON.stringify(calendarReadOwnerFixture)}}));
+  expect(response.status).toBe(200);
+  expect(JSON.parse(response.headers.get(CALENDAR_OWNER_HEADER)!)).toEqual(calendarReadOwnerFixture);
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+});
+it.each(['{}',JSON.stringify({...calendarReadOwnerFixture,familyId:"family-B"})])("refuses invalid or different original source owner (%s)", async marker => {
+  const response = await collection.GET(req({as:"parentA",headers:{[CALENDAR_OWNER_HEADER]:marker}}));
+  expect(response.status).toBe(409);
+  expect(response.headers.get(CALENDAR_OWNER_HEADER)).toBeNull();
+  expect(await response.json()).not.toHaveProperty("subscriptions");
 });

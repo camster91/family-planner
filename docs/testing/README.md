@@ -5,4 +5,6 @@
 - `VISUAL_REGRESSION.md` — screenshot regression policy
 - `E2E.md` — Playwright browser journeys, visual baselines and axe accessibility smoke (`npm run test:e2e`)
 
+- `CAPACITY_RUNNER.md` — dormant mixed-load engine and remaining adapters/adoption; no run or reproducibility acceptance.
+
 Implementation work to add concrete browser E2E, visual/a11y tooling and Android lifecycle tests is tracked through #139 and agent-sized child issues.

@@ -6,6 +6,171 @@ Discovery, current-provider configuration/permission, household beta evidence an
 acceptance remain separate. No account/provider call, credential read/change,
 sync, calendar write, migration, scheduler or activation occurred in this pass.
 
+## Unverified feed-format follow-through — 2026-10-24
+
+The existing read-only household ICS export now folds text and long RRULE
+lines by UTF-8 byte count without dividing Unicode code points. Prior conservative
+ASCII widths remain. Bare CR joins CRLF/LF normalization in escaped text, retaining
+literal text rather than creating extra content lines. Token/family resolution,
+UIDs, timestamps, supported recurrence spelling, date range and cache headers are unchanged.
+Multibyte/emoji, newline-escaping and ASCII-boundary cases are authored/unrun.
+No provider access, sync, QA/build/browser/API/database or release ran.
+
+The export now assembles a complete feed with200-row `(start_time,id)` keyset
+reads inside one30-second RepeatableRead transaction, including token/household
+resolution. The former2,000-event refusal is replaced by explicit10,000-event
+and16MiB assembled-wire limits. One-row lookahead detects the count boundary.
+No successful ICS bytes are returned until all pages and the final END marker
+are assembled. Overflow still returns503/no-store with
+`CALENDAR_FEED_TOO_LARGE`; supported feeds retain the successful format/cache
+contract and stable UID/timestamps. Only feed fields are selected. This does not
+prove database/JS peak memory, serialization cost, concurrency/snapshot behavior,
+query plans or provider handling; unusually wide legacy DB rows can still incur
+read allocation before the output budget is enforced. Subscription
+imports refuse capped parse results before reconciliation and retain existing
+events plus last-complete ETag/Last-Modified. These changes are authored/unrun.
+Export above the new count/byte limits remains unavailable. Identified malformed series now
+refuse the whole parse before reconciliation; concatenated calendar documents
+also refuse instead of silently reading the first. Existing cancellation/no-UID
+rules remain. The parser normalizes library errors and rejects invalid coverage
+options. These source changes and their regression cases are unrun. Overlong UIDs now refuse instead of truncating matching identity; duplicate
+master UIDs and duplicate resolved override identities also refuse before writes.
+Boundary/ambiguity/sync-preservation regression source is authored/unrun. Broader
+semantic/format validation, historical partial-import recovery, query/native/
+provider/error behavior and all original #124 acceptance remain open.
+
+## Stored recurrence export guard — 2026-10-24, source only
+
+`calendar-feed-rule.ts` validates stored recurrence at the feed boundary before
+emission. It uses the already lockedical.js2.2.1 parser without expanding any
+occurrences, plus explicit structural checks for missing/duplicated/unknown keys,
+non-positive/unsafe count or interval, conflicting count/until, unsupported zero
+day/week/position values and extra content lines. Rules above8,192 characters
+are unsupported. Parsed UNTIL values must preserve their supplied basic-ICAL
+representation; normalized replacements are not silently adopted. Supported rules
+keep supplied key order/explicit values, with the existing uppercase/prefix
+normalization. No `Recur.toString()` reconstruction that could omit parts.
+
+A malformed/ambiguous/unsupported stored rule refuses the entire feed with
+503/private-no-store `CALENDAR_FEED_INVALID_RULE`. No successful prefix, skipped
+series or one-off substitution is returned. Error text contains no stored rule,
+event identifier or token; stored data, event input schemas and identity are
+unchanged. Parent-facing read-only identification is now authored below; canonical
+repair and its acceptance remain separate. This is a
+bounded parser/structure guard, not exhaustive cross-part recurrence semantics,
+Toronto/DST/provider acceptance or validation of every legacy rule format.
+
+Reference inspected (read only):
+[ical.js2.2.1 recurrence parser](https://github.com/kewisch/ical.js/blob/v2.2.1/lib/ical/recur.js).
+Its parser permits unknown parts and normalizes some interval values, so a parse
+alone is not the feed acceptance decision. Regression source is authored/unrun;
+no parser execution, QA, application/provider/database call or release ran.
+
+## Parent recurrence recovery — 2026-10-24, source only
+
+Settings → family → Calendar feed now has a lazy EN/ES “Review repeating events”
+overlay. It fetches only on a tap, uses the shared bounded foreground/JSON helper,
+and replaces each100-event diagnostic group rather than appending an ever-growing
+screen. Retry repeats the exact cursor; close/replacement/unmount cancels and
+invalidates ownership. A changed server-provided household scope remounts/clears
+the component. A stale expected-household response requires reloading Settings.
+
+`GET /api/calendar/feed/review` uses personal authentication/current parent role,
+including central paired-device refusal, and an explicit expected-household
+header. The header is a stale-context check, never authority. The current session
+supplies the actual household. An absent/malformed header refuses400; mismatch
+refuses409 before event reads. Opaque canonical cursors bind to that household;
+repeated/malformed/foreign cursors refuse. The endpoint selects101 candidate rows
+for100-row keyset groups, always private/no-store. Only affected event IDs, titles
+and local/connected/subscribed kind leave the server—never raw recurrence text,
+feed tokens, description, locations or provider credentials. No write method.
+
+Each group reports only its inspected count and unsupported rules. A clear group
+is not a complete feed check, count/byte capacity proof, provider/revocation test
+or snapshot of all roots. Concurrent edits can change later groups. Unusually
+wide legacy rule/title fields may still allocate during the DB read. Unsupported
+legacy DTO shapes fail the read instead of being presented as a clear result.
+
+Local events link to the existing `/dashboard/calendar/edit?id=...` editor;
+connected/subscribed events link to their Settings source controls and retain
+read-only ownership. There is no automatic rule replacement, deletion, save,
+provider call, connection activation or token rotation. Existing editor/source
+availability and repair semantics still require their original acceptance.
+
+Parent/role/household/cursor/minimal-DTO, changed-scope late response, EN/ES and
+canonical-link regression sources are authored/unrun. Device route inventory
+also records the new personal-only read. No API, browser, test, DB, provider or
+release execution occurred. Full #124/#139 acceptance remains open.
+
+## Explicit repeat-rule removal — 2026-10-24, source only
+
+The existing personal parent event editor now exposes a collapsed repeat-rule
+section only for a stored local repeating event. Ordinary title/time/location/
+notes saves continue to omit recurrence, preserving custom and unsupported rules.
+“Stop repeating” is an explicit draft choice with a warning; “Keep the saved
+repeat rule” cancels it before save. Saving removal sets recurrence to null and
+includes the exact originally read rule as `expected_recurrence`. Separate events,
+completed history and imported source records are not deleted or rewritten.
+The choice does not create a replacement daily/weekly/monthly rule or claim an
+in-app recurrence planner. Legacy rules above8,192 characters remain held for
+support review; other metadata edits preserve them.
+
+Canonical PATCH now delegates to `person-event-update.ts`. It locks the current
+User then household, renews token generation/current parent membership and
+household existence, locks the owned event, then re-reads source/range/rule before
+one scoped update. Subscription read-only and existing connected-event edit policy
+remain. The merged date-range check uses the locked current bounds. A stale
+reviewed rule returns409 `EVENT_RECURRENCE_CHANGED` before **any** metadata change.
+The EN/ES form retains its draft and asks the parent to reopen/review the event.
+The precondition is not persisted or used as authority.
+
+The review precondition is additive and optional for installed-client compatibility;
+when supplied it is accepted only with recurrence:null. Legacy PATCH bodies retain
+their absolute-field behavior. This is not whole-event optimistic concurrency or
+an idempotent receipt. Lost removal responses require canonical reinspection;
+retry can conflict once the original clear already committed. There is no automatic
+retry/replacement, post-save Undo, provider dispatch, new offline action or data
+migration. Read-only sources still use their original calendar controls.
+
+Authority/stale-rule/source/range unit cases and EN/ES preservation/removal/cancel/
+conflict UI cases are authored/unrun. Fake transactions establish no actual PG
+locking/rollback, cross-household concurrency or native/rendered acceptance. No
+API, DB, test, build, browser, provider or deployment was executed. Broader rule
+editing, complete semantic validation and all original #124 criteria remain open.
+
+## Event creation and completed-response authority — 2026-10-24, source only
+
+`person-event-authority.ts` now supplies the shared User-then-household lock and
+fresh session-generation/membership/known-role/household-existence check for
+creation, completed-create replay and editing. Existing role policy remains:
+parent/teen/child may create via the canonical API; only parents edit. UI role
+allowlists are unchanged. Unknown roles and changed household/session refuse.
+
+Normal and assistant-backed creation both renew authority inside the transaction
+before event/activity effects or an in-transaction private receipt read. The API
+also supplies a replay guard for **all** completed keyed responses, including
+normal captures without assistant proof. An actor who left the original family
+cannot recover its old private event response through a request authenticated
+before the membership change. Input hash/key/expiry, canonical event/activity and
+receipt writes, and opt-in post-commit beta counting remain unchanged. An outer
+idempotency claim/refusal record can still be created before the effect check;
+this is not a promise of zero ledger writes on an authority refusal.
+
+Assistant ownership authorization is retained; uncommitted effects still verify
+current source/lease. Completed replay renews ownership without re-verifying an
+expired or changed source, preserving recovery of an already committed event.
+No proof, old name or client family value supplies current household authority.
+No new create/edit permission, feature activation, provider dispatch, scheduler,
+offline action, migration or separate event store is added.
+
+Regression source includes all three allowed create roles, changed household/
+session/unknown role, absent household, normal replay refusal, assistant replay
+without second source verification, and no repeated event/activity/beta effects.
+Existing opt-in assistant integration source is adapted to the new actor/replay
+contract; nothing was run. Fake transactions do not prove real lock ordering,
+concurrency, rollback or lifecycle/native acceptance. Full #124/#134/#136 gates
+remain open.
+
 ## Product modes and actual ownership
 
 | Mode | Current source behavior | Explicit limit |

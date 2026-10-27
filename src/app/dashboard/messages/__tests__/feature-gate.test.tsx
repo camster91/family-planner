@@ -42,7 +42,7 @@ it('shows the off state and never fetches messages when Family chat is off', () 
 
 it('loads messages when Family chat is on', async () => {
   const { unmount } = renderWith(true)
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/messages'))
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/messages?paging=keyset-v1&limit=50', expect.objectContaining({ cache: 'no-store' })))
   expect(screen.queryByText('Family chat is off')).toBeNull()
   unmount()
 })

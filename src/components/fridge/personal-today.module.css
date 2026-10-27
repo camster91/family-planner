@@ -34,13 +34,28 @@
     grid-column: 1 / -1;
   }
 }
-@media (min-width: 1280px) {
-  .layout {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+/* Personal schedule and chore cards are siblings, independent of fridge areas. */
+.nextSections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.nextSections > section {
+  min-width: 0;
+  grid-area: auto;
+}
+.compact .nextSections {
+  gap: 12px;
+}
+.compact .nextSections > section {
+  padding: 12px;
+}
+@media (min-width: 768px) {
+  .nextSections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  /* At hub width, Next Up joins Dinner and Groceries in the first row. */
-  .layout > [data-today-section="next"] {
-    grid-column: auto;
-  }
+}
+.nextSections.singleSection {
+  grid-template-columns: minmax(0, 1fr);
 }

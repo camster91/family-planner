@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { useTranslation } from '@/i18n'
+import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { calendarFormMessages, type CalendarFormMessage } from '@/i18n/calendar-forms'
 
 /** Duration is optional: existing event instants stay untouched until selected. */
 export function EventDuration({ value, onChange, end }: { value: string; onChange: (value: string) => void; end?: string }) {
-  const { t, locale } = useTranslation()
+  const { t } = useTranslation()
+  const locale = useDisplayLocale()
   const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [custom, setCustom] = useState(false)
   return <div>

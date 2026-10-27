@@ -1,3 +1,6 @@
+import { PROJECT_CALENDAR_SUMMARY_MODE, PROJECT_CALENDAR_SUMMARY_PROTOCOL } from "@/lib/project-calendar-response";
+import { lockUser, lockHousehold } from "@/lib/household-lock";
+import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireFamilyMatch } from '@/lib/api-auth'
@@ -5,7 +8,7 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { DEFAULT_FAMILY_TIMEZONE, isValidTimeZone } from '@/lib/calendar-import/timezone'
-import { allDayRange, lockProjectRow, projectTaskUid } from '@/lib/project-calendar'
+import { allDayRange, lockProjectRow, projectTaskUid, readProjectCalendarTaskBatch, PROJECT_CALENDAR_TASK_BATCH } from '@/lib/project-calendar'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +19,8 @@ interface RouteContext {
 // POST — Create calendar events from incomplete project tasks.
 // Each incomplete task with a due_date becomes an all-day event on that
 // calendar day. Optional body: `{ timeZone }` (the caller's IANA zone);
-// otherwise the household default zone is used.
+// otherwise the household default zone is used. responseMode: summary-v1
+// returns a versioned count-only result; missing mode keeps the legacy events array.
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -35,14 +39,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // The body is optional; an unknown or missing zone falls back to the default.
+    let summaryMode = false
+    let unsupportedResponse = false
     let timeZone = DEFAULT_FAMILY_TIMEZONE
     try {
       const body = await request.json()
+      if (body && typeof body === 'object' && 'responseMode' in body) {
+        summaryMode = body.responseMode === PROJECT_CALENDAR_SUMMARY_MODE
+        unsupportedResponse = !summaryMode
+      }
       const requested = body && typeof body === 'object' ? (body as { timeZone?: unknown }).timeZone : undefined
       if (typeof requested === 'string' && isValidTimeZone(requested)) timeZone = requested
     } catch {
       // No or invalid JSON body: keep the default zone.
     }
+
+    if (unsupportedResponse) return NextResponse.json({
+      code: 'PROJECT_CALENDAR_RESPONSE_UNSUPPORTED', error: 'Refresh this app before sending project tasks.',
+    }, { status: 400 })
 
     // Verify the project exists and belongs to the user's family
     const project = await prisma!.project.findUnique({
@@ -50,8 +64,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       select: {
         id: true,
         family_id: true,
-        name: true,
-        color: true,
       },
     })
 
@@ -72,70 +84,94 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // project row, in one transaction, so concurrent sends cannot both create
     // the same events.
     const outcome = await prisma!.$transaction(async (tx) => {
+      // Same lifecycle order as canonical project writes: user, household,
+      // then project. The HTTP snapshot is not permission to write later.
+      await lockUser(tx, auth.user.id)
+      await lockHousehold(tx, auth.user.family_id)
+      // Row locks also serialize session/feature updates that use SQL writes.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${auth.user.id} FOR UPDATE`
+      await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${auth.user.family_id} FOR UPDATE`
+      const [actor, family] = await Promise.all([
+        tx.user.findUnique({ where: { id: auth.user.id }, select: { family_id: true, role: true, token_version: true } }),
+        tx.family.findUnique({ where: { id: auth.user.family_id }, select: { features: true } }),
+      ])
+      if (!actor || actor.token_version !== (auth.payload.tv ?? 0))
+        return { kind: 'refused' as const, status: 401, body: {
+          code: 'SESSION_CHANGED', error: 'Sign in again before sending project tasks to the calendar.',
+        } }
+      if (!family || actor.family_id !== auth.user.family_id || !['parent', 'teen', 'child'].includes(actor.role))
+        return { kind: 'refused' as const, status: 403, body: {
+          code: 'PROJECT_SEND_UNAVAILABLE', error: 'This household project can no longer be sent. Refresh the project.',
+        } }
+      if (!isFeatureEnabled(normalizeFeatures(family.features), 'projects'))
+        return { kind: 'refused' as const, status: 403, body: {
+          code: 'FEATURE_DISABLED', error: 'Projects is turned off for this household.',
+        } }
       await lockProjectRow(tx, projectId)
-
-      // Fetch all incomplete tasks that have a due_date
-      const tasks = await tx.projectTask.findMany({
-        where: {
-          project_id: projectId,
-          completed: false,
-          due_date: { not: null },
-        },
+      const currentProject = await tx.project.findFirst({
+        where: { id: projectId, family_id: auth.user.family_id }, select: { id: true, name: true },
       })
-      if (tasks.length === 0) return { kind: 'no-tasks' as const }
+      if (!currentProject)
+        return { kind: 'refused' as const, status: 404, body: {
+          code: 'PROJECT_NOT_FOUND', error: 'Project not found',
+        } }
 
-      // Skip tasks already on the calendar. New events carry a stable link to
-      // their task (source_uid). Events sent before that link existed have no
-      // source_uid; for those only, a matching title still counts as sent so a
-      // re-send after upgrade does not duplicate them.
-      const existing = await tx.event.findMany({
-        where: {
-          family_id: auth.user.family_id,
-          project_id: projectId,
-          is_task: true,
-        },
-        select: { title: true, source_uid: true },
-      })
-      const linkedUids = new Set(existing.map((e) => e.source_uid).filter((uid): uid is string => !!uid))
-      const legacyTitles = new Set(existing.filter((e) => !e.source_uid).map((e) => e.title))
-
-      const tasksToCreate = tasks.filter(
-        (task) => !linkedUids.has(projectTaskUid(task.id)) && !legacyTitles.has(task.title)
-      )
-      if (tasksToCreate.length === 0) return { kind: 'all-sent' as const }
-
-      // Create calendar events for each remaining task
-      const events = []
-      for (const task of tasksToCreate) {
-        const { start, end } = allDayRange(task.due_date!, timeZone)
-        events.push(
-          await tx.event.create({
-            data: {
-              family_id: auth.user.family_id,
-              title: task.title,
-              description: task.description || `Task from project: ${project.name}`,
-              start_time: start,
-              end_time: end,
-              event_type: 'other',
-              is_task: true,
-              project_id: projectId,
-              source_uid: projectTaskUid(task.id),
-              created_by: auth.user.id,
-            },
-            select: {
-              id: true,
-              title: true,
-              start_time: true,
-              end_time: true,
-            },
-          })
-        )
+      // Preserve one full-intent transaction; batch only internal reads, never
+      // commit a prefix or silently stop after the first candidate page.
+      let afterId: string | null = null
+      let hadTasks = false
+      let eventsCreated = 0
+      const events: Array<{ id: string; title: string; start_time: Date; end_time: Date }> = []
+      while (true) {
+        const batch = await readProjectCalendarTaskBatch(tx, {
+          familyId: auth.user.family_id, projectId,
+        }, afterId)
+        if (batch.tasks.length === 0) break
+        hadTasks = true
+        for (const task of batch.unsent) {
+          const { start, end } = allDayRange(task.due_date!, timeZone)
+          const event = await tx.event.create({
+              data: {
+                family_id: auth.user.family_id,
+                title: task.title,
+                description: task.description || `Task from project: ${currentProject.name}`,
+                start_time: start,
+                end_time: end,
+                event_type: 'other',
+                is_task: true,
+                project_id: projectId,
+                source_uid: projectTaskUid(task.id),
+                created_by: auth.user.id,
+              },
+              select: {
+                id: true,
+                title: true,
+                start_time: true,
+                end_time: true,
+              },
+            })
+          eventsCreated++
+          if (!summaryMode) events.push(event)
+        }
+        const last = batch.tasks[batch.tasks.length - 1].id
+        if (last === afterId) throw new Error('Project calendar task cursor did not advance')
+        afterId = last
+        if (batch.tasks.length < PROJECT_CALENDAR_TASK_BATCH) break
       }
-      return { kind: 'created' as const, events }
+      if (!hadTasks) return { kind: 'no-tasks' as const }
+      if (eventsCreated === 0) return { kind: 'all-sent' as const }
+      return { kind: 'created' as const, events, eventsCreated }
     // Inserts run one by one inside the lock; allow more than Prisma's 5 s
     // default for a project with many dated tasks.
     }, { timeout: 30_000 })
 
+    if (outcome.kind === 'refused') {
+      return NextResponse.json(outcome.body, { status: outcome.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+    if (summaryMode) return NextResponse.json({
+      protocol: PROJECT_CALENDAR_SUMMARY_PROTOCOL, state: outcome.kind,
+      eventsCreated: outcome.kind === 'created' ? outcome.eventsCreated : 0,
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
     if (outcome.kind === 'no-tasks') {
       return NextResponse.json({
         message: 'No incomplete tasks with due dates found',
@@ -152,8 +188,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({
-      message: `Created ${outcome.events.length} calendar event(s)`,
-      eventsCreated: outcome.events.length,
+      message: `Created ${outcome.eventsCreated} calendar event(s)`,
+      eventsCreated: outcome.eventsCreated,
       events: outcome.events,
     })
   } catch (error) {

@@ -310,3 +310,21 @@ it("retains an empty raw refusal without introducing an empty alert", async () =
   act(() => change("es"));
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+// Authored source only; QA remains deferred.
+it("localizes the former-household ownership hold without revealing a household or replaying deletion", async () => {
+  const calls = api(options, [json(409, { code: "HISTORICAL_SUCCESSOR_REQUIRED", error: "Generic compatibility fallback" })]);
+  const deleted = jest.fn();
+  mount(<DeleteAccountDialog open onClose={jest.fn()} onDeleted={deleted} />);
+  fireEvent.change(await screen.findByLabelText("Your password"), { target: { value: "fabricated-password" } });
+  fireEvent.change(screen.getByLabelText(/to confirm/), { target: { value: "DELETE" } });
+  fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Your account was not deleted. Shared content in a former household needs a local owner.");
+  expect(screen.getByRole("alert")).not.toHaveTextContent("Generic compatibility fallback");
+  act(() => change("es"));
+  expect(screen.getByRole("alert")).toHaveTextContent("Tu cuenta no se eliminó. El contenido compartido de un hogar anterior necesita un responsable de ese hogar.");
+  expect(screen.getByLabelText("Tu contraseña")).toHaveValue("fabricated-password");
+  expect(screen.getByLabelText(/para confirmar/)).toHaveValue("DELETE");
+  expect(calls.filter(call => call.init?.method === "DELETE")).toHaveLength(1);
+  expect(deleted).not.toHaveBeenCalled();
+});

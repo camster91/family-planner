@@ -192,3 +192,32 @@ describe('under a non-UTC server zone', () => {
     expect(result.status).toBe(0)
   }, 150_000)
 })
+
+// Source cases for the deferred QA pass; no execution or database proof claimed.
+it.each([
+  { frequency: 'daily', weekdays: [] as number[], window: 7 },
+  { frequency: 'weekly', weekdays: [], window: 4 },
+  { frequency: 'weekly', weekdays: [1, 4], window: 8 },
+  { frequency: 'weekly', weekdays: [0, 1, 2, 3, 4, 5, 6], window: 28 },
+  { frequency: 'monthly', weekdays: [], window: 3 },
+])('bounds an already-full $frequency series read to its $window-row window', async ({ frequency, weekdays, window }) => {
+  const template = {
+    id: 'fixture-series', family_id: 'fixture-family', frequency,
+    weekly_days: weekdays, assigned_to: 'fixture-account', due_date: utc(2026, 9, 1),
+  }
+  const future = Array.from({ length: 200 }, (_, index) => ({ due_date: utc(2026, 9, index + 1) }))
+  const findMany = jest.fn(async ({ take }: { take?: number }) => future.slice(0, take ?? future.length))
+  const findFirst = jest.fn()
+  const createMany = jest.fn()
+  const tx = {
+    $queryRaw: jest.fn(async () => []),
+    chore: { findUnique: jest.fn(async () => template), findMany, findFirst, createMany },
+  }
+  expect(await expandSeriesInTx(tx as never, template.id, template.family_id, utc(2026, 9, 1))).toBe(0)
+  expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+    where: { family_id: template.family_id, recurrence_id: template.id, due_date: { gte: utc(2026, 9, 1) } },
+    take: window,
+  }))
+  expect(findFirst).not.toHaveBeenCalled()
+  expect(createMany).not.toHaveBeenCalled()
+})

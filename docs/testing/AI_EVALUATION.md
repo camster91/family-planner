@@ -62,9 +62,14 @@ a successful usable-reply job. Missing and duplicate cases cannot establish a
 complete run. Scores include their measured counts, so partial review is visible.
 
 Unknown token price, billing or timing stays unknown, never zero. Known cost
-subtotals and unpriced-job counts remain separate. Per-success cost is withheld
-if any successful job lacks its estimate; integer averages round up to a micro-
-USD. The quality-observation gate and complete-observation gate are separate,
+subtotals and unpriced-job counts remain separate. Per-success cost divides the
+estimated cost of **all observed jobs, including failed attempts**, by reviewed
+successful usable-reply jobs. It is withheld if any observed job has an unknown
+cost, an unknown reply outcome, or a usable reply whose success classification
+still lacks review/grades. The report exposes unknown success-classification
+counts and its explicit all-observed-jobs basis; integer averages round up to a
+micro-USD. Missing required cases remain visible and block the complete gate;
+this observed-sample metric never claims population coverage. The quality-observation gate and complete-observation gate are separate,
 so unknown cost is visible rather than forcing a fabricated price to mark a
 correct refusal. Existing request quotas/conservative reservations still govern
 actual provider admission. These are estimates, never invoice reconciliation.
@@ -75,3 +80,11 @@ compatibility, browser/accessibility/device behavior, provider permissions or
 production/customer acceptance. Run the existing dedicated API/real-PostgreSQL/
 transport/owned-journal suites and release gates against the final candidate.
 No report automatically enables AI or approves a release.
+
+
+2026-10-25 source correction: failed-attempt costs now remain in the per-success
+numerator, and unknown costs/classifications hold the metric. Existing source
+fixtures were extended, UNRUN. No report/evaluation, tests/checks/build/browser,
+provider call, DB/CI/release or activation was executed; actual measured quality,
+latency and cost remain unavailable. This source-only correction does not accept
+AI release or change provider quotas/billing.

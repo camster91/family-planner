@@ -1,3 +1,4 @@
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -11,12 +12,20 @@ const schema = z.object({
   minutes: z.union([z.literal(15), z.literal(60), z.literal(180), z.literal(1440), z.null()]),
 }).strict()
 
-/** Idempotent set/clear on the caller's own row; no new delivery or scheduler. */
+/** Set/clear on the caller's own row; no new delivery or scheduler.
+ * A delayed repeat recomputes relative time, so an unknown outcome needs a read
+ * before a person deliberately chooses another delay. It is not an exact retry.
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
-    const body = await request.json().catch(() => null)
+    let body: unknown
+    try {
+      body = await readBoundedJson(request, 8 * 1024)
+    } catch (error) {
+      return NextResponse.json({ error: 'Invalid snooze request' }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 })
+    }
     const parsed = schema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: 'Invalid snooze request' }, { status: 400 })
     const { notificationId, minutes } = parsed.data

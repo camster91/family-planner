@@ -1,3 +1,5 @@
+import { withCalendarSubscriptionAccess, lockCalendarSubscriptionInTx, type CalendarSubscriptionActor } from "@/lib/calendar-subscription-access";
+import { lockHousehold } from "@/lib/household-lock";
 // Sync engine for read-only ICS subscriptions (#232).
 //
 // fetch (guarded) -> parse + expand within a bounded window -> reconcile the
@@ -5,6 +7,8 @@
 // Local events (source_subscription_id = null) are never read or written here.
 // See docs/architecture/CALENDAR_IMPORT.md.
 
+import { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/secret-box";
 import { checkRateLimit } from "@/lib/rate-limit-db";
@@ -14,14 +18,14 @@ import {
   feedUrlHint,
   type FetchLike,
 } from "./fetch";
-import { IcsParseError, parseIcsFeed, type ImportedOccurrence } from "./parse";
+import { IcsParseError, parseIcsFeed, MAX_OCCURRENCES, type ImportedOccurrence } from "./parse";
 import { DEFAULT_FAMILY_TIMEZONE } from "./timezone";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const IMPORT_WINDOW_PAST_DAYS = 30;
 export const IMPORT_WINDOW_FUTURE_DAYS = 180;
 export const STALE_AFTER_MS = 15 * 60 * 1000;
-export const MAX_SUBSCRIPTIONS_PER_FAMILY = 10;
+export { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
 
 export type SubscriptionStatus = "pending" | "ok" | "error";
 
@@ -39,6 +43,8 @@ export interface SyncOptions {
   fetchImpl?: FetchLike;
   assertUrl?: (url: string) => Promise<void>;
   timeZone?: string;
+  /** Original HTTP actor for manual refresh; never copied from a newer cookie. */
+  actor?: CalendarSubscriptionActor;
 }
 
 export function importWindow(now: Date): { start: Date; end: Date } {
@@ -116,119 +122,136 @@ const keyOf = (uid: string, occurrence: Date) =>
  * window whose (UID, occurrence) no longer appears. Scoped to the
  * subscription AND its family on every statement.
  */
+export async function reconcileOccurrencesInTx(
+  tx: Prisma.TransactionClient,
+  sub: { id: string; family_id: string; created_by: string },
+  occurrences: ImportedOccurrence[],
+  window: { start: Date; end: Date },
+): Promise<{ created: number; updated: number; deleted: number }> {
+  if (occurrences.length > MAX_OCCURRENCES) throw new Error("Unbounded calendar import");
+  const incoming = new Map<string, ImportedOccurrence>();
+  for (const occurrence of occurrences) {
+    const key = keyOf(occurrence.uid, occurrence.occurrenceStart);
+    if (incoming.has(key)) throw new Error("Ambiguous calendar occurrence");
+    incoming.set(key, occurrence);
+  }
+  const fieldsOf = (occ: ImportedOccurrence) => ({
+    title: occ.title, description: occ.description, location: occ.location,
+    start_time: occ.start, end_time: occ.end,
+  });
+  const batchSize = 200;
+  // Keep only the bounded incoming feed plus one existing-row batch in memory.
+  // The immutable ID boundary remains valid after updates or batch deletion.
+  const missing = new Map(incoming);
+  let after: string | null = null;
+  let updated = 0, deleted = 0, created = 0;
+  for (;;) {
+    const rows: ExistingRow[] = await tx.event.findMany({
+      where: {
+        family_id: sub.family_id, source_subscription_id: sub.id,
+        ...(after === null ? {} : { id: { gt: after } }),
+      },
+      select: {
+        id: true, source_uid: true, source_occurrence_start: true,
+        title: true, description: true, location: true,
+        start_time: true, end_time: true,
+      },
+      orderBy: { id: "asc" }, take: batchSize,
+    });
+    if (rows.length > batchSize || (after !== null && rows.some(row => row.id === after)))
+      throw new Error("Invalid calendar import batch");
+    if (!rows.length) break;
+    const staleIds: string[] = [];
+    for (const row of rows) {
+      const key = row.source_uid && row.source_occurrence_start
+        ? keyOf(row.source_uid, new Date(row.source_occurrence_start)) : null;
+      const occurrence = key === null ? undefined : incoming.get(key);
+      if (occurrence) {
+        missing.delete(key!);
+        const fields = fieldsOf(occurrence);
+        if (row.title !== fields.title || (row.description ?? null) !== fields.description ||
+          (row.location ?? null) !== fields.location ||
+          new Date(row.start_time).getTime() !== fields.start_time.getTime() ||
+          new Date(row.end_time).getTime() !== fields.end_time.getTime()) {
+          await tx.event.update({
+            where: { id: row.id, family_id: sub.family_id, source_subscription_id: sub.id },
+            data: fields,
+          });
+          updated++;
+        }
+      } else {
+        const start = new Date(row.start_time).getTime();
+        // Preserve prior invalid-key cleanup and in-window deletion semantics;
+        // valid older history stays unless its exact identity is updated above.
+        if (key === null || (start >= window.start.getTime() && start < window.end.getTime()))
+          staleIds.push(row.id);
+      }
+    }
+    if (staleIds.length) {
+      const result = await tx.event.deleteMany({ where: {
+        id: { in: staleIds }, family_id: sub.family_id, source_subscription_id: sub.id,
+      } });
+      deleted += result.count;
+    }
+    after = rows[rows.length - 1].id;
+    if (rows.length < batchSize) break;
+  }
+  const toCreate = [...missing.values()];
+  for (let offset = 0; offset < toCreate.length; offset += batchSize) {
+    const result = await tx.event.createMany({
+      data: toCreate.slice(offset, offset + batchSize).map(occ => ({
+        ...fieldsOf(occ), family_id: sub.family_id, event_type: "other",
+        created_by: sub.created_by, source_subscription_id: sub.id,
+        source_uid: occ.uid, source_occurrence_start: occ.occurrenceStart,
+      })),
+      skipDuplicates: true,
+    });
+    created += result.count;
+  }
+  return { created, updated, deleted };
+}
+
+/** Compatibility entry point; canonical batches still share one snapshot. */
 export async function reconcileOccurrences(
   db: any,
   sub: { id: string; family_id: string; created_by: string },
   occurrences: ImportedOccurrence[],
   window: { start: Date; end: Date },
 ): Promise<{ created: number; updated: number; deleted: number }> {
-  return db.$transaction(
-    async (tx: any) => {
-      const existing: ExistingRow[] = await tx.event.findMany({
-        where: { family_id: sub.family_id, source_subscription_id: sub.id },
-        select: {
-          id: true,
-          source_uid: true,
-          source_occurrence_start: true,
-          title: true,
-          description: true,
-          location: true,
-          start_time: true,
-          end_time: true,
-        },
-      });
-      const byKey = new Map<string, ExistingRow>();
-      for (const row of existing) {
-        if (row.source_uid && row.source_occurrence_start) {
-          byKey.set(
-            keyOf(row.source_uid, new Date(row.source_occurrence_start)),
-            row,
-          );
-        }
-      }
+  return db.$transaction((tx: Prisma.TransactionClient) => reconcileOccurrencesInTx(tx, sub, occurrences, window),
+    { timeout: 30_000, isolationLevel: "RepeatableRead" });
+}
 
-      const seen = new Set<string>();
-      const toCreate: Record<string, unknown>[] = [];
-      let updated = 0;
-      for (const occ of occurrences) {
-        const key = keyOf(occ.uid, occ.occurrenceStart);
-        seen.add(key);
-        const fields = {
-          title: occ.title,
-          description: occ.description,
-          location: occ.location,
-          start_time: occ.start,
-          end_time: occ.end,
-        };
-        const row = byKey.get(key);
-        if (!row) {
-          toCreate.push({
-            ...fields,
-            family_id: sub.family_id,
-            event_type: "other",
-            created_by: sub.created_by,
-            source_subscription_id: sub.id,
-            source_uid: occ.uid,
-            source_occurrence_start: occ.occurrenceStart,
-          });
-          continue;
-        }
-        const changed =
-          row.title !== fields.title ||
-          (row.description ?? null) !== fields.description ||
-          (row.location ?? null) !== fields.location ||
-          new Date(row.start_time).getTime() !== fields.start_time.getTime() ||
-          new Date(row.end_time).getTime() !== fields.end_time.getTime();
-        if (changed) {
-          await tx.event.update({
-            where: { id: row.id, source_subscription_id: sub.id },
-            data: fields,
-          });
-          updated++;
-        }
-      }
+export class CalendarSubscriptionSyncHeld extends Error {
+  constructor(readonly reason: "access" | "source") { super("Calendar subscription refresh held"); }
+}
 
-      let created = 0;
-      if (toCreate.length > 0) {
-        // skipDuplicates: a concurrent refresh that won the race is harmless.
-        const result = await tx.event.createMany({
-          data: toCreate,
-          skipDuplicates: true,
-        });
-        created = result.count;
-      }
+type SyncSource = { id: string; family_id: string; created_by: string; url_enc: string; created_at: Date };
 
-      const staleIds = existing
-        .filter((row) => {
-          if (!row.source_uid || !row.source_occurrence_start) return true;
-          if (
-            seen.has(
-              keyOf(row.source_uid, new Date(row.source_occurrence_start)),
-            )
-          )
-            return false;
-          const start = new Date(row.start_time).getTime();
-          // Only prune inside the sync window; older imported rows stay as history.
-          return (
-            start >= window.start.getTime() && start < window.end.getTime()
-          );
-        })
-        .map((row) => row.id);
-      let deleted = 0;
-      if (staleIds.length > 0) {
-        const result = await tx.event.deleteMany({
-          where: {
-            id: { in: staleIds },
-            family_id: sub.family_id,
-            source_subscription_id: sub.id,
-          },
-        });
-        deleted = result.count;
-      }
-      return { created, updated, deleted };
-    },
-    { timeout: 30_000 },
-  );
+async function persistSubscriptionSync<T>(
+  db: any, sub: SyncSource, actor: CalendarSubscriptionActor | undefined,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  const apply = async (tx: Prisma.TransactionClient) => {
+    if (!await lockCalendarSubscriptionInTx(tx, sub.id, sub.family_id)) throw new CalendarSubscriptionSyncHeld("source");
+    const current = await tx.calendarSubscription.findFirst({
+      where: { id: sub.id, family_id: sub.family_id },
+      select: { url_enc: true, created_by: true, created_at: true },
+    });
+    if (!current || current.url_enc !== sub.url_enc || current.created_by !== sub.created_by
+      || new Date(current.created_at).getTime() !== new Date(sub.created_at).getTime()) throw new CalendarSubscriptionSyncHeld("source");
+    return work(tx);
+  };
+  if (actor) {
+    if (actor.familyId !== sub.family_id) throw new CalendarSubscriptionSyncHeld("access");
+    const result = await withCalendarSubscriptionAccess(db, actor, "refresh", apply);
+    if (result.kind === "held") throw new CalendarSubscriptionSyncHeld("access");
+    return result.value;
+  }
+  return db.$transaction(async (tx: Prisma.TransactionClient) => {
+    await lockHousehold(tx, sub.family_id);
+    return apply(tx);
+  }, { timeout: 30_000, isolationLevel: "RepeatableRead" });
 }
 
 /**
@@ -241,18 +264,26 @@ export async function syncSubscription(
   options: SyncOptions = {},
 ): Promise<SyncResult | null> {
   const db = options.db ?? prisma;
+  const actor = options.actor ? Object.freeze({ ...options.actor }) : undefined;
   const now = options.now ?? new Date();
-  const sub = await db.calendarSubscription.findFirst({
+  const readSource = (tx: Prisma.TransactionClient) => tx.calendarSubscription.findFirst({
     where: { id: subscriptionId, family_id: familyId },
     select: {
       id: true,
       family_id: true,
       created_by: true,
+      created_at: true,
       url_enc: true,
       etag: true,
       last_modified: true,
     },
   });
+  if (actor && actor.familyId !== familyId) throw new CalendarSubscriptionSyncHeld("access");
+  const admitted = actor
+    ? await withCalendarSubscriptionAccess(db, actor, "refresh", readSource)
+    : { kind: "data" as const, value: await readSource(db) };
+  if (admitted.kind === "held") throw new CalendarSubscriptionSyncHeld("access");
+  const sub = admitted.value;
   if (!sub) return null;
 
   const recordError = async (
@@ -260,14 +291,10 @@ export async function syncSubscription(
     message: string,
   ): Promise<SyncResult> => {
     logFailure(sub.id, code);
-    await db.calendarSubscription.updateMany({
+    await persistSubscriptionSync(db, sub, actor, tx => tx.calendarSubscription.updateMany({
       where: { id: sub.id, family_id: familyId },
-      data: {
-        last_fetched_at: now,
-        last_status: "error",
-        last_error: message.slice(0, 200),
-      },
-    });
+      data: { last_fetched_at: now, last_status: "error", last_error: message.slice(0, 200) },
+    }));
     return {
       status: "error",
       created: 0,
@@ -299,10 +326,10 @@ export async function syncSubscription(
   }
 
   if (fetched.notModified) {
-    await db.calendarSubscription.updateMany({
+    await persistSubscriptionSync(db, sub, actor, tx => tx.calendarSubscription.updateMany({
       where: { id: sub.id, family_id: familyId },
       data: { last_fetched_at: now, last_status: "ok", last_error: null },
-    });
+    }));
     return { status: "not_modified", created: 0, updated: 0, deleted: 0 };
   }
 
@@ -320,32 +347,36 @@ export async function syncSubscription(
     return recordError("parse_failed", "Feed is not a valid calendar");
   }
 
-  let counts;
-  try {
-    counts = await reconcileOccurrences(db, sub, parsed.occurrences, window);
-  } catch {
+  // A bounded expansion is not a complete source of truth. Never reconcile
+  // its prefix: unseen existing occurrences must not become deletion candidates.
+  if (parsed.truncated) {
     return recordError(
-      "persist_failed",
-      "Could not save events from this calendar",
+      "feed_too_large",
+      "Calendar feed is too large to refresh safely. Existing events were kept.",
     );
   }
 
-  await db.calendarSubscription.updateMany({
-    where: { id: sub.id, family_id: familyId },
-    data: {
-      last_fetched_at: now,
-      last_status: "ok",
-      last_error: parsed.truncated
-        ? "Some events were skipped because the feed is very large"
-        : null,
-      etag: fetched.etag,
-      last_modified: fetched.lastModified,
-    },
-  });
+  let counts;
+  try {
+    counts = await persistSubscriptionSync(db, sub, actor, async tx => {
+      const result = await reconcileOccurrencesInTx(tx, sub, parsed.occurrences, window);
+      await tx.calendarSubscription.updateMany({
+        where: { id: sub.id, family_id: familyId },
+        data: { last_fetched_at: now, last_status: "ok", last_error: null,
+          etag: fetched.etag, last_modified: fetched.lastModified },
+      });
+      return result;
+    });
+  } catch (cause) {
+    if (cause instanceof CalendarSubscriptionSyncHeld) throw cause;
+    return recordError("persist_failed", "Could not save events from this calendar");
+  }
+
   return { status: "ok", ...counts };
 }
 
-// One refresh per subscription per process at a time; concurrent callers share it.
+// Coalesce only the same household and original actor context; background
+// work must never lend its authority to a manual request.
 const inFlight = new Map<string, Promise<SyncResult | null>>();
 
 export function syncSubscriptionExclusive(
@@ -353,12 +384,12 @@ export function syncSubscriptionExclusive(
   familyId: string,
   options: SyncOptions = {},
 ): Promise<SyncResult | null> {
-  const existing = inFlight.get(subscriptionId);
+  const key = JSON.stringify([familyId, subscriptionId, options.actor
+    ? [options.actor.userId, options.actor.role, options.actor.generation] : null]);
+  const existing = inFlight.get(key);
   if (existing) return existing;
-  const run = syncSubscription(subscriptionId, familyId, options).finally(() =>
-    inFlight.delete(subscriptionId),
-  );
-  inFlight.set(subscriptionId, run);
+  const run = syncSubscription(subscriptionId, familyId, options).finally(() => inFlight.delete(key));
+  inFlight.set(key, run);
   return run;
 }
 
@@ -408,19 +439,24 @@ export async function refreshStaleSubscriptions(
   return refreshed;
 }
 
-/** Remove a subscription and only the events it imported. */
+/** Canonical removal effects in an already-admitted transaction. */
+export async function removeSubscriptionInTx(
+  tx: Pick<Prisma.TransactionClient, "event" | "calendarSubscription">,
+  subscriptionId: string,
+  familyId: string,
+): Promise<number> {
+  const removed = await tx.event.deleteMany({
+    where: { family_id: familyId, source_subscription_id: subscriptionId },
+  });
+  await tx.calendarSubscription.deleteMany({ where: { id: subscriptionId, family_id: familyId } });
+  return removed.count;
+}
+
+/** Compatibility wrapper; callers with an admitted transaction reuse the same effects. */
 export async function removeSubscription(
   db: any,
   subscriptionId: string,
   familyId: string,
 ): Promise<number> {
-  return db.$transaction(async (tx: any) => {
-    const removed = await tx.event.deleteMany({
-      where: { family_id: familyId, source_subscription_id: subscriptionId },
-    });
-    await tx.calendarSubscription.deleteMany({
-      where: { id: subscriptionId, family_id: familyId },
-    });
-    return removed.count as number;
-  });
+  return db.$transaction((tx: Prisma.TransactionClient) => removeSubscriptionInTx(tx, subscriptionId, familyId));
 }

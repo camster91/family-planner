@@ -9,6 +9,7 @@ import {
   waitFor,
   fireEvent,
   within,
+  act,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
@@ -30,7 +31,8 @@ const preview = {
   prep_time: 15,
   cook_time: 30,
 };
-const response = (body: unknown, ok = true) => ({
+const response = (body: unknown, ok = true, role = "parent") => ({
+  headers: new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ protocol: "herewoven.recipe-owner.v1", actorId: role === "child" ? "child-a" : "fixture-parent", familyId: "fixture-family", role, generation: 0 }) }),
   ok,
   status: ok ? 200 : 422,
   json: async () => body,
@@ -45,7 +47,7 @@ function setup(role = "parent") {
           { id: "saved-fixture", title: "Fixture pasta", description: null },
         ],
         nextOffset: null,
-      });
+      }, true, role);
     if (String(url) === "/api/recipes/discover")
       return response({
         results: [{ title: "Fixture online soup", url: preview.source }],
@@ -173,4 +175,74 @@ it("searches within the app and opens a result directly in the recipe reader", a
       body: JSON.stringify({ query: "soup", source: "BBC Good Food" }),
     }),
   );
+});
+
+// Authored UNRUN: ignored abort cannot leave public discovery/import busy forever.
+it.each(['preview-body', 'search-headers'] as const)('settles %s stalls without saving household state', async stage => {
+  jest.useFakeTimers();
+  const calls = setup();
+  const baseFetch = fetch;
+  global.fetch = jest.fn((url, init) => {
+    if (stage === 'preview-body' && String(url) === '/api/recipes/preview')
+      return Promise.resolve({ ok: true, status: 200, json: () => new Promise(() => undefined) });
+    if (stage === 'search-headers' && String(url) === '/api/recipes/discover')
+      return new Promise(() => undefined);
+    return baseFetch(url, init);
+  }) as jest.Mock;
+  const view = render(<Explore />);
+  try {
+    const link = await screen.findByLabelText('Recipe link');
+    if (stage === 'preview-body') {
+      fireEvent.change(link, { target: { value: preview.source } });
+      fireEvent.submit(screen.getByRole('button', { name: 'Read recipe' }).closest('form')!);
+    } else {
+      fireEvent.change(screen.getByLabelText('What would you like to cook?'), { target: { value: 'soup' } });
+      fireEvent.submit(screen.getByRole('button', { name: 'Search recipes' }).closest('form')!);
+    }
+    await act(async () => { await jest.advanceTimersByTimeAsync(15_000); });
+    expect(screen.getByRole('alert')).toHaveTextContent(stage === 'preview-body'
+      ? 'We couldn’t reach that recipe.' : 'We couldn’t reach the recipe search.');
+    expect(screen.getByRole('button', { name: stage === 'preview-body' ? 'Read recipe' : 'Search recipes' })).toBeEnabled();
+    expect(calls).toHaveLength(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  } finally {
+    view.unmount();
+    jest.useRealTimers();
+  }
+});
+
+// Authored UNRUN: child catalog authority loss must mask the original library too.
+it('masks the containing recipe library when its collection catalog changes household', async () => {
+  const saves = setup();
+  const baseFetch = fetch;
+  global.fetch = jest.fn((url, init) => String(url) === '/api/recipes/collections'
+    ? Promise.resolve({ ok: true, status: 200, headers: new Headers({ 'X-Herewoven-Recipe-Owner': JSON.stringify({
+        protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-b', familyId: 'family-b', role: 'parent', generation: 0,
+      }) }), json: async () => ({ collections: [{ id: 'other', name: 'Other private collection', revision: 0 }] }) })
+    : baseFetch(url, init)) as jest.Mock;
+  render(<Explore />);
+  const reload = await screen.findByRole('button', { name: 'Reload page' });
+  await waitFor(() => expect(reload).toHaveFocus());
+  expect(screen.queryByRole('link', { name: 'Fixture pasta' })).toBeNull();
+  expect(screen.queryByText('Other private collection')).toBeNull();
+  expect(screen.queryByLabelText('Recipe link')).toBeNull();
+  expect(saves).toHaveLength(0);
+});
+
+// Authored UNRUN: public preview data cannot adopt another page owner.
+it('masks the original library instead of opening a preview from another session', async () => {
+  const saves = setup();
+  const baseFetch = fetch;
+  global.fetch = jest.fn((url, init) => String(url) === '/api/recipes/preview'
+    ? Promise.resolve({ ok: true, status: 200, headers: new Headers({ 'X-Herewoven-Recipe-Owner': JSON.stringify({
+        protocol: 'herewoven.recipe-owner.v1', actorId: 'fixture-parent', familyId: 'fixture-family', role: 'parent', generation: 9,
+      }) }), json: async () => ({ recipe: preview }) }) : baseFetch(url, init)) as jest.Mock;
+  render(<Explore />);
+  await screen.findByRole('link', { name: 'Fixture pasta' });
+  fireEvent.change(screen.getByLabelText('Recipe link'), { target: { value: preview.source } });
+  fireEvent.submit(screen.getByRole('button', { name: 'Read recipe' }).closest('form')!);
+  await screen.findByRole('button', { name: 'Reload page' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Fixture pasta' })).toBeNull();
+  expect(saves).toHaveLength(0);
 });

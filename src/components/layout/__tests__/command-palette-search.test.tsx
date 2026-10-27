@@ -5,7 +5,7 @@
 // the typed words to /dashboard/search; a teen or child, who cannot open that
 // page, is never offered it.
 import * as React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { defaultFeatures } from '@/lib/features'
 import CommandPalette from '../CommandPalette'
@@ -22,6 +22,43 @@ jest.mock('next/navigation', () => ({
 beforeEach(() => mockPush.mockReset())
 
 const input = () => screen.getByRole('textbox', { name: 'Search or go to a page' })
+
+// Authored/unrun: advertised keyboard navigation uses currently rendered,
+// role/feature-filtered destinations, without changing the search draft.
+it('moves through destinations with arrow keys and activates the focused destination with Enter', async () => {
+  const user = userEvent.setup()
+  render(<CommandPalette open onClose={() => undefined} role="parent" />)
+  await waitFor(() => expect(document.activeElement).toBe(input()))
+  const destinations = Array.from(screen.getByRole('dialog').querySelectorAll<HTMLButtonElement>('[data-command-destination]'))
+  expect(destinations.length).toBeGreaterThan(0)
+  await user.keyboard('{ArrowDown}')
+  expect(document.activeElement).toBe(destinations[0])
+  await user.keyboard('{ArrowUp}')
+  expect(document.activeElement).toBe(destinations[destinations.length - 1])
+  await user.keyboard('{Enter}')
+  expect(mockPush).toHaveBeenCalledTimes(1)
+  expect((input() as HTMLInputElement).value).toBe('')
+})
+
+it('keeps Tab and Shift+Tab within the open palette', async () => {
+  const user = userEvent.setup()
+  render(<><button>Outside palette</button><CommandPalette open onClose={() => undefined} role="parent" /></>)
+  await waitFor(() => expect(document.activeElement).toBe(input()))
+  const destinations = Array.from(screen.getByRole('dialog').querySelectorAll<HTMLButtonElement>('[data-command-destination]'))
+  const last = destinations[destinations.length - 1]
+  await user.tab({ shift: true })
+  expect(document.activeElement).toBe(last)
+  await user.tab()
+  expect(document.activeElement).toBe(input())
+})
+
+it('does not treat an IME confirmation Enter as a household search submission', async () => {
+  const user = userEvent.setup()
+  render(<CommandPalette open onClose={() => undefined} role="parent" />)
+  await user.type(input(), 'unmatchedhouseholdquery')
+  fireEvent.keyDown(input(), { key: 'Enter', isComposing: true })
+  expect(mockPush).not.toHaveBeenCalled()
+})
 
 it('offers a parent "Search the household" and opens the search page with the words', async () => {
   const user = userEvent.setup()
@@ -82,7 +119,7 @@ it('searches and presents enabled feature destinations with Spanish display titl
       <CommandPalette open onClose={() => undefined} role="parent" />
     </I18nProvider>,
   )
-  await user.type(input(), 'emergencia')
+  await user.type(screen.getByRole('textbox', { name: 'Buscar o ir a una página' }), 'emergencia')
   const result = screen.getByRole('button', { name: 'Contactos de emergencia' })
   expect(result).toBeTruthy()
   expect(result.querySelector('svg')).toBeTruthy()

@@ -95,9 +95,11 @@ export function buildReviewedProviderReport(raw: unknown) {
   const successful = passed.filter((row) => row.deliveredUsableReply === true);
   const timed = samples.filter((row) => row.latencyMs !== null);
   const priced = samples.filter((row) => row.estimatedCostMicrousd !== null);
-  const pricedSuccesses = successful.filter(
-    (row) => row.estimatedCostMicrousd !== null,
-  );
+  const successClassificationKnown = (row: typeof samples[number]) =>
+    row.deliveredUsableReply === false ||
+    (row.deliveredUsableReply === true && row.reviewerChecked &&
+      dimensions.every(dimension => row[dimension] !== null));
+  const unknownSuccessClassificationJobs = samples.filter(row => !successClassificationKnown(row)).length;
   const total = (rows: typeof samples) =>
     rows.reduce(
       (sum, row) => sum + BigInt(row.estimatedCostMicrousd!),
@@ -134,6 +136,7 @@ export function buildReviewedProviderReport(raw: unknown) {
       missing.length === 0 &&
       passed.length === aiReviewedEvaluationCase.options.length,
     successfulJobs: successful.length,
+    unknownSuccessClassificationJobs,
     unknownReplyOutcomeJobs: samples.filter(
       (row) => row.deliveredUsableReply === null,
     ).length,
@@ -147,13 +150,14 @@ export function buildReviewedProviderReport(raw: unknown) {
     pricedJobs: priced.length,
     unknownCostJobs: samples.length - priced.length,
     knownEstimatedMicrousd: priced.length ? total(priced).toString() : null,
-    // Do not divide a known subtotal by successes whose costs are unknown.
+    // Failed attempts cost money too. A known subtotal or unknown success
+    // classification cannot establish the cost of producing a successful job.
+    costPerSuccessBasis: "all-observed-jobs-per-reviewed-success" as const,
     estimatedMicrousdPerSuccessfulJob:
-      outcomesComplete &&
-      successful.length &&
-      pricedSuccesses.length === successful.length
+      outcomesComplete && unknownSuccessClassificationJobs === 0 &&
+      successful.length > 0 && priced.length === samples.length
         ? (
-            (total(pricedSuccesses) + BigInt(successful.length) - BigInt("1")) /
+            (total(priced) + BigInt(successful.length) - BigInt("1")) /
             BigInt(successful.length)
           ).toString()
         : null,

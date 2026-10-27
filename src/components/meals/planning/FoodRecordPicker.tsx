@@ -2,6 +2,7 @@
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
+import { useFoodPlanningInputsText } from "@/i18n/food-planning-inputs";
 import { readFoodOptions, FoodOwnerChanged } from "@/lib/food-planning/client";
 import {
   FOOD_OPTIONS_PAGE,
@@ -38,9 +39,9 @@ export function FoodRecordPicker({
   range?: FoodOptionsQuery["range"];
   zone?: string;
 }) {
-  const { locale } = useTranslation(),
-    es = locale === "es",
-    [open, setOpen] = React.useState(false),
+  const { locale } = useTranslation();
+  const text = useFoodPlanningInputsText();
+  const [open, setOpen] = React.useState(false),
     [search, setSearch] = React.useState(""),
     [submitted, setSubmitted] = React.useState(""),
     [offset, setOffset] = React.useState(0),
@@ -95,32 +96,22 @@ export function FoodRecordPicker({
   function title(row: FoodOption) {
     return row.kind === "person" || row.kind === "list"
       ? row.name
-      : row.title || (es ? "Evento sin título" : "Untitled event");
+      : row.title || text("untitledEvent");
   }
   function detail(row: FoodOption) {
     if (row.kind === "recipe")
-      return `${row.servings} ${es ? "porciones base" : "base servings"} · ${row.minutes === null ? (es ? "tiempo sin registrar" : "time not recorded") : `${row.minutes} min`}`;
+      return `${row.servings} ${text("baseServings")} · ${row.minutes === null ? text("timeUnrecorded") : `${row.minutes} min`}`;
     if (row.kind === "person")
       return row.role === "child"
-        ? es
-          ? "Cuenta de menor"
-          : "Child account"
+        ? text("childAccount")
         : row.role === "teen"
-          ? es
-            ? "Cuenta de adolescente"
-            : "Teen account"
-          : es
-            ? "Cuenta del hogar"
-            : "Household account";
+          ? text("teenAccount")
+          : text("householdAccount");
     if (row.kind === "list")
       return row.type === "grocery"
-        ? es
-          ? "Compra de alimentos"
-          : "Grocery list"
-        : es
-          ? "Lista de compras"
-          : "Shopping list";
-    return `${formatScheduleInstant(row.start, locale, zone)}${row.repeating ? (es ? " · repetición pendiente de revisión" : " · repeating source needs review") : ""}`;
+        ? text("groceryList")
+        : text("shoppingList");
+    return `${formatScheduleInstant(row.start, locale, zone)}${row.repeating ? text("repeatingReview") : ""}`;
   }
   function choose(id: string) {
     if (disabled) return;
@@ -141,7 +132,7 @@ export function FoodRecordPicker({
     ? emptyLabel
     : values.length === 1 && known.find((row) => row.id === values[0])
       ? title(known.find((row) => row.id === values[0])!)
-      : `${values.length} ${es ? "seleccionados" : "selected"}`;
+      : `${values.length} ${text("selected")}`;
   return (
     <div className="space-y-1 min-w-0">
       <p className="text-subhead font-semibold">{label}</p>
@@ -163,10 +154,10 @@ export function FoodRecordPicker({
             type="button"
             className="btn-secondary min-h-[44px]"
             disabled={disabled}
-            aria-label={`${es ? "Quitar selección" : "Clear selection"}: ${label}`}
+            aria-label={`${text("clearSelection")}: ${label}`}
             onClick={() => onChange([])}
           >
-            {es ? "Quitar" : "Clear"}
+            {text("clear")}
           </button>
         )}
       </div>
@@ -175,7 +166,7 @@ export function FoodRecordPicker({
         variant="form"
         title={label}
         onClose={() => setOpen(false)}
-        closeLabel={es ? "Cerrar selector" : "Close picker"}
+        closeLabel={text("closePicker")}
         initialFocusRef={searchRef}
         footer={
           <button
@@ -183,7 +174,7 @@ export function FoodRecordPicker({
             className="btn-filled min-h-[44px]"
             onClick={() => setOpen(false)}
           >
-            {es ? "Listo" : "Done"}
+            {text("done")}
           </button>
         }
       >
@@ -198,7 +189,7 @@ export function FoodRecordPicker({
             className="flex items-end gap-2"
           >
             <label className="min-w-0 flex-1">
-              {es ? "Buscar en el hogar" : "Search this household"}
+              {text("searchHousehold")}
               <input
                 ref={searchRef}
                 className="input-apple min-h-[44px] w-full"
@@ -212,27 +203,25 @@ export function FoodRecordPicker({
               disabled={loading}
               className="btn-secondary min-h-[44px]"
             >
-              {es ? "Buscar" : "Search"}
+              {text("search")}
             </button>
           </form>
           {loading && (
             <p role="status">
-              {es ? "Cargando opciones…" : "Loading choices…"}
+              {text("loadingChoices")}
             </p>
           )}
           {error && (
             <div role="alert">
               <p>
-                {es
-                  ? "No se pudieron comprobar las opciones. Tu selección se conserva."
-                  : "Choices could not be checked. Your selection is kept."}
+                {text("readFailed")}
               </p>
               <button
                 type="button"
                 className="btn-secondary min-h-[44px]"
                 onClick={() => setAttempt((value) => value + 1)}
               >
-                {es ? "Reintentar lectura" : "Retry read"}
+                {text("retryRead")}
               </button>
             </div>
           )}
@@ -240,26 +229,16 @@ export function FoodRecordPicker({
             <>
               <p className="text-footnote text-label-secondary">
                 {kind === "departures"
-                  ? es
-                    ? "Eventos registrados del hogar, no disponibilidad confirmada."
-                    : "Recorded household events, not confirmed availability."
+                  ? text("eventCoverage")
                   : kind === "people"
-                    ? es
-                      ? "Solo cuentas del hogar. No se crea una cuenta para un perfil sin correo."
-                      : "Household accounts only. Email-free profiles are not turned into accounts."
+                    ? text("accountBoundary")
                     : multiple
-                      ? es
-                        ? "Elige hasta 50 recetas."
-                        : "Choose up to 50 recipes."
-                      : es
-                        ? "Elige una opción del hogar."
-                        : "Choose a household record."}
+                      ? text("recipeLimit")
+                      : text("chooseRecord")}
               </p>
               {reply.items.length === 0 && (
                 <p role="status">
-                  {es
-                    ? "No hay coincidencias para esta búsqueda."
-                    : "No matches for this search."}
+                  {text("noMatches")}
                 </p>
               )}
               <ul className="space-y-2">
@@ -295,7 +274,7 @@ export function FoodRecordPicker({
                   disabled={loading || offset === 0}
                   onClick={() => setOffset(offset - FOOD_OPTIONS_PAGE)}
                 >
-                  {es ? "Anteriores" : "Previous choices"}
+                  {text("previousChoices")}
                 </button>
                 <button
                   type="button"
@@ -303,14 +282,12 @@ export function FoodRecordPicker({
                   disabled={loading || !reply.hasMore || offset >= 10000}
                   onClick={() => setOffset(offset + FOOD_OPTIONS_PAGE)}
                 >
-                  {es ? "Siguientes" : "More choices"}
+                  {text("moreChoices")}
                 </button>
               </div>
               {offset >= 10000 && reply.hasMore && (
                 <p>
-                  {es
-                    ? "Acota la búsqueda para encontrar más opciones."
-                    : "Narrow the search to find more choices."}
+                  {text("narrowSearch")}
                 </p>
               )}
             </>

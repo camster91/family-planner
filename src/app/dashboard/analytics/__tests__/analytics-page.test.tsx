@@ -11,9 +11,11 @@ jest.mock('@/components/ui/feature-gate', () => ({
 }))
 
 import AnalyticsPage from '../page'
+import { ANALYTICS_SUMMARY_COVERAGE } from '@/lib/analytics-summary-contract'
 
 function mockFetch(body: unknown, ok = true) {
-  global.fetch = jest.fn().mockResolvedValue({ ok, json: async () => body }) as unknown as typeof fetch
+  global.fetch = jest.fn().mockResolvedValue({ ok, json: async () => ok && body && typeof body === 'object' && !Array.isArray(body)
+    ? { coverage: ANALYTICS_SUMMARY_COVERAGE, ...body } : body }) as unknown as typeof fetch
 }
 
 const trend = [
@@ -109,7 +111,7 @@ describe('Analytics page', () => {
       .mockResolvedValueOnce({ ok: false, json: async () => ({ error: 'nope' }) })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ weeklyCompletion: 25, gamification: false, summary: summary({ totalChores: 0, completedChores: 0, completionRate: 0, currentStreak: 0 }), weeklyTrend: [], members: [] }),
+        json: async () => ({ coverage: ANALYTICS_SUMMARY_COVERAGE, weeklyCompletion: 25, gamification: false, summary: summary({ totalChores: 0, completedChores: 0, completionRate: 0, currentStreak: 0 }), weeklyTrend: [], members: [] }),
       })
     global.fetch = fetchMock as unknown as typeof fetch
     render(<AnalyticsPage />)

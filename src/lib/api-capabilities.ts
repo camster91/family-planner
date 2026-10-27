@@ -1,5 +1,7 @@
 /** Public protocol information is never household authorization or plugin permission. */
 import { z } from "zod";
+import { runOwnedForeground } from "./owned-request-http";
+import { readBoundedJsonResponse } from "./bounded-json-response";
 
 export const capabilityManifestSchema = z
   .object({
@@ -79,16 +81,16 @@ export function checkQueuedProtocol(
 /** Read only. A failed/old-server response is unknown, never proof of write support. */
 export async function readApiCapabilities(
   fetcher: typeof fetch = fetch,
+  options: { signal?: AbortSignal; timeoutMs?: number; credentials?: RequestCredentials } = {},
 ): Promise<ApiCapabilities | null> {
-  try {
+  const result = await runOwnedForeground(async signal => {
     const response = await fetcher("/api/capabilities", {
-      credentials: "same-origin",
-      cache: "no-store",
+      credentials: options.credentials ?? "same-origin", cache: "no-store", signal,
     });
-    if (!response.ok) return null;
-    const result = capabilityManifestSchema.safeParse(await response.json());
-    return result.success ? result.data : null;
-  } catch {
-    return null;
-  }
+    if (!response.ok) return { kind: "reply" as const, manifest: null };
+    const body = await readBoundedJsonResponse(response, signal, 32 * 1024);
+    const parsed = capabilityManifestSchema.safeParse(body);
+    return { kind: "reply" as const, manifest: parsed.success ? parsed.data : null };
+  }, { signal: options.signal, timeoutMs: options.timeoutMs ?? 3000 });
+  return result.kind === "reply" ? result.manifest : null;
 }

@@ -1,3 +1,4 @@
+import { householdContentScope } from '@/lib/household-content-erasure'
 import { clearWeeklyResetInTx } from '@/lib/weekly-reset-storage'
 /**
  * Remove a member from a household (O-34, docs/decisions/PROVISIONAL_OWNER_DECISIONS.md).
@@ -228,10 +229,10 @@ export async function removeHouseholdMember(
 
       // Household content they created: handed to the removing parent.
       for (const [model, column] of HOUSEHOLD_HANDOVER_COLUMNS) {
-        await tx[model].updateMany({ where: { [column]: target.id }, data: { [column]: actorId } })
+        await tx[model].updateMany({ where: { ...householdContentScope(model, familyId), [column]: target.id }, data: { [column]: actorId } })
       }
       for (const [model, column] of HOUSEHOLD_CLEARED_REFERENCES) {
-        await tx[model].updateMany({ where: { [column]: target.id }, data: { [column]: null } })
+        await tx[model].updateMany({ where: { ...householdContentScope(model, familyId), [column]: target.id }, data: { [column]: null } })
       }
       await tx.upload.updateMany({ where: { family_id: familyId, uploaded_by: target.id }, data: { uploaded_by: null } })
 

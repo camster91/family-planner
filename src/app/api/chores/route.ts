@@ -1,10 +1,16 @@
+import { readCanonicalChoreDetail } from "@/lib/chore-detail-read";
+import { hydrateChoreProfileMembers, type ProfileHydrated } from "@/lib/chore-profile-read";
 import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-source-proof'
 import { assistantDeleteTargetGuard } from '@/lib/assistant-delete-target'
 import { deletePersonRecord, authorizePersonDeleteReplay } from '@/lib/person-record-delete'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
-import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
+import {
+  hiddenRoutineOccurrenceIds,
+  scheduledOnceRoutineOccurrenceIds,
+} from "@/lib/routine-occurrence-policy";
 import { refuseScheduledRoutineLegacyWrite, RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 import { choreJson } from "@/lib/chore-json";
+import { readVisibleChoreRows } from "@/lib/chore-visible-read";
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -30,45 +36,6 @@ import { applyFrequencyEditInTx } from '@/lib/recurringChores'
 import { applyRotationEditInTx, rotationMembersInHousehold } from '@/lib/chore-rotation'
 import { profileChoreActionAvailability, profileChoreLegacyWriteRefusal, profileChoreReadRefusal, readChoreSubject } from '@/lib/chore-profile'
 
-type HydratedProfileMember = {
-  id: string
-  family_id: string
-  name: string
-  role: string
-  age: number | null
-  archived_at: Date | null
-  erasure_user_id: string | null
-  legacy_mapping: { user_id: string } | null
-  account_link: { user_id: string } | null
-}
-
-type ProfileHydrated<T> = T & { assigneeMember?: HydratedProfileMember | null }
-
-/** Hydrate only rows that carry a canonical profile subject. */
-async function hydrateProfileMembers<T extends { assigned_member_id?: string | null }>(rows: T[]): Promise<ProfileHydrated<T>[]> {
-  const memberIds = [...new Set(rows.flatMap((row) => (row.assigned_member_id != null ? [row.assigned_member_id] : [])))]
-  if (memberIds.length === 0) return rows.map((row) => ({ ...row, assigneeMember: undefined }))
-  const members = await prisma!.householdMember.findMany({
-    where: { id: { in: memberIds } },
-    select: {
-      id: true,
-      family_id: true,
-      name: true,
-      role: true,
-      age: true,
-      archived_at: true,
-      erasure_user_id: true,
-      legacy_mapping: { select: { user_id: true } },
-      account_link: { select: { user_id: true } },
-    },
-  })
-  const byId = new Map(members.map((member) => [member.id, member]))
-  return rows.map((row) => ({
-    ...row,
-    ...(row.assigned_member_id != null ? { assigneeMember: byId.get(row.assigned_member_id) ?? null } : {}),
-  }))
-}
-
 export const dynamic = 'force-dynamic'
 
 // GET - List chores for the user's family.
@@ -91,7 +58,7 @@ async function handleGET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
-    if (id !== null) return getOneChore(id, auth.user.family_id, request)
+    if (id !== null) return readCanonicalChoreDetail(id, auth.user.family_id, request)
 
     const status = searchParams.get('status')
     const assigned_to = searchParams.get('assigned_to')
@@ -100,8 +67,7 @@ async function handleGET(request: NextRequest) {
     const range = parseChoreDateRange(searchParams)
     if (!range.ok) return apiError(400, 'INVALID_QUERY', range.error, { requestId: getRequestId(request) })
 
-    const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id)
-    const where: Record<string, unknown> = { family_id: auth.user.family_id, id: { notIn: hiddenRoutineIds } }
+    const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (status) where.status = status
     if (assigned_to) where.assigned_to = assigned_to
     if (range.from || range.toExclusive) {
@@ -116,22 +82,27 @@ async function handleGET(request: NextRequest) {
       assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
       creator: { select: { id: true, name: true } },
     }
-    const rows = paging.paged
+    const order = paging.paged ? paging.order : 'desc'
+    const take = paging.paged ? paging.limit + 1 : CHORE_UNPAGED_MAX
+    // History bypasses the open-occurrence policy. Other reads fill the visible
+    // cap through bounded candidate+metadata batches, including undated ranges.
+    const candidates = status === 'completed' || status === 'verified'
       ? await prisma!.chore.findMany({
-          where,
-          include,
-          orderBy: choreOrderBy(paging.order),
-          take: paging.limit + 1,
+          where, include, orderBy: choreOrderBy(order), take,
         })
-      : // Unpaged: the latest CHORE_UNPAGED_MAX by due date, returned oldest first.
-        (
-          await prisma!.chore.findMany({
-            where,
+      : await readVisibleChoreRows({
+          take,
+          order,
+          read: (after, batchSize) => prisma!.chore.findMany({
+            where: after ? { AND: [where, afterChoreCursor(after, order)] } : where,
             include,
-            orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
-            take: CHORE_UNPAGED_MAX,
-          })
-        ).reverse()
+            orderBy: choreOrderBy(order),
+            take: batchSize,
+          }),
+          hidden: (ids) => hiddenRoutineOccurrenceIds(prisma!, auth.user.family_id, { ids }),
+        })
+    // Installed unpaged clients still receive latest-visible rows oldest first.
+    const rows = paging.paged ? candidates : candidates.reverse()
 
     const hasMore = paging.paged && rows.length > paging.limit
     const chores = hasMore ? rows.slice(0, paging.limit) : rows
@@ -142,7 +113,7 @@ async function handleGET(request: NextRequest) {
     const profileRead = profileChoreReadRefusal(request)
     const hasProfileRows = chores.some((row) => row.assigned_to === null && row.assigned_member_id != null)
     const rowsWithProfileMembers: ProfileHydrated<(typeof chores)[number]>[] = chores.some((row) => row.assigned_member_id != null)
-      ? await hydrateProfileMembers(chores)
+      ? await hydrateChoreProfileMembers(prisma!, auth.user.family_id, chores)
       : chores.map((row) => ({ ...row, assigneeMember: undefined }))
     if (hasProfileRows && profileRead) return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
     if (hasProfileRows && rowsWithProfileMembers.some((row) => row.assigned_to === null && row.assigned_member_id != null && !readChoreSubject(row, auth.user.family_id))) {
@@ -177,57 +148,6 @@ async function handleGET(request: NextRequest) {
 }
 
 /** `GET /api/chores?id=`: one chore of the caller's household (another household's reads as missing). */
-async function getOneChore(id: string, familyId: string, request: NextRequest) {
-  const chore = await prisma!.chore.findFirst({
-    where: { id, family_id: familyId },
-    include: {
-      assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
-      creator: { select: { id: true, name: true } },
-    },
-  })
-  if (!chore || (await hiddenRoutineOccurrenceIds(prisma!, familyId)).includes(id)) return choreJson({ error: 'Chore not found' }, { status: 404 })
-  // A generated copy is stored as 'once'; the edit form shows its series' frequency.
-  const template =
-    chore.recurrence_id && chore.recurrence_id !== chore.id
-      ? await prisma!.chore.findFirst({
-          where: { id: chore.recurrence_id, family_id: familyId },
-          select: { id: true, frequency: true, weekly_days: true, rotation_member_ids: true },
-        })
-      : null
-  // Take turns (O-39) is a series setting: on the template itself, or on the
-  // template of a generated copy.
-  const seriesRotation =
-    (template ? template.rotation_member_ids : chore.recurrence_id === chore.id ? chore.rotation_member_ids : null) ?? []
-  const profileRead = profileChoreReadRefusal(request)
-  const hydrated: ProfileHydrated<typeof chore> = chore.assigned_member_id != null
-    ? (await hydrateProfileMembers([chore]))[0]
-    : { ...chore, assigneeMember: undefined }
-  if (chore.assigned_to === null && chore.assigned_member_id != null && profileRead) {
-    return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
-  }
-  const subject = readChoreSubject(hydrated, familyId)
-  if (!subject) {
-    if (chore.assigned_to === null && chore.assigned_member_id != null) {
-      return choreJson(profileRead?.body ?? { error: 'PROFILE_CHORE_SUBJECT_UNREADABLE' }, { status: profileRead?.status ?? 409 })
-    }
-    return choreJson({ error: 'Chore subject unavailable' }, { status: 409 })
-  }
-  const safeChore = (() => {
-    const { assigneeMember: _member, ...safe } = hydrated
-    return subject.kind === 'profile' ? { ...safe, subject } : safe
-  })()
-  const gamified = await isGamificationOn(familyId)
-  const scheduledOnceIds = subject.kind === 'profile'
-    ? await scheduledOnceRoutineOccurrenceIds(prisma!, familyId, [chore.id])
-    : new Set<string>()
-  const actionAvailability = subject.kind === 'profile' ? profileChoreActionAvailability(hydrated, scheduledOnceIds.has(chore.id) ? "scheduled-once" : "legacy") : null
-  const projectedChore = subject.kind === 'profile' && actionAvailability ? { ...safeChore, actionAvailability } : safeChore
-  return choreJson({
-    chore: gamified ? projectedChore : omitChorePoints(projectedChore),
-    template: template ?? null,
-    rotation: seriesRotation.length > 0 ? seriesRotation : null,
-  })
-}
 
 // PATCH - Update a chore (family-scoped, parent or assignee). Details only:
 // `updateChoreSchema` drops `status` and the verify fields, so status changes

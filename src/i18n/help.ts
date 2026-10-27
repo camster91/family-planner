@@ -1,6 +1,13 @@
 "use client";
+import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 const en = {
+  guideTitle: "App guide · no AI needed",
+  guideDescription: "Answers from herewoven Help. Works without an AI provider and does not read household records.",
+  guideSearch: "Search app help",
+  guidePlaceholder: "Calendars, recipes, lists…",
+  guideClear: "Clear search",
+  guideEmpty: "No matching topics are available for your account. Try a shorter word.",
   title: "Help",
   intro: "Quick answers and a clear next step.",
   start: "Getting started",
@@ -70,6 +77,12 @@ const en = {
 } as const;
 export type HelpMessage = keyof typeof en;
 const es: Record<HelpMessage, string> = {
+  guideTitle: "Guía de la app · sin IA",
+  guideDescription: "Respuestas de la ayuda de herewoven. Funciona sin proveedor de IA y no lee datos de tu hogar.",
+  guideSearch: "Buscar ayuda",
+  guidePlaceholder: "Calendarios, recetas, listas…",
+  guideClear: "Borrar búsqueda",
+  guideEmpty: "No hay temas coincidentes disponibles para tu cuenta. Prueba una palabra más corta.",
   title: "Ayuda",
   intro: "Respuestas rápidas y un próximo paso claro.",
   start: "Primeros pasos",
@@ -136,7 +149,8 @@ const es: Record<HelpMessage, string> = {
   privacyIncident:
     "Si ves información de otra familia, detente y avísanos. No compartas capturas de esa información.",
 };
+const messages = { en, es };
 export function useHelpText() {
-  const { locale } = useTranslation();
-  return (key: keyof typeof en) => (locale === "es" ? es : en)[key];
+  const { t } = useTranslation();
+  return useCallback((key: HelpMessage) => t(key, undefined, messages), [t]);
 }

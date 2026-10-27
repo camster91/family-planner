@@ -597,3 +597,82 @@ serializing the old inbox/identity; normal session/role routing then determines
 the destination. This avoids presenting revocation as an empty or blank review
 screen. Transient query errors still use ordinary error recovery, not an auth
 redirect. This follow-through is also source-only and unrun.
+
+
+## 2026-10-25 — captured chore assignment read recovery (local source only)
+
+The existing capture-to-canonical-chore handoff was already source-authored. Its editor now loads member/profile choices through the shared15-second/256-KiB foreground transport with abort/retirement on close/unmount. Member reads no longer repeat when the selected account changes; explicit retry starts one new attempt for each independent catalog. Members require an actual array, valid scalar fields/unique IDs, and are projected to id/name/role rather than retaining email or extra response fields. Profile responses use the existing canonical reader; a disabled404 capability remains optional, whereas unknown/invalid reads are visible failures.
+
+Typed EN/ES loading/failure/retry copy preserves partial fields and selected IDs. Capture review never defaults a task to the first account. A failed/loading catalog holds its affected submit/review path instead of treating stale choices as current; ordinary valid account selection remains usable when optional profiles are unavailable. Retrying catalog reads does not create/review a chore. URL routine/date defaults initialize separately from profile-query resolution so a later catalog retry cannot reapply URL defaults over edited fields. Existing captured-task source cases now check read-once selection and explicit-retry draft retention, UNRUN.
+
+This is read-instance retirement, not original-browser/session binding or final role/household authority proof. Canonical write/photo-upload transports and broader permission/lifecycle/storage/role/native/rendered acceptance remain separate. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #464/#450/#135 remain open.
+
+
+## 2026-10-25 — ordinary chore create one-attempt recovery (source only)
+
+Canonical chore-form submission now takes a synchronous latch before any async work. Capture review still parses and returns its reviewed body without a write/key/navigation. Ordinary account creates freeze a new original idempotency key/body/local issue time, send it through the existing canonical endpoint and shared15-second/512-KiB foreground transport, and retain it only in mounted memory. Unknown/oversized/malformed replies, ambiguous statuses and access refusals hold the form instead of minting another create. A recognized chore-id acknowledgement is only the existing minimal success signal, not full original-owner/field/source proof. Confirmed state prevents another create if navigation is refused.
+
+Unmount aborts account transport and retires all submit completions; no late error/key cleanup/navigation is applied. Pending fields are disabled for both account and profile choices; an observed changed draft does not auto-navigate. The localized read-only Check Chores action uses existing draft-aware navigation and never retries or cancels a write. Copy explicitly says leaving/reloading loses mounted recovery and does not cancel a possible save. Existing strict profile protocol/body/key behavior is retained; profile network and photo-upload transport remain separate unfinished work.
+
+An ordinary duplicate-submit/interrupted-save source fixture was authored, UNRUN. No durable journal, original-browser/session command, exact receipt read, safe seven-day retry protocol, full acknowledgement validation or broad role/storage/native/rendered acceptance is claimed. Server idempotency is the existing canonical mechanism; no endpoint/schema/migration is introduced. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #450/#135/#464 remain open.
+
+
+## 2026-10-25 — bounded canonical chore photo upload recovery (source only)
+
+The existing chore editor uploader now uses the shared15-second foreground request and64-KiB response bound, with an explicit controller/epoch retired on unmount. Pending upload still blocks review/create; known failure, unknown response and oversized choice have typed EN/ES feedback. Every completion checks the active form/upload instance before replacing picture state, clearing its file chooser or releasing busy state. Removing a picture retires its selection epoch; synchronous pending guards prevent programmatic overlapping upload/submit/remove paths.
+
+A browser-safe contract shares the unchanged five-MiB file limit and canonical16-hex private filename vocabulary with the existing server upload/ownership code. The chooser refuses over-limit files before dispatch. Success adopts only an exact canonical chore-photo path, rejecting traversal, arbitrary suffixes/query/fragment and malformed acknowledgements. Unknown uploads keep the prior picture and explain that a file may already exist; no automatic retry, delete or chore attachment is performed. Server byte sniffing, quota, content-addressed ownership and canonical attachment authorization remain authoritative and unchanged.
+
+An invalid-path/previous-picture source fixture was authored, UNRUN. Path shape is not ownership or original-browser/session proof, and timeout/abort does not cancel a possible server file write. No durable file/request recovery, real camera/native lifecycle, image-codec or rendered/privacy acceptance is claimed. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, actual upload or activation ran. #450/#135/#464 remain open.
+
+
+## 2026-10-25 — bounded profile create retries retain original age (source only)
+
+Profile chore writes now use the same15-second/512-KiB foreground transport and submit-controller retirement as ordinary account creates. Existing strict protocol2/canonical response admission remains. Pending and ambiguous records now keep their original body, key and first issue time; returning to the same canonical draft reuses that record, including after an explicit edit or weekly date rollover supported by the existing preflight. Local age validation uses the existing seven-day idempotency interval and holds missing/invalid/future/expired timing before transport rather than renewing the request. This is a local clock precondition, not server age admission.
+
+A dispatch-local snapshot survives an edit that clears the current editable pointer, so late unknown/invalid results can retain the actual original packet. First known capability refusal can still retire a never-ambiguous request; a later refusal cannot erase an earlier ambiguous body/key/time. Access401/403 uses the existing private recovery mask. Capture review still returns a reviewed body without dispatch. Typed EN/ES age-hold copy offers read-only Chores navigation; explicit edits are separate saves and do not make an old original younger.
+
+A response-loss→capability-refusal→same-original-retry source fixture was authored, UNRUN. Records remain mounted memory only; all-pending discovery, exact receipt inspection, original-browser/session binding, server-admitted retry age, stale weekly-start handling and original profile/role/storage/native/rendered acceptance remain unfinished. No owner policy from #480/#557 was inferred or activated. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #450/#135/#464/#480 remain open.
+
+
+## 2026-10-25 — weekly retry identity survives edits and date rollover
+
+The profile-create retry identity now uses the reviewed weekday set and optional start choice, normalized together with the canonical submitted fields. It does not use a freshly calculated occurrence as the lookup identity. Reopening the same prior draft after edits and midnight therefore finds its original uncertain record rather than minting a new key for a new occurrence. The actual server request remains the stored original body, key and issue time; local age holds remain unchanged.
+
+An explicit start that is now in the past is allowed only when recovering that recognized original request. New requests and capture review retain the existing no-past-start validation. The existing response-loss/date-rollover source case now includes an explicit start plus an intervening edit-and-return; it is strengthened, UNRUN, rather than adding another suite. This addresses the prior client stale-weekly-start/lookup gap only. Mounted-only discovery, original-browser/session binding, server age/receipt/source admission and actual role/date/DB/native/rendered acceptance remain open. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran; #450/#135/#464 stay open.
+
+
+## 2026-10-25 — original chore receipt inspection from canonical forms
+
+Ordinary account/profile chore forms now offer an explicit Check original save action for their current retained request, reusing the existing GET `/api/chores/create/receipt` endpoint. The browser receipt module shares its existing bounded response/state admission with a new ordinary-request adapter; it hashes parsed canonical input exactly as the existing create route does and sends action/hash/key in headers, never the URL. No second receipt engine, endpoint, replay or create is introduced. The graph is dynamically loaded only on the deliberate check.
+
+The whole foreground check (including module load/hash/HTTP) has the shared15-second bound and8-KiB response admission. Existing submit epoch/controller/latch retires late checks and blocks overlapping submission/navigation while pending. Typed EN/ES copy distinguishes recorded-present, removed/erased-or-unavailable, pending, expired, absent, opaque, refused and unavailable states. Present proof moves the form to confirmation without automatic navigation. Other parsed states keep writes held; absent/expired is explicitly not proof that the original save failed. Checking never clears a key, renews timing, recreates a chore or sends notices.
+
+The existing interrupted-create source fixture now checks same-key receipt GET and no replacement POST after absent proof, UNRUN. The existing endpoint authorizes the current HTTP parent and resolves a stored chore-id pointer; this change does not prove original-browser/session binding, immutable source birth/generation, or recall of a response after authority changes. Mounted request loss, enumeration of every pending draft and durable storage remain unfinished. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran; #450/#135/#464 remain open.
+
+
+## 2026-10-25 — receipt birth identity and late authority renewal
+
+New account/profile creation receipts now retain the actual existing `responsibility_generation` as `choreGeneration` alongside `choreId`, in the same effect transaction. Normal profile replies retain their existing `chore` DTO plus additive identity fields; compact replies retain the original pointer plus generation. Existing takeover returns old receipts without manufacturing missing identity. No migration/default/backfill is introduced: the source already has the birth generation.
+
+The state-only chore receipt reader requires a valid stored generation before looking for original presence, and scopes the current row by id/family/generation/original creator/non-erased subject. Missing/invalid legacy identity yields committed-unknown, never inferred present. It takes ordered user/household advisory locks, actual User/Family share locks and a same-user/family/key receipt share lock before reading. The read has a five-second transaction/max-wait budget; successful disclosure renews the same original HTTP authority, and profile capability is rechecked before response. The client response shape remains state-only with no generation or cached contents.
+
+Source fixtures now cover generation-scoped queries, legacy opaque receipts and withheld state after late authority loss, UNRUN. Additive stored/normal profile response fields and fail-closed legacy unknown behavior still need old-reader/restore acceptance. Ordinary POST replay hydration still has its existing id-only projection and is separate source work; original-browser/session binding, durable recovery and real PostgreSQL lock/concurrency/privacy/native/rendered acceptance remain open. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran; #135/#450/#464 remain open.
+
+
+## 2026-10-25 — ordinary account create replay hydration uses birth identity
+
+The ordinary account-create response path now shares strict stored pointer/birth-generation admission with the state-only receipt reader. New/current ordinary replies hydrate only id/family/original creator/generation/non-erased matches under renewed HTTP authority and actual principal/family share locks in a bounded transaction. Legacy compact receipts missing a valid birth remain a409 recovery hold; no id-only fallback or generation inference is made. Bound compact review replies retain their existing route path and state-only inspection.
+
+After the existing points-feature read, the ordinary route renews original HTTP authority once more before serializing private details. This late refusal may follow a committed create. It is not response recall, immutable material-field proof, related-person projection certification or original-browser session admission. Profile full-response replay remains separate work.
+
+Fake chore creation now models the existing UUID birth default, and existing guarded Postgres/assistant source expectations include the additive receipt identity. The existing lost-reply/removal fixture also describes same-id/new-birth replacement and refused original hydration. All fixture source is UNRUN; no DB default, migration, generation, tests/checks/build/browser/CI/push/merge/deploy or activation ran. Old-reader/restore, original-owner/durable recovery, real lock/concurrency/privacy/device/rendered acceptance remain open. #135/#450/#464 remain open.
+
+
+## 2026-10-25 — ordinary profile create replay uses fresh canonical projection
+
+Ordinary profile-create responses, including cached/takeover results, now admit the stored pointer/birth identity and load the matching id/generation/family/original creator/original selected profile/non-erased profile-only row under current HTTP parent/session authority. Fresh creation and this projection share the existing canonical subject-to-DTO construction; cached names/notes/status are not returned as current state. The fresh path retains its existing supplied creation-time behavior, while response hydration reads the canonical row creation timestamp. Missing legacy identity is a409 recovery hold. Profile-to-account/erased/foreign subject changes are not adopted as another assignee.
+
+Normal responses preserve their existing chore DTO plus additive identity. Bound compact review replies retain their original path, with final HTTP authority renewal. Profile and recurrence availability are checked again immediately before ordinary/compact disclosure; no gate is enabled or broadened. A withheld success may follow a committed write. The existing guarded profile idempotency fixture now also describes canonical updated-title hydration and wrong-birth refusal, UNRUN.
+
+This supersedes the prior ordinary-profile cached-full-response gap in this HTTP route only. Internal effect/idempotency callers still return their stored bodies and must not treat those as freshly authorized UI projections. Original-browser/session admission, durable all-pending recovery, exact material/lineage continuity, real row locks/concurrency, old-reader/restore, profile lifecycle/native/rendered acceptance remain unfinished. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran. No #480/#557 product ownership policy was inferred. #135/#450/#464/#480 remain open.

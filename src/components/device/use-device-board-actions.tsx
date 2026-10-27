@@ -14,6 +14,7 @@ import type {
 import { DeviceApiError, type DeviceClient } from "@/lib/device-client";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { useCoreTranslation } from "@/i18n/core";
+import { useDeviceText, type DeviceText } from "@/i18n/device-management";
 import { useTodayBoardText } from "@/i18n/today-board";
 import { getDeviceQueue } from "@/lib/device-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
@@ -62,16 +63,16 @@ function profileIdForChore(chore: BoardChore | null): string | null {
   return null;
 }
 
-function writeErrorText(error: unknown): string {
+function writeErrorText(error: unknown, text: DeviceText): string {
   if (error instanceof DeviceApiError) {
     if (error.code === "NETWORK_ERROR")
-      return `Couldn't reach ${PRODUCT_BRAND.name}. Check the Wi-Fi and try again.`;
+      return text("actionNetwork", { brand: PRODUCT_BRAND.name });
     if (error.status === 429)
-      return "Too many taps. Wait a minute, then try again.";
+      return text("actionRate");
     if (error.status > 0 && error.status < 500 && error.message)
       return error.message;
   }
-  return "Something went wrong. Try again.";
+  return text("tabletError");
 }
 
 /**
@@ -114,7 +115,11 @@ export function useDeviceBoardActions({
 } {
   const { t } = useCoreTranslation();
   const todayText = useTodayBoardText();
-  const profileChorePaused = todayText("profileChorePaused");
+  const deviceText = useDeviceText();
+  // Presentation changes must not recreate the queue ownership set or the
+  // active picker resolver. Existing actions read the latest copy at invocation.
+  const copyRef = React.useRef({ t, todayText, deviceText });
+  copyRef.current = { t, todayText, deviceText };
   const [subject, setSubject] = React.useState<DeviceSubjectChoice | null>(
     null,
   );
@@ -197,7 +202,7 @@ export function useDeviceBoardActions({
       if (!selected) {
         return {
           ok: false,
-          message: "Choose the assigned family member, then try again.",
+          message: copyRef.current.deviceText("chooseChoreMember"),
         };
       }
       try {
@@ -211,7 +216,7 @@ export function useDeviceBoardActions({
         });
         return { ok: true };
       } catch (error) {
-        return { ok: false, message: writeErrorText(error) };
+        return { ok: false, message: writeErrorText(error, copyRef.current.deviceText) };
       }
     };
 
@@ -259,7 +264,7 @@ export function useDeviceBoardActions({
         if (chore.actionAvailability?.state === "paused") {
           return Promise.resolve({
             ok: false as const,
-            message: profileChorePaused,
+            message: copyRef.current.todayText("profileChorePaused"),
           });
         }
         return post(
@@ -271,7 +276,7 @@ export function useDeviceBoardActions({
         if (chore.actionAvailability?.state === "paused") {
           return Promise.resolve({
             ok: false as const,
-            message: profileChorePaused,
+            message: copyRef.current.todayText("profileChorePaused"),
           });
         }
         return post(
@@ -279,7 +284,7 @@ export function useDeviceBoardActions({
           chore,
         );
       },
-      choreDoneNote: () => "A parent will check it.",
+      choreDoneNote: () => copyRef.current.deviceText("parentWillCheck"),
       actorLabel: () =>
         subjectRef.current?.kind === "account"
           ? subjectRef.current.name.trim().split(/\s+/)[0]
@@ -289,7 +294,7 @@ export function useDeviceBoardActions({
         if (selected?.kind !== "account") {
           return {
             ok: false,
-            message: "Choose a family account before updating groceries.",
+            message: copyRef.current.deviceText("chooseGroceryAccount"),
           };
         }
         try {
@@ -308,20 +313,19 @@ export function useDeviceBoardActions({
             error instanceof QueueError &&
             error.code === "COMPATIBLE_CLIENT_REQUIRED"
           )
-            return { ok: false, message: t("groceries.compatibleClient") };
+            return { ok: false, message: copyRef.current.t("groceries.compatibleClient") };
           if (
             error instanceof QueueError &&
             error.code === "STORAGE_UNAVAILABLE"
           )
-            return { ok: false, message: t("groceries.storageUnavailable") };
+            return { ok: false, message: copyRef.current.t("groceries.storageUnavailable") };
           if (error instanceof QueueError && error.code === "QUEUE_FULL") {
             return {
               ok: false,
-              message:
-                "Too many changes are waiting for the Wi-Fi. Try again when it is back.",
+              message: copyRef.current.deviceText("queuedChangesFull"),
             };
           }
-          return { ok: false, message: "Something went wrong. Try again." };
+          return { ok: false, message: copyRef.current.deviceText("tabletError") };
         }
       },
       onGroceryFailed(listener) {
@@ -353,10 +357,8 @@ export function useDeviceBoardActions({
     client,
     choresOn,
     listsOn,
-    t,
     members,
     memberProtocol,
-    profileChorePaused,
   ]);
 
   const picker = (
@@ -400,6 +402,7 @@ function WhoIsThisDialog({
   onClose: () => void;
 }) {
   const text = useTodayBoardText();
+  const deviceText = useDeviceText();
   const choices = members.filter((member) => {
     const profileId = profileIdForMember(member);
     return mode === "profile"
@@ -410,15 +413,15 @@ function WhoIsThisDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={mode === "profile" ? text("profilePickerTitle") : "Who's this?"}
+      title={mode === "profile" ? text("profilePickerTitle") : deviceText("accountPickerTitle")}
       testId="who-is-this"
       description={
         mode === "profile"
           ? text("profilePickerDescription")
-          : "Pick your name so the family knows who made the change."
+          : deviceText("accountPickerDescription")
       }
     >
-      <ul className="grid gap-3 sm:grid-cols-2" aria-label="Family members">
+      <ul className="grid gap-3 sm:grid-cols-2" aria-label={deviceText("pickerMembers")}>
         {choices.map((m) => (
           <li key={m.id}>
             <button

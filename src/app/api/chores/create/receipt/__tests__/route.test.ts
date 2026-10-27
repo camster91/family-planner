@@ -34,7 +34,9 @@ import { personChoreCreateAuthority } from "@/lib/person-chore-create";
 import { prisma } from "@/lib/prisma";
 const hash = "a".repeat(64),
   key = "fixture_chore_request";
+const generation = "11111111-1111-4111-8111-111111111111";
 const tx = {
+  $queryRaw: jest.fn(),
   idempotencyRecord: { findFirst: jest.fn() },
   chore: { findFirst: jest.fn() },
 };
@@ -52,7 +54,7 @@ const record = (extra: Record<string, unknown> = {}) => ({
   action: "chore.create",
   request_hash: hash,
   response_status: 201,
-  response_body: { choreId: "fixture-chore", privateTitle: "Private" },
+  response_body: { choreId: "fixture-chore", choreGeneration: generation, privateTitle: "Private" },
   expires_at: new Date(Date.now() + 60000),
   ...extra,
 });
@@ -71,6 +73,7 @@ beforeEach(() => {
   ] as never);
   jest.mocked(personChoreCreateAuthority).mockResolvedValue(null);
   (prisma!.$transaction as jest.Mock).mockImplementation((run) => run(tx));
+  tx.$queryRaw.mockResolvedValue([{ id: "fixture-row" }]);
   tx.idempotencyRecord.findFirst.mockResolvedValue(record());
   tx.chore.findFirst.mockResolvedValue({ id: "fixture-chore" });
 });
@@ -92,7 +95,7 @@ it("returns only same-household receipt/current state and never cached content",
   expect(result.headers.get("Cache-Control")).toBe("private, no-store");
   expect(tx.idempotencyRecord.findFirst).toHaveBeenCalledWith(
     expect.objectContaining({
-      where: { scope: "user:fixture-parent", key },
+      where: { scope: "user:fixture-parent", key, family_id: "fixture-family-a", user_id: "fixture-parent" },
     }),
   );
   expect(tx.chore.findFirst).toHaveBeenCalledWith({
@@ -100,6 +103,8 @@ it("returns only same-household receipt/current state and never cached content",
       id: "fixture-chore",
       family_id: "fixture-family-a",
       member_subject_erased: false,
+      responsibility_generation: generation,
+      created_by: "fixture-parent",
     },
     select: { id: true },
   });
@@ -138,4 +143,17 @@ it("distinguishes pending, expired, opaque and conflicting receipts without cano
   );
   expect((await GET(request())).status).toBe(409);
   expect(tx.chore.findFirst).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: legacy pointers are opaque and late authority loss withholds state.
+it("does not infer original presence from a legacy receipt without birth identity", async () => {
+  tx.idempotencyRecord.findFirst.mockResolvedValue(record({ response_body: { choreId: "fixture-chore" } }));
+  expect(await (await GET(request())).json()).toEqual({ state: "committed", current: "unknown" });
+  expect(tx.chore.findFirst).not.toHaveBeenCalled();
+});
+it("withholds a successful receipt state after original authority is lost", async () => {
+  jest.mocked(personChoreCreateAuthority).mockResolvedValueOnce(null).mockResolvedValueOnce({ status: 403, body: { error: { code: "FORBIDDEN" } } });
+  const result = await GET(request());
+  expect(result.status).toBe(403);
+  expect(await result.json()).toEqual({ error: { code: "FORBIDDEN" } });
 });

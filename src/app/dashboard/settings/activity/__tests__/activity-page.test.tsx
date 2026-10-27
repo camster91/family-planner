@@ -153,3 +153,75 @@ it('links back to Settings with a 44px target', async () => {
   expect(back.className).toContain('min-h-[44px]')
   await screen.findByTestId('activity-empty')
 })
+
+// Authored/unrun follow-through: malformed/late pages must not imply an empty
+// or refreshed household history. No database/provider activity in these cases.
+it.each([
+  { entries: 'not-an-array', nextCursor: null },
+  { entries: [entry('bad', { actor: { id: 'p1', name: {} } as any })], nextCursor: null },
+  { entries: [entry('duplicate'), entry('duplicate')], nextCursor: null },
+  { entries: [] },
+  { entries: [], nextCursor: 'CUR1' },
+])('shows a recoverable error for a malformed activity page', async (body) => {
+  reply = () => ({ status: 200, body })
+  render(<ActivityClient />)
+  expect(await screen.findByTestId('activity-error')).toBeInTheDocument()
+  expect(screen.queryByTestId('activity-empty')).not.toBeInTheDocument()
+})
+
+it('retains the loaded page and retries the same cursor when the server repeats it', async () => {
+  const user = userEvent.setup()
+  let repeated = true
+  reply = (url) => !url.includes('cursor=')
+    ? { status: 200, body: { entries: [entry('a')], nextCursor: 'CUR1' } }
+    : { status: 200, body: { entries: [entry('b')], nextCursor: repeated ? 'CUR1' : null } }
+  render(<ActivityClient />)
+  await user.click(await screen.findByRole('button', { name: 'Show older changes' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent("Older changes didn't load")
+  expect(screen.getByText('Turned on Wishlist a')).toBeInTheDocument()
+  expect(screen.queryByText('Turned on Wishlist b')).not.toBeInTheDocument()
+  repeated = false
+  await user.click(screen.getByRole('button', { name: 'Show older changes' }))
+  expect(await screen.findByText('Turned on Wishlist b')).toBeInTheDocument()
+  expect(calls.slice(1)).toEqual([
+    `/api/audit?limit=${ACTIVITY_PAGE_SIZE}&cursor=CUR1`,
+    `/api/audit?limit=${ACTIVITY_PAGE_SIZE}&cursor=CUR1`,
+  ])
+})
+
+it('ignores an old older-page response after reconnection refreshed the history', async () => {
+  const user = userEvent.setup()
+  let initialReads = 0
+  let release!: (response: Reply) => void
+  reply = (url) => url.includes('cursor=')
+    ? new Promise<Reply>((resolve) => { release = resolve })
+    : { status: 200, body: { entries: [entry(++initialReads === 1 ? 'old' : 'fresh')], nextCursor: initialReads === 1 ? 'CUR1' : null } }
+  render(<ActivityClient />)
+  await user.click(await screen.findByRole('button', { name: 'Show older changes' }))
+  setOnline(false)
+  await act(async () => { window.dispatchEvent(new Event('offline')) })
+  setOnline(true)
+  await act(async () => { window.dispatchEvent(new Event('online')) })
+  await screen.findByText('Turned on Wishlist fresh')
+  await act(async () => {
+    release({ status: 200, body: { entries: [entry('stale-older')], nextCursor: null } })
+  })
+  expect(screen.getByText('Turned on Wishlist fresh')).toBeInTheDocument()
+  expect(screen.queryByText('Turned on Wishlist stale-older')).not.toBeInTheDocument()
+  expect(screen.queryByText('Turned on Wishlist old')).not.toBeInTheDocument()
+})
+
+it('bounds a stalled response body and exposes retry instead of loading forever', async () => {
+  jest.useFakeTimers()
+  try {
+    global.fetch = jest.fn(async () => ({
+      ok: true, status: 200, json: () => new Promise(() => {}),
+    } as unknown as Response))
+    render(<ActivityClient />)
+    await act(async () => { jest.advanceTimersByTime(15000) })
+    expect(screen.getByTestId('activity-error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  } finally {
+    jest.useRealTimers()
+  }
+})

@@ -1,3 +1,4 @@
+import { HOUSEHOLD_HANDOVER_COLUMNS, HOUSEHOLD_CLEARED_REFERENCES, householdContentScope, needsHouseholdContentSuccessor, handOverRetainedContentInTx, clearHouseholdContentReferencesInTx } from '@/lib/household-content-erasure'
 import { erasePersonalImportProvenanceInTx } from '@/lib/account-erasure-imports'
 import { clearHouseholdEventPreparationInTx } from '@/lib/event-preparation/storage'
 import { clearHouseholdResponsibilityInTx } from '@/lib/responsibility-storage'
@@ -292,6 +293,7 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
         const historicalControls = await handOverHistoricalRoutineControlsInTx(tx, user.id, null)
         const grants = await takeCalendarConnections(tx, { user_id: user.id })
         await deletePersonalRows(tx, user.id)
+        await handOverHistoricalContentInTx(tx, user.id, null, erasureFamilies)
         await eraseRetainedAccountHistoryInTx(tx, user, erasureFamilies)
         await tx.user.delete({ where: { id: user.id } })
         for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
@@ -313,6 +315,7 @@ export async function deleteMemberAccount(userId: string, deps: DeletionDeps = {
       await handOverAndDetach(tx, user.id, familyId, successorId, deletionNow)
       await recordMemberLeft(tx, user, familyId)
       await deletePersonalRows(tx, user.id)
+      await handOverHistoricalContentInTx(tx, user.id, familyId, erasureFamilies)
       await eraseRetainedAccountHistoryInTx(tx, user, erasureFamilies)
       await tx.user.delete({ where: { id: user.id } })
       for (const control of historicalControls) await expandSeriesInTx(tx, control.rootId, control.familyId, deletionNow)
@@ -356,6 +359,21 @@ async function assertMemberMayLeave(
     409,
     'You are the last member of this household. Ask a parent to delete the household instead.'
   )
+}
+
+/** Historic ownership never crosses into the account's new household. */
+async function handOverHistoricalContentInTx(tx: any, userId: string, currentFamilyId: string | null, families: readonly string[]) {
+  const orderBy = [{ created_at: 'asc' }, { id: 'asc' }]
+  for (const familyId of [...new Set(families)].sort()) {
+    if (familyId === currentFamilyId) continue
+    if (await needsHouseholdContentSuccessor(tx, familyId, userId)) {
+      const successor = await tx.user.findFirst({ where: { family_id: familyId, role: 'parent', id: { not: userId } }, select: { id: true }, orderBy })
+        ?? await tx.user.findFirst({ where: { family_id: familyId, id: { not: userId } }, select: { id: true }, orderBy })
+      if (!successor) throw new AccountDeletionError('HISTORICAL_SUCCESSOR_REQUIRED', 409, 'A former household needs a remaining member before your shared content can be preserved. Review that household before deleting your account.')
+      await handOverRetainedContentInTx(tx, familyId, userId, successor.id)
+    }
+    await clearHouseholdContentReferencesInTx(tx, familyId, userId)
+  }
 }
 
 /** What is needed to revoke one calendar grant at the provider after commit. */
@@ -422,57 +440,8 @@ export async function revokeGrantsAfterCommit(grants: CalendarGrant[], deps: Del
  * household keeps it (NOT NULL creator columns, several of them RESTRICT/NO
  * ACTION in the database). Shared with member removal (src/lib/member-removal.ts).
  */
-export const HOUSEHOLD_HANDOVER_COLUMNS: ReadonlyArray<readonly [string, string]> = [
-  ['chore', 'created_by'],
-  ['event', 'created_by'],
-  ['list', 'created_by'],
-  ['listItem', 'added_by'],
-  ['reward', 'created_by'],
-  ['transaction', 'user_id'],
-  ['budgetCategory', 'created_by'],
-  ['project', 'created_by'],
-  ['familyMeal', 'created_by'],
-  ['pinnedNote', 'created_by'],
-  ['familyLocation', 'user_id'],
-  ['pickup', 'created_by'],
-  ['allowance', 'from_user_id'],
-  ['handoff', 'created_by'],
-  ['sickDay', 'created_by'],
-  ['medication', 'created_by'],
-  ['calendarSubscription', 'created_by'],
-  ['importJob', 'started_by'],
-  ['recipe', 'created_by'],
-  ['mealPlan', 'created_by'],
-  ['shoppingList', 'created_by'],
-  ['habit', 'created_by'],
-  ['familyGoal', 'created_by'],
-  // RoutineStack.created_by records the original actor, not transferable ownership.
-  // Ordinary membership changes preserve it; User erasure uses its SetNull FK.
-]
-
-/** Nullable references to a leaving member: cleared. Shared with member removal. */
-export const HOUSEHOLD_CLEARED_REFERENCES: ReadonlyArray<readonly [string, string]> = [
-  ['listItem', 'checked_by'],
-  ['reward', 'claimed_by'],
-  ['reward', 'approved_by'],
-  ['projectTask', 'assigned_to'],
-  ['familyMeal', 'cook_id'],
-  ['mealBatch', 'cook_id'],
-  ['anniversary', 'person_id'],
-  ['anniversary', 'created_by'],
-  ['emergencyContact', 'person_id'],
-  ['pickup', 'assigned_to'],
-  ['wishlistItem', 'status_changed_by'],
-  ['choreAssignment', 'completed_by'],
-  ['choreAssignment', 'approved_by'],
-  ['rewardRedemption', 'approved_by'],
-  ['inventoryItem', 'added_by'],
-  ['inventoryAdjustment', 'actor_id'],
-  ['inventoryAdjustment', 'undone_by'],
-  ['grocerySectionPreference', 'updated_by'],
-  ['deviceAuditEvent', 'actor_user_id'],
-  ['auditLog', 'actor_user_id'],
-]
+// Retain the existing import surface used by ordinary membership removal.
+export { HOUSEHOLD_HANDOVER_COLUMNS, HOUSEHOLD_CLEARED_REFERENCES } from '@/lib/household-content-erasure'
 
 /**
  * Member path, inside the transaction: hand household content to the
@@ -513,15 +482,19 @@ async function handOverAndDetach(
     },
   })
   await tx.parentElevationPin.deleteMany({ where: { user_id: userId } })
+  // Device pairing handover belongs only to the current household. Former requests
+  // retain personal creator ownership for User erasure; never transfer them
+  // to a parent in a different household. Plain historic actor slots are
+  // cleared separately under all discovered household locks.
   // Pairing codes this member started and that were not finished.
-  await tx.devicePairing.deleteMany({ where: { created_by: userId, device_id: null } })
-  await tx.devicePairing.updateMany({ where: { created_by: userId }, data: { created_by: to } })
-  await tx.devicePairing.updateMany({ where: { confirmed_by: userId }, data: { confirmed_by: null } })
-  await tx.householdDevice.updateMany({ where: { created_by: userId }, data: { created_by: null } })
-  await tx.householdDevice.updateMany({ where: { confirmed_by: userId }, data: { confirmed_by: null } })
-  await tx.householdDevice.updateMany({ where: { revoked_by: userId }, data: { revoked_by: null } })
-  await tx.familyInvite.deleteMany({ where: { created_by: userId, accepted_at: null } })
-  await tx.familyInvite.updateMany({ where: { created_by: userId }, data: { created_by: to } })
+  await tx.devicePairing.deleteMany({ where: { ...inFamily, created_by: userId, device_id: null } })
+  await tx.devicePairing.updateMany({ where: { ...inFamily, created_by: userId }, data: { created_by: to } })
+  await tx.devicePairing.updateMany({ where: { ...inFamily, confirmed_by: userId }, data: { confirmed_by: null } })
+  await tx.householdDevice.updateMany({ where: { ...inFamily, created_by: userId }, data: { created_by: null } })
+  await tx.householdDevice.updateMany({ where: { ...inFamily, confirmed_by: userId }, data: { confirmed_by: null } })
+  await tx.householdDevice.updateMany({ where: { ...inFamily, revoked_by: userId }, data: { revoked_by: null } })
+  await tx.familyInvite.deleteMany({ where: { ...inFamily, created_by: userId, accepted_at: null } })
+  await tx.familyInvite.updateMany({ where: { ...inFamily, created_by: userId }, data: { created_by: to } })
   await tx.calendarOAuthState.deleteMany({ where: { user_id: userId } })
   await tx.calendarConnection.deleteMany({ where: { user_id: userId } })
   await tx.idempotencyRecord.deleteMany({ where: { user_id: userId } })
@@ -557,10 +530,10 @@ async function handOverAndDetach(
   await tx.rewardRedemption.deleteMany({ where: { requested_by: userId } })
 
   for (const [model, column] of HOUSEHOLD_HANDOVER_COLUMNS) {
-    await tx[model].updateMany({ where: { [column]: userId }, data: { [column]: to } })
+    await tx[model].updateMany({ where: { ...householdContentScope(model, familyId), [column]: userId }, data: { [column]: to } })
   }
   for (const [model, column] of HOUSEHOLD_CLEARED_REFERENCES) {
-    await tx[model].updateMany({ where: { [column]: userId }, data: { [column]: null } })
+    await tx[model].updateMany({ where: { ...householdContentScope(model, familyId), [column]: userId }, data: { [column]: null } })
   }
   // Permanent account erasure anonymizes the original actor without changing stack identity.
   // This is intentionally separate from ordinary household member removal.
@@ -603,6 +576,7 @@ async function recordMemberLeft(tx: any, user: { id: string; role: string }, fam
 /** Rows that belong to the person alone (any household). */
 async function deletePersonalRows(tx: any, userId: string): Promise<void> {
   await tx.appFeedback.deleteMany({ where: { user_id: userId } })
+  await tx.notificationRecipientDecision.updateMany({ where: { user_id: userId }, data: { user_id: null } })
   await tx.notification.deleteMany({ where: { user_id: userId } })
   await tx.pushSubscription.deleteMany({ where: { user_id: userId } })
   await tx.activity.deleteMany({ where: { user_id: userId } })
@@ -640,6 +614,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'householdDevice', scope: { kind: 'family' }, why: 'paired tablets (and any elevation)' },
   { model: 'parentElevationPin', scope: { kind: 'familyOrMembers', column: 'user_id' }, why: 'tablet PINs' },
   { model: 'responsibilityState', scope: { kind: 'family' }, why: 'consent and backup metadata before canonical targets/identities; compatibility-probed SQL' },
+  { model: 'choreTopUpCursor', scope: { kind: 'family' }, why: 'content-free foreground traversal position; compatibility-probed SQL' },
   { model: 'householdProfileLinkChallenge', scope: { kind: 'family' }, why: 'expiring profile-link proofs before identities; compatibility-probed SQL' },
   { model: 'aiUsageRequest', scope: { kind: 'family' }, why: 'content-free AI reservations, outcomes and accounting; compatibility-probed SQL' },
   { model: 'aiUsagePolicy', scope: { kind: 'family' }, why: 'household AI quota/pricing policy; compatibility-probed SQL' },
@@ -701,6 +676,8 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'importedRecord', scope: { kind: 'family' }, why: 'import provenance' },
   { model: 'importJob', scope: { kind: 'family' }, why: 'import jobs' },
   { model: 'financialArchiveRecord', scope: { kind: 'family' }, why: 'archived finance records' },
+  { model: 'notificationRecipientDecision', scope: { kind: 'family' }, why: 'terminal notification recipient decisions' },
+  { model: 'notificationEventOccurrence', scope: { kind: 'family' }, why: 'household notification occurrence evidence' },
   { model: 'message', scope: { kind: 'family' }, why: 'messages' },
   { model: 'messageAttachment', scope: { kind: 'family' }, why: 'message attachments' },
   { model: 'notification', scope: { kind: 'members', column: 'user_id' }, why: 'notifications' },

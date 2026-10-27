@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  Plus,
   CalendarPlus,
   ListPlus,
   ShoppingCart,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import type { BoardLinks } from "@/app/dashboard/today/today-board-data";
 import { canRoleAccessPath } from "@/lib/kid-access";
+import { canCreateList } from "@/lib/role-capabilities";
 import ExplorePanel from "@/components/layout/ExplorePanel";
 import { useTodayBoardText } from "@/i18n/today-board";
 
@@ -38,12 +40,23 @@ export default function TodayControls({
 }) {
   const text = useTodayBoardText();
   const details = React.useRef<HTMLDetailsElement>(null);
+  const add = React.useRef<HTMLDetailsElement>(null);
   const parent = role === "parent";
   const canCreateEvent = (parent || role === "teen") && Boolean(links.calendar);
+  const canCreateChore = parent && Boolean(links.chores);
+  const canAddList = canCreateList(role) && Boolean(links.lists);
+  const closeOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
+    if (event.key !== "Escape" || !event.currentTarget.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.open = false;
+    event.currentTarget.querySelector("summary")?.focus();
+  };
   React.useEffect(() => {
     const dismiss = (event: PointerEvent) => {
-      if (details.current && !details.current.contains(event.target as Node))
-        details.current.open = false;
+      for (const control of [details.current, add.current]) {
+        if (control && !control.contains(event.target as Node)) control.open = false;
+      }
     };
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
@@ -54,53 +67,48 @@ export default function TodayControls({
       aria-label={text("todayQuickActions")}
       className="relative mb-4 flex flex-wrap items-center gap-2 md:mb-5"
     >
-      {canCreateEvent && (
-        <Link
-          prefetch={false}
-          href="/dashboard/calendar/create"
-          className={targetClass}
+      {(canCreateEvent || canCreateChore || canAddList) && (
+        <details
+          ref={add}
+          className="relative"
+          onKeyDown={closeOnEscape}
+          onToggle={(event) => {
+            if (event.currentTarget.open && details.current) details.current.open = false;
+          }}
         >
-          <CalendarPlus size={18} aria-hidden="true" />
-          {text("addEvent")}
-        </Link>
-      )}
-      {parent && links.chores && (
-        <Link
-          prefetch={false}
-          href="/dashboard/chores/create"
-          className={targetClass}
-        >
-          <ListPlus size={18} aria-hidden="true" />
-          {text("addChore")}
-        </Link>
-      )}
-      {links.lists && (
-        <Link href="/dashboard/lists/groceries" className={targetClass}>
-          <ShoppingCart size={18} aria-hidden="true" />
-          {text("groceriesAction")}
-        </Link>
-      )}
-      {links.meals && (
-        <Link href={links.meals} className={targetClass}>
-          <Utensils size={18} aria-hidden="true" />
-          {text("planMeals")}
-        </Link>
-      )}
-      {links.lists && (
-        <Link href="/dashboard/lists" className={targetClass}>
-          <LayoutGrid size={18} aria-hidden="true" />
-          {text("allLists")}
-        </Link>
+          <summary className={`${targetClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+            <Plus size={18} aria-hidden="true" />
+            {text("addAction")}
+          </summary>
+          <div className="absolute left-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
+            {canCreateEvent && (
+              <Link prefetch={false} href="/dashboard/calendar/create" className={menuClass}>
+                <CalendarPlus size={18} aria-hidden="true" />
+                {text("addEvent")}
+              </Link>
+            )}
+            {canCreateChore && (
+              <Link prefetch={false} href="/dashboard/chores/create" className={menuClass}>
+                <ListPlus size={18} aria-hidden="true" />
+                {text("addChore")}
+              </Link>
+            )}
+            {canAddList && (
+              <Link prefetch={false} href="/dashboard/lists/create" className={menuClass}>
+                <ListPlus size={18} aria-hidden="true" />
+                {text("addList")}
+              </Link>
+            )}
+          </div>
+        </details>
       )}
       <ExplorePanel role={role} />
       <details
         ref={details}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && details.current?.open) {
-            details.current.open = false;
-            details.current.querySelector("summary")?.focus();
-            event.stopPropagation();
-          }
+        className="relative"
+        onKeyDown={closeOnEscape}
+        onToggle={(event) => {
+          if (event.currentTarget.open && add.current) add.current.open = false;
         }}
       >
         <summary
@@ -110,6 +118,24 @@ export default function TodayControls({
           {text("todayControls")}
         </summary>
         <div className="absolute right-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
+          {links.lists && (
+            <>
+              <Link href="/dashboard/lists/groceries" className={menuClass}>
+                <ShoppingCart size={18} aria-hidden="true" />
+                {text("groceriesAction")}
+              </Link>
+              <Link href="/dashboard/lists" className={menuClass}>
+                <LayoutGrid size={18} aria-hidden="true" />
+                {text("allLists")}
+              </Link>
+            </>
+          )}
+          {links.meals && (
+            <Link href={links.meals} className={menuClass}>
+              <Utensils size={18} aria-hidden="true" />
+              {text("planMeals")}
+            </Link>
+          )}
           <button
             type="button"
             disabled={!online}

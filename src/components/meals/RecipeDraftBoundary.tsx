@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useReviewRecoveryText } from "@/i18n/review-recovery";
-import Link from "next/link";
+import { MealContextLink as Link } from "./MealContextLink";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/review-document-store";
 import { inspectReviewDocumentReceipt } from "@/lib/review-document-receipts";
 import { submitReviewDocumentRequest } from "@/lib/review-document-submit";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { sameQueueOwner } from "@/lib/queue-owner-contract";
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
@@ -68,6 +69,10 @@ export function RecipeDraftBoundary(
   recoveryTextRef.current = recoveryText;
   const callbacks = React.useRef(props);
   callbacks.current = props;
+  const originalRecipeOwner = React.useRef(props.expectedRecipeOwner ? Object.freeze({ ...props.expectedRecipeOwner }) : null);
+  const inspectRecipeReceipt = React.useCallback((
+    request: Parameters<typeof inspectReviewDocumentReceipt>[0], reviewContext: ReviewDocumentContext,
+  ) => inspectReviewDocumentReceipt(request, reviewContext, originalRecipeOwner.current ?? undefined), []);
   const context = React.useRef<ReviewDocumentContext | null>(null);
   const store = React.useRef<ReturnType<typeof browserReviewDocument> | null>(
     null,
@@ -96,6 +101,7 @@ export function RecipeDraftBoundary(
   const [seed, setSeed] = React.useState<RecipeEditableDocument>();
   const [formGeneration, setFormGeneration] = React.useState(0);
   const [receipt, setReceipt] = React.useState<ReviewReceiptState | null>(null);
+  const [confirmedCompletion, setConfirmedCompletion] = React.useState(false);
   const [duplicate, setDuplicate] = React.useState<{
     id: string;
     title: string;
@@ -112,7 +118,13 @@ export function RecipeDraftBoundary(
     );
   }
   async function current() {
-    const next = await readReviewDocumentContext("recipe");
+    const originalOwner = originalRecipeOwner.current;
+    if ((originalOwner || callbacks.current.expectedRecipeOwner) &&
+        !sameRecipeOwner(originalOwner, callbacks.current.expectedRecipeOwner ?? null))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+    const next = await readReviewDocumentContext("recipe", originalOwner ?? undefined);
+    if (originalOwner && (next.userId !== originalOwner.actorId || next.familyId !== originalOwner.familyId || next.role !== originalOwner.role))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     const expected = callbacks.current.recoveryIdentity;
     if (
       expected &&
@@ -124,6 +136,7 @@ export function RecipeDraftBoundary(
       prior &&
       (prior.userId !== next.userId ||
         prior.familyId !== next.familyId ||
+        prior.role !== next.role ||
         prior.adopted !== next.adopted ||
         (prior.adopted &&
           (!prior.owner ||
@@ -168,6 +181,7 @@ export function RecipeDraftBoundary(
           setSeed(undefined);
           setDuplicate(null);
           setReceipt(null);
+          callbacks.current.onOwnerHold?.();
         }
       }
       return false;
@@ -213,7 +227,7 @@ export function RecipeDraftBoundary(
       }
       return;
     }
-    store.current ??= browserReviewDocument(next);
+    store.current ??= browserReviewDocument(next, originalRecipeOwner.current ?? undefined);
     const rows = initialized.current
       ? await store.current.refresh()
       : await store.current.initialize();
@@ -490,6 +504,7 @@ export function RecipeDraftBoundary(
     setNotice(null);
   }
   async function send(token: number) {
+    const onConfirmed = callbacks.current.onCreated;
     const saved = entry.current;
     if (!saved) throw new OwnedRequestRecoveryError("INTENT_CHANGED");
     const document = documentOf(saved);
@@ -499,9 +514,9 @@ export function RecipeDraftBoundary(
       saved.key,
       saved.body,
       document.requests[0].key,
-      inspectReviewDocumentReceipt,
+      inspectRecipeReceipt,
       (request, context) =>
-        submitReviewDocumentRequest(request, context, document.expiresAt),
+        submitReviewDocumentRequest(request, context, document.expiresAt, originalRecipeOwner.current ?? undefined),
     );
     if (!live(token)) return;
     if (!result.sent) {
@@ -514,6 +529,12 @@ export function RecipeDraftBoundary(
     }
     const response = result.result,
       data = response.body;
+    const expectedOwner = originalRecipeOwner.current;
+    if (expectedOwner && ([401, 403].includes(response.response.status) ||
+        (data as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+        (response.response.ok && !sameRecipeOwner(expectedOwner,
+          readRecipeOwner(response.response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
     if (!response.response.ok) {
       const refusal = z
         .object({
@@ -560,7 +581,7 @@ export function RecipeDraftBoundary(
     const confirmed = await store.current!.retireConfirmed(
       saved.key,
       saved.body,
-      inspectReviewDocumentReceipt,
+      inspectRecipeReceipt,
     );
     if (!live(token)) return;
     if (!confirmed) {
@@ -569,8 +590,11 @@ export function RecipeDraftBoundary(
     }
     entry.current = null;
     setDirty(false);
+    setConfirmedCompletion(true);
+    setView("completed");
     if (!(await navigation.releaseBeforeNavigation()) || !live(token)) return;
-    callbacks.current.onCreated?.(parsed.data.recipe);
+    try { onConfirmed?.(parsed.data.recipe); }
+    catch { if (live(token)) setNotice(text("savedHandoffFailed")); }
   }
   async function submit(
     body: Record<string, unknown>,
@@ -616,7 +640,7 @@ export function RecipeDraftBoundary(
         saved.body,
         newIdempotencyKey(),
         async (request, context) => {
-          const proof = await inspectReviewDocumentReceipt(request, context);
+          const proof = await inspectRecipeReceipt(request, context);
           const reason =
             terminal.code === "RECIPE_SOURCE_EXISTS"
               ? "source-exists"
@@ -656,7 +680,7 @@ export function RecipeDraftBoundary(
       const states = await store.current!.inspectReceipts(
         saved.key,
         saved.body,
-        inspectReviewDocumentReceipt,
+        inspectRecipeReceipt,
       );
       if (live(token)) {
         observeReceipt(states[0], saved);
@@ -672,7 +696,7 @@ export function RecipeDraftBoundary(
         !(await store.current!.retireConfirmed(
           saved.key,
           saved.body,
-          inspectReviewDocumentReceipt,
+          inspectRecipeReceipt,
         ))
       )
         return;
@@ -796,7 +820,7 @@ export function RecipeDraftBoundary(
         )}
         {view === "completed" && (
           <div className="space-y-2">
-            <p role="status">{text("draftReviewClosed")}</p>
+            <p role="status">{text(confirmedCompletion ? "draftCommitted" : "draftReviewClosed")}</p>
             <Link
               className="btn-plain min-h-11"
               href="/dashboard/meals/explore"

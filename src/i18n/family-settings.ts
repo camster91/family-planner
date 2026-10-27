@@ -1,6 +1,11 @@
 "use client";
 import { useTranslation } from "@/i18n";
 const en = {
+  changed: "The household name changed elsewhere. Check the current name and review your entry before saving again.",
+  checkFailed: "Could not confirm the current household name. Your entry is still here.",
+  checkCurrent: "Check current name",
+  checking: "Checking…",
+  currentName: "Current saved name",
   title: "Household settings",
   loading: "Loading…",
   loadFailed: "Could not load household settings. Your household is unchanged.",
@@ -24,6 +29,11 @@ const en = {
   delete: "Review deletion…",
 } as const;
 const es: Record<keyof typeof en, string> = {
+  changed: "El nombre del hogar cambió en otro lugar. Consulta el nombre actual y revisa tu entrada antes de guardar de nuevo.",
+  checkFailed: "No se pudo confirmar el nombre actual del hogar. Tu entrada sigue aquí.",
+  checkCurrent: "Consultar nombre actual",
+  checking: "Consultando…",
+  currentName: "Nombre guardado actual",
   title: "Ajustes del hogar",
   loading: "Cargando…",
   loadFailed: "No se pudieron cargar los ajustes. Tu hogar no ha cambiado.",

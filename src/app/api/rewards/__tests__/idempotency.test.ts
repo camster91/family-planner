@@ -25,6 +25,21 @@ const NEXT_KEY = '2b0a8d3f-6e52-4f71-9c34-8d2e0a5b3f71'
 type ClaimUser = 'parentA' | 'teenA' | 'childA'
 const send = notificationServiceServer.sendNotification as jest.Mock
 const metric = recordBetaMetric as jest.Mock
+const originalRewardCreate = fakePrisma.reward.create
+const REWARD_NULLABLE_FIELDS = ['claimed_by', 'claimed_at', 'approved_by', 'approved_at', 'redeemed_at', 'notification_claim_id', 'notification_approval_id'] as const
+function normalizeRewardDefaults(row: Record<string, any>) {
+  for (const field of REWARD_NULLABLE_FIELDS) row[field] ??= null
+}
+const REWARD_NOTIFICATION_ENV = [
+  'NOTIFICATION_EVENT_ADMISSION_ENABLED',
+  'REWARD_CREATE_NOTIFICATION_EVENTS_ENABLED',
+  'REWARD_CREATE_NOTIFICATION_DISPATCH_MS',
+  'REWARD_CLAIM_NOTIFICATION_EVENTS_ENABLED',
+  'REWARD_CLAIM_NOTIFICATION_DISPATCH_MS',
+  'REWARD_APPROVAL_NOTIFICATION_EVENTS_ENABLED',
+  'REWARD_APPROVAL_NOTIFICATION_DISPATCH_MS',
+] as const
+let previousRewardNotificationEnv: Partial<Record<(typeof REWARD_NOTIFICATION_ENV)[number], string | undefined>>
 
 describe('Rewards idempotency', () => {
   beforeEach(() => {
@@ -33,6 +48,49 @@ describe('Rewards idempotency', () => {
     db.find('family', 'family-B')!.features = { gamification: true, rewards: true }
     send.mockClear()
     metric.mockClear()
+    for (const row of db.rows('reward')) normalizeRewardDefaults(row)
+    fakePrisma.reward.create = async (args: unknown) => {
+      const created = await originalRewardCreate(args)
+      normalizeRewardDefaults(created)
+      const stored = db.find('reward', String(created.id))
+      if (stored) normalizeRewardDefaults(stored)
+      return created
+    }
+    previousRewardNotificationEnv = Object.fromEntries(REWARD_NOTIFICATION_ENV.map(key => [key, process.env[key]]))
+    for (const key of REWARD_NOTIFICATION_ENV) process.env[key] = '0'
+  })
+
+  afterEach(() => {
+    fakePrisma.reward.create = originalRewardCreate
+    for (const key of REWARD_NOTIFICATION_ENV) {
+      const value = previousRewardNotificationEnv[key]
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  })
+
+  // Authored UNRUN. No Content-Length: enforce the stream bound before effect/receipt allocation.
+  it.each([
+    ['create', rewards.POST, 'parentA', 16 * 1024],
+    ['edit', rewards.PATCH, 'parentA', 16 * 1024],
+    ['claim', claim, 'childA', 8192],
+    ['approve', approve, 'parentA', 8192],
+  ] as const)('bounds legacy %s streamed JSON before writes', async (_name, handle, as, limit) => {
+    const request = req({ as, headers: { 'Idempotency-Key': KEY } })
+    const decoder = jest.fn(async () => { throw new Error('Unbounded decoder must not run') })
+    request.json = decoder
+    request.body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(' '.repeat(limit + 1)))
+        controller.close()
+      },
+    })
+    const response = await handle(request)
+    expect(response.status).toBe(413)
+    expect(decoder).not.toHaveBeenCalled()
+    expect(writesTo('reward')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+    expect(send).not.toHaveBeenCalled()
   })
 
   it('rejects malformed idempotency keys before any reward write', async () => {

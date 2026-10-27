@@ -12,6 +12,7 @@ import ChangeTimeline from "../ChangeTimeline";
 import { requestOwnedJson } from "@/lib/owned-request-http";
 import type { TimelinePage } from "@/lib/review-inbox/timeline-contract";
 jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 jest.mock("@/components/calendar/preparation/PreparationProvider", () => ({

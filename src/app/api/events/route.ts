@@ -1,3 +1,5 @@
+import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
+import { projectEventCreators } from "@/lib/event-people";
 import { assistantDeleteTargetGuard } from "@/lib/assistant-delete-target";
 import {
   deletePersonRecord,
@@ -5,7 +7,6 @@ import {
 } from "@/lib/person-record-delete";
 import {
   assistantSourceGuard,
-  authorizeAssistantSourceReplay,
   AssistantSourceRefused,
 } from "@/lib/assistant-source-proof";
 import { guardReviewDocumentSubmission } from "@/lib/review-document-submit-server";
@@ -14,7 +15,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   authenticateWithFamily,
-  requireFamilyMatch,
   requireParent,
 } from "@/lib/api-auth";
 import {
@@ -24,11 +24,10 @@ import {
 } from "@/lib/validations";
 import {
   attachEventSources,
-  EVENT_READ_ONLY_CODE,
-  EVENT_READ_ONLY_MESSAGE,
 } from "@/lib/calendar-import/source";
 import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
-import { createPersonEvent } from "@/lib/person-event-create";
+import { updatePersonEvent } from "@/lib/person-event-update";
+import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import {
@@ -49,36 +48,48 @@ async function handleGET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original: Readonly<CalendarReadOwner> = Object.freeze({ protocol: CALENDAR_OWNER_PROTOCOL, actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const scopeChanged = () => NextResponse.json({
+      error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED",
+    }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    // Old clients may omit comparison metadata. A client that supplies it must
+    // never silently rebind its original read to a different current owner.
+    const expected = request.headers.get(CALENDAR_OWNER_HEADER);
+    if (expected !== null && !sameCalendarOwner(readCalendarOwner(expected), original)) return scopeChanged();
+    const reply = async (body: unknown) => {
+      const [current, refused] = await authenticateWithFamily(request);
+      if (refused) { refused.headers.set("Cache-Control", "private, no-store"); return refused; }
+      if (current.user.id !== original.actorId || current.user.family_id !== original.familyId ||
+        current.user.role !== original.role || (current.payload.tv ?? 0) !== original.generation)
+        return scopeChanged();
+      return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store",
+        [CALENDAR_OWNER_HEADER]: JSON.stringify(original) } });
+    };
 
     const { searchParams } = new URL(request.url);
 
     const id = searchParams.get("id");
-    if (id) {
-      const event = await prisma!.event.findUnique({
-        where: { id },
-        include: {
-          creator: { select: { id: true, name: true } },
-        },
+    if (searchParams.has("id")) {
+      if (!id || searchParams.getAll("id").length !== 1)
+        return NextResponse.json({ error: "Invalid event target" }, { status: 400 });
+      const event = await prisma!.event.findFirst({
+        where: { id, family_id: original.familyId },
       });
       if (!event) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
       }
-      const familyError = requireFamilyMatch(
-        event.family_id,
-        auth.user.family_id,
-      );
-      if (familyError) return familyError;
       const [withSource] = await attachEventSources(
         prisma!,
-        auth.user.family_id,
-        [event],
+        original.familyId,
+        await projectEventCreators(prisma!, original.familyId, [event]),
       );
-      return NextResponse.json({ event: withSource });
+      return await reply({ event: withSource });
     }
 
     let range;
     try {
-      range = parseCalendarRange(searchParams, auth.user.family_id);
+      range = parseCalendarRange(searchParams, original.familyId);
     } catch (error) {
       if (error instanceof CalendarRangeError) {
         return NextResponse.json({ error: error.message }, { status: 400 });
@@ -89,7 +100,7 @@ async function handleGET(request: NextRequest) {
       const { start, end, limit, after } = range;
       const events = await prisma!.event.findMany({
         where: {
-          family_id: auth.user.family_id,
+          family_id: original.familyId,
           OR: [
             { start_time: { gte: start, lt: end } },
             { start_time: { lt: start }, end_time: { gt: start } },
@@ -107,17 +118,16 @@ async function handleGET(request: NextRequest) {
               }
             : {}),
         },
-        include: { creator: { select: { id: true, name: true } } },
         orderBy: [{ start_time: "asc" }, { id: "asc" }],
         take: limit + 1,
       });
       const page = events.slice(0, limit);
       const hasMore = events.length > limit;
-      return NextResponse.json({
-        events: await attachEventSources(prisma!, auth.user.family_id, page),
+      return await reply({
+        events: await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page)),
         nextCursor: hasMore
           ? encodeCalendarCursor(
-              auth.user.family_id,
+              original.familyId,
               range,
               page[page.length - 1],
             )
@@ -133,7 +143,7 @@ async function handleGET(request: NextRequest) {
     // and recently finished ones are included), oldest first. Without the
     // window the list was the household's 100 OLDEST events ever, which hid
     // everything current once a household had more than 100.
-    const where: Record<string, unknown> = { family_id: auth.user.family_id };
+    const where: Record<string, unknown> = { family_id: original.familyId };
     if (upcoming) {
       where.start_time = { gte: new Date() };
     } else {
@@ -153,16 +163,13 @@ async function handleGET(request: NextRequest) {
 
     const events = await prisma!.event.findMany({
       where,
-      include: {
-        creator: { select: { id: true, name: true } },
-      },
       orderBy: [{ start_time: "asc" }, { id: "asc" }],
       take: 100,
     });
 
     // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
-    return NextResponse.json({
-      events: await attachEventSources(prisma!, auth.user.family_id, events),
+    return await reply({
+      events: await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events)),
     });
   } catch (error) {
     logRouteError("GET /api/events", error, getRequestId(request));
@@ -221,6 +228,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const actor = {
+      familyId: auth.user.family_id, userId: auth.user.id,
+      tokenVersion: auth.payload.tv ?? 0, name: auth.user.name,
+    };
     const sourceGuard = assistantSourceGuard(
       request,
       {
@@ -245,17 +256,13 @@ export async function POST(request: NextRequest) {
         createPersonEvent(
           prisma!,
           parsed.data,
-          {
-            familyId: auth.user.family_id,
-            userId: auth.user.id,
-            name: auth.user.name,
-          },
+          actor,
           recordId,
           sourceGuard,
         ),
       {
         beforeReplay: () =>
-          authorizeAssistantSourceReplay(prisma!, sourceGuard),
+          authorizePersonEventCreationReplay(prisma!, actor, sourceGuard),
       },
     );
     response.headers.set("Cache-Control", "private, no-store");
@@ -293,81 +300,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { eventId, ...updates } = parsed.data;
-
-    const event = await prisma!.event.findUnique({
-      where: { id: eventId },
-      select: {
-        family_id: true,
-        start_time: true,
-        end_time: true,
-        source_subscription_id: true,
-      },
-    });
-
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    }
-
-    const familyError = requireFamilyMatch(
-      event.family_id,
-      auth.user.family_id,
-    );
-    if (familyError) return familyError;
-
-    // Imported events are owned by their source calendar (#232).
-    if (event.source_subscription_id) {
-      return NextResponse.json(
-        { error: EVENT_READ_ONLY_MESSAGE, code: EVENT_READ_ONLY_CODE },
-        { status: 409 },
-      );
-    }
-
-    const newStart =
-      updates.start_time !== undefined
-        ? new Date(updates.start_time)
-        : undefined;
-    const newEnd =
-      updates.end_time !== undefined ? new Date(updates.end_time) : undefined;
-    if (
-      (newStart && isNaN(newStart.getTime())) ||
-      (newEnd && isNaN(newEnd.getTime()))
-    ) {
-      return NextResponse.json(
-        { error: "Invalid start or end time" },
-        { status: 400 },
-      );
-    }
-
-    // Validate the merged range when either bound changes
-    if (newStart || newEnd) {
-      const effectiveStart = newStart ?? event.start_time;
-      const effectiveEnd = newEnd ?? event.end_time;
-      if (effectiveEnd && effectiveEnd < effectiveStart) {
-        return NextResponse.json(
-          { error: "End time must be after start time" },
-          { status: 400 },
-        );
-      }
-    }
-
-    const data: Record<string, unknown> = {};
-    if (updates.title !== undefined) data.title = updates.title;
-    if (updates.description !== undefined)
-      data.description = updates.description;
-    if (newStart) data.start_time = newStart;
-    if (newEnd) data.end_time = newEnd;
-    if (updates.location !== undefined) data.location = updates.location;
-    if (updates.event_type !== undefined) data.event_type = updates.event_type;
-    if (updates.recurrence !== undefined) data.recurrence = updates.recurrence;
-
-    const updated = await prisma!.event.update({
-      where: { id: eventId },
-      data,
-      include: { creator: { select: { id: true, name: true } } },
-    });
-
-    return NextResponse.json({ event: updated });
+    const result = await updatePersonEvent(prisma!, {
+      userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0,
+    }, parsed.data);
+    return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     logRouteError("PATCH /api/events", error, getRequestId(request));
     return NextResponse.json(

@@ -149,6 +149,7 @@ model User {
   device_audit_events           DeviceAuditEvent[] @relation("DeviceAuditActor")
   // Offline sync (#162). Relation field only; no new User columns.
   idempotency_records           IdempotencyRecord[] @relation("IdempotencyRecordUser")
+  notification_recipient_decisions NotificationRecipientDecision[] @relation("NotificationRecipientUser")
   // Food inventory (#263). Relation field only; no new User columns.
   inventory_items_added         InventoryItem[]    @relation("InventoryItemAdder")
   // Inventory adjustments (#158/#121). Relation fields only; no new User columns.
@@ -226,6 +227,7 @@ model Family {
   household_members  HouseholdMember[]
   chores             Chore[]
   routine_stacks     RoutineStack[]
+  chore_top_up_cursor ChoreTopUpCursor?
   events             Event[]
   messages           Message[]
   lists              List[]
@@ -264,6 +266,8 @@ model Family {
   meal_plans         MealPlan[]
   shopping_lists     ShoppingList[]
   finance_records    FinancialArchiveRecord[]
+  notification_event_occurrences NotificationEventOccurrence[]
+  notification_recipient_decisions NotificationRecipientDecision[]
   invites            FamilyInvite[]
   calendar_subscriptions CalendarSubscription[]
   calendar_connections   CalendarConnection[]
@@ -1007,6 +1011,9 @@ model Event {
   @@index([project_id])
   @@index([source_subscription_id, start_time])
   @@index([source_connection_id])
+  @@index([family_id, project_id, is_task, source_uid])
+  @@index([family_id, project_id, is_task, title])
+  @@index([family_id, source_subscription_id, id], map: "Event_family_subscription_id_idx")
 }
 
 model Message {
@@ -1070,6 +1077,7 @@ model Notification {
 
   // Relations
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  recipient_decisions NotificationRecipientDecision[]
 
   @@index([user_id])
   @@index([read])
@@ -1183,6 +1191,10 @@ model Activity {
 
 model Reward {
   id          String    @id @default(cuid())
+  // #141 dormant accepted notification identity. Never inferred from text/key.
+  notification_generation String @default(dbgenerated("(gen_random_uuid())::text"))
+  notification_claim_id String?
+  notification_approval_id String?
   family_id   String
   name        String
   description String?
@@ -1299,6 +1311,8 @@ model ProjectTask {
 
   @@index([project_id])
   @@index([assigned_to])
+  @@index([project_id, position, created_at, id])
+  @@index([project_id, id])
 }
 
 // Postgres-backed rate limiter (auth endpoints, etc.)
@@ -1438,6 +1452,7 @@ model PinnedNote {
   creator User   @relation("CreatedNotes", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([family_id])
+  @@index([family_id, created_at(sort: Desc), id(sort: Asc)], map: "PinnedNote_family_created_id_idx")
 }
 
 model Anniversary {
@@ -2251,4 +2266,54 @@ model AiUsageRequest {
   user User? @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   @@index([family_id, created_at], map: "AiUsageRequest_family_time_idx")
   @@index([user_id, created_at], map: "AiUsageRequest_user_time_idx")
+}
+
+
+/// Internal attempted read-side traversal position, never authorization or history.
+model ChoreTopUpCursor {
+  family_id String @id
+  /// Lexical position deliberately survives deletion of its former Chore row.
+  after_id String?
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+
+// #141 N1 event admission source, not a delivery queue or inbox record.
+// Content-minimal metadata survives visible notification deletion. No User FK.
+model NotificationEventOccurrence {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  family_id String
+  occurrence_key String @db.Char(64)
+  envelope Json
+  created_at DateTime @default(now())
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  recipient_decisions NotificationRecipientDecision[]
+
+  @@unique([id, family_id], map: "NotificationEventOccurrence_id_family_key")
+  @@unique([family_id, occurrence_key], map: "NotificationEventOccurrence_family_key")
+  @@index([family_id, id], map: "NotificationEventOccurrence_family_id_idx")
+}
+
+
+// #141 terminal in-app recipient decision; visible inbox deletion is not replay.
+model NotificationRecipientDecision {
+  id String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  family_id String
+  event_id String
+  slot Int
+  user_id String?
+  notification_id String?
+  status String // created | suppressed; null recipient is erased, never reassigned
+  quiet Boolean
+  created_at DateTime @default(now())
+  family Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  event NotificationEventOccurrence @relation(fields: [event_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction, map: "NotificationRecipientDecision_event_family_fkey")
+  user User? @relation("NotificationRecipientUser", fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  notification Notification? @relation(fields: [notification_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([event_id, slot], map: "NotificationRecipientDecision_event_slot_key")
+  @@index([family_id, id], map: "NotificationRecipientDecision_family_id_idx")
+  @@index([user_id], map: "NotificationRecipientDecision_user_idx")
+  @@index([notification_id], map: "NotificationRecipientDecision_notification_idx")
 }

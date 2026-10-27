@@ -11,8 +11,10 @@ jest.mock("@/lib/feature-gate-server", () => ({
 
 import * as notes from "../route";
 import * as note from "../[id]/route";
-import { db, req, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
+import { db, req, fakePrisma, writesTo, expectDenied, expectNoForeignData, type UserKey } from "@/__tests__/helpers/two-household";
 import { hashDeviceToken } from "@/lib/device-session";
+
+const originalPinnedNoteCreate = fakePrisma.pinnedNote.create;
 
 describe("notes — two households", () => {
   beforeEach(() => {
@@ -21,8 +23,17 @@ describe("notes — two households", () => {
     // Ownership tests need notes enabled; a mock route gate grants no access.
     db.find("family", "family-A")!.features = { notes: true };
     db.find("family", "family-B")!.features = { notes: true };
+    for (const row of db.rows("pinnedNote")) row.updated_at ??= row.created_at ?? new Date();
+    jest.spyOn(fakePrisma.pinnedNote, "create").mockImplementation(async (args: any) => {
+      const created = await originalPinnedNoteCreate(args);
+      const row = db.find("pinnedNote", String(created.id));
+      if (row) row.updated_at ??= row.created_at ?? new Date();
+      return created;
+    });
     mockFeatureGate.mockResolvedValue(null);
   });
+
+  afterEach(() => jest.restoreAllMocks());
 
   it("returns 401 to an unauthenticated caller on every handler", async () => {
     expect((await notes.GET(req())).status).toBe(401);
@@ -36,6 +47,40 @@ describe("notes — two households", () => {
     const body = await expectNoForeignData(await notes.GET(req({ as: "childA" })));
     expect(body.notes.map((n: any) => n.id)).toEqual(["note-a"]);
     expect(body.notes[0]).toMatchObject({ can_edit: false, can_delete: false });
+  });
+
+  // Authored/unrun. Equal timestamps must continue by ID; foreign cursors
+  // cannot widen the authenticated household scope or change permissions.
+  it("pages notes within the household and retains the legacy whole-list mode", async () => {
+    db.rows("pinnedNote").splice(0);
+    const created_at = new Date("2026-10-24T12:00:00Z");
+    for (const id of ["note-a", "note-b", "note-c"]) {
+      db.rows("pinnedNote").push({ id, family_id: "family-A", title: id,
+        body: "Fixture", color: "yellow", created_by: "parent-a", created_at });
+    }
+    db.rows("pinnedNote").push({ id: "foreign-note", family_id: "family-B",
+      title: "Foreign", body: "Private", color: "yellow", created_by: "parent-b", created_at });
+    const read = jest.spyOn(fakePrisma.pinnedNote, "findMany");
+    let firstResponse: Response;
+    try {
+      firstResponse = await notes.GET(req({ as: "teenA", query: { limit: "2" } }));
+      expect(read).toHaveBeenCalledWith({
+        where: { family_id: "family-A" },
+        orderBy: [{ created_at: "desc" }, { id: "asc" }], take: 3,
+      });
+    } finally { read.mockRestore(); }
+    const first = await firstResponse.json();
+    expect(first.notes.map((row: any) => row.id)).toEqual(["note-a", "note-b"]);
+    expect(first.notes[0]).toMatchObject({ can_edit: false, can_delete: false });
+    expect(typeof first.nextCursor).toBe("string");
+    const second = await (await notes.GET(req({ as: "teenA", query: { limit: "2", cursor: first.nextCursor } }))).json();
+    expect(second.notes.map((row: any) => row.id)).toEqual(["note-c"]);
+    expect(second.nextCursor).toBeNull();
+    expect((await notes.GET(req({ as: "parentB", query: { limit: "2", cursor: first.nextCursor } }))).status).toBe(400);
+    const legacy = await (await notes.GET(req({ as: "parentA" }))).json();
+    expect(legacy.notes).toHaveLength(3);
+    expect(legacy).not.toHaveProperty("nextCursor");
+    expect(db.writes).toHaveLength(0);
   });
 
   it("returns server-computed ownership permissions without changing the note DTO", async () => {
@@ -143,4 +188,31 @@ describe("notes — two households", () => {
     await expectDenied(await note.PATCH(req({ as: "childB", body: { id: "note-a", title: "x" } })));
     expect(db.writes).toHaveLength(0);
   });
+  it("refuses edit/delete when stored Notes permission changed after the route gate", async () => {
+    // The route gate deliberately stays mocked open; transaction renewal owns this decision.
+    db.find("family", "family-A")!.features = { notes: false };
+    expect((await note.PATCH(req({ as: "parentA", body: { id: "note-a", title: "Blocked draft" } }))).status).toBe(403);
+    expect((await note.DELETE(req({ as: "parentA", body: { id: "note-a" } }))).status).toBe(403);
+    expect(db.find("pinnedNote", "note-a")?.title).toBe("Home wifi");
+    expect(db.writes).toHaveLength(0);
+  });
+
+});
+
+// Authored only: bound creates refuse a moved owner before key/effect work.
+it('reports the personal write context and refuses different account/household expectations', async () => {
+  db.reset();
+  const context = (await (await notes.GET(req({ as: 'parentA' }))).json()).writeContext;
+  expect(context).toEqual({ userId: 'parent-a', familyId: 'family-A' });
+  db.writes.splice(0);
+  for (const expected of [
+    { expected_user_id: 'parent-b', expected_family_id: 'family-A' },
+    { expected_user_id: 'parent-a', expected_family_id: 'family-B' },
+  ]) {
+    const response = await notes.POST(req({ as: 'parentA', body: { title: 'Bound draft', ...expected } }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe('NOTE_OWNER_CHANGED');
+  }
+  expect((await notes.POST(req({ as: 'parentA', body: { title: 'Incomplete owner', expected_user_id: 'parent-a' } }))).status).toBe(400);
+  expect(db.writes).toHaveLength(0);
 });

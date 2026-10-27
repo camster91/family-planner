@@ -1,3 +1,98 @@
+# Current no-QA issue follow-through — 2026-10-24
+
+## Source identity and boundaries
+
+Recovery checkout: `/Users/Cameron/Documents/Codex/2026-10-24/family-planner-recovery/repo`,
+branch `codex/issue-followthrough-recovered-20261024`, based on shipped-main
+`3b4e1046fee45e5924ac24b3498f0e2ef26b5669`. Local follow-through is **unpushed,
+unverified and unreleased**. Exact commits are in Git and programme issue #128;
+`../issue-followthrough-20261024.patch` and its receipt preserve the full local
+change series. Production has not been checked in this no-QA pass.
+
+The earlier checkout and unpublished commits f53b2df5/d403bb1e/648e6f27/5ada9688
+were not recovered. The selected connected behavior was reconstructed from the
+recorded direction/current source; original image assets remain unavailable.
+Earlier reported results belong to their exact old candidates and do not prove
+this tree. No QA, tests, build, lint, typecheck, browser, CI, push, merge, deploy,
+provider/scheduler activation, signing/provisioning or production data mutation
+ran. Authored regression source is not a passing result.
+
+## Current disposition
+
+The earlier clearing pass reviewed68 and retired27 duplicate trackers after
+preserving complete requirements. The subsequent41-issue pass closed #566 for
+its complete planning deliverable only and consolidated the full #105 final-
+candidate packet into #377 as duplicate tracking. Contextual-AI tracker #123 is now
+consolidated into #464 with its full original requirements preserved. Redundant
+#448 tracking is now a named required defect section of #499, leaving **37 open issues**.
+#105 closure does not mark any acceptance item done.
+Bounded documentation/research criteria are now reconciled in #134/#140/#146/#254/#563/#480/#136/#110; all
+runtime/device/customer/production criteria remain separate and unchecked.
+No unverified feature is declared completed by source authorship.
+
+| Issue / area | Current local work | Remaining boundary |
+| --- | --- | --- |
+| #470 summary mail | Original-family binding, User/household locks and bounded transport; daily claim retained | Concurrency/two-household acceptance; scheduler remains disabled |
+| #450 routines | Reviewed-start/viewer-day defaults; bounded per-series reads; gated household cursor with one-root claims and isolated failures authored | Broader routine/recurrence/role/device acceptance |
+| #134/#450 routine visibility | API/SSR/Today/probe candidate+metadata batches before caps; other reads scoped; history skips open policy | Remaining core-query audit, dense-range latency, PostgreSQL/date/root-join plans and original acceptance remain unverified |
+| #567 provider setup | Remove stale model/free-tier examples and misleading blank OpenAI hints; typed EN/ES prompts | Exact provider eligibility/privacy/transport decision; no activation |
+| #142 localization | Chore/recipe/Meals/food-plan, board/activity/device/palette and shared controls and household join copy in typed EN/ES; stale preview/navigation guards; only owned copy records removed | Rest of localization and rendered/layout acceptance |
+| #372 product brand | Lowercase wordmark in Settings product heading and account/invite email wording/default sender label | Legal operator/copyright decision pending Cameron; overrides unchanged; no mail sent |
+| #499/#460 selected design | Compact Today controls, sibling calendar/chore cards, personal two-column composition, correct grocery totals and day-preserving dinner/recipe/prep links | Full accepted all-feature/role/device/rendered criteria remain |
+| #464 helper | Help/Today/Add shortcuts with existing role/feature filters and draft-aware navigation | Existing AI/voice/review/privacy/runtime criteria; no second write path |
+| #473 native contract | Per-platform capability/fallback matrix, support-window decision boundary and forward/rollback sequence | Actual supported binaries/old operations/hardware evidence and signing inputs |
+| #557/#480 identity | Existing gated linking reconciled; unlink/rejoin design plus dormant pure routine/batch preflight and bounded reader authored | Unlink writer, former-association provenance, credit/Undo and wider member-domain parity remain unfinished |
+| #564/#565 queue recovery | Existing source already implements retirement/generation and candidate retry; no duplicate engine added | Original storage fault/concurrency/lifecycle/rollback acceptance |
+| #566 finance | Complete source-reconciled plan retained in its completed issue and local plan | FIN-0–FIN-7 implementation remains #134/#499 with #104 source approval |
+| #146 support | 20-case runbook, response ownership, communication strategy and support scaling triggers defined | Actual recovery/privacy/dashboard/backup, publishing and staffed operating evidence remain |
+| #134 Projects overview | Web24-card keyset pages and opt-in API paging; one grouped task-count query per returned page | Legacy API remains unbounded; query plans, compatibility, isolation/concurrency and rendered acceptance remain unverified |
+| #141/#134 Notifications | Opt-in personal keyset API and older-page inbox reads; bounded timeout, exact retry, truthful loaded-state copy and old-server fallback | Original authorization/snooze/Undo/concurrency/rendered acceptance remains unverified; no delivery activation |
+| #134 Wishlist | Opt-in household/requester keyset API; web24-item explicit continuation; canonical target inspection for write recovery; loaded-only EN/ES state | Legacy unpaged API remains unbounded; UI fixtures adapted/unrun; role/feature/concurrency/compatibility/query/rendered acceptance unverified |
+| #134 Project detail tasks | SSR40-task keyset pages, whole-project grouped progress, draft-aware EN/ES page controls; opt-in API paging and additive index source | Legacy unpaged API remains unbounded; index unapplied; database/query-plan/concurrency/isolation/rendered acceptance unrun |
+| #134 Project calendar send | Locked authority, 200-task candidate/match reads and opt-in count-only web summary; legacy event response retained | Legacy full result and all-send total work/lock duration remain unbounded within existing timeout; indexes unapplied; real acceptance unrun |
+| #134 Notes | Opt-in household creation-time/ID keysets; web24-note page controls, exact retry and bounded read; additive index source | Legacy API unbounded; index unapplied; query plans/compatibility/isolation/concurrency/rendered acceptance unrun |
+| #134 Recent changes | Canonical 20-entry page validation, bounded transport/body read, generation/abort and exact-cursor recovery source | Runtime/navigation/reconnect/body-timeout/loop and original household/privacy acceptance remain unverified |
+| #104/#142 import form | Review-bound form plus opt-in actor/household precondition; locked writer renewal, scoped job accounting and rehearsal guide authored | Approved exports/maps and real reconciliation remain unavailable; server snapshot/lifecycle, repeat/concurrency/rollback and all QA remain open |
+| #254 contraction | Backup-restore-only rollback contract defined separately from canonical backfill reversal | No drop/retarget/rehearsal; all original approval, no-legacy-use, restored-count/re-import and recovery evidence remain open |
+| #563 voice modes | Tap-to-talk, Android system actions, Apple App Intents/Shortcuts, foreground phrase parsing and future local wake detector separated with source/official references | No native/permission activation or hardware go/no-go; all implementation/runtime/device/privacy acceptance remains open |
+
+Latest bounded source work adds a device-local12/24-hour clock choice in Settings alongside device language, with Auto/reset, EN/ES sample and truthful visit-only storage feedback. The existing display-locale hook applies the selected hour cycle to its Intl consumers after hydration; stored timestamps/time zones/input parsing/account preference records and explicit fridge settings stay unchanged. No schema/API/provider/tooling expansion is introduced. Direct formatters and full locale/device/runtime acceptance remain unfinished; no QA/tests/checks/build/browser/DB/CI/push/merge/deploy ran.37 issues remain open. Extra capacity/tooling scope is stopped following Cameron's prioritization concern; the next planning action is to identify launch-critical work from the existing backlog.
+
+Selected connected plan: `docs/plans/simple-connected-experience-20261024.md`.
+Standalone unlink contract: `docs/plans/profile-account-unlink.md`.
+Native contract: `docs/architecture/NATIVE_API_COMPATIBILITY.md`.
+Finance plan: `docs/plans/finance-archive-product.md`.
+
+## Documentation completion evidence
+
+#134's load-test-model criterion is defined by `docs/testing/CAPACITY_MODEL.md`.
+It covers the named traffic domains with explicit fixtures/mixes/stages and
+reporting/stop rules. This is model-definition evidence only; #137's reproducible
+runner, capacity results and drills remain unchecked. No workload was executed.
+
+
+#563's voice-mode documentation criterion is now defined in
+`docs/product/CROSS_DEVICE_ROADMAP.md`; source inspection and official reference
+review do not establish any native/permission/hardware acceptance.
+
+Additional definition-only criteria on 2026-10-24: #146 public communication
+strategy and support scaling triggers in `docs/runbooks/SUPPORT.md`; #254
+backup-restore-only rollback in `docs/runbooks/MEALS_GROCERIES_BACKFILL.md`.
+Their execution/readiness criteria remain unchecked. Exact mutation receipts
+are retained in the recovery packet beside this checkout.
+
+Only source/document-definition criteria were checked. This is issue metadata
+reconciliation, not a QA run or validation of operating procedures:
+- #134: https://github.com/camster91/family-planner/issues/134#issuecomment-6390456598
+- #140: https://github.com/camster91/family-planner/issues/140#issuecomment-6390456925
+- #146: https://github.com/camster91/family-planner/issues/146#issuecomment-6390457242
+
+Repeated recovery notes were consolidated here after preserving named backups in
+`../docs-before-status-consolidation-20261024/`; Git and #128 retain prior history.
+The unchanged older release/checkpoint notes below are historical evidence.
+
+---
+
 ## Web release shipped; bounded household follow-through — 2026-10-23
 
 PR #595 merged as `3691e131010ffa98ac7c5ade0f41c440261b99ea` from checked

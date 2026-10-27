@@ -21,6 +21,7 @@ import { PATCH } from "../items/edit/route";
 import { PATCH as legacy } from "../items/update/route";
 import {
   db,
+  fakePrisma,
   req,
   writesTo,
   FOREIGN,
@@ -33,6 +34,7 @@ import { NextResponse } from "next/server";
 const K1 = "11111111-1111-4111-8111-111111111111";
 const K2 = "22222222-2222-4222-8222-222222222222";
 const row = () => db.find("listItem", "item-a")!;
+const originalIdempotencyCreate = fakePrisma.idempotencyRecord.create;
 const data = () => ({
   itemId: "item-a",
   expectedUpdatedAt: row().updated_at.toISOString(),
@@ -57,7 +59,18 @@ beforeEach(() => {
   db.reset();
   jest.mocked(featureGate).mockResolvedValue(null);
   idempotencyRuntime.random = () => 0.99;
+  jest.spyOn(fakePrisma.idempotencyRecord, "create").mockImplementation(async (args: any) => {
+    const created = await originalIdempotencyCreate(args);
+    const record = db.find("idempotencyRecord", String(created.id));
+    if (record) {
+      record.response_status = null;
+      record.response_body = null;
+    }
+    return created;
+  });
 });
+
+afterEach(() => jest.restoreAllMocks());
 
 it.each(["parentA", "teenA", "childA"] as const)(
   "allows the existing %s grocery edit permission with a current version",
@@ -150,4 +163,18 @@ it("requires a valid idempotency key", async () => {
   expect((await edit("parentA", data(), null)).status).toBe(400);
   expect((await edit("parentA", data(), "bad key")).status).toBe(400);
   expect(writesTo("listItem")).toHaveLength(0);
+});
+
+it("refuses a personal session generation changed after the outer target lookup", async () => {
+  const originalFind = fakePrisma.listItem.findUnique;
+  const read = jest.spyOn(fakePrisma.listItem, "findUnique").mockImplementationOnce(async (args: unknown) => {
+    const item = await originalFind(args);
+    db.find("user", "parent-a")!.token_version++;
+    return item;
+  });
+  try {
+    const response = await edit("parentA", data());
+    expect(response.status).toBe(401);
+    expect(writesTo("listItem")).toHaveLength(0);
+  } finally { read.mockRestore(); }
 });

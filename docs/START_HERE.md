@@ -37,7 +37,18 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
-- Current implementation-to-QA handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (source coverage only; runtime acceptance and release remain).
+- Notification event/delivery follow-through (#141): `docs/plans/notification-delivery-v1.md` (source inventory plus N1–N5; generic dedupe/admission, recovery, exact destinations and provider/native rollout remain unfinished).
+
+- Stable-profile rotation proposal (#480/#450): `docs/plans/profile-rotation-v1.md` (source-backed namespace/lifecycle/rollout contract; implementation and credit/retention decisions remain pending).
+
+- Current source screen directory (#499): `docs/product/SCREEN_ROUTE_MANIFEST.md` and adjacent JSON (82 page sources, 71 route patterns, 22 feature keys; documentation only, rendered/role/native acceptance remains open).
+
+- Retained localization baseline: `docs/testing/REMAINING_COPY_DISPOSITION.md` (#142 source disposition; literal/legal records retained, no new scanner or rendered acceptance).
+
+
+- Legacy import rehearsal: `docs/MIGRATION_REHEARSAL.md` — restored current-source procedure for #104; fixture acceptance, approved real-export rehearsal and production cutover remain separate and unperformed.
+
+- Current deferral boundary and preserved earlier implementation handoff: `docs/engineering/WEB_IMPLEMENTATION_HANDOFF.md` (historical candidate coverage is not current source completion or permission to start QA/release).
 
 - AI evaluation source/observation contract (#144): `docs/testing/AI_EVALUATION.md` (versioned builders/fixtures authored; no evaluation or provider run claimed).
 
@@ -55,6 +66,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Testing: `docs/testing/**`
 - Design: `design/**`, `BRAND.md` and the Warm Paper visual system `docs/product/BRAND.md`
 - Navigation and information architecture (one home, tabs, More, undo): `docs/product/NAVIGATION.md`
+- Standalone profile/account unlink and rejoin (#557/#480): `docs/plans/profile-account-unlink.md` (source-backed transaction/domain design; writer and acceptance remain unfinished).
 - Calendar interoperability source/acceptance (#124): `docs/product/CALENDAR_INTEROPERABILITY.md`
 - Product measurement and learning (#140): `docs/product/PRODUCT_MEASUREMENT.md`
 - Chores (parent check, picture routines for young kids, taking turns): `docs/product/CHORES.md`
@@ -65,6 +77,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 - Preserved finance to native screens (#566): `docs/plans/finance-archive-product.md` (planning scope; no archive promotion)
 - Existing Coolify source-build deployment (2026-10-07 reconciliation; settings changes remain owner-gated): `docs/runbooks/COOLIFY_DEPLOY.md`
 - Design-partner beta operations (#107, #108): `docs/product/BETA_OPERATIONS.md`
+- Conditional packaging/lifecycle definition and official price observations (#110): `docs/plans/packaging-validation.md` (no billing implementation, offer adoption or demand evidence).
 
 ## Historical/reference-only material
 

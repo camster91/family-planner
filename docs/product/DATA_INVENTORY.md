@@ -35,6 +35,7 @@ boundaries: `architecture/INVENTORY_RECOVERY.md`.
 | Account/auth | email, password hash/session/token | account owner/server | No | status only |
 | Household/member | name, role, avatar | household | limited/purposeful | pseudonymous IDs/role where needed |
 | Calendar | title/time/location/notes | household subject to role | purpose-limited; avoid sensitive details | action/status, not private text |
+| Foreground chore traversal (source only, default off) | `ChoreTopUpCursor`: one family ID and nullable attempted root ID per household | internal server only; never authorization/history/completion | No | None; fixed failure codes only |
 | Chores/tasks/rewards | assignment/status/photo | household/role | approved fields only | outcome/status |
 | Groceries/lists | item/quantity/check state | household | Yes for approved lists | action/status, avoid note text |
 | Meals/recipes | meal/recipe/ingredients | household | Yes | usage outcome, avoid free-form notes |
@@ -152,3 +153,44 @@ parent/household/session/feature and profile capability checks guard the unroute
 coordinator. No runtime endpoint, provider, schema execution, collection activation
 or new cache/offline action. Flags remain off; future adapter/action/lifecycle
 projections and consolidated acceptance remain required.
+
+## Internal foreground traversal metadata — 2026-10-24
+
+The additive ChoreTopUpCursor contains no user ID, content, credentials, media,
+prompts or timestamps. It is excluded from domain exports, shared DTOs and AI
+context. Whole-household erasure explicitly deletes it with a cascading Family
+FK as backstop; individual account removal preserves household progression.
+Migration/activation and runtime erasure acceptance remain deferred. See
+[the source contract](../plans/fair-chore-top-up.md).
+
+
+## Dormant notification occurrence metadata — #141 / 2026-10-25
+
+`NotificationEventOccurrence` is new additive, unverified internal evidence: a
+household FK, scoped hash, strict metadata envelope and insertion time. Envelope
+contains source/transition/generation identities and original dispatch instants,
+not message bodies, names, actor credentials or delivery payloads. No producer
+is connected; admission acknowledgement defaults off. Current original parent
+session only may export complete envelopes; teen/child/shared surfaces receive
+none. Household erasure explicitly enumerates the table and FK cascades it.
+Individual departure/account deletion does not reassign this household evidence
+or grant former-member access. No User/profile FK adds to #480's80 relationship
+disposition. No time-based retention/pruning or delivery is activated; preserve
+the table on app rollback so visible inbox deletion cannot erase this evidence.
+Recipient terminal dedupe/dispatch, domain generation/transition provenance,
+accepted retention/old-client windows and all migration/lifecycle QA remain open.
+
+
+### Dormant terminal notification recipient slots — #141 / 2026-10-25
+
+`NotificationRecipientDecision` adds household/event/slot, nullable recipient User
+and visible Notification FKs, terminal created/suppressed status, quiet result
+and timestamp. It contains no title/message/token. Event+slot uniqueness preserves
+a terminal decision when the inbox row is deleted. Account erasure nulls the
+recipient link; occupied null slots cannot be adopted by another account. Current
+parent portability includes retained decisions; child/teen/shared/former-household
+exports do not. Explicit household erasure deletes them before occurrences. No
+automatic retention/pruning/provider activation exists. This is source User FK81
+in the member inventory: account delivery only, not an email-free profile login
+or a points/credit owner. All producer/roster, PG/FK/erasure/rollback and privacy
+acceptance remains deferred.

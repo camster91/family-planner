@@ -49,8 +49,7 @@ describeWithDatabase("capture grocery and receipt against Postgres", () => {
   let POST: typeof import("../grocery/route").POST;
   let GET: typeof import("../receipt/route").GET;
   let idem: typeof import("@/lib/idempotency");
-  let resolveDefaultGroceryListInTx: typeof import("@/lib/grocery-from-recipe").resolveDefaultGroceryListInTx;
-  let createPersonListItemInTx: typeof import("@/lib/person-list-item-create").createPersonListItemInTx;
+  let createCapturedGrocery: typeof import("@/lib/person-list-item-create").createCapturedGrocery;
 
   const FAMILY = "capint-family";
   const OTHER_FAMILY = "capint-other-family";
@@ -114,10 +113,7 @@ describeWithDatabase("capture grocery and receipt against Postgres", () => {
     POST = (await import("../grocery/route")).POST;
     GET = (await import("../receipt/route")).GET;
     idem = await import("@/lib/idempotency");
-    resolveDefaultGroceryListInTx = (await import("@/lib/grocery-from-recipe"))
-      .resolveDefaultGroceryListInTx;
-    createPersonListItemInTx = (await import("@/lib/person-list-item-create"))
-      .createPersonListItemInTx;
+    createCapturedGrocery = (await import("@/lib/person-list-item-create")).createCapturedGrocery;
     await cleanup();
     await db.family.createMany({
       data: [
@@ -275,16 +271,8 @@ describeWithDatabase("capture grocery and receipt against Postgres", () => {
 
     await expect(
       idem.withIdempotency(db, requestKey, context, body, ({ recordId }) =>
-        failingDb.$transaction(async (tx: any) => {
-          const list = await resolveDefaultGroceryListInTx(tx, FAMILY, PARENT);
-          return createPersonListItemInTx(
-            tx,
-            { listId: list.id, ...body },
-            { familyId: FAMILY, addedBy: PARENT },
-            recordId,
-            { groceryOnly: true },
-          );
-        }),
+        createCapturedGrocery(failingDb, body,
+          { familyId: FAMILY, addedBy: PARENT, role: "parent", generation: 0 }, recordId),
       ),
     ).rejects.toThrow("completion write failed");
     expect(await db.list.count({ where: { family_id: FAMILY } })).toBe(0);

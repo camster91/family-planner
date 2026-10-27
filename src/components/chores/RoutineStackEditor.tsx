@@ -5,8 +5,12 @@ import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draf
 import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { toDateOnlyLocal } from "@/lib/dates";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { ROUTINE_STACK_ISSUED_AT_HEADER, ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
+import { compactResponseSchema } from "@/lib/routine-stack-response-contract";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
 import {
   routineStackMessages,
@@ -178,7 +182,9 @@ const candidatesResponseSchema = z
     hasMore: z.boolean(),
     nextCursor: z.string().nullable(),
   })
-  .strict();
+  .strict()
+  .refine(value => value.hasMore ? Boolean(value.nextCursor) : value.nextCursor === null)
+  .refine(value => new Set(value.candidates.map(candidate => candidate.id)).size === value.candidates.length);
 
 const readStepSchema = z
   .object({
@@ -207,20 +213,6 @@ const readStepSchema = z
   })
   .strict();
 
-const compactResponseSchema = z
-  .object({
-    stack_id: z.string().min(1),
-    version: z.number().int(),
-    steps: z.array(
-      z.tuple([z.string().min(1), z.number().int(), z.number().int()]),
-    ),
-    assignments: z.array(
-      z.tuple([z.string().min(1).nullable(), z.string().nullable()]),
-    ),
-    members: z.array(z.tuple([z.string().min(1), z.string()])),
-    fingerprint: z.string(),
-  })
-  .strict();
 
 const readResponseSchema = z
   .object({
@@ -261,7 +253,7 @@ type SaveBody = {
   remove_chore_ids: string[];
   expected_fingerprint: string;
 };
-type SavePacket = Readonly<{ key: string; bytes: string }>;
+type SavePacket = Readonly<{ key: string; bytes: string; issuedAt: string }>;
 type Submission = Readonly<{
   phase: "pending" | "unknown" | "conflict";
   packet: SavePacket;
@@ -325,13 +317,19 @@ async function requestJson<T>(
     Object.assign(headers, init.headers);
   }
   headers["X-Member-Protocol"] = "2";
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  const body = (await response.json().catch(() => null)) as unknown;
+  const writing = (init?.method ?? "GET").toUpperCase() !== "GET";
+  const result = await runOwnedForeground(async (signal) => {
+    const response = await fetch(url, {
+      ...init, headers, credentials: "same-origin", cache: "no-store", signal,
+    });
+    const body = await readBoundedJsonResponse(response, signal,
+      writing ? 64 * 1024 : 4 * 1024 * 1024);
+    return { kind: "reply" as const, response, body };
+  }, { signal: init?.signal, timeoutMs: writing ? 45000 : 15000 });
+  // Network/timeout/abort/oversize/malformed JSON is uncertainty. In particular,
+  // it must not release a save packet as though the server refused its write.
+  if (result.kind !== "reply") throw new Error(fallback);
+  const { response, body } = result;
   if (!response.ok) {
     throw new RoutineEditorRequestError(
       response.status,
@@ -467,6 +465,11 @@ export default function RoutineStackEditor({
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
+  const [pagingError, setPagingError] = React.useState<string | null>(null);
+  const catalogGeneration = React.useRef(0);
+  const pagingController = React.useRef<AbortController | null>(null);
+  const loadingMoreRef = React.useRef(false);
+  const consumedCursors = React.useRef(new Set<string>());
   const [saving, setSaving] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [scheduleHandoff, setScheduleHandoff] = React.useState(false);
@@ -479,6 +482,15 @@ export default function RoutineStackEditor({
   const [discardAction, setDiscardAction] = React.useState<
     "close" | "reload" | null
   >(null);
+  const lifetimeController = React.useRef<AbortController | null>(null);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    lifetimeController.current = controller;
+    return () => {
+      controller.abort();
+      if (lifetimeController.current === controller) lifetimeController.current = null;
+    };
+  }, []);
   const labelRef = React.useRef<HTMLInputElement>(null);
   const discardCancelRef = React.useRef<HTMLButtonElement>(null);
   const idempotencyKeyRef = React.useRef<string | null>(null);
@@ -674,6 +686,13 @@ export default function RoutineStackEditor({
 
   React.useEffect(() => {
     const controller = new AbortController();
+    catalogGeneration.current++;
+    pagingController.current?.abort();
+    pagingController.current = null;
+    loadingMoreRef.current = false;
+    consumedCursors.current.clear();
+    setLoadingMore(false);
+    setPagingError(null);
     let active = true;
     setLoading(true);
     setLoadError(null);
@@ -778,6 +797,8 @@ export default function RoutineStackEditor({
     void load();
     return () => {
       active = false;
+      catalogGeneration.current++;
+      pagingController.current?.abort();
       controller.abort();
     };
     // The locale callback is read through msgRef so a language switch never
@@ -785,6 +806,7 @@ export default function RoutineStackEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     clearDirty,
+    familyId,
     occurrenceDate,
     reloadVersion,
     requestedStackId,
@@ -802,34 +824,52 @@ export default function RoutineStackEditor({
   const loadMore = async () => {
     if (
       !nextCursor ||
-      loadingMore ||
+      loadingMoreRef.current ||
       savingRef.current ||
       submissionRef.current
     )
       return;
+    const generation = catalogGeneration.current;
+    const requestedCursor = nextCursor;
+    const controller = new AbortController();
+    pagingController.current = controller;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    setLoadError(null);
+    setPagingError(null);
     try {
       const url = new URL(
         "/api/chores/stacks/candidates",
         window.location.origin,
       );
       url.searchParams.set("occurrence_date", occurrenceDate);
-      url.searchParams.set("cursor", nextCursor);
+      url.searchParams.set("cursor", requestedCursor);
       const result = await requestJson<ParsedCandidates>(
         url.toString(),
-        undefined,
+        { signal: controller.signal },
         msg("loadError"),
         (body) => candidatesResponseSchema.parse(body),
       );
+      if (generation !== catalogGeneration.current || controller.signal.aborted) return;
+      const existingIds = new Set(candidates.map(candidate => candidate.id));
+      if (
+        result.occurrence_date !== occurrenceDate ||
+        result.candidates.some(candidate => dateOnly(candidate.due_date) !== occurrenceDate || existingIds.has(candidate.id)) ||
+        (result.nextCursor !== null && (result.nextCursor === requestedCursor || consumedCursors.current.has(result.nextCursor)))
+      ) throw new RoutineEditorRequestError(200, msg("loadError"), "INVALID_RESPONSE");
+      consumedCursors.current.add(requestedCursor);
       setCandidates((current) => [...current, ...result.candidates]);
       setNextCursor(result.nextCursor);
       if (result.assignmentOptions.length)
         setAssignmentOptions(result.assignmentOptions);
     } catch (error) {
-      setLoadError(localizedRequestError(error, msg, "loadError"));
+      if (generation === catalogGeneration.current && !controller.signal.aborted)
+        setPagingError(localizedRequestError(error, msg, "loadError"));
     } finally {
-      setLoadingMore(false);
+      if (generation === catalogGeneration.current && pagingController.current === controller) {
+        pagingController.current = null;
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -928,6 +968,14 @@ export default function RoutineStackEditor({
   const submitPacket = React.useCallback(
     async (packet: SavePacket) => {
       if (savingRef.current) return;
+      const prior = submissionRef.current;
+      const retryingUnknown = prior?.phase === "unknown";
+      if (retryingUnknown && (prior.packet.key !== packet.key || prior.packet.bytes !== packet.bytes || prior.packet.issuedAt !== packet.issuedAt)) return;
+      if (!routineStackRetryWindowOpen(packet.issuedAt)) {
+        setSubmissionState({ phase: "unknown", packet });
+        setSaveError(msg("retryWindowClosed"));
+        return;
+      }
       savingRef.current = true;
       setSaving(true);
       setSaveError(null);
@@ -937,9 +985,11 @@ export default function RoutineStackEditor({
           "/api/chores/stacks",
           {
             method: "POST",
+            signal: lifetimeController.current?.signal,
             headers: {
               "Content-Type": "application/json",
               [IDEMPOTENCY_HEADER]: packet.key,
+              [ROUTINE_STACK_ISSUED_AT_HEADER]: packet.issuedAt,
             },
             body: packet.bytes,
           },
@@ -954,7 +1004,15 @@ export default function RoutineStackEditor({
       } catch (error) {
         const requestError =
           error instanceof RoutineEditorRequestError ? error : null;
-        if (
+        if (requestError?.code === ROUTINE_STACK_WINDOW_CLOSED) {
+          setSubmissionState({ phase: "unknown", packet });
+          setSaveError(msg("retryWindowClosed"));
+        } else if (retryingUnknown) {
+          // A later refusal describes only this attempt. The first attempt may
+          // already have committed; no 4xx/protocol/conflict clears that fact.
+          setSubmissionState({ phase: "unknown", packet });
+          setSaveError(msg("unknownSave"));
+        } else if (
           requestError?.code === "ROUTINE_STACK_CONFLICT" ||
           requestError?.code === "IDENTITY_CONFLICT"
         ) {
@@ -996,6 +1054,37 @@ export default function RoutineStackEditor({
     [clearDirty, msg, navigateAway, router, setSubmissionState],
   );
 
+  const inspectSave = async (packet: SavePacket) => {
+    if (savingRef.current || submissionRef.current?.packet !== packet) return;
+    const generation = catalogGeneration.current;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await requestJson("/api/chores/stacks/receipt", {
+        method: "POST", signal: lifetimeController.current?.signal,
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: packet.key },
+        body: packet.bytes,
+      }, msg("inspectUnknown"), body => z.discriminatedUnion("state", [
+        z.object({ state: z.literal("confirmed"), stackId: z.string().min(1) }).strict(),
+        z.object({ state: z.literal("unknown") }).strict(),
+      ]).parse(body));
+      if (generation !== catalogGeneration.current || submissionRef.current?.packet !== packet) return;
+      if (result.state === "confirmed") {
+        setSubmissionState(null);
+        idempotencyKeyRef.current = null;
+        clearDirty();
+        router.refresh();
+        navigateAway();
+      } else setSaveError(msg("inspectUnknown"));
+    } catch {
+      if (generation === catalogGeneration.current && submissionRef.current?.packet === packet)
+        setSaveError(msg("inspectUnknown"));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+
   const save = (event: React.FormEvent) => {
     event.preventDefault();
     if (savingRef.current || submissionRef.current) return;
@@ -1035,6 +1124,7 @@ export default function RoutineStackEditor({
     const packet: SavePacket = Object.freeze({
       key,
       bytes: JSON.stringify(body),
+      issuedAt: new Date().toISOString(),
     });
     setSubmissionState({ phase: "pending", packet });
     void submitPacket(packet);
@@ -1351,6 +1441,7 @@ export default function RoutineStackEditor({
                 {msg("allCandidatesAdded")}
               </p>
             )}
+            {pagingError && <p role="alert" className="text-body text-label-secondary">{pagingError}</p>}
             {nextCursor && (
               <button
                 type="button"
@@ -1435,6 +1526,7 @@ export default function RoutineStackEditor({
             >
               <p>{saveError}</p>
               {submission?.phase === "unknown" && (
+                <>
                 <button
                   type="button"
                   className="btn-tinted mt-3 min-h-[44px]"
@@ -1443,6 +1535,9 @@ export default function RoutineStackEditor({
                 >
                   {msg("retrySave")}
                 </button>
+                <button type="button" className="btn-tinted ml-2 mt-3 min-h-[44px]" disabled={saving}
+                  onClick={() => void inspectSave(submission.packet)}>{msg("inspectSave")}</button>
+                </>
               )}
               {submission?.phase === "conflict" && (
                 <button

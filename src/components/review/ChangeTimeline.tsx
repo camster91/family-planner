@@ -6,6 +6,7 @@ import { useFeatureDisplayCopy } from "@/i18n/feature-display";
 import { useSearchParams } from "next/navigation";
 import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { useScheduleReviewActive } from "@/components/calendar/review/ScheduleReviewProvider";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { useChangeTimelineText } from "@/i18n/change-timeline";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { requestOwnedJson } from "@/lib/owned-request-http";
@@ -23,6 +24,7 @@ export default function ChangeTimeline({
   identity: { userId: string; familyId: string };
 }) {
   const featureDisplay = useFeatureDisplayCopy();
+  const router = useDraftAwareRouter();
   const copy = useChangeTimelineText(),
     locale = useDisplayLocale(),
     params = useSearchParams();
@@ -199,7 +201,11 @@ export default function ChangeTimeline({
         <>
           {shown.entries.length ? (
             <ol className="list-inset divide-y divide-[var(--surface-separator)]">
-              {shown.entries.slice(offset, offset + 5).map((entry) => (
+              {shown.entries.slice(offset, offset + 5).map((entry) => {
+                // Keep the validated target in a local so the click callback
+                // retains the same non-null narrowing as the rendered link.
+                const target = entry.target;
+                return (
                 <li key={entry.id} className="space-y-1 p-4">
                   <p className="text-headline break-words">
                     {copy.actions[entry.action]}
@@ -224,10 +230,22 @@ export default function ChangeTimeline({
                   >
                     {new Date(entry.at).toLocaleString(locale)}
                   </time>
-                  {entry.target ? (
+                  {target ? (
                     <Link
                       className="btn-plain inline-flex min-h-11 items-center"
-                      href={timelineHref(entry.target)}
+                      href={timelineHref(target)}
+                      onClick={(event) => {
+                        if (
+                          event.button !== 0 ||
+                          event.metaKey ||
+                          event.ctrlKey ||
+                          event.shiftKey ||
+                          event.altKey
+                        )
+                          return;
+                        event.preventDefault();
+                        void router.push(timelineHref(target));
+                      }}
                     >
                       {copy.open}
                     </Link>
@@ -239,7 +257,8 @@ export default function ChangeTimeline({
                     </p>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ol>
           ) : (
             <p role="status">{copy.empty}</p>

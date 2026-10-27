@@ -1,3 +1,5 @@
+import { readCreatedProfileChore } from "@/lib/chore-profile";
+import { readChoreCreateReceiptIdentity } from "@/lib/chore-create-receipt-identity";
 import { ASSISTANT_PROFILE_REVISION_HEADER } from "@/lib/assistant-reference-contract";
 import {
   assistantSourceGuard,
@@ -210,7 +212,33 @@ export async function POST(request: NextRequest) {
             }),
         },
       );
-      return response;
+      response.headers.set("Cache-Control", "private, no-store");
+      if (!response.ok) return response;
+      if (!isProfileChoreEnabled() || (profile.data.frequency !== "once" && !isProfileChoreRecurrenceSupported()))
+        return choreJson({ error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() }, { status: 409 });
+      const compact = expectedProfileRevision !== undefined || request.headers.has(REVIEW_SUBMIT_HEADERS.contract);
+      if (compact) {
+        const denied = await authorizePersonChoreCreation(prisma!, {
+          userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0,
+        });
+        if (denied) return choreJson(denied.body, { status: denied.status, headers: response.headers });
+        if (!isProfileChoreEnabled() || (profile.data.frequency !== "once" && !isProfileChoreRecurrenceSupported()))
+          return choreJson({ error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() }, { status: 409 });
+        return response;
+      }
+      const identity = readChoreCreateReceiptIdentity(await response.json());
+      if (!identity) return choreJson({ error: "Chore confirmation unavailable" }, { status: 409 });
+      const projection = await readCreatedProfileChore(prisma!, {
+        id: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0,
+      }, identity, profile.data.selection.memberId);
+      if (!projection.ok) return choreJson({ error: "Profile chore confirmation unavailable" }, { status: projection.status });
+      const denied = await authorizePersonChoreCreation(prisma!, {
+        userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0,
+      });
+      if (denied) return choreJson(denied.body, { status: denied.status, headers: response.headers });
+      if (!isProfileChoreEnabled() || (profile.data.frequency !== "once" && !isProfileChoreRecurrenceSupported()))
+        return choreJson({ error: PROFILE_CHORE_UNSUPPORTED_CODE, ...profileChoreProtocolRefusal() }, { status: 409 });
+      return choreJson({ chore: projection.chore, ...identity }, { status: response.status, headers: response.headers });
     }
 
     const reviewRefusal = guardReviewDocumentSubmission(
@@ -320,8 +348,8 @@ export async function POST(request: NextRequest) {
     response.headers.set("Cache-Control", "private, no-store");
     if (!response.ok || request.headers.has(REVIEW_SUBMIT_HEADERS.contract))
       return response;
-    const result = (await response.json()) as { choreId?: unknown };
-    if (typeof result.choreId !== "string")
+    const result = readChoreCreateReceiptIdentity(await response.json());
+    if (!result)
       return choreJson(
         { error: "Chore confirmation unavailable" },
         { status: 409 },
@@ -330,6 +358,7 @@ export async function POST(request: NextRequest) {
       prisma!,
       actor,
       result.choreId,
+      result.choreGeneration,
     );
     if (!projection.ok)
       return choreJson(projection.result.body, {
@@ -339,6 +368,8 @@ export async function POST(request: NextRequest) {
     const chore = (await isGamificationOn(auth.user.family_id))
       ? projection.chore
       : omitChorePoints(projection.chore);
+    const disclosureDenied = await authorizePersonChoreCreation(prisma!, actor);
+    if (disclosureDenied) return choreJson(disclosureDenied.body, { status: disclosureDenied.status, headers: response.headers });
     return choreJson({ chore }, { headers: response.headers });
   } catch (error) {
     if (error instanceof AssistantSourceRefused) return error.response();

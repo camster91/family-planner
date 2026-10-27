@@ -126,3 +126,46 @@ it("does not add parent-only timeline facts or their actor/target markers to the
   ).toBeNull();
   expect(JSON.stringify(body)).not.toContain("private-handoff");
 });
+
+// Authored only: opt-in paging retains the legacy member DTO/privacy policy.
+describe("activity opt-in stable continuation", () => {
+  beforeEach(() => {
+    db.reset();
+    db.rows("activity").splice(0);
+    for (const id of ["a", "b", "c", "d", "e"]) db.rows("activity").push({
+      id: `tie-${id}`, family_id: FAMILY_A, user_id: "parent-a", type: "event_created",
+      title: "Fixture activity", description: null, metadata: null,
+      created_at: new Date("2026-10-25T12:00:00.000Z"),
+    });
+    db.rows("activity").push({ id: "foreign-tie", family_id: "family-B", user_id: "parent-b",
+      type: "event_created", title: "Foreign fixture", description: null, metadata: null,
+      created_at: new Date("2026-10-25T12:00:00.000Z") });
+  });
+  it("returns every tied row once through explicit pages and no foreign row", async () => {
+    const ids: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 4; page++) {
+      const response = await GET(req({ as: "childA", query: { paging: "keyset-v1", limit: "2", ...(cursor ? { cursor } : {}) } }));
+      expect(response.status).toBe(200);
+      const body = await expectNoForeignData(response);
+      ids.push(...body.activities.map((row: { id: string }) => row.id));
+      cursor = body.nextCursor;
+      if (!cursor) break;
+    }
+    expect(ids).toEqual(["tie-a", "tie-b", "tie-c", "tie-d", "tie-e"]);
+    expect(new Set(ids).size).toBe(ids.length); expect(cursor).toBeNull();
+  });
+  it("continues after the pivot row is removed and refuses another household's cursor", async () => {
+    const first = await (await GET(req({ as: "parentA", query: { paging: "keyset-v1", limit: "2" } }))).json();
+    db.rows("activity").splice(db.rows("activity").findIndex(row => row.id === "tie-b"), 1);
+    const second = await (await GET(req({ as: "parentA", query: { paging: "keyset-v1", limit: "2", cursor: first.nextCursor } }))).json();
+    expect(second.activities.map((row: { id: string }) => row.id)).toEqual(["tie-c", "tie-d"]);
+    expect((await GET(req({ as: "parentB", query: { paging: "keyset-v1", cursor: first.nextCursor } }))).status).toBe(400);
+  });
+  it("keeps legacy timestamp cursors, clamping and response shape", async () => {
+    const first = await (await GET(req({ as: "parentA", query: { limit: "0" } }))).json();
+    expect(first.activities).toHaveLength(1); expect(first.nextCursor).toBeUndefined();
+    const older = await (await GET(req({ as: "parentA", query: { cursor: "2026-10-25T12:00:00.000Z" } }))).json();
+    expect(older.activities).toEqual([]); expect(older.nextCursor).toBeUndefined();
+  });
+});

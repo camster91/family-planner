@@ -1,5 +1,7 @@
 import { useTranslation } from "@/i18n";
 const en = {
+  ownerChanged: "Recipe access could not be confirmed. Reload this page before organizing recipes again.",
+  reload: "Reload page",
   organize: "Organize recipe",
   title: "Favorite and collections",
   favorite: "Household favorite",
@@ -37,6 +39,8 @@ const en = {
     "Renaming changes this collection for everyone. Deleting a collection keeps its recipes.",
 };
 const es: Record<keyof typeof en, string> = {
+  ownerChanged: "No se pudo confirmar el acceso a las recetas. Recarga esta página antes de volver a organizarlas.",
+  reload: "Recargar página",
   organize: "Organizar receta",
   title: "Favorita y colecciones",
   favorite: "Favorita del hogar",

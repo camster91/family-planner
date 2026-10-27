@@ -1,10 +1,16 @@
+import { choreCheckCommandsEnabled } from "@/lib/chore-check-command";
+import { renewChoreCheckOwner } from "@/lib/chore-check-owner";
+import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
+import { readChoreNotificationFocus } from "@/lib/chore-notification-focus";
+import { readChoreStreaks } from "@/lib/chore-streak-read";
 import {
   hiddenRoutineOccurrenceIds,
   scheduledOnceRoutineOccurrenceIds,
 } from "@/lib/routine-occurrence-policy";
+import { readVisibleChoreRows } from "@/lib/chore-visible-read";
 import { publicChoreData } from "@/lib/chore-public-data";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import ChoresContent from "./ChoresContent";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
@@ -13,6 +19,7 @@ import {
   omitChorePoints,
 } from "@/lib/gamification-visibility";
 import {
+  afterChoreCursor,
   CHORE_HISTORY_ORDER,
   CHORE_HISTORY_PAGE_SIZE,
   choreOrderBy,
@@ -28,8 +35,10 @@ import {
   readChoreSubject,
 } from "@/lib/chore-profile";
 
-export default async function ChoresPage() {
-  const sessionUser = await getServerUser();
+export default async function ChoresPage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sessionUser = await getServerActor();
 
   if (!sessionUser) {
     return null;
@@ -63,18 +72,21 @@ export default async function ChoresPage() {
     ...choreSubjectInclude,
     creator: { select: { name: true } },
   } as const;
-  const hiddenRoutineIds = familyId
-    ? await hiddenRoutineOccurrenceIds(prisma!, familyId)
-    : [];
   const queries = familyId ? currentChoreQueries(familyId) : null;
   const [open, awaitingCheck, history] = queries
     ? await Promise.all([
-        prisma!.chore.findMany({
-          ...queries.open,
-          where: {
-            AND: [queries.open.where, { id: { notIn: hiddenRoutineIds } }],
-          },
-          include,
+        readVisibleChoreRows({
+          take: queries.open.take,
+          order: "desc",
+          read: (after, batchSize) => prisma!.chore.findMany({
+            where: after
+              ? { AND: [queries.open.where, afterChoreCursor(after, "desc")] }
+              : queries.open.where,
+            include,
+            orderBy: queries.open.orderBy,
+            take: batchSize,
+          }),
+          hidden: (ids) => hiddenRoutineOccurrenceIds(prisma!, familyId!, { ids }),
         }),
         prisma!.chore.findMany({ ...queries.awaitingCheck, include }),
         prisma!.chore.findMany({
@@ -99,55 +111,11 @@ export default async function ChoresPage() {
     : null;
   const chores = [...historyPage, ...current].sort(compareChoreOrder);
 
-  // Compute streak per assignee: count of consecutive days with completed chores in last 7 days
-  const streakMap: Record<string, number> = {};
-  if (familyId && gamification) {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-
-    const completedChores = await prisma!.chore.findMany({
-      where: {
-        family_id: familyId,
-        status: { in: ["completed", "verified"] },
-        completed_at: { gte: sevenDaysAgo },
-      },
-      select: { assigned_to: true, completed_at: true, title: true },
-      orderBy: { completed_at: "asc" },
-    });
-
-    // Group by assignee
-    const byAssignee: Record<string, Date[]> = {};
-    for (const c of completedChores) {
-      // Profile-only chores intentionally have no account assignee. They can
-      // still appear on the board, but must not be counted in account streaks.
-      if (!c.assigned_to || !c.completed_at) continue;
-      if (!byAssignee[c.assigned_to]) byAssignee[c.assigned_to] = [];
-      byAssignee[c.assigned_to].push(new Date(c.completed_at));
-    }
-
-    for (const [assigneeId, dates] of Object.entries(byAssignee)) {
-      // Get unique days
-      const daySet = new Set<string>();
-      for (const d of dates) daySet.add(d.toISOString().split("T")[0]);
-      const sortedDays = Array.from(daySet).sort();
-      // Count consecutive days from today backwards
-      let streak = 0;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      for (let i = 0; i < 7; i++) {
-        const checkDate = new Date(today);
-        checkDate.setDate(today.getDate() - i);
-        const dayStr = checkDate.toISOString().split("T")[0];
-        if (daySet.has(dayStr)) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-      streakMap[assigneeId] = streak >= 3 ? streak : 0;
-    }
-  }
+  // Badge-only projection for displayed account assignees; no full completion history.
+  // Profiles retain their own subject policy and never inherit an account streak.
+  const streakMap = familyId && gamification
+    ? await readChoreStreaks(prisma!, familyId, chores.map(chore => chore.assigned_to))
+    : {};
 
   // Get family members for assignment
   const familyMembers = familyId
@@ -270,8 +238,33 @@ export default async function ChoresPage() {
     return gamification ? row : omitChorePoints(row);
   });
 
+  const params = (await searchParams) ?? {};
+  let notificationFocus: { target: Awaited<ReturnType<typeof readChoreNotificationFocus>> } | undefined;
+  if (params.focus !== undefined) {
+    const actor = await getServerActor();
+    const target = actor && actor.id === sessionUser.id && actor.family_id === familyId && actor.role === user?.role && familyId
+      ? await readChoreNotificationFocus(prisma!, {
+          userId: actor.id, familyId, role: actor.role!, tokenVersion: actor.tokenVersion,
+        }, params.focus).catch(() => null)
+      : null;
+    notificationFocus = { target };
+  }
+
+  // Feature-specific precondition only; never serialize the internal actor DTO.
+  // Presence of this capability envelope selects strict mode even if renewal
+  // fails, so a new client cannot silently fall back to an unversioned write.
+  let ownedCheck: { owner: ChoreCheckOwner | null } | undefined;
+  if (choreCheckCommandsEnabled() && sessionUser.role === "parent") {
+    const candidate: ChoreCheckOwner | null = familyId && user?.role === "parent"
+      && sessionUser.family_id === familyId
+      ? { userId: sessionUser.id, familyId, role: "parent", generation: sessionUser.tokenVersion } : null;
+    ownedCheck = { owner: candidate && await renewChoreCheckOwner(prisma!, candidate).catch(() => false) ? candidate : null };
+  }
+
   return (
     <ChoresContent
+      ownedCheck={ownedCheck}
+      notificationFocus={notificationFocus}
       preparationContextEnabled={
         Boolean(user && ["parent", "child", "teen"].includes(user.role)) &&
         eventPreparationReady()

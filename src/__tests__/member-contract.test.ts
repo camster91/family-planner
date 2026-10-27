@@ -31,7 +31,7 @@ test('every current User foreign key has a deliberate migration decision', () =>
   const root = path.resolve(__dirname, '../..')
   const actual = collectUserRelations(fs.readFileSync(path.join(root, 'prisma/schema.prisma'), 'utf8'))
   const inventory = JSON.parse(fs.readFileSync(path.join(root, 'docs/architecture/member-relation-inventory.json'), 'utf8'))
-  expect(actual).toHaveLength(80)
+  expect(actual).toHaveLength(81)
   expect(actual).toContainEqual({ relation: 'RoutineStack.creator', fields: ['created_by'] })
   expect(memberContractDifferences(actual, inventory)).toEqual([])
 })

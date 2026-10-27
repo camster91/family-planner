@@ -9,6 +9,8 @@ jest.mock("@/lib/routine-stack-mutation", () => ({
 import {
   readParentRoutineStack,
   saveParentRoutineStack,
+  inspectParentRoutineStack,
+  ROUTINE_STACK_ACTION,
 } from "@/lib/routine-stack-api";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
 import { mutateRoutineStackInTx } from "@/lib/routine-stack-mutation";
@@ -219,6 +221,7 @@ describe("routine-stack API helper", () => {
       expected_fingerprint: "",
     };
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest.fn().mockResolvedValue({
           family_id: "family-a",
@@ -301,6 +304,7 @@ describe("routine-stack API helper", () => {
       expected_fingerprint: "",
     };
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest
           .fn()
@@ -336,6 +340,7 @@ describe("routine-stack API helper", () => {
 
   it("refuses a role change observed after authentication before receipt access", async () => {
     const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest
           .fn()
@@ -368,4 +373,75 @@ describe("routine-stack API helper", () => {
     });
     expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
   });
+});
+
+// Authored UNRUN: expired sessions may not inspect/replay receipts or write.
+it('refuses a session generation changed while waiting for lifecycle/row locks', async () => {
+  const events: string[] = [];
+  const tx = {
+    $queryRaw: jest.fn(async () => { events.push('row-lock'); return []; }),
+    user: { findUnique: jest.fn(async () => { events.push('fresh-user'); return { family_id: 'family-a', role: 'parent', token_version: 4 }; }) },
+    idempotencyRecord: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
+    householdMember: { findMany: jest.fn() },
+  };
+  const db = { $transaction: <T,>(callback: (value: unknown) => Promise<T>) => callback(tx) };
+  const result = await saveParentRoutineStack(db, {
+    family_id: 'family-a', occurrence_date: '2026-10-11', label: 'Morning',
+    steps: [], remove_chore_ids: [], expected_fingerprint: '',
+  }, { ...actor, tokenVersion: 3 }, 'unchanged-request-key');
+  expect(result).toMatchObject({ status: 401, body: { error: { code: 'SESSION_CHANGED' } } });
+  expect(events).toEqual(['row-lock', 'fresh-user']);
+  expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.create).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.delete).not.toHaveBeenCalled();
+  expect(tx.householdMember.findMany).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: the window is rechecked after lifecycle/row-lock waits.
+it('refuses an expired original issue time before inspecting even a stored receipt', async () => {
+  const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+    user: { findUnique: jest.fn().mockResolvedValue({ family_id: 'family-a', role: 'parent', token_version: 0 }) },
+    idempotencyRecord: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
+  };
+  const db = { $transaction: <T,>(callback: (value: unknown) => Promise<T>) => callback(tx) };
+  const result = await saveParentRoutineStack(db, {
+    family_id: 'family-a', occurrence_date: '2026-10-11', label: 'Morning',
+    steps: [], remove_chore_ids: [], expected_fingerprint: '',
+  }, { ...actor, tokenVersion: 0, issuedAt: '2020-01-01T00:00:00.000Z' }, 'original-key');
+  expect(result).toMatchObject({ status: 409, body: { error: { code: 'ROUTINE_STACK_WINDOW_CLOSED' } } });
+  expect(tx.idempotencyRecord.findUnique).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.create).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.delete).not.toHaveBeenCalled();
+});
+
+// Read-only receipt recovery cases authored UNRUN; source-only mock transactions.
+it.each(['confirmed', 'missing', 'expired', 'wrong-family', 'wrong-hash', 'incomplete', 'malformed'])('inspects original routine receipt as %s without creating/replaying writes', async mode => {
+  const { normalizeRoutineStackDraft } = require('@/lib/routine-stack');
+  const { hashIdempotentRequest } = require('@/lib/idempotency');
+  const draft = { family_id: 'family-a', occurrence_date: '2026-10-11', label: 'Morning', steps: [], remove_chore_ids: [], expected_fingerprint: '' };
+  const receipt = {
+    family_id: 'family-a', user_id: 'parent-a', action: ROUTINE_STACK_ACTION,
+    request_hash: hashIdempotentRequest(ROUTINE_STACK_ACTION, normalizeRoutineStackDraft(draft)),
+    response_status: 200,
+    response_body: { stack_id: 'stack-confirmed', version: 1, steps: [], assignments: [], members: [], fingerprint: 'proof' },
+    expires_at: new Date(Date.now() + 60000),
+  };
+  if (mode === 'expired') receipt.expires_at = new Date(0);
+  if (mode === 'wrong-family') receipt.family_id = 'family-b';
+  if (mode === 'wrong-hash') receipt.request_hash = 'not-original';
+  if (mode === 'incomplete') receipt.response_status = 0;
+  if (mode === 'malformed') receipt.response_body = { private: 'must not leave the server' } as any;
+  const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+    user: { findUnique: jest.fn().mockResolvedValue({ family_id: 'family-a', role: 'parent', token_version: 0 }) },
+    idempotencyRecord: { findUnique: jest.fn().mockResolvedValue(mode === 'missing' ? null : receipt), create: jest.fn(), delete: jest.fn(), update: jest.fn() },
+  };
+  const db = { $transaction: <T,>(callback: (value: unknown) => Promise<T>) => callback(tx) };
+  const result = await inspectParentRoutineStack(db, draft, { ...actor, tokenVersion: 0 }, 'original-key');
+  expect(result).toEqual({ status: 200, body: mode === 'confirmed' ? { state: 'confirmed', stackId: 'stack-confirmed' } : { state: 'unknown' } });
+  expect(tx.idempotencyRecord.create).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.delete).not.toHaveBeenCalled();
+  expect(tx.idempotencyRecord.update).not.toHaveBeenCalled();
+  expect(JSON.stringify(result)).not.toContain('private');
 });

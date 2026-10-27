@@ -1,3 +1,5 @@
+import { readAnalyticsChores } from "@/lib/analytics-chore-read";
+import { ANALYTICS_SUMMARY_PROJECTION, ANALYTICS_WINDOW_DAYS, MAX_ANALYTICS_CHORES, MAX_ANALYTICS_MEMBERS, ANALYTICS_SUMMARY_COVERAGE, ANALYTICS_SUMMARY_LIMIT_CODE } from "@/lib/analytics-summary-contract";
 import { PRIVATE_TIMELINE_ACTIONS } from "@/lib/review-inbox/timeline-contract";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
@@ -13,9 +15,6 @@ import { isGamificationOn } from '@/lib/gamification-visibility'
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const ANALYTICS_WINDOW_DAYS = 90
-// Safety cap on rows per query; a household's 90 days stays far below it.
-const MAX_ANALYTICS_CHORES = 5000
 const DONE_STATUSES = ['completed', 'verified']
 
 // GET /api/analytics?tz=<IANA>|tzOffset=<minutes>
@@ -29,18 +28,42 @@ export async function GET(request: NextRequest) {
 
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 })
+    const privateResponse = (response: NextResponse) => {
+      response.headers.set('Cache-Control', 'private, no-store')
+      return response
+    }
+    const gate = await featureGate(original.familyId, 'analytics')
+    if (gate) return privateResponse(gate)
+    // Reads below may wait on the database. Renew feature access, then the
+    // original principal after that wait, before returning either private
+    // summary data or the household's size-limit result. This is a point-in-
+    // time HTTP check, not membership/feature serialization or a DB snapshot.
+    const reply = async (body: unknown, status = 200) => {
+      const currentGate = await featureGate(original.familyId, 'analytics')
+      const [current, refused] = await authenticateWithFamily(request)
+      if (refused) return privateResponse(refused)
+      if (current.user.id !== original.actorId || current.user.family_id !== original.familyId ||
+        current.user.role !== original.role || (current.payload.tv ?? 0) !== original.generation)
+        return privateResponse(NextResponse.json({ code: 'ANALYTICS_SCOPE_CHANGED',
+          error: 'Your account or household changed. Reload progress.' }, { status: 409 }))
+      if (currentGate) return privateResponse(currentGate)
+      return privateResponse(NextResponse.json(body, { status }))
+    }
 
-    const gate = await featureGate(auth.user.family_id, 'analytics')
-    if (gate) return gate
-
+    const query = new URL(request.url).searchParams
+    if (query.has('projection') && (query.getAll('projection').length !== 1 || query.get('projection') !== ANALYTICS_SUMMARY_PROJECTION))
+      return NextResponse.json({ error: 'Invalid analytics projection' }, { status: 400 })
+    const summaryOnly = query.get('projection') === ANALYTICS_SUMMARY_PROJECTION
     // Without `tz`/`tzOffset` (older clients), UTC days as before.
-    const zone = parseLocalZone(new URL(request.url).searchParams)
+    const zone = parseLocalZone(query)
     if (!zone) {
       return NextResponse.json({ error: 'Invalid time zone' }, { status: 400 })
     }
     const dayKey = dayKeyFor(zone)
 
-    const familyId = auth.user.family_id
+    const familyId = original.familyId
     const now = new Date()
     const oneMonthAgo = new Date(now.getTime() - 30 * DAY_MS)
     // Bounded window: the last 90 days, never the future.
@@ -51,23 +74,12 @@ export async function GET(request: NextRequest) {
       prisma!.user.findMany({
         where: { family_id: familyId },
         select: { id: true, name: true, role: true, avatar_url: true, xp: true, level: true, streak: true, best_streak: true },
+        ...(summaryOnly ? { orderBy: { id: 'asc' as const }, take: MAX_ANALYTICS_MEMBERS + 1 } : {}),
       }),
-      // Chores that count toward the rates: due in the window up to now, or
-      // completed in the window. A future occurrence (a recurring series
-      // generates them ahead) is not due yet, so it is left out of the
-      // denominator unless it was already done.
-      prisma!.chore.findMany({
-        where: {
-          family_id: familyId,
-          OR: [
-            { due_date: { gte: windowStart, lte: now } },
-            { status: { in: DONE_STATUSES }, completed_at: { gte: windowStart, lte: now } },
-          ],
-        },
-        select: { id: true, assigned_to: true, status: true, points: true, difficulty: true, completed_at: true, due_date: true },
-        orderBy: [{ due_date: 'desc' }, { id: 'asc' }],
-        take: MAX_ANALYTICS_CHORES,
-      }),
+      // Fill the visible cap through the canonical routine occurrence policy;
+      // never filter only after a truncated candidate window.
+      readAnalyticsChores(prisma!, familyId, windowStart, now,
+        MAX_ANALYTICS_CHORES + (summaryOnly ? 1 : 0)),
       prisma!.chore.findMany({
         where: {
           family_id: familyId,
@@ -76,16 +88,23 @@ export async function GET(request: NextRequest) {
         },
         select: { id: true, assigned_to: true, points: true, completed_at: true },
         orderBy: { completed_at: 'desc' },
-        take: MAX_ANALYTICS_CHORES,
+        take: MAX_ANALYTICS_CHORES + (summaryOnly ? 1 : 0),
       }),
-      prisma!.activity.findMany({
+      summaryOnly ? Promise.resolve([]) : prisma!.activity.findMany({
         // Legacy page-view/click rows are not household activity (#136).
         where: { family_id: familyId, NOT: { type: legacyAnalyticsTypeFilter() }, type: {notIn: [...PRIVATE_TIMELINE_ACTIONS]} },
-        include: { user: { select: { name: true } } },
+        select: { id: true, user_id: true, type: true, title: true, description: true, created_at: true },
         orderBy: { created_at: 'desc' },
         take: 10,
       }),
     ])
+
+    // One lookahead row distinguishes a complete exactly-at-cap collection
+    // from a truncated one. Never turn an incomplete compact read into totals.
+    // Legacy requests retain their established cap/body pending compatibility work.
+    if (summaryOnly && (familyMembers.length > MAX_ANALYTICS_MEMBERS ||
+      allChores.length > MAX_ANALYTICS_CHORES || recentCompletedChores.length > MAX_ANALYTICS_CHORES))
+      return await reply({ code: ANALYTICS_SUMMARY_LIMIT_CODE, error: 'This progress view exceeds the supported summary size.' }, 422)
 
     // Completed chores by the viewer's local day.
     const completedByDay = new Map<string, { count: number; points: number }>()
@@ -112,21 +131,28 @@ export async function GET(request: NextRequest) {
     })
 
     // Member participation
+    // Count each bounded chore once; do not rescan the full window for each
+    // member. Unassigned/former-member chores still count in family totals.
+    const countsByMember = new Map<string, { total: number; completed: number }>()
+    for (const chore of allChores) {
+      if (!chore.assigned_to) continue
+      const counts = countsByMember.get(chore.assigned_to) ?? { total: 0, completed: 0 }
+      counts.total++
+      if (DONE_STATUSES.includes(chore.status)) counts.completed++
+      countsByMember.set(chore.assigned_to, counts)
+    }
     const memberParticipation = familyMembers.map(member => {
-      const memberChores = allChores.filter(chore => chore.assigned_to === member.id)
-      const completedChores = memberChores.filter(chore => DONE_STATUSES.includes(chore.status))
-
+      const counts = countsByMember.get(member.id) ?? { total: 0, completed: 0 }
       return {
         id: member.id,
         name: member.name,
         role: member.role,
-        totalChores: memberChores.length,
-        completedChores: completedChores.length,
-        completionRate: memberChores.length > 0
-          ? Math.round((completedChores.length / memberChores.length) * 100)
-          : 0,
+        totalChores: counts.total,
+        completedChores: counts.completed,
+        completionRate: counts.total > 0 ? Math.round((counts.completed / counts.total) * 100) : 0,
       }
     })
+    const participationById = new Map(memberParticipation.map(member => [member.id, member]))
 
     // Family statistics
     const totalChores = allChores.length
@@ -177,7 +203,7 @@ export async function GET(request: NextRequest) {
     const gamification = await isGamificationOn(familyId)
     const members = familyMembers
       .map((m) => {
-        const participation = memberParticipation.find((p) => p.id === m.id)
+        const participation = participationById.get(m.id)
         const base = {
           id: m.id,
           name: m.name,
@@ -203,29 +229,46 @@ export async function GET(request: NextRequest) {
       hard: allChores.filter(c => c.difficulty === 'hard').length,
     }
 
-    return NextResponse.json({
+    // An activity's scalar actor can outlive their household membership. Never
+    // traverse that relation without a separate current-household predicate.
+    // The legacy collection has at most ten rows; compact reads skip it entirely.
+    const activityActorIds = [...new Set(recentActivities.map(activity => activity.user_id))]
+    const activityPeople = activityActorIds.length ? await prisma!.user.findMany({
+      where: { family_id: familyId, id: { in: activityActorIds } },
+      select: { id: true, name: true, family_id: true },
+      take: activityActorIds.length,
+    }) : []
+    const activityNames = new Map(activityPeople
+      .filter(person => person.family_id === familyId && activityActorIds.includes(person.id))
+      .map(person => [person.id, person.name]))
+
+    return await reply({
+      ...(summaryOnly ? { coverage: ANALYTICS_SUMMARY_COVERAGE } : {}),
       summary: {
         totalChores,
         completedChores,
         completionRate,
         currentStreak,
-        mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null,
+        ...(!summaryOnly ? { mostActiveDay: mostActiveDay ? { day: mostActiveDay[0], count: mostActiveDay[1] } : null } : {}),
       },
       weeklyTrend: weeklyData,
       weeklyCompletion,
       gamification,
       members,
-      memberParticipation,
-      topPerformers,
-      difficultyDistribution,
-      recentActivity: recentActivities.map(a => ({
-        id: a.id,
-        type: a.type,
-        title: a.title,
-        description: a.description,
-        createdAt: a.created_at,
-        userName: a.user.name,
-      })),
+      ...(!summaryOnly ? {
+        memberParticipation,
+        topPerformers,
+        difficultyDistribution,
+        recentActivity: recentActivities.map(a => ({
+          id: a.id,
+          type: a.type,
+          title: a.title,
+          description: a.description,
+          createdAt: a.created_at,
+          // Preserve the legacy string field without substituting a foreign name.
+          userName: activityNames.get(a.user_id) ?? '',
+        })),
+      } : {}),
     })
   } catch (error) {
     logRouteError('GET /api/analytics', error, getRequestId(request))

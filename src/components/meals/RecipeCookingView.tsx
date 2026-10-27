@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { useTranslation } from "@/i18n";
+import { useRecipeDetailText } from "@/i18n/recipe-detail";
 import { RecipeDetail, type RecipeDetailData } from "./RecipeDetail";
 import { scaleRecipeAmount } from "@/lib/recipe-scaling";
 /** Local preview only. The canonical recipe and cooked evidence are never edited. */
@@ -13,8 +13,7 @@ export function RecipeCookingView({
   disabled?: boolean;
   actions?: (servings: number | undefined) => ReactNode;
 }) {
-  const { locale } = useTranslation();
-  const es = locale === "es";
+  const text = useRecipeDetailText();
   const control = useId();
   const base =
     recipe.servings &&
@@ -53,7 +52,7 @@ export function RecipeCookingView({
               htmlFor={control}
               className="text-subhead font-semibold"
             >
-              {es ? "Porciones para cocinar" : "Cooking portions"}
+              {text("cookingPortions")}
             </label>
             <input
               id={control}
@@ -75,20 +74,14 @@ export function RecipeCookingView({
               disabled={disabled || targetText === String(base)}
               onClick={() => setTarget(String(base))}
             >
-              Original · {base}
+              {text("cookingOriginal", { count: base })}
             </button>
           </div>
           <p
             id={`${control}-help`}
             className="text-footnote text-label-secondary"
           >
-            {valid
-              ? es
-                ? "Vista previa. Solo cambian las cantidades de ingredientes; los pasos y tiempos conservan el texto original. La receta guardada no cambia."
-                : "Preview only. Ingredient amounts change; directions and times keep their original text. The saved recipe stays unchanged."
-              : es
-                ? "Elige un número entero de 1 a 100. Se muestran las cantidades originales."
-                : "Choose a whole number from 1 to 100. Original amounts are shown."}
+            {text(valid ? "cookingPreview" : "cookingInvalid")}
           </p>
         </section>
       )}

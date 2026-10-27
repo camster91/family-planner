@@ -8,6 +8,8 @@ import {
   idempotencyError,
   withIdempotency,
 } from "@/lib/idempotency";
+import { authorizePersonListItemInTx } from "@/lib/person-list-item-authority";
+import { authorizePersonListItemReplay } from "@/lib/person-list-item-create";
 import { updateListItem } from "@/lib/list-item-update";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
@@ -56,6 +58,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     if (item.list.family_id !== auth.user.family_id)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 };
     return await withIdempotency(
       prisma!,
       key,
@@ -66,7 +69,8 @@ export async function PATCH(request: NextRequest) {
         action: "list-item.edit",
       },
       parsed.data,
-      () => updateListItem(prisma!, parsed.data, auth.user),
+      ({ recordId }) => updateListItem(prisma!, parsed.data, auth.user, undefined, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}), receipt: { recordId, action: "list-item.edit" } }),
+      { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null) },
     );
   } catch (error) {
     logRouteError("PATCH /api/lists/items/edit", error, getRequestId(request));

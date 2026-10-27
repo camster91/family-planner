@@ -2,6 +2,8 @@
 import { PreparationButton } from "@/components/calendar/preparation/PreparationProvider";
 import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
+import { CalendarReadHeld, useCalendarReadScope, type CalendarReadScope } from "@/components/calendar/CalendarReadScope";
+import { CalendarReadOwnerChanged } from "@/lib/calendar-read-owner";
 import Link from "next/link";
 import { useCoreTranslation } from "@/i18n/core";
 import {
@@ -27,6 +29,7 @@ import {
 } from "@/lib/calendar-planning/view";
 import {
   fetchPlanningRange,
+  fetchPlanningSources,
   type PlanningEvent,
 } from "@/lib/calendar-planning/fetch";
 import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
@@ -40,6 +43,7 @@ import { useOnline } from "@/components/fridge/use-board-sync";
 
 type Subscription = { id: string; name: string; color: string | null };
 export function CalendarPlanner({
+  readScope: suppliedReadScope,
   initialDate,
   initialView,
   canEditEvents = false,
@@ -48,6 +52,7 @@ export function CalendarPlanner({
   chooseLocalToday = false,
   headerAction,
 }: {
+  readScope?: CalendarReadScope;
   initialDate: string;
   initialView?: PlanningView;
   canEditEvents?: boolean;
@@ -56,6 +61,8 @@ export function CalendarPlanner({
   chooseLocalToday?: boolean;
   headerAction?: React.ReactNode;
 }) {
+  const localReadScope = useCalendarReadScope();
+  const readScope = suppliedReadScope ?? localReadScope;
   const { t } = useCoreTranslation();
   const msg = (
     key: CalendarPlannerMessage,
@@ -86,7 +93,32 @@ export function CalendarPlanner({
   const gridViewport = React.useRef<HTMLDivElement>(null);
   const requestId = React.useRef(0),
     dialog = React.useRef<HTMLDialogElement>(null),
-    trigger = React.useRef<HTMLElement | null>(null);
+    trigger = React.useRef<HTMLElement | null>(null),
+    connectionMenu = React.useRef<HTMLDetailsElement>(null);
+  const closeConnectionMenu = (restoreFocus = true) => {
+    const menu = connectionMenu.current;
+    if (!menu?.open) return;
+    menu.open = false;
+    if (restoreFocus) menu.querySelector("summary")?.focus();
+  };
+  const closeConnectionMenuOnEscape = (
+    event: React.KeyboardEvent<HTMLDetailsElement>,
+  ) => {
+    if (event.key !== "Escape" || !event.currentTarget.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeConnectionMenu();
+  };
+  React.useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      const menu = connectionMenu.current;
+      if (menu && !menu.contains(event.target as Node)) {
+        menu.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, []);
   React.useEffect(() => {
     setLocal(true);
     setDate(chooseLocalToday ? dayKey(new Date(), true) : initialDate);
@@ -109,7 +141,7 @@ export function CalendarPlanner({
       gridViewport.current.scrollTop = 8 * 64;
   }, [state, start, view]);
   React.useEffect(() => {
-    if (!local) return;
+    if (!local || readScope.held) return;
     if (!start || !end) {
       setSelected(null);
       return;
@@ -118,45 +150,42 @@ export function CalendarPlanner({
       id = ++requestId.current;
     setState("loading");
     setSelected(null);
-    fetchPlanningRange(start, end, controller.signal)
+    fetchPlanningRange(start, end, controller.signal, fetch, 10, { owner: readScope.owner, admit: readScope.admit })
       .then((result) => {
-        if (!controller.signal.aborted && id === requestId.current) {
+        if (!readScope.held && !controller.signal.aborted && id === requestId.current) {
           setData(result.events);
           setTruncated(result.truncated);
           setState("ready");
           setLoadedAt(Date.now());
         }
       })
-      .catch(() => {
-        if (!controller.signal.aborted && id === requestId.current)
-          setState("error");
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted && id === requestId.current) {
+          if (cause instanceof CalendarReadOwnerChanged) readScope.hold();
+          else if (!readScope.held) setState("error");
+        }
       });
     return () => controller.abort();
-  }, [start, end, local, retry, refreshKey, eventRevision]);
+  }, [start, end, local, retry, refreshKey, eventRevision, readScope, readScope.held]);
   React.useEffect(() => {
+    if (readScope.held) return;
     const controller = new AbortController();
     setSourceState("loading");
-    fetch("/api/calendar/subscriptions", { signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) throw new Error();
-        const body = await res.json();
-        if (!Array.isArray(body.subscriptions)) throw new Error();
-        if (!controller.signal.aborted) {
-          setSources(
-            body.subscriptions.map((s: Subscription) => ({
-              id: s.id,
-              name: s.name,
-              color: s.color,
-            })),
-          );
+    fetchPlanningSources(controller.signal, { owner: readScope.owner, admit: readScope.admit })
+      .then((subscriptions) => {
+        if (!readScope.held && !controller.signal.aborted) {
+          setSources(subscriptions);
           setSourceState("ready");
         }
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setSourceState("error");
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) {
+          if (cause instanceof CalendarReadOwnerChanged) readScope.hold();
+          else if (!readScope.held) setSourceState("error");
+        }
       });
     return () => controller.abort();
-  }, [retry]);
+  }, [retry, readScope, readScope.held]);
   React.useEffect(() => {
     const refresh = () => setRetry((n) => n + 1);
     window.addEventListener("online", refresh);
@@ -291,6 +320,7 @@ export function CalendarPlanner({
       </button>
     );
   };
+  if (readScope.held) return <CalendarReadHeld />;
   return (
     <div className={styles.planner}>
       <header className={styles.header}>
@@ -323,6 +353,52 @@ export function CalendarPlanner({
         </nav>
         <div className={styles.headerActions}>
           {headerAction}
+          {canEditEvents && (
+            <details
+              ref={connectionMenu}
+              className={styles.connectionMenu}
+              onKeyDown={closeConnectionMenuOnEscape}
+            >
+              <summary>{msg("calendarMenu")}</summary>
+              <div>
+                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                  {msg("calendarMenuHelp")}
+                </p>
+                <fieldset className={styles.connectionSources}>
+                  <legend>{msg("calendars")}</legend>
+                  {options.map((source) => (
+                    <button
+                      key={source.id}
+                      type="button"
+                      aria-pressed={filter === source.id}
+                      onClick={() => {
+                        setFilter(source.id);
+                        closeConnectionMenu();
+                      }}
+                    >
+                      {source.name}
+                    </button>
+                  ))}
+                </fieldset>
+                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                  {calendarSyncAvailable
+                    ? msg("connectionHelp")
+                    : msg("providerUnavailableHelp")}
+                </p>
+                {calendarSyncAvailable && (
+                  <Link href="/dashboard/settings#calendar-sync">
+                    {msg("connectProvider")}
+                  </Link>
+                )}
+                <Link href="/dashboard/settings#calendar-subscriptions">
+                  {msg("subscribeLink")}
+                </Link>
+                <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
+                  {msg("subscriptionHelp")}
+                </p>
+              </div>
+            </details>
+          )}
           <Link href="/dashboard/calendar/create" className="btn-filled">
             {msg("add")}
           </Link>
@@ -357,29 +433,6 @@ export function CalendarPlanner({
                 </option>
               ))}
             </select>
-            {canEditEvents && (
-              <details className={styles.connectionMenu}>
-                <summary>{msg("addConnection")}</summary>
-                <div>
-                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                    {calendarSyncAvailable
-                      ? msg("connectionHelp")
-                      : msg("providerUnavailableHelp")}
-                  </p>
-                  {calendarSyncAvailable && (
-                    <Link href="/dashboard/settings#calendar-sync">
-                      {msg("connectProvider")}
-                    </Link>
-                  )}
-                  <Link href="/dashboard/settings#calendar-subscriptions">
-                    {msg("subscribeLink")}
-                  </Link>
-                  <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
-                    {msg("subscriptionHelp")}
-                  </p>
-                </div>
-              </details>
-            )}
             {sourceState === "loading" && (
               <p role="status">{msg("loadingSources")}</p>
             )}

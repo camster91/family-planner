@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { useTranslation } from "@/i18n";
+import { useFoodPlanningInputsText } from "@/i18n/food-planning-inputs";
 import { formatRecipeAmount } from "@/lib/recipe-scaling";
 import type { FoodReviewView } from "@/lib/food-planning/view-contract";
 /** Display the command that will actually be signed/saved, not editor leftovers. */
@@ -11,23 +12,22 @@ export function FoodSaveDetails({
   review: FoodReviewView;
   choiceKey: string;
 }) {
-  const { locale } = useTranslation(),
-    es = locale === "es",
-    copy = (en: string, spanish: string) => (es ? spanish : en);
+  const { locale } = useTranslation();
+  const text = useFoodPlanningInputsText();
   const mealLabel = (type: string) =>
     type === "breakfast"
-      ? copy("Breakfast", "Desayuno")
+      ? text("breakfast")
       : type === "lunch"
-        ? copy("Lunch", "Almuerzo")
+        ? text("lunch")
         : type === "snack"
-          ? copy("Snack", "Tentempié")
-          : copy("Dinner", "Cena");
+          ? text("snack")
+          : text("dinner");
   const command = review.input;
   const cook = (id: string | null | undefined) =>
     id
       ? (review.people.find((person) => person.id === id)?.name ??
-        copy("Unavailable cook", "Cocinero no disponible"))
-      : copy("No cook assigned", "Sin cocinero asignado");
+        text("unavailableCook"))
+      : text("noCook");
   const groceries = review.groceries.find((row) => row.key === choiceKey);
   let body: React.ReactNode;
   if (command.mode === "meals") {
@@ -38,23 +38,23 @@ export function FoodSaveDetails({
         <p>
           {meal.date} ·{" "}
           {meal.meal_type === "breakfast"
-            ? copy("Breakfast", "Desayuno")
+            ? text("breakfast")
             : meal.meal_type === "lunch"
-              ? copy("Lunch", "Almuerzo")
+              ? text("lunch")
               : meal.meal_type === "snack"
-                ? copy("Snack", "Tentempié")
-                : copy("Dinner", "Cena")}
+                ? text("snack")
+                : text("dinner")}
         </p>
         <p>{cook(meal.cook_id)}</p>
         {meal.recipe_name && (
           <p className="break-words">
-            {copy("Saved label", "Nombre guardado")}: {meal.recipe_name}
+            {text("savedLabel")}: {meal.recipe_name}
           </p>
         )}
         {meal.notes && (
           <details>
             <summary className="min-h-[44px] py-3 cursor-pointer">
-              {copy("Notes to save", "Notas que se guardarán")}
+              {text("notesToSave")}
             </summary>
             <p className="whitespace-pre-wrap break-words">{meal.notes}</p>
           </details>
@@ -71,25 +71,25 @@ export function FoodSaveDetails({
         <p>
           {cook(dish.cook_id)} ·{" "}
           {dish.reserve_storage === "freezer"
-            ? copy("Freezer", "Congelador")
-            : copy("Fridge", "Nevera")}
+            ? text("freezer")
+            : text("fridge")}
         </p>
         <p>
-          {copy("Prep day", "Día de preparación")}: {command.input.prepared_on}{" "}
-          · {copy("Next prep", "Próxima preparación")}:{" "}
-          {command.input.next_prep_on ?? copy("Not set", "Sin fecha")}
+          {text("prepDay")}: {command.input.prepared_on}{" "}
+          · {text("nextPrep")}:{" "}
+          {command.input.next_prep_on ?? text("notSet")}
         </p>
         <details>
           <summary className="min-h-[44px] py-3 cursor-pointer">
             {dish.meals.length}{" "}
-            {copy("meal allocations to create", "comidas que se crearán")}
+            {text("allocationsToCreate")}
           </summary>
           <DetailRows
             values={dish.meals.map((meal, i) => (
               <li key={i} className="space-y-1 break-words">
                 <p>
                   {meal.date} · {mealLabel(meal.meal_type)} · {meal.servings}{" "}
-                  {copy("portions", "porciones")}
+                  {text("portions")}
                 </p>
                 <p>
                   {cook(
@@ -101,7 +101,6 @@ export function FoodSaveDetails({
                 )}
               </li>
             ))}
-            es={es}
           />
         </details>
       </>
@@ -110,20 +109,17 @@ export function FoodSaveDetails({
   return (
     <section className="space-y-2 border-t border-[var(--surface-separator)] pt-3">
       <h4 className="font-semibold">
-        {copy("Exact save details", "Detalles exactos que se guardarán")}
+        {text("exactSaveDetails")}
       </h4>
       {body}
       {groceries && (
         <details>
           <summary className="min-h-[44px] py-3 cursor-pointer">
-            {copy("Grocery add", "Añadir a la compra")}:{" "}
+            {text("groceryAdd")}:{" "}
             {review.lists.find((list) => list.id === groceries.listId)?.name}
           </summary>
           <p className="text-footnote">
-            {copy(
-              "Full scaled recipe quantities, not estimated shortages.",
-              "Cantidades completas de receta, no déficits estimados.",
-            )}
+            {text("fullRecipeQuantities")}
           </p>
           <DetailRows
             values={groceries.ingredients.map((line) => (
@@ -132,7 +128,6 @@ export function FoodSaveDetails({
                 {formatRecipeAmount(line.amount, line.unit, locale)}
               </li>
             ))}
-            es={es}
           />
         </details>
       )}
@@ -141,11 +136,10 @@ export function FoodSaveDetails({
 }
 function DetailRows({
   values,
-  es,
 }: {
   values: React.ReactNode[];
-  es: boolean;
 }) {
+  const text = useFoodPlanningInputsText();
   const [page, setPage] = React.useState(0),
     last = Math.max(0, Math.ceil(values.length / 5) - 1),
     current = Math.min(page, last);
@@ -162,7 +156,7 @@ function DetailRows({
             disabled={current === 0}
             onClick={() => setPage(current - 1)}
           >
-            {es ? "Anteriores" : "Previous details"}
+            {text("previousDetails")}
           </button>
           <span aria-live="polite">
             {current + 1}/{last + 1}
@@ -173,7 +167,7 @@ function DetailRows({
             disabled={current === last}
             onClick={() => setPage(current + 1)}
           >
-            {es ? "Siguientes" : "Next details"}
+            {text("nextDetails")}
           </button>
         </div>
       )}

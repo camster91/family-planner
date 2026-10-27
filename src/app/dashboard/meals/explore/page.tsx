@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { MealContextLink as Link } from "@/components/meals/MealContextLink";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
 import { MealViewNav } from "@/components/meals/MealViewNav";
@@ -25,17 +25,21 @@ import {
   type OnlineRecipe,
 } from "@/lib/recipe-discovery";
 
-type SavedRecipe = {
-  id: string;
-  title: string;
-  description: string | null;
-  source_url?: string | null;
-  favorite?: boolean;
-};
+import { requestOwnedJson } from "@/lib/owned-request-http";
+import { requestRecipeCurationJson } from "@/lib/recipe-curation-client";
+import { RecipeLibraryOwnerChanged, readRecipeLibraryPage, type RecipeLibrarySummary as SavedRecipe } from "@/lib/recipe-library-client";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
+import { useRecipeCurationText } from "@/i18n/recipe-curation";
 type RecipeSearchResult = { title: string; url: string; source?: string };
 
 export default function RecipeExplorePage() {
   const text = useRecipeExploreText();
+  const curationText = useRecipeCurationText();
+  const [ownerHold, setOwnerHold] = React.useState(false);
+  const libraryOwner = React.useRef<RecipeOwner | null>(null);
+  const libraryHeld = React.useRef(false);
+  const reloadFocus = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => { if (ownerHold) reloadFocus.current?.focus(); }, [ownerHold]);
   const [query, setQuery] = React.useState("");
   const [favoritesOnly, setFavoritesOnly] = React.useState(false);
   const [collectionId, setCollectionId] = React.useState("");
@@ -73,9 +77,23 @@ export default function RecipeExplorePage() {
   const previewGeneration = React.useRef(0);
   const libraryController = React.useRef<AbortController | null>(null);
 
+  const holdLibraryOwner = React.useCallback(() => {
+    libraryHeld.current = true;
+    setOwnerHold(true);
+    setCanSave(false);
+    setRecipes([]);
+    setPreview(null);
+    setEditor(false);
+    setSavedId(null);
+    previewGeneration.current++;
+    searchGeneration.current++;
+    controller.current?.abort();
+    searchController.current?.abort();
+  }, []);
+
   const loadLibrary = React.useCallback(
     async (next: number) => {
-      if (libraryBusy.current) return;
+      if (libraryBusy.current || libraryHeld.current) return;
       libraryBusy.current = true;
       const abort = new AbortController();
       libraryController.current = abort;
@@ -86,28 +104,20 @@ export default function RecipeExplorePage() {
         setOffset(0);
       }
       try {
-        const response = await fetch(
-          `/api/recipes?limit=100&offset=${next}${libraryFilters ? `&${libraryFilters}` : ""}`,
-          {
-            signal: abort.signal,
-          },
-        );
-        const data = (await response.json().catch(() => null)) as {
-          recipes?: SavedRecipe[];
-          nextOffset?: number | null;
-        } | null;
-        if (!response.ok || !Array.isArray(data?.recipes)) {
-          if (!abort.signal.aborted) setLibraryError(text("libraryError"));
-          return;
-        }
+        const data = await readRecipeLibraryPage(libraryFilters, next, abort.signal, fetch, libraryOwner.current);
         if (!abort.signal.aborted) {
-          setRecipes((previous) =>
-            next === 0 ? data.recipes! : [...previous, ...data.recipes!],
-          );
-          setOffset(data.nextOffset ?? null);
+          // An online request may have pinned the owner while this first
+          // library request was still in flight. Never merge bootstrap races.
+          if (libraryOwner.current && !sameRecipeOwner(libraryOwner.current, data.owner)) { holdLibraryOwner(); return; }
+          if (!libraryOwner.current) libraryOwner.current = data.owner;
+          setCanSave(["parent", "teen"].includes(data.owner.role));
+          setRecipes((previous) => next === 0 ? data.recipes :
+            [...new Map([...previous, ...data.recipes].map(recipe => [recipe.id, recipe])).values()]);
+          setOffset(data.nextOffset);
         }
-      } catch {
-        if (!abort.signal.aborted) setLibraryError(text("libraryError"));
+      } catch (error) {
+        if (!abort.signal.aborted && error instanceof RecipeLibraryOwnerChanged) holdLibraryOwner();
+        else if (!abort.signal.aborted) setLibraryError(text("libraryError"));
       } finally {
         if (!abort.signal.aborted) {
           libraryBusy.current = false;
@@ -115,20 +125,20 @@ export default function RecipeExplorePage() {
         }
       }
     },
-    [text, libraryFilters],
+    [text, libraryFilters, holdLibraryOwner],
   );
 
   React.useEffect(() => {
-    const abort = new AbortController();
-    fetch("/api/auth/me", { signal: abort.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (!abort.signal.aborted)
-          setCanSave(["parent", "teen"].includes(data?.user?.role));
-      })
-      .catch(() => undefined);
+    const advisory = new AbortController();
+    // Manual import remains available during a library-only failure. This role
+    // hint cannot replace an admitted library owner or authorize any API write.
+    void requestOwnedJson("/api/auth/me", { signal: advisory.signal }, 64 * 1024).then(result => {
+      if (advisory.signal.aborted || libraryHeld.current || libraryOwner.current || result.kind !== "reply" || !result.response.ok) return;
+      const body = result.body as { user?: { role?: unknown } } | null;
+      setCanSave(body?.user?.role === "parent" || body?.user?.role === "teen");
+    });
     return () => {
-      abort.abort();
+      advisory.abort();
       previewGeneration.current++;
       controller.current?.abort();
       searchGeneration.current++;
@@ -145,9 +155,21 @@ export default function RecipeExplorePage() {
     };
   }, [loadLibrary]);
 
+  const admitOnlineOwner = (response: Response) => {
+    if ([401, 403, 409].includes(response.status)) { holdLibraryOwner(); return false; }
+    if (!response.ok) return true;
+    const received = readRecipeOwner(response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+    if (!received || (libraryOwner.current && !sameRecipeOwner(libraryOwner.current, received))) {
+      holdLibraryOwner(); return false;
+    }
+    if (!libraryOwner.current) libraryOwner.current = received;
+    setCanSave(["parent", "teen"].includes(received.role));
+    return true;
+  };
+
   const readRecipe = async (event?: React.FormEvent, selectedUrl = url) => {
     event?.preventDefault();
-    if (!canSave || importBusy.current) return;
+    if (libraryHeld.current || !canSave || importBusy.current) return;
     const link = publicRecipeUrl(selectedUrl.trim());
     if (!link) {
       setError(text("invalidLink"));
@@ -160,21 +182,17 @@ export default function RecipeExplorePage() {
     setError("");
     const abort = new AbortController();
     controller.current = abort;
-    let timedOut = false;
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      abort.abort();
-    }, 15000);
     try {
-      const response = await fetch("/api/recipes/preview", {
+      const result = await requestRecipeCurationJson("/api/recipes/preview", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(libraryOwner.current ? { [RECIPE_OWNER_HEADER]: JSON.stringify(libraryOwner.current) } : {}) },
         body: JSON.stringify({ url: link }),
         signal: abort.signal,
-      });
-      const data = (await response.json().catch(() => null)) as {
-        recipe?: OnlineRecipe;
-      } | null;
+      }, 512 * 1024);
+      if (result.kind !== "reply") throw new Error("Recipe preview unavailable");
+      const { response } = result;
+      if (!current() || abort.signal.aborted || !admitOnlineOwner(response)) return;
+      const data = result.body as { recipe?: unknown } | null;
       const parsed = onlineRecipeSchema.safeParse(data?.recipe);
       if (!response.ok || !parsed.success) {
         if (current() && !abort.signal.aborted) setError(text("readFailed"));
@@ -188,11 +206,10 @@ export default function RecipeExplorePage() {
         setSavedId(null);
       }
     } catch {
-      if (current() && (!abort.signal.aborted || timedOut))
+      if (current() && !abort.signal.aborted)
         setError(text("readNetworkError"));
     } finally {
-      clearTimeout(deadline);
-      if (current() && (!abort.signal.aborted || timedOut)) {
+      if (current() && !abort.signal.aborted) {
         importBusy.current = false;
         setLoading(false);
       }
@@ -201,6 +218,7 @@ export default function RecipeExplorePage() {
 
   const searchOnline = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (libraryHeld.current) return;
     searchController.current?.abort();
     const own = ++searchGeneration.current;
     const current = () => own === searchGeneration.current;
@@ -212,21 +230,17 @@ export default function RecipeExplorePage() {
     setResultLimit(6);
     setSearched(false);
     setIncompleteSearch(false);
-    let timedOut = false;
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      abort.abort();
-    }, 15000);
     try {
-      const response = await fetch("/api/recipes/discover", {
+      const result = await requestRecipeCurationJson("/api/recipes/discover", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(libraryOwner.current ? { [RECIPE_OWNER_HEADER]: JSON.stringify(libraryOwner.current) } : {}) },
         body: JSON.stringify({ query: query.trim(), source }),
         signal: abort.signal,
-      });
-      const parsed = recipeDiscoveryResponse.safeParse(
-        await response.json().catch(() => null),
-      );
+      }, 512 * 1024);
+      if (result.kind !== "reply") throw new Error("Recipe search unavailable");
+      const { response } = result;
+      if (!current() || abort.signal.aborted || !admitOnlineOwner(response)) return;
+      const parsed = recipeDiscoveryResponse.safeParse(result.body);
       if (!response.ok || !parsed.success) {
         if (current() && !abort.signal.aborted)
           setSearchError(text("searchFailed"));
@@ -242,11 +256,10 @@ export default function RecipeExplorePage() {
         setSearched(true);
       }
     } catch {
-      if (current() && (!abort.signal.aborted || timedOut))
+      if (current() && !abort.signal.aborted)
         setSearchError(text("searchNetworkError"));
     } finally {
-      clearTimeout(deadline);
-      if (current() && (!abort.signal.aborted || timedOut)) setSearching(false);
+      if (current() && !abort.signal.aborted) setSearching(false);
     }
   };
 
@@ -261,6 +274,14 @@ export default function RecipeExplorePage() {
       )
     : undefined;
 
+  if (ownerHold) return (
+    <FeatureGate featureKey="meals">
+      <div role="alert" className="space-y-3">
+        <p>{curationText.ownerChanged}</p>
+        <button ref={reloadFocus} type="button" className="btn-secondary min-h-[44px]" onClick={() => window.location.reload()}>{curationText.reload}</button>
+      </div>
+    </FeatureGate>
+  );
   return (
     <FeatureGate featureKey="meals">
       <div className="space-y-6 pb-20">
@@ -575,7 +596,9 @@ export default function RecipeExplorePage() {
               />
               {text("favoritesOnly")}
             </label>
-            <RecipeCollections
+            {libraryOwner.current && <RecipeCollections
+              expectedOwner={libraryOwner.current}
+              onOwnerHold={holdLibraryOwner}
               value={collectionId}
               canEdit={canSave}
               onSelect={(id) => {
@@ -585,7 +608,7 @@ export default function RecipeExplorePage() {
                 else filters.delete("collection");
                 setLibraryFilters(filters.toString());
               }}
-            />
+            />}
           </div>
           {libraryError && (
             <div role="alert">
@@ -621,6 +644,8 @@ export default function RecipeExplorePage() {
                 {canSave && (
                   <RecipeCuration
                     id={recipe.id}
+                    expectedOwner={libraryOwner.current ?? undefined}
+                    onOwnerHold={holdLibraryOwner}
                     title={recipe.title}
                     favorite={recipe.favorite}
                     onChanged={() => void loadLibrary(0)}
@@ -686,6 +711,9 @@ export default function RecipeExplorePage() {
                   {text("reviewBeforeSaving")}
                 </p>
                 <RecipeEditor
+                  expectedRecipeOwner={libraryOwner.current ?? undefined}
+                  onOwnerHold={holdLibraryOwner}
+                  recoveryIdentity={libraryOwner.current ? { userId: libraryOwner.current.actorId, familyId: libraryOwner.current.familyId } : undefined}
                   initialDraft={{
                     source_url: preview.source,
                     source_copy: copyImport,

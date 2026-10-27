@@ -2,6 +2,12 @@
 import { useTranslation } from "@/i18n";
 
 export const bulkCookingEnglish = {
+  reuseInvalid: "This portions link is invalid. No other dish was selected for reuse.",
+  reuseUnprepared: "This dish is not currently recorded as prepared. Review the session before reusing portions.",
+  reuseFull: "This dish has no unplanned portions. No meals were changed.",
+  reuseUnavailable: "The requested dish could not be checked. No other dish was opened.",
+  clearReuse: "Clear reuse request",
+  reviewFoodUsed: "Review food used",
   stockComparisonUnavailable:
     "Inventory comparison unavailable. Choose what you need.",
   stockPresenceOnly:
@@ -27,9 +33,11 @@ export const bulkCookingEnglish = {
   stepMeals: "Meals & review",
   date: "Preparation day",
   nextDate: "Next prep (optional)",
+  repeatInterval: "Using your previous {days}-day prep interval. You can change or clear this date.",
   nextPrep: "Next prep",
   planNext: "Plan next prep",
   changeNext: "Change next prep",
+  setNextDate: "Set next prep date",
   noNext: "No next prep planned",
   dish: "Dish",
   name: "Dish name",
@@ -41,7 +49,11 @@ export const bulkCookingEnglish = {
   fridge: "For the fridge",
   freezer: "For the freezer",
   addDish: "Add another dish",
+  duplicateDish: "Duplicate dish",
   removeDish: "Remove dish",
+  reorderDishes: "Reorder dishes",
+  moveDishUp: "Move dish up",
+  moveDishDown: "Move dish down",
   selectDish: "Edit {name}",
   dishNumber: "Dish {number}",
   limit: "Up to 8 dishes per session and 50 portions per dish.",
@@ -51,6 +63,7 @@ export const bulkCookingEnglish = {
   saving: "Saving…",
   cancel: "Cancel",
   close: "Close bulk cooking",
+  sessionSummary: "Session totals",
   total: "{count} total",
   planned: "{count} planned",
   eaten: "{count} eaten",
@@ -117,6 +130,12 @@ export const bulkCookingEnglish = {
 } as const;
 type Messages = Record<keyof typeof bulkCookingEnglish, string>;
 export const bulkCookingSpanish: Messages = {
+  reuseInvalid: "El enlace de porciones no es válido. No se ha elegido otro plato.",
+  reuseUnprepared: "El plato ya no figura como preparado. Revisa la sesión antes de reutilizar porciones.",
+  reuseFull: "Este plato no tiene porciones sin planificar. No se cambió ninguna comida.",
+  reuseUnavailable: "No se pudo comprobar el plato solicitado. No se abrió otro plato.",
+  clearReuse: "Quitar solicitud de reutilización",
+  reviewFoodUsed: "Revisar alimentos usados",
   stockComparisonUnavailable:
     "No se pudo comparar el inventario. Elige lo que necesitas.",
   stockPresenceOnly:
@@ -144,9 +163,11 @@ export const bulkCookingSpanish: Messages = {
   stepMeals: "Comidas y revisión",
   date: "Día de preparación",
   nextDate: "Próxima preparación (opcional)",
+  repeatInterval: "Se usa el intervalo anterior de {days} días. Puedes cambiar o borrar esta fecha.",
   nextPrep: "Próxima preparación",
   planNext: "Planear la próxima",
   changeNext: "Cambiar próxima preparación",
+  setNextDate: "Fijar próxima fecha de preparación",
   noNext: "Sin próxima preparación",
   dish: "Plato",
   name: "Nombre del plato",
@@ -158,7 +179,11 @@ export const bulkCookingSpanish: Messages = {
   fridge: "Para el refrigerador",
   freezer: "Para el congelador",
   addDish: "Añadir otro plato",
+  duplicateDish: "Duplicar plato",
   removeDish: "Quitar plato",
+  reorderDishes: "Reordenar platos",
+  moveDishUp: "Subir plato",
+  moveDishDown: "Bajar plato",
   selectDish: "Editar {name}",
   dishNumber: "Plato {number}",
   limit: "Hasta 8 platos por sesión y 50 porciones por plato.",
@@ -168,6 +193,7 @@ export const bulkCookingSpanish: Messages = {
   saving: "Guardando…",
   cancel: "Cancelar",
   close: "Cerrar cocina por lotes",
+  sessionSummary: "Totales de la sesión",
   total: "{count} en total",
   planned: "{count} planeadas",
   eaten: "{count} consumidas",

@@ -4,6 +4,7 @@ import ChangeTimeline from "./ChangeTimeline";
 import SavedRequestsReview from "./SavedRequestsReview";
 import CaptureInboxReview from "./CaptureInboxReview";
 import * as React from "react";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import type { InboxPage } from "@/lib/review-inbox/read";
 import { useReviewInboxText } from "@/i18n/review-inbox";
 import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
@@ -20,6 +21,7 @@ export default function ReviewInbox({
   identity: { userId: string; familyId: string };
 }) {
   const copy = useReviewInboxText();
+  const router = useDraftAwareRouter();
   const [window, setWindow] = React.useState(0);
   const identityKey = JSON.stringify([identity.userId, identity.familyId]);
   const [captureOpened, setCaptureOpened] = React.useState<string | null>(
@@ -30,6 +32,21 @@ export default function ReviewInbox({
   }, [page.source, identityKey]);
   React.useEffect(() => setWindow(0), [page]);
   const shown = page.items.slice(window, window + 5);
+  const navigate = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    destination: string,
+  ) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    void router.push(destination);
+  };
   if (page.state === "forbidden") return null;
   return (
     <section className="space-y-5">
@@ -48,6 +65,7 @@ export default function ReviewInbox({
             href={href(source)}
             aria-current={source === page.source ? "page" : undefined}
             className="btn-tinted min-h-11"
+            onClick={(event) => navigate(event, href(source))}
           >
             {copy[source]}
           </Link>
@@ -81,6 +99,7 @@ export default function ReviewInbox({
                     <Link
                       className="btn-plain min-h-11"
                       href="/dashboard/chores"
+                      onClick={(event) => navigate(event, "/dashboard/chores")}
                     >
                       {copy.openChecks}
                     </Link>
@@ -116,6 +135,9 @@ export default function ReviewInbox({
                 <Link
                   className="btn-tinted min-h-11"
                   href={href(page.source, page.next)}
+                  onClick={(event) =>
+                    navigate(event, href(page.source, page.next))
+                  }
                 >
                   {copy.next}
                 </Link>

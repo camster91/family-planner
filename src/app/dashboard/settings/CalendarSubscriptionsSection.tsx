@@ -17,7 +17,6 @@ import {
 } from "./settings-copy";
 import {
   settingsFeedback,
-  settingsResponseError,
   type SettingsFeedback,
   type SettingsMessage,
 } from "@/i18n/settings";
@@ -29,21 +28,16 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { calendarSubscriptionFeedback } from "@/i18n/calendar-subscription-feedback";
+import { requestOwnedJson } from "@/lib/owned-request-http";
+import { MAX_SUBSCRIPTIONS_PER_FAMILY, readCalendarSubscriptionList } from "@/lib/calendar-subscription-list";
 import { describeCalendarSync } from "@/lib/calendar-sync-status";
 import { useNow } from "@/components/fridge/sync-status";
 
 // Canonical protocol example stays literal in ordinary and expanded copy.
 const SUBSCRIPTION_URL_EXAMPLE = "webcal://example.com/calendar.ics";
 
-interface Subscription {
-  id: string;
-  name: string;
-  color: string | null;
-  url_hint?: string;
-  last_fetched_at: string | null;
-  last_status: string;
-  last_error: string | null;
-}
+type Subscription = import("@/lib/calendar-subscription-list").CalendarSubscriptionSummary;
 
 const COLORS: Array<{ value: string; label: SettingsMessage }> = [
   { value: "#2563eb", label: "blue" },
@@ -59,11 +53,13 @@ function statusText(
   now: number,
   messages: import("@/lib/calendar-sync-status").CalendarSyncMessages,
   fallback: string,
+  copy: (key: SettingsMessage, params?: Record<string, string | number>) => string,
 ): string {
+  const issue = sub.last_error ? calendarSubscriptionFeedback(sub.last_error, sub.last_status === "error" ? "refreshLastFailed" : "calendarStatusNote") : null;
   return describeCalendarSync({
     lastAttemptAt: sub.last_fetched_at,
     failed: sub.last_status === "error",
-    error: sub.last_error,
+    error: issue ? copy(issue.key, issue.params) : null,
     now,
     verb: "updated",
     failedFallback: fallback,
@@ -80,6 +76,17 @@ export default function CalendarSubscriptionsSection() {
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const loadInFlight = useRef(false);
+  const live = useRef(true);
+  const loadEpoch = useRef(0);
+  const readController = useRef<AbortController | null>(null);
+  const writeBusy = useRef(false);
+  const writeEpoch = useRef(0);
+  const writeController = useRef<AbortController | null>(null);
+  const writeHeldRef = useRef(false);
+  const [writeHeld, setWriteHeld] = useState(false);
+  const [accessHeld, setAccessHeld] = useState(false);
+  // Mounted-only recovery evidence; never store a private calendar URL in logs.
+  const pendingWrite = useRef<{ path: string; method: string; body?: string } | null>(null);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [color, setColor] = useState(COLORS[0].value);
@@ -92,147 +99,165 @@ export default function CalendarSubscriptionsSection() {
   );
 
   const load = useCallback(async () => {
-    if (loadInFlight.current) return;
+    if (!live.current || loadInFlight.current || writeBusy.current) return;
     loadInFlight.current = true;
+    const epoch = ++loadEpoch.current;
+    const controller = new AbortController();
+    readController.current = controller;
+    const current = () => live.current && loadEpoch.current === epoch;
     setLoaded(false);
     setLoadFailed(false);
     try {
-      const res = await fetch("/api/calendar/subscriptions");
-      const data = await res.json();
-      if (!res.ok || !data || !Array.isArray(data.subscriptions))
-        throw new Error("Subscription list unavailable");
-      setSubs(data.subscriptions);
+      const result = await requestOwnedJson("/api/calendar/subscriptions", { signal: controller.signal }, 128 * 1024);
+      if (!current()) return;
+      if (result.kind === "reply") {
+        const code = result.body && typeof result.body === "object" ? (result.body as Record<string, unknown>).code : null;
+        if ([401, 403].includes(result.response.status) || code === "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" || code === "CALENDAR_SUBSCRIPTION_ACCESS_UNCONFIRMED") setAccessHeld(true);
+      }
+      const subscriptions = result.kind === "reply" && result.response.ok
+        ? readCalendarSubscriptionList(result.body) : null;
+      if (!subscriptions) throw new Error("Subscription list unavailable");
+      setSubs(subscriptions);
     } catch {
       // A failed read is not evidence that the household has no calendars.
       // Store semantic state so a mounted language change needs no new read.
-      setLoadFailed(true);
+      if (current()) setLoadFailed(true);
     } finally {
-      loadInFlight.current = false;
-      setLoaded(true);
+      if (current()) {
+        readController.current = null;
+        loadInFlight.current = false;
+        setLoaded(true);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
+    live.current = true;
+    void load();
+    return () => {
+      live.current = false;
+      loadEpoch.current++;
+      readController.current?.abort();
+      readController.current = null;
+      loadInFlight.current = false;
+      writeEpoch.current++;
+      writeController.current?.abort();
+      writeController.current = null;
+      writeBusy.current = false;
+    };
   }, [load]);
 
-  const replace = (sub: Subscription | null | undefined) => {
-    if (!sub) return;
+  const replace = (sub: Subscription) => {
     setSubs((prev) => prev.map((s) => (s.id === sub.id ? sub : s)));
   };
 
-  const refresh = async (id: string) => {
-    setBusy(`refresh:${id}`);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await fetch(
-        `/api/calendar/subscriptions/${encodeURIComponent(id)}/refresh`,
-        { method: "POST" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(settingsResponseError(data.error, "refreshFailed"));
-        return;
-      }
-      replace(data.subscription);
-      if (data.result?.status === "ok") {
-        setNotice(
-          settingsFeedback("refreshedCounts", {
-            created: data.result.created,
-            updated: data.result.updated,
-            deleted: data.result.deleted,
-          }),
-        );
-      } else if (data.result?.status === "not_modified") {
-        setNotice(settingsFeedback("upToDate"));
-      }
-    } catch {
-      setError(settingsFeedback("refreshFailed"));
-    } finally {
-      setBusy(null);
+  const beginWrite = (action: string, packet: { path: string; method: string; body?: string }) => {
+    if (!live.current || writeBusy.current || loadInFlight.current || writeHeldRef.current || !loaded || loadFailed) return null;
+    writeBusy.current = true;
+    const epoch = ++writeEpoch.current;
+    const controller = new AbortController();
+    writeController.current = controller;
+    pendingWrite.current = { ...packet };
+    setBusy(action); setError(null); setNotice(null);
+    return { epoch, controller, packet };
+  };
+  type Write = NonNullable<ReturnType<typeof beginWrite>>;
+  const currentWrite = (run: Write) => live.current && writeEpoch.current === run.epoch;
+  const finishWrite = (run: Write) => {
+    if (!currentWrite(run)) return;
+    writeController.current = null; writeBusy.current = false; setBusy(null);
+  };
+  const holdWrite = () => {
+    writeHeldRef.current = true; setWriteHeld(true); setRemoving(null);
+    setError(settingsFeedback("calendarWriteUnconfirmed"));
+  };
+  const sendWrite = async (run: Write, fallback: SettingsMessage): Promise<Record<string, unknown> | null> => {
+    const result = await requestOwnedJson(run.packet.path, {
+      method: run.packet.method, signal: run.controller.signal,
+      ...(run.packet.body !== undefined ? { headers: { "Content-Type": "application/json" }, body: run.packet.body } : {}),
+    }, 128 * 1024);
+    if (!currentWrite(run)) return null;
+    if (result.kind !== "reply") { holdWrite(); return null; }
+    const data = result.body && typeof result.body === "object" && !Array.isArray(result.body)
+      ? result.body as Record<string, unknown> : null;
+    if (!result.response.ok) {
+      if ([401, 403].includes(result.response.status) || data?.code === "CALENDAR_SUBSCRIPTION_ACCESS_CHANGED" || data?.code === "CALENDAR_SUBSCRIPTION_ACCESS_UNCONFIRMED") setAccessHeld(true);
+      if (result.response.status >= 500 || [401, 403, 408, 409, 425, 429].includes(result.response.status)) holdWrite();
+      else { pendingWrite.current = null; setError(calendarSubscriptionFeedback(data?.error, fallback)); }
+      return null;
     }
+    if (!data) { holdWrite(); return null; }
+    return data;
+  };
+  const summary = (value: unknown, id?: string) => {
+    const row = readCalendarSubscriptionList({ subscriptions: [value] })?.[0];
+    return row && (id === undefined || row.id === id) ? row : null;
+  };
+
+  const refresh = async (id: string) => {
+    const run = beginWrite(`refresh:${id}`, { path: `/api/calendar/subscriptions/${encodeURIComponent(id)}/refresh`, method: "POST" });
+    if (!run) return;
+    try {
+      const data = await sendWrite(run, "refreshFailed");
+      if (!data) return;
+      const sub = summary(data.subscription, id);
+      const result = data.result && typeof data.result === "object" ? data.result as Record<string, unknown> : null;
+      if (!sub || !result || typeof result.status !== "string" || !["ok", "not_modified", "error"].includes(result.status)
+        || ["created", "updated", "deleted"].some(key => !Number.isSafeInteger(result[key]) || (result[key] as number) < 0)) { holdWrite(); return; }
+      replace(sub); pendingWrite.current = null;
+      if (result.status === "ok") setNotice(settingsFeedback("refreshedCounts", {
+        created: result.created as number, updated: result.updated as number, deleted: result.deleted as number,
+      }));
+      else if (result.status === "not_modified") setNotice(settingsFeedback("upToDate"));
+      else setError(settingsFeedback("refreshFailed"));
+    } finally { finishWrite(run); }
   };
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loaded || loadFailed || busy !== null) return;
-    setBusy("add");
-    setError(null);
-    setNotice(null);
+    if (!live.current || writeBusy.current || writeHeldRef.current || loadInFlight.current || !loaded || loadFailed) return;
+    const input = { name: name.trim(), url: url.trim(), color };
+    if (!input.name || !input.url) return;
+    if (subs.length >= MAX_SUBSCRIPTIONS_PER_FAMILY) { setError(settingsFeedback("calendarSubscriptionLimit")); return; }
+    const run = beginWrite("add", { path: "/api/calendar/subscriptions", method: "POST", body: JSON.stringify(input) });
+    if (!run) return;
     try {
-      const res = await fetch("/api/calendar/subscriptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), url: url.trim(), color }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(settingsResponseError(data.error, "addCalendarFailed"));
-        return;
-      }
-      setSubs((prev) => [...prev, data.subscription]);
-      setName("");
-      setUrl("");
-      setBusy(null);
-      await refresh(data.subscription.id);
-    } catch {
-      setError(settingsFeedback("addCalendarFailed"));
-    } finally {
-      setBusy(null);
-    }
+      const data = await sendWrite(run, "addCalendarFailed");
+      if (!data) return;
+      const sub = summary(data.subscription);
+      if (!sub || sub.name !== input.name || sub.color !== input.color || subs.some(row => row.id === sub.id)) { holdWrite(); return; }
+      setSubs((prev) => [...prev, sub]); pendingWrite.current = null;
+      setName(""); setUrl("");
+      finishWrite(run);
+      await refresh(sub.id);
+    } finally { finishWrite(run); }
   };
 
   const saveRename = async () => {
-    if (!renaming) return;
-    setBusy(`rename:${renaming.id}`);
-    setError(null);
+    if (!renaming?.name.trim()) return;
+    const original = { ...renaming, name: renaming.name.trim() };
+    const run = beginWrite(`rename:${original.id}`, { path: `/api/calendar/subscriptions/${encodeURIComponent(original.id)}`, method: "PATCH", body: JSON.stringify({ name: original.name }) });
+    if (!run) return;
     try {
-      const res = await fetch(
-        `/api/calendar/subscriptions/${encodeURIComponent(renaming.id)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: renaming.name.trim() }),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(settingsResponseError(data.error, "renameFailed"));
-        return;
-      }
-      replace(data.subscription);
-      setRenaming(null);
-    } catch {
-      setError(settingsFeedback("renameFailed"));
-    } finally {
-      setBusy(null);
-    }
+      const data = await sendWrite(run, "renameFailed");
+      if (!data) return;
+      const sub = summary(data.subscription, original.id);
+      if (!sub || sub.name !== original.name) { holdWrite(); return; }
+      replace(sub); pendingWrite.current = null; setRenaming(null);
+    } finally { finishWrite(run); }
   };
 
   const remove = async (sub: Subscription) => {
-    setBusy(`remove:${sub.id}`);
-    setError(null);
-    setNotice(null);
+    const run = beginWrite(`remove:${sub.id}`, { path: `/api/calendar/subscriptions/${encodeURIComponent(sub.id)}`, method: "DELETE" });
+    if (!run) return;
     try {
-      const res = await fetch(
-        `/api/calendar/subscriptions/${encodeURIComponent(sub.id)}`,
-        { method: "DELETE" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(settingsResponseError(data.error, "removeCalendarFailed"));
-        return;
-      }
-      setSubs((prev) => prev.filter((s) => s.id !== sub.id));
-      setRemoving(null);
+      const data = await sendWrite(run, "removeCalendarFailed");
+      if (!data) return;
+      if (data.success !== true || !Number.isSafeInteger(data.removedEvents) || (data.removedEvents as number) < 0) { holdWrite(); return; }
+      pendingWrite.current = null; setSubs((prev) => prev.filter((s) => s.id !== sub.id)); setRemoving(null);
       focusCalendarSection("calendar-subscriptions-heading");
       setNotice(settingsFeedback("removedSubscription", { name: sub.name }));
-    } catch {
-      setError(settingsFeedback("removeCalendarFailed"));
-    } finally {
-      setBusy(null);
-    }
+    } finally { finishWrite(run); }
   };
 
   return (
@@ -244,7 +269,17 @@ export default function CalendarSubscriptionsSection() {
       icon={<SettingsIcon icon={CalendarPlus} tone="sky" />}
     >
       <p className="text-sm text-muted-foreground mb-4">{copy("readOnly")}</p>
+      {writeHeld && <div role="alert" className="mb-4 space-y-3">
+        <p className="text-sm text-danger-text">{copy("calendarWriteUnconfirmed")}</p>
+        <button type="button" className="btn-secondary min-h-[44px]" disabled={!loaded || busy !== null} onClick={() => void load()}>{copy("checkSubscriptions")}</button>
+      </div>}
 
+      {!accessHeld && <>
+      {loaded && !loadFailed && <p id="calendar-subscription-capacity" role="status" className="mb-3 text-sm text-label-secondary">
+        {subs.length >= MAX_SUBSCRIPTIONS_PER_FAMILY
+          ? copy("calendarSubscriptionCapacityFull", { limit: MAX_SUBSCRIPTIONS_PER_FAMILY })
+          : copy("calendarSubscriptionCapacity", { count: subs.length, limit: MAX_SUBSCRIPTIONS_PER_FAMILY })}
+      </p>}
       {!loaded ? (
         <p className="text-sm text-muted-foreground">
           {copy("loadingEllipsis")}
@@ -284,6 +319,7 @@ export default function CalendarSubscriptionsSection() {
                       </label>
                       <input
                         id={`rename-${sub.id}`}
+                        disabled={busy !== null || writeHeld}
                         value={renaming.name}
                         maxLength={60}
                         onChange={(e) =>
@@ -294,7 +330,7 @@ export default function CalendarSubscriptionsSection() {
                       <button
                         type="button"
                         onClick={saveRename}
-                        disabled={!renaming.name.trim() || busy !== null}
+                        disabled={!renaming.name.trim() || busy !== null || writeHeld}
                         className="btn-primary inline-flex items-center min-h-[44px]"
                       >
                         <Check className="w-4 h-4 mr-1" aria-hidden="true" />{" "}
@@ -302,6 +338,7 @@ export default function CalendarSubscriptionsSection() {
                       </button>
                       <button
                         type="button"
+                        disabled={busy !== null || writeHeld}
                         onClick={() => setRenaming(null)}
                         className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground"
                       >
@@ -316,7 +353,7 @@ export default function CalendarSubscriptionsSection() {
                   )}
                   {sub.url_hint && (
                     <div className="text-xs text-label-tertiary break-all">
-                      {sub.url_hint}
+                      {sub.url_hint === "Unavailable" ? copy("calendarHintUnavailable") : sub.url_hint}
                     </div>
                   )}
                   <div
@@ -324,7 +361,7 @@ export default function CalendarSubscriptionsSection() {
                     role={sub.last_status === "error" ? "status" : undefined}
                   >
                     {sub.last_status === "error" ? copy("problem") : ""}
-                    {statusText(sub, now, syncCopy, copy("refreshLastFailed"))}
+                    {statusText(sub, now, syncCopy, copy("refreshLastFailed"), copy)}
                   </div>
                 </div>
               </div>
@@ -333,7 +370,7 @@ export default function CalendarSubscriptionsSection() {
                   <button
                     type="button"
                     onClick={() => refresh(sub.id)}
-                    disabled={busy !== null}
+                    disabled={busy !== null || writeHeld}
                     className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground hover:bg-muted"
                     aria-label={copy("refreshLabel", { name: sub.name })}
                   >
@@ -346,7 +383,7 @@ export default function CalendarSubscriptionsSection() {
                   <button
                     type="button"
                     onClick={() => setRenaming({ id: sub.id, name: sub.name })}
-                    disabled={busy !== null}
+                    disabled={busy !== null || writeHeld}
                     className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-input text-foreground hover:bg-muted"
                     aria-label={copy("renameLabel", { name: sub.name })}
                   >
@@ -359,7 +396,7 @@ export default function CalendarSubscriptionsSection() {
                       setError(null);
                       setRemoving(sub);
                     }}
-                    disabled={busy !== null}
+                    disabled={busy !== null || writeHeld}
                     className="inline-flex items-center min-h-[44px] px-3 rounded-lg border border-[var(--danger-tint)] text-danger-text hover:bg-[var(--danger-tint)]"
                     aria-label={copy("removeLabel", { name: sub.name })}
                   >
@@ -374,6 +411,7 @@ export default function CalendarSubscriptionsSection() {
       )}
 
       <form onSubmit={add} className="space-y-3">
+        <fieldset disabled={busy !== null || writeHeld} className="space-y-4">
         <div>
           <label
             htmlFor="calendarSubName"
@@ -416,6 +454,10 @@ export default function CalendarSubscriptionsSection() {
             {copy("calendarLinkPrivacy")}
           </p>
         </div>
+        <details className="rounded-lg border border-border px-3">
+          <summary className="min-h-[44px] cursor-pointer py-3 text-sm font-medium">
+            {copy("calendarColourSummary", { colour: copy(COLORS.find(option => option.value === color)?.label ?? "blue") })}
+          </summary>
         <fieldset>
           <legend className="block text-sm font-medium text-foreground mb-1">
             {copy("colour")}
@@ -445,24 +487,29 @@ export default function CalendarSubscriptionsSection() {
             ))}
           </div>
         </fieldset>
+        </details>
         <button
           type="submit"
           disabled={
             !loaded ||
             loadFailed ||
-            busy !== null ||
+            busy !== null || writeHeld ||
+            subs.length >= MAX_SUBSCRIPTIONS_PER_FAMILY ||
             !name.trim() ||
             !url.trim()
           }
           className="btn-primary inline-flex items-center min-h-[44px]"
+          aria-describedby={loaded && !loadFailed ? "calendar-subscription-capacity" : undefined}
         >
           <CalendarPlus className="w-4 h-4 mr-2" aria-hidden="true" />
           {busy === "add" ? copy("adding") : copy("addCalendar")}
         </button>
+        </fieldset>
       </form>
+      </>}
 
       <div aria-live="polite" className="mt-3">
-        {error && !removing && (
+        {error && !removing && !writeHeld && (
           <p className="text-sm text-danger-text">
             <SettingsText feedback={error} />
           </p>

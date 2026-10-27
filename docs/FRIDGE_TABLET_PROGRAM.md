@@ -657,6 +657,14 @@ Deliverables:
 
 ### Phase 5 — Contextual AI
 
+Canonical product tracker: #464, with the complete original #123 scope transferred
+verbatim on 2026-10-25. #123 is closed only as redundant tracking. All initial AI
+jobs, architectural rules, acceptance criteria, dinner-before-departure journey
+and six approved coordination workflows remain unfinished acceptance in #464.
+Shared evaluation/grounding/cost/privacy gates stay #144, design #499 and provider
+eligibility #567. Existing text-only defaults, role/device boundaries and default-off
+activation remain unchanged. Historical references to #123 below retain their history.
+
 Outcome: AI reduces planning effort without becoming the system of record.
 
 Deliverables:

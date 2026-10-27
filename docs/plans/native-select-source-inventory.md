@@ -1,5 +1,13 @@
 # Native select source inventory
 
+Current tracker: #499, named **Required dropdown contrast acceptance transferred from #448**.
+#448 is closed as redundant tracking only (2026-10-25). All source-inventory,
+custom-menu, contrast, compiled closed/expanded native controls, keyboard/role
+and separate Android/Windows popup criteria remain unchecked. Counts and source
+findings below retain their dated scope; this consolidation performs no fresh
+inventory run, compiled check or runtime QA.
+
+
 Issue #448; source-only snapshot on 2026-10-20. JSX source locations were
 enumerated without compiling CSS or opening browser/OS native popups. Line
 numbers are routing hints and can move with later edits. This is not rendered,

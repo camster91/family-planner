@@ -8,7 +8,7 @@ jest.mock('@/lib/prisma', () => ({ prisma: require('@/__tests__/helpers/two-hous
 jest.mock('@/lib/feature-gate-server', () => ({ featureGate: async () => null }))
 
 import { PATCH as updateItem } from '../items/update/route'
-import { db, req, writesTo, expectDenied, FOREIGN, type UserKey } from '@/__tests__/helpers/two-household'
+import { db, req, writesTo, expectDenied, FOREIGN, fakePrisma, type UserKey } from '@/__tests__/helpers/two-household'
 import { idempotencyRuntime } from '@/lib/idempotency'
 
 const K1 = '11111111-1111-4111-8111-111111111111'
@@ -20,12 +20,27 @@ function tick(as: UserKey | null, body: Record<string, unknown>, key?: string) {
 
 const item = (id: string) => db.find('listItem', id)!
 const records = () => db.rows('idempotencyRecord')
+const originalIdempotencyCreate = fakePrisma.idempotencyRecord.create
 
 describe('list item tick with Idempotency-Key', () => {
   beforeEach(() => {
     db.reset()
     idempotencyRuntime.random = () => 0.99
+    // The production receipt columns are nullable and default to NULL while a
+    // request is in flight.  Normalize this older shared fixture so the
+    // canonical list writer does not mistake `undefined` for a finished row.
+    jest.spyOn(fakePrisma.idempotencyRecord, 'create').mockImplementation(async (args: any) => {
+      const created = await originalIdempotencyCreate(args)
+      const record = db.find('idempotencyRecord', String(created.id))
+      if (record) {
+        record.response_status = null
+        record.response_body = null
+      }
+      return created
+    })
   })
+
+  afterEach(() => jest.restoreAllMocks())
 
   it('applies once and replays a duplicate with the same key', async () => {
     const first = await tick('childA', { itemId: 'item-a', checked: true }, K1)

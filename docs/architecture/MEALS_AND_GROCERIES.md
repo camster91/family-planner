@@ -297,7 +297,7 @@ Expected results:
 **Status (2026-09-28):** implemented in #252 (PR #259). **Design reference:** Cameron chose the Everblog 13.4" FridgeCal (https://everblog.com/products/everblog-13-4-inch-fridgecal-calendar) as the design reference for the fridge surface, recorded in #262 and `design/REFERENCES.md`; it is the reference for #252's meal, recipe and grocery views too. The views that shipped in #252 have not yet been reviewed against it (see "Not done here" below), and no Figma frames exist (#150–#153). What shipped:
 
 - `/dashboard/meals` renders every meal per slot (gap 2.4.1 closed). Each meal row opens the edit modal; a slot with meals has an "Add another <type>, <day>" button; an empty slot is one "Add <type>, <day>" row. The meal type is always written out (not icon-only), rows wrap long names, and every target is at least 44px.
-- The meal modal has a recipe picker (`GET /api/recipes`, following `nextOffset` so every recipe is listed) with "No recipe (just a name)" as the default and an inline "New recipe" panel (`POST /api/recipes`: title, prep/cook minutes, ingredient lines of amount, unit and name). Picking a recipe fills an empty name with its title. A free-text meal sends exactly the pre-#252 body; `recipe_id` is sent only when a recipe is picked (add) or the link changes (edit, `null` unlinks). A linked meal shows "View recipe" and its row says "<Type> · Recipe · N min prep".
+- The meal modal has a recipe picker (`GET /api/recipes`, full-library search plus explicit24-row pages with `nextOffset`; the selected recipe stays visible while browsing) with "No recipe (just a name)" as the default and an inline "New recipe" panel (`POST /api/recipes`: title, prep/cook minutes, ingredient lines of amount, unit and name). Picking a recipe fills an empty name with its title. A free-text meal sends exactly the pre-#252 body; `recipe_id` is sent only when a recipe is picked (add) or the link changes (edit, `null` unlinks). A linked meal shows "View recipe" and its row says "<Type> · Recipe · N min prep".
 - Recipe detail is a route, `/dashboard/meals/recipes/[id]` (title, description, prep, cook, servings, ingredients with amounts, method; loading, not-found and error states). Its `actions` slot holds #253's `AddToGroceriesButton` (recipe-level add, source `recipe:<id>`) when the recipe has ingredients.
 - Grocery list rows show `amount unit` when `amount` is set, else "× n" for a quantity above one (O-6), plus "from <recipe title>" when the row has a `recipe_id`. Open rows sharing an `ingredient_id` are shown together as one labelled group ("Tomatoes · 2 entries") at the position of the first row, one row per source (O-3); checked rows are never grouped. Rules: `src/lib/grocery-display.ts`.
 - `meal_plan`: see §2.3. The unused `src/components/lists/*` are deleted.
@@ -672,3 +672,45 @@ Inventory/Today copy describes recorded matches, not confirmed real-world absenc
 or enough stock. All-matched recipes still offer explicit grocery review. No
 inventory decrement, quantity comparison, synonym engine or provider call added.
 Source tests/fixtures only; integrated QA and native acceptance remain deferred.
+
+## Personal item/capture lifecycle renewal — 2026-10-24 (#134/#135, source only)
+
+Generic item add, strict offline grocery add and captured-grocery creation now
+share current User/household locks, exact role/session generation, known-role and
+household/list-feature permission renewal inside their canonical effect. Existing
+parent/teen/child item-add permission remains; capture can resolve/create a list
+and retains its stronger parent/teen permission. Paired devices still call the
+existing shared `createListItem` through their separate device authority. No
+personal operation is added to the device allowlist.
+
+Every personal first effect checks authority before private receipt reads and
+item creation. Explicit destinations retain current family/type checks under a
+list lock, including completed replay and overlapping receipt takeover. Normal
+and strict-grocery routes now supply replay authorization; assistant-backed
+operations keep source ownership authorization and first-effect verification,
+with a lease/gate assertion after list-lock waits. Completed replay does not
+reverify expired source context or create another item. Generic missing/foreign
+outer-route status policy and the canonical item/ingredient/section write remain.
+
+Capture now delegates to `createCapturedGrocery`: authority then stable receipt
+lock/read precede default-list resolution. A completed/missing receipt cannot
+create another empty default list before returning. New list, item and successful
+receipt share the transaction; a failed item result after creating a new default
+throws to request whole-transaction rollback. The captured response remains a
+historical confirmed result if that item/list was later deleted; replay renews
+current family/role access and does not resolve/recreate a default list. Explicit
+list-target requests continue to refuse a deleted or no-longer-grocery target.
+
+Request bodies, queue owner headers/action namespaces, keys/hashes/expiry,
+source_request_id, successful HTTP JSON and no-key distinct-add behavior are
+unchanged. Internal actors now include current role and session generation; they
+are not client-supplied authority. Outer idempotency claim/refusal ledger writes
+can still precede effect authorization. No transport/provider/media/stock action,
+background dispatch, schema change or queue migration/activation was introduced.
+
+New decision/receipt/default-order/role/target tests and existing capture/keyed
+integration sources are authored/adapted, not executed. Callback fakes establish
+no actual Postgres lock/rollback/collision result. Source inspection found list/
+note **container** creation already renewed authority; no duplicate engine or
+rewrite was added there. Original runtime, offline/owner, two-household,
+rollback, mounted/device and full #134/#135 acceptance remain open.

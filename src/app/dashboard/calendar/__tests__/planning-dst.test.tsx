@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import * as React from "react";
 import { runInThisContext } from "node:vm";
 // Jest's process.env is sandboxed; set the real Node timezone and restore it.
@@ -24,7 +25,7 @@ beforeEach(() => {
   expect(new Date("2026-11-01T05:30:00Z").getTimezoneOffset()).toBe(240);
   expect(new Date("2026-11-01T06:15:00Z").getTimezoneOffset()).toBe(300);
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }
@@ -67,7 +68,7 @@ it.each(["day", "week"] as const)(
 );
 it("shows zones on continuation timestamps in the clock-change fallback", async () => {
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }

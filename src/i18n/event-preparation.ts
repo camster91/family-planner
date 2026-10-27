@@ -114,6 +114,7 @@ const en = {
   savedElsewhere:
     "Saved request is for another event. Open that event to review it.",
   viewTask: "Open task",
+  viewRoutine: "Open source routine",
   allDone: "All steps checked",
   retained: "Existing steps are kept",
   zone: "Time zone",
@@ -235,6 +236,7 @@ const es: typeof en = {
   savedElsewhere:
     "La solicitud pertenece a otro evento. Ábrelo para revisarla.",
   viewTask: "Abrir tarea",
+  viewRoutine: "Abrir rutina de origen",
   allDone: "Todos los pasos verificados",
   retained: "Se conservan los pasos actuales",
   zone: "Zona horaria",

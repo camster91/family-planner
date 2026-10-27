@@ -1,0 +1,11 @@
+import { REWARD_ACTION_PROTOCOL, REWARD_ACTION_PROTOCOL_HEADER } from "@/lib/reward-action-shared";
+import type { NextRequest } from "next/server";
+import { handleRewardClaimRequest } from "@/lib/reward-claim-http";
+export const dynamic = "force-dynamic";
+/** Strict path: no fallback to an unversioned write; all results private. */
+export async function POST(request: NextRequest) {
+  const response = await handleRewardClaimRequest(request, "owned");
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set(REWARD_ACTION_PROTOCOL_HEADER, REWARD_ACTION_PROTOCOL);
+  return response;
+}

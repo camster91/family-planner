@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { AnalyticsSummaryLimitError, ANALYTICS_WINDOW_DAYS } from '@/lib/analytics-summary-contract'
 import { TrendingUp } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
 import { Avatar } from '@/components/ui/avatar'
@@ -11,7 +13,8 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
 import { useAnalyticsText } from '@/i18n/analytics'
 
-import { parseAnalyticsPayload, type AnalyticsData } from '@/lib/analytics-presentation'
+import type { AnalyticsData } from '@/lib/analytics-presentation'
+import { readHouseholdAnalytics } from '@/lib/analytics-read-client'
 
 function formatWeekday(date: string, locale: string): string {
   const parsed = new Date(`${date}T12:00:00Z`)
@@ -27,35 +30,51 @@ function AnalyticsPageContent() {
   const analyticsText = useAnalyticsText()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const [loadError, setLoadError] = useState<"failed" | "limit" | null>(null)
 
-  useEffect(() => {
-    void loadAnalytics()
-  }, [])
-
-  const loadAnalytics = async () => {
+  const live = useRef(false)
+  const readSerial = useRef(0)
+  const activeRead = useRef<AbortController | null>(null)
+  const loadAnalytics = useCallback(async () => {
+    if (!live.current) return
+    activeRead.current?.abort()
+    const controller = new AbortController()
+    activeRead.current = controller
+    const serial = ++readSerial.current
+    const current = () => live.current && !controller.signal.aborted && serial === readSerial.current
     setLoading(true)
-    setLoadError(false)
+    setLoadError(null)
     try {
-      // O-31: the server counts days in the viewer's local zone.
+      // O-31: canonical day counts use the viewer's zone, independent of locale.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
       const zoneParam = tz
         ? `tz=${encodeURIComponent(tz)}`
         : `tzOffset=${new Date().getTimezoneOffset()}`
-      const res = await fetch(`/api/analytics?${zoneParam}`)
-      const payload: unknown = await res.json()
-      const parsed = res.ok ? parseAnalyticsPayload(payload) : null
-      if (!parsed) {
-        setLoadError(true)
-        return
+      const data = await readHouseholdAnalytics(zoneParam, controller.signal)
+      if (current()) setData(data)
+    } catch (cause) {
+      if (current()) {
+        setData(null)
+        setLoadError(cause instanceof AnalyticsSummaryLimitError ? "limit" : "failed")
       }
-      setData(parsed)
-    } catch {
-      setLoadError(true)
     } finally {
-      setLoading(false)
+      if (current()) {
+        activeRead.current = null
+        setLoading(false)
+      }
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    live.current = true
+    void loadAnalytics()
+    return () => {
+      live.current = false
+      ++readSerial.current
+      activeRead.current?.abort()
+      activeRead.current = null
+    }
+  }, [loadAnalytics])
 
   const members = data?.members ?? []
   const gamification = data?.gamification === true
@@ -84,16 +103,20 @@ function AnalyticsPageContent() {
       {loadError ? (
         <div role="alert" className="card-apple flex flex-col items-start gap-3 p-5">
           <div>
-            <p className="text-title-3 text-label-primary">{analyticsText('loadError')}</p>
-            <p className="mt-1 text-subhead text-label-secondary">{analyticsText('weeklyTrendDescription')}</p>
+            <p className="text-title-3 text-label-primary">{analyticsText(loadError === 'limit' ? 'summaryLimit' : 'loadError')}</p>
+            <p className="mt-1 text-subhead text-label-secondary">{analyticsText(loadError === 'limit' ? 'summaryLimitHelp' : 'weeklyTrendDescription')}</p>
           </div>
-          <button
+          {loadError === 'limit' ? (
+            <Link href="/dashboard/chores" className="btn-tinted inline-flex items-center min-h-[44px] px-4 text-subhead font-semibold">
+              {analyticsText('openChores')}
+            </Link>
+          ) : <button
             type="button"
             onClick={() => void loadAnalytics()}
             className="btn-tinted min-h-[44px] min-w-[44px] px-4 text-subhead font-semibold"
           >
             {analyticsText('retry')}
-          </button>
+          </button>}
         </div>
       ) : loading ? (
         <div className="card-apple p-8 text-center text-subhead text-label-secondary" role="status" aria-busy="true">
@@ -201,13 +224,16 @@ function AnalyticsPageContent() {
               <h2 id="progress-members-title" className="section-header">{analyticsText('progressByPerson')}</h2>
               <span className="text-footnote text-label-secondary">{members.length}</span>
             </div>
+            <p className="mb-3 text-footnote text-label-secondary" id="progress-members-scope">
+              {analyticsText('progressByPersonDescription', { days: ANALYTICS_WINDOW_DAYS })}
+            </p>
             {members.length === 0 ? (
               <div className="card-apple p-8 text-center">
                 <p className="text-title-3 text-label-primary">{analyticsText('noProgress')}</p>
                 <p className="mt-1 text-subhead text-label-secondary">{analyticsText('noProgressDescription')}</p>
               </div>
             ) : (
-              <ul className="card-apple divide-y divide-[var(--surface-separator)] overflow-hidden" data-testid="progress-members">
+              <ul className="card-apple divide-y divide-[var(--surface-separator)] overflow-hidden" data-testid="progress-members" aria-describedby="progress-members-scope">
                 {members.map((member) => (
                   <li key={member.id || member.name} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-4 py-3 sm:flex sm:gap-3 sm:px-5">
                     <div className="row-span-2 self-center sm:row-auto"><Avatar name={member.name || '?'} src={member.avatar_url} size="sm" /></div>

@@ -39,7 +39,15 @@ async function expect500(res: any) {
   expect((await bodyOf(res)).error).toBe("Internal server error");
 }
 
-beforeEach(() => db.reset());
+beforeEach(() => {
+  db.reset();
+  // PATCH/DELETE go through the transaction-level effective feature check,
+  // while this malformed-body suite mocks the outer route gate open.
+  db.find("family", "family-A")!.features = { notes: true };
+  // The production model has a database default for this version column; add
+  // it to the older in-memory seed so valid mutation cases exercise the route.
+  for (const row of db.rows("pinnedNote")) row.updated_at ??= row.created_at ?? new Date();
+});
 
 describe("PATCH /api/family/features", () => {
   it.each([[null], [[1]], ["notes"], [42], [{ features: [true] }], [{ key: 7, enabled: true }], [{}]])(

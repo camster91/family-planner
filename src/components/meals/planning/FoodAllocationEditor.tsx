@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useTranslation } from "@/i18n";
+import { useFoodPlanningInputsText } from "@/i18n/food-planning-inputs";
 import type { FoodEditorSlot } from "@/lib/food-planning/editor";
 import type { FoodRecoveryContext } from "@/lib/food-planning/recovery-contract";
 import { FoodRecordPicker } from "./FoodRecordPicker";
@@ -20,9 +20,8 @@ export function FoodAllocationEditor({
   onChange: (allocations: FoodEditorSlot["allocations"]) => void;
   onFailure: (error: unknown) => void;
 }) {
-  const { locale } = useTranslation(),
-    es = locale === "es",
-    [page, setPage] = React.useState(0),
+  const text = useFoodPlanningInputsText();
+  const [page, setPage] = React.useState(0),
     index = Math.min(page, Math.max(0, slot.allocations.length - 1)),
     value = slot.allocations[index];
   const quantitiesKnown = slot.allocations.every(
@@ -40,27 +39,23 @@ export function FoodAllocationEditor({
   return (
     <details>
       <summary className="min-h-[44px] py-3 cursor-pointer font-semibold">
-        {es ? "Planificar comidas con este plato" : "Plan meals from this dish"}{" "}
+        {text("planFromDish")}{" "}
         ({slot.allocations.length})
       </summary>
       <div className="space-y-3">
         <p className="text-footnote text-label-secondary">
-          {es
-            ? "Planificar porciones no las marca como preparadas ni consumidas. Los ingredientes de todo el plato se cuentan una sola vez."
-            : "Planning portions does not mark them prepared or eaten. Ingredients are counted once for the whole dish."}
+          {text("portionsBoundary")}
         </p>
         <p>
-          {es ? "Porciones planificadas" : "Planned portions"}:{" "}
-          {planned ?? (es ? "por revisar" : "needs checking")} /{" "}
-          {slot.servings || (es ? "por revisar" : "needs checking")}
+          {text("plannedPortions")}:{" "}
+          {planned ?? text("needsChecking")} /{" "}
+          {slot.servings || text("needsChecking")}
         </p>
         {planned !== null &&
           /^\d+$/.test(slot.servings) &&
           planned > Number(slot.servings) && (
             <p role="status">
-              {es
-                ? "Las comidas superan las porciones totales. Ajusta el reparto antes de guardar."
-                : "Allocations exceed the whole dish. Adjust portions before saving."}
+              {text("allocationsExceed")}
             </p>
           )}
         {value && (
@@ -72,7 +67,7 @@ export function FoodAllocationEditor({
                 disabled={disabled || index === 0}
                 onClick={() => setPage(index - 1)}
               >
-                {es ? "Anterior" : "Previous meal"}
+                {text("previousMeal")}
               </button>
               <span aria-live="polite">
                 {index + 1}/{slot.allocations.length}
@@ -83,12 +78,12 @@ export function FoodAllocationEditor({
                 disabled={disabled || index + 1 === slot.allocations.length}
                 onClick={() => setPage(index + 1)}
               >
-                {es ? "Siguiente" : "Next meal"}
+                {text("nextMeal")}
               </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label>
-                {es ? "Día de la comida" : "Meal day"}
+                {text("mealDay")}
                 <input
                   type="date"
                   className={field}
@@ -99,7 +94,7 @@ export function FoodAllocationEditor({
                 />
               </label>
               <label>
-                {es ? "Comida" : "Meal"}
+                {text("meal")}
                 <select
                   className={field}
                   value={value.mealType}
@@ -111,15 +106,15 @@ export function FoodAllocationEditor({
                   }
                 >
                   <option value="breakfast">
-                    {es ? "Desayuno" : "Breakfast"}
+                    {text("breakfast")}
                   </option>
-                  <option value="lunch">{es ? "Almuerzo" : "Lunch"}</option>
-                  <option value="dinner">{es ? "Cena" : "Dinner"}</option>
-                  <option value="snack">{es ? "Tentempié" : "Snack"}</option>
+                  <option value="lunch">{text("lunch")}</option>
+                  <option value="dinner">{text("dinner")}</option>
+                  <option value="snack">{text("snack")}</option>
                 </select>
               </label>
               <label>
-                {es ? "Porciones" : "Portions"}
+                {text("portions")}
                 <input
                   type="number"
                   className={field}
@@ -141,14 +136,14 @@ export function FoodAllocationEditor({
                   patch({ inheritCook: event.target.checked })
                 }
               />
-              {es ? "Usar el cocinero del plato" : "Use this dish’s cook"}
+              {text("inheritCook")}
             </label>
             {!value.inheritCook && (
               <FoodRecordPicker
                 key={`${slot.key}-${index}`}
                 kind="people"
-                label={es ? "Cocinero de esta comida" : "Cook for this meal"}
-                emptyLabel={es ? "Sin cocinero asignado" : "No cook assigned"}
+                label={text("mealCook")}
+                emptyLabel={text("noCook")}
                 values={value.cookId ? [value.cookId] : []}
                 context={context}
                 disabled={disabled}
@@ -157,9 +152,7 @@ export function FoodAllocationEditor({
               />
             )}
             <label>
-              {es
-                ? "Notas de esta comida (opcionales)"
-                : "Meal notes (optional)"}
+              {text("mealNotes")}
               <textarea
                 className={field}
                 maxLength={2000}
@@ -176,7 +169,7 @@ export function FoodAllocationEditor({
                 onChange(slot.allocations.filter((_, i) => i !== index))
               }
             >
-              {es ? "Quitar esta comida" : "Remove this meal allocation"}
+              {text("removeAllocation")}
             </button>
           </>
         )}
@@ -199,7 +192,7 @@ export function FoodAllocationEditor({
             setPage(slot.allocations.length);
           }}
         >
-          {es ? "Añadir comida planificada" : "Add planned meal"}
+          {text("addAllocation")}
         </button>
       </div>
     </details>

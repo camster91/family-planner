@@ -25,6 +25,11 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  lockImportAuthorityInTx,
+  startImportJob,
+  recordImportFailure,
+} from "./import-authority";
+import {
   IMPORTED_LIST_DESCRIPTION,
   cleanContent,
   matchIngredient,
@@ -78,6 +83,7 @@ export async function importMealPlanner(
     startedBy: string;
     sourceUserToTargetUser: Readonly<Record<string, string>>;
     dryRun?: boolean;
+    sessionVersion?: number;
   },
 ): Promise<{
   plan: MealPlannerImportPlan;
@@ -98,19 +104,22 @@ export async function importMealPlanner(
   if (!prisma) throw new Error("Database is not configured");
   const familyId = options.familyId;
 
-  const job = await prisma.importJob.create({
-    data: {
-      family_id: familyId,
-      source_app: SOURCE_APP,
-      source_version: plan.sourceVersion,
-      status: "running",
-      dry_run: false,
-      started_by: options.startedBy,
-    },
-  });
+  const authority = {
+    familyId: options.familyId,
+    startedBy: options.startedBy,
+    sessionVersion: options.sessionVersion,
+    mappedUserIds: Object.values(options.sourceUserToTargetUser),
+  };
+  const job = await startImportJob(
+    prisma,
+    authority,
+    SOURCE_APP,
+    plan.sourceVersion,
+  );
   try {
     await prisma.$transaction(
       async (tx) => {
+        await lockImportAuthorityInTx(tx, authority);
         const prior = await tx.importedRecord.findMany({
           where: { family_id: familyId, source_app: SOURCE_APP },
           select: {
@@ -489,15 +498,7 @@ export async function importMealPlanner(
       { timeout: 60_000 },
     );
   } catch (error) {
-    await prisma.importJob.update({
-      where: { id: job.id },
-      data: {
-        status: "failed",
-        completed_at: new Date(),
-        error:
-          error instanceof Error ? error.message : "Unknown import failure",
-      },
-    });
+    await recordImportFailure(prisma, options.familyId, SOURCE_APP, job.id);
     throw error;
   }
   return { plan, summary, jobId: job.id };

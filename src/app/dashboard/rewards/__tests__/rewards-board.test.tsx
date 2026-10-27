@@ -6,7 +6,7 @@
 // for ever. Claiming now asks first and calls the claim API; a parent marks a
 // claimed reward as given through the approve API. Failures say why.
 import * as React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '@/components/ui/toast'
 import { I18nProvider } from '@/i18n'
@@ -363,3 +363,225 @@ describe('RewardsBoard', () => {
     expect(within(row).queryByRole('button')).toBeNull()
   })
 })
+
+it('labels the current reward page and provides explicit older/newest links', () => {
+  renderBoard({ pageInfo: { older: true, nextCursor: 'fixture-cursor' } })
+  expect(screen.getByText('This page shows 2 rewards. Choices and history below apply to this page.')).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('href')).toBe('/dashboard/rewards?cursor=fixture-cursor')
+  expect(screen.getByRole('link', { name: 'Newest rewards' }).getAttribute('href')).toBe('/dashboard/rewards')
+  expect(screen.queryByText('All family rewards')).toBeNull()
+})
+it('retains a closed uncertain claim for review and holds page navigation after a still-available status read', async () => {
+  const calls = mockFetch(url => url === '/api/rewards/claim' ? 'throw' : { status: 200, body: { rewards: [MOVIE] } })
+  const user = userEvent.setup()
+  renderBoard({ pageInfo: { older: false, nextCursor: 'fixture-cursor' } })
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+  await within(screen.getByRole('dialog')).findByText('Check status')
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+  expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('true')
+  await user.click(screen.getByRole('button', { name: 'Check status' }))
+  await waitFor(() => expect(calls.some(call => call.url === '/api/rewards?rewardId=r_movie')).toBe(true))
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('true')
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(1)
+})
+
+// Source-only transport regressions; current no-QA instruction defers execution.
+it('settles an abort-ignoring claim deadline and retries with the original key/body', async () => {
+  jest.useFakeTimers()
+  try {
+    const calls: Array<{ body: unknown; headers: HeadersInit | undefined }> = []
+    global.fetch = jest.fn(async (_input, init) => {
+      calls.push({ body: init?.body, headers: init?.headers })
+      if (calls.length === 1) return await new Promise<Response>(() => {})
+      return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
+    }) as typeof fetch
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    renderBoard({ pageInfo: { older: false, nextCursor: 'fixture-cursor' } })
+    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
+    await act(async () => { jest.advanceTimersByTime(15_001) })
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Try again' }).hasAttribute('disabled')).toBe(false)
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('true')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls).toHaveLength(2)
+    expect(calls[1].body).toBe(calls[0].body)
+    expect(new Headers(calls[1].headers).get('Idempotency-Key')).toBe(new Headers(calls[0].headers).get('Idempotency-Key'))
+    expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('aria-disabled')).toBe('false')
+  } finally { jest.useRealTimers() }
+})
+it('keeps an oversized approval receipt uncertain and reuses the original key on explicit retry', async () => {
+  const calls: RequestInit[] = []
+  const decode = jest.fn(async () => GIVEN_ICE_CREAM)
+  global.fetch = jest.fn(async (_input, init) => {
+    calls.push(init ?? {})
+    return calls.length === 1
+      ? { ok: true, status: 200, headers: new Headers({ 'content-length': '1048576' }), json: decode } as unknown as Response
+      : { ok: true, status: 200, json: async () => GIVEN_ICE_CREAM } as Response
+  }) as typeof fetch
+  const user = userEvent.setup()
+  renderBoard({ isParent: true, currentUserId: 'parent_1' })
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }))
+  await screen.findByRole('button', { name: 'Try again' })
+  expect(decode).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  await screen.findByText('Ice cream marked as given')
+  expect(calls).toHaveLength(2)
+  expect(calls[1].body).toBe(calls[0].body)
+  expect(new Headers(calls[1].headers).get('Idempotency-Key')).toBe(new Headers(calls[0].headers).get('Idempotency-Key'))
+})
+
+
+// Authored UNRUN: a later refusal never proves the first attempt rolled back.
+it('retains the original uncertain approval key across a later known refusal', async () => {
+  const calls: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input, init) => {
+    calls.push(init ?? {});
+    const status = calls.length === 1 ? 500 : calls.length === 2 ? 400 : 200;
+    return { ok: status === 200, status, json: async () => status === 200 ? GIVEN_ICE_CREAM : { error: status === 500 ? 'First outcome unknown' : 'Later validation refusal' } } as Response;
+  }) as typeof fetch;
+  const user = userEvent.setup();
+  renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  await user.click(await screen.findByRole('button', { name: 'Try again' }));
+  await screen.findByText('Later validation refusal');
+  await user.click(screen.getByRole('button', { name: 'Try again' }));
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(calls).toHaveLength(3);
+  expect(calls.every(call => call.body === calls[0].body)).toBe(true);
+  expect(calls.every(call => new Headers(call.headers).get('Idempotency-Key') === new Headers(calls[0].headers).get('Idempotency-Key'))).toBe(true);
+});
+it('masks private state after a late-access hold without sending another request', async () => {
+  const calls: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input, init) => {
+    calls.push(init ?? {});
+    return { ok: false, status: 401, json: async () => ({ error: 'May already be saved', code: 'REWARD_ACCESS_CHANGED' }) } as Response;
+  }) as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [MOVIE] });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  await screen.findByRole('button', { name: 'Reload rewards' });
+  expect(screen.queryByText('Movie night')).toBeNull(); expect(screen.queryByRole('dialog')).toBeNull();
+  expect(calls).toHaveLength(1); expect(refresh).not.toHaveBeenCalled();
+});
+it('does not resolve an uncertain own claim from another account’s current claim', async () => {
+  mockFetch(url => url === '/api/rewards/claim' ? 'throw' : { status: 200, body: { rewards: [{ ...MOVIE, status: 'claimed', claimedById: 'another-child', claimedByName: 'Fixture other' }] } });
+  const user = userEvent.setup(); renderBoard({ rewards: [MOVIE] });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  await user.click(await screen.findByRole('button', { name: 'Check status' }));
+  await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy(); expect(refresh).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: retired transport cannot update another owner or toast.
+it('aborts foreground approval on owner replacement and ignores its late result', async () => {
+  let settle!: (value: Response) => void;
+  let requestSignal: AbortSignal | null | undefined;
+  global.fetch = jest.fn(async (_input, init) => { requestSignal = init?.signal; return new Promise<Response>(resolve => { settle = resolve }); }) as typeof fetch;
+  const user = userEvent.setup();
+  const { rerender } = renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1', familyId: 'family-one', viewerRole: 'parent', sessionGeneration: 2 });
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  rerender(<I18nProvider locale="en"><ToastProvider><RewardsBoard rewards={[]} userXp={0} isParent={false} currentUserId="other-account" familyId="other-family" viewerRole="child" sessionGeneration={1} canViewAnalytics={false} /></ToastProvider></I18nProvider>);
+  expect(requestSignal?.aborted).toBe(true); expect(screen.queryByText('Ice cream')).toBeNull();
+  await act(async () => { settle({ ok: true, status: 200, json: async () => GIVEN_ICE_CREAM } as Response); });
+  expect(refresh).not.toHaveBeenCalled(); expect(screen.queryByText('Ice cream marked as given')).toBeNull();
+});
+it('retires a pending claim after unmount without a late success toast or refresh', async () => {
+  let settle!: (value: Response) => void;
+  let requestSignal: AbortSignal | null | undefined;
+  global.fetch = jest.fn(async (_input, init) => { requestSignal = init?.signal; return new Promise<Response>(resolve => { settle = resolve }); }) as typeof fetch;
+  const user = userEvent.setup(); const { unmount } = renderBoard({ rewards: [MOVIE] });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  unmount(); expect(requestSignal?.aborted).toBe(true);
+  await act(async () => { settle({ ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response); });
+  expect(refresh).not.toHaveBeenCalled();
+});
+
+it('shares one synchronous latch across rapid approval activations', async () => {
+  const requests: RequestInit[] = [];
+  global.fetch = jest.fn(async (_input, init) => { requests.push(init ?? {}); return new Promise<Response>(() => {}) }) as typeof fetch;
+  renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
+  const button = screen.getByRole('button', { name: 'Mark Ice cream as given' });
+  act(() => { button.click(); button.click(); });
+  await waitFor(() => expect(requests).toHaveLength(1));
+});
+
+// Authored UNRUN: exact old intent is retained; status reads remain available.
+it('holds an original approval past receipt retention without issuing a new POST', async () => {
+  const firstIssued = Date.now(); let localClock = firstIssued;
+  const now = jest.spyOn(Date, 'now').mockImplementation(() => localClock);
+  try {
+    const calls = mockFetch(url => url === '/api/rewards/approve' ? 'throw' : { status: 200, body: { rewards: [ICE_CREAM] } });
+    const user = userEvent.setup(); renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
+    await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+    await screen.findByRole('button', { name: 'Try again' });
+    localClock = firstIssued + 7 * 24 * 60 * 60 * 1000;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByText('This original request is too old or its timing cannot be confirmed. Check the current reward before starting anything new.');
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Check status' }));
+    await waitFor(() => expect(calls.some(call => call.method === 'GET')).toBe(true));
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(1);
+  } finally { now.mockRestore() }
+});
+
+// Authored UNRUN: negotiated strict mode never retries through a legacy URL.
+it('freezes owned claim context and retries only the owned endpoint', async () => {
+  const generation = '5b58743a-1f01-40fe-adb1-4628148495cb';
+  const owner = { userId: 'kid_1', familyId: 'family-one', role: 'child' as const, generation: 2 };
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  global.fetch = jest.fn(async (url, init) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    if (calls.length === 1) throw new Error('fixture offline');
+    return { ok: true, status: 200, headers: new Headers({ 'X-Herewoven-Reward-Protocol': 'herewoven.reward-action.v1' }),
+      json: async () => ({ ...CLAIMED_MOVIE, reward: { ...CLAIMED_MOVIE.reward, family_id: owner.familyId, notification_generation: generation } }) } as Response;
+  }) as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [{ ...MOVIE, sourceGeneration: generation }], familyId: owner.familyId, viewerRole: owner.role, sessionGeneration: 2, ownedActions: { owner } });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  await user.click(await screen.findByRole('button', { name: 'Try again' }));
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(calls.map(call => call.url)).toEqual(['/api/rewards/claim/owned', '/api/rewards/claim/owned']);
+  expect(calls[1].init.body).toBe(calls[0].init.body); expect(calls[1].init.headers).toEqual(calls[0].init.headers);
+  expect(JSON.parse(String(calls[0].init.body))).toMatchObject({ protocol: 'herewoven.reward-action.v1', owner, expectedCost: 50, sourceGeneration: generation });
+});
+it('holds missing owned capability instead of posting an unversioned claim', async () => {
+  global.fetch = jest.fn() as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [MOVIE], ownedActions: { owner: null } });
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
+  await screen.findByText('This reward request could not be prepared. Reload rewards and try again.');
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+it('does not resolve an owned approval from a recreated reward with the same ID', async () => {
+  const original = '5b58743a-1f01-40fe-adb1-4628148495cb';
+  const replaced = '5860e58e-8fbf-441b-a416-b8de07de13dc';
+  const owner = { userId: 'parent_1', familyId: 'family-one', role: 'parent' as const, generation: 2 };
+  const urls: string[] = [];
+  global.fetch = jest.fn(async (url) => {
+    urls.push(String(url));
+    const read = String(url).startsWith('/api/rewards/owned?');
+    return { ok: read, status: read ? 200 : 500, headers: new Headers({ 'X-Herewoven-Reward-Protocol': 'herewoven.reward-action.v1' }),
+      json: async () => read ? { protocol: 'herewoven.reward-action.v1', owner, rewards: [{ id: ICE_CREAM.id, family_id: owner.familyId, notification_generation: replaced, name: ICE_CREAM.name, cost: 20, status: 'redeemed', is_active: true, claimed_by: 'kid_1' }] } : { error: 'Outcome unknown' } } as Response;
+  }) as typeof fetch;
+  const user = userEvent.setup(); renderBoard({ rewards: [{ ...ICE_CREAM, sourceGeneration: original }], isParent: true, currentUserId: owner.userId, familyId: owner.familyId, viewerRole: owner.role, sessionGeneration: 2, ownedActions: { owner } });
+  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  await user.click(await screen.findByRole('button', { name: 'Check status' }));
+  await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
+  expect(refresh).not.toHaveBeenCalled(); expect(urls).toEqual(['/api/rewards/approve/owned', '/api/rewards/owned?rewardId=r_ice']);
+});
+
+// Authored UNRUN: focused active reward reuses canonical claim confirmation.
+it('offers one deliberate claim control for an available reward from a notification', async () => {
+  const user = userEvent.setup(); global.fetch = jest.fn() as typeof fetch;
+  renderBoard({ rewards: [MOVIE], notificationFocus: { target: MOVIE } });
+  expect(screen.getAllByRole('button', { name: 'Claim Movie night' })).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  expect(screen.getByRole('dialog')).toBeTruthy(); expect(global.fetch).not.toHaveBeenCalled();
+});

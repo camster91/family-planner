@@ -1,3 +1,9 @@
+import { recipeCreateCommandTimeRefusal } from "@/lib/recipe-create-command-window";
+import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
+import { RECIPE_OWNER_HEADER, RECIPE_OWNER_PROTOCOL, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
+import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { REVIEW_SUBMIT_HEADERS } from "@/lib/review-document-submit-contract";
 import { guardReviewDocumentSubmission } from "@/lib/review-document-submit-server";
 import { NextRequest, NextResponse } from "next/server";
@@ -44,6 +50,13 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+
+    const owner = { protocol: RECIPE_OWNER_PROTOCOL, ...original } as const;
+    const expectedOwner = request.headers.get(RECIPE_OWNER_HEADER);
+    if (expectedOwner !== null && !sameRecipeOwner(readRecipeOwner(expectedOwner), owner))
+      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
 
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
@@ -95,11 +108,16 @@ export async function GET(request: NextRequest) {
       skip: offset,
       take: limit + 1,
     });
+    const renewal = await renewRecipeReadAuthority(request, original);
+    if (renewal) {
+      renewal.headers.set("Cache-Control", "private, no-store");
+      return renewal;
+    }
     const hasMore = rows.length > limit;
     const recipes = hasMore ? rows.slice(0, limit) : rows;
     return NextResponse.json(
       { recipes, nextOffset: hasMore ? offset + limit : null },
-      { headers: { "Cache-Control": "private, no-store" } },
+      { headers: { "Cache-Control": "private, no-store", [RECIPE_OWNER_HEADER]: JSON.stringify(owner) } },
     );
   } catch (err) {
     logRouteError("GET /api/recipes", err, getRequestId(request));
@@ -116,6 +134,10 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+    if (ownerRefusal) return ownerRefusal;
     const reviewRefusal = guardReviewDocumentSubmission(
       request,
       auth,
@@ -135,8 +157,13 @@ export async function POST(request: NextRequest) {
 
     let body: unknown;
     try {
-      body = await request.json();
-    } catch {
+      body = await readBoundedJson(request, RECIPE_WRITE_MAX_BYTES);
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError)
+        return NextResponse.json(
+          { error: { code: "RECIPE_REQUEST_TOO_LARGE" } },
+          { status: 413, headers: { "Cache-Control": "private, no-store" } },
+        );
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
     const parsed = createRecipeSchema.safeParse(body);
@@ -147,14 +174,19 @@ export async function POST(request: NextRequest) {
       );
     }
     const data = parsed.data;
+    if (data.creation_owner && !sameRecipeOwner(data.creation_owner, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
+      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    const timeRefusal = recipeCreateCommandTimeRefusal(data);
+    if (timeRefusal) return NextResponse.json(timeRefusal.body, { status: timeRefusal.status, headers: { "Cache-Control": "private, no-store" } });
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     if (data.creation_protocol && !key)
       return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
     const actor = {
-      userId: auth.user.id,
-      familyId: auth.user.family_id,
-      tokenVersion: auth.payload.tv ?? 0,
+      userId: original.actorId,
+      familyId: original.familyId,
+      tokenVersion: original.generation,
+      originalRole: original.role,
     };
     const response = await withIdempotency(
       prisma!,
@@ -175,18 +207,23 @@ export async function POST(request: NextRequest) {
           request.headers.has(REVIEW_SUBMIT_HEADERS.contract),
         ),
       {
-        beforeReplay: () => authorizeRecipeCreation(prisma!, actor),
+        beforeReplay: async () => (await authorizeRecipeCreation(prisma!, actor)) ?? recipeCreateCommandTimeRefusal(data),
       },
     );
     response.headers.set("Cache-Control", "private, no-store");
     if (!response.ok) return response;
-    const receipt = (await response.json()) as { recipeId?: unknown };
-    if (typeof receipt.recipeId !== "string")
+    const receipt = readRecipeCreateReceiptIdentity(await response.json());
+    if (!receipt)
       return NextResponse.json(
         { error: "Recipe confirmation unavailable" },
         { status: 409, headers: { "Cache-Control": "private, no-store" } },
       );
-    const detail = await readCreatedRecipe(prisma!, actor, receipt.recipeId);
+    const detail = await readCreatedRecipe(prisma!, actor, receipt.recipeId, receipt.recipeGeneration);
+    const finalRefusal = await authorizeRecipeCreation(prisma!, actor);
+    if (finalRefusal) return NextResponse.json(finalRefusal.body, { status: finalRefusal.status, headers: { "Cache-Control": "private, no-store" } });
+    const lateTimeRefusal = recipeCreateCommandTimeRefusal(data);
+    if (lateTimeRefusal) return NextResponse.json(lateTimeRefusal.body, { status: lateTimeRefusal.status, headers: { "Cache-Control": "private, no-store" } });
+    if (detail.status === 200) for (const [name, value] of Object.entries(recipeReadOwnerHeaders(original))) response.headers.set(name, value);
     return NextResponse.json(detail.body, {
       status: detail.status === 200 ? response.status : detail.status,
       headers: response.headers,

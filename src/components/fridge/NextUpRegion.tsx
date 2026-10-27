@@ -1,24 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
 import type { PreparationBacklinks } from "@/lib/event-preparation/discovery";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, CheckSquare } from "lucide-react";
 import type { BoardChore } from "@/app/dashboard/today/today-board-data";
 import { useTodayBoardText } from "@/i18n/today-board";
 import {
   Region,
   ScheduleEventRows,
   ChoreRow,
+  areaClass,
   type BoardPerson,
 } from "./regions";
-import {
-  actionLinkClass,
-  emptyTextClass,
-  metaTextClass,
-  headerLinkClass,
-} from "./styles";
+import { emptyTextClass, metaTextClass } from "./styles";
 import type { PersonChores, TodayEvent } from "./board-model";
+import personalStyles from "./personal-today.module.css";
 
 /** Person-app summary only. Input is the existing scoped/deduplicated board view. */
 export function NextUpRegion({
@@ -62,14 +58,17 @@ export function NextUpRegion({
     ? chores.reduce((sum, person) => sum + (person.awaitingCheckCount ?? 0), 0)
     : 0;
   return (
+    <div className={`${areaClass.today} ${personalStyles.nextSections} ${!showChores ? personalStyles.singleSection : ""}`}>
     <Region
       id="board-next-up"
       area="today"
-      title={text("nextUp")}
+      title={text("today")}
       icon={CalendarDays}
       glyph="calendar"
+      href={calendarHref}
+      hrefLabel={text("openCalendar")}
     >
-      <p className={`${metaTextClass} mb-3`}>{text("nextUpHint")}</p>
+      {shownEvents.length === 0 && <p className={emptyTextClass}>{text("calendarEmpty")}</p>}
       {shownEvents.length > 0 && (
         <ScheduleEventRows
           events={shownEvents}
@@ -86,34 +85,19 @@ export function NextUpRegion({
           {text("moreLaterToday", { count: moreEvents })}
         </p>
       )}
-      {showChores && (open.length > 0 || done > 0) && (
-        <section
-          data-testid="region-chores"
-          aria-labelledby="next-up-chores-title"
-          className={
-            shownEvents.length
-              ? "mt-4 border-t border-[var(--surface-separator)] pt-4"
-              : ""
-          }
+    </Region>
+      {showChores && (
+        <Region
+          id="next-up-chores"
+          area="chores"
+          title={text("choresToday")}
+          icon={CheckSquare}
+          glyph="chore"
+          href={choresHref}
+          hrefLabel={text("openChores")}
         >
-          <h3
-            id="next-up-chores-title"
-            className="text-headline text-label-primary mb-2"
-          >
-            {choresHref ? (
-              <Link
-                href={choresHref}
-                data-testid="region-link-chores"
-                className={headerLinkClass}
-              >
-                <span>{text("choresToday")}</span>
-                <span className="sr-only">, {text("openChores")}</span>
-              </Link>
-            ) : (
-              text("choresToday")
-            )}
-          </h3>
-          <ul className="space-y-1">
+          {open.length === 0 && done === 0 && <p className={emptyTextClass}>{text("choresEmpty")}</p>}
+          {shownChores.length > 0 && <ul className="space-y-1">
             {shownChores.map(({ chore, member }) => (
               <ChoreRow
                 key={chore.id}
@@ -132,7 +116,7 @@ export function NextUpRegion({
                 }
               />
             ))}
-          </ul>
+          </ul>}
           {moreChores > 0 && (
             <p className={`${metaTextClass} mt-2`}>
               {text("more", { count: moreChores })}
@@ -145,22 +129,8 @@ export function NextUpRegion({
                 : text("done", { count: done })}
             </p>
           )}
-        </section>
+        </Region>
       )}
-      {shownEvents.length === 0 && open.length === 0 && done === 0 && (
-        <p className={emptyTextClass}>{text("nextUpEmpty")}</p>
-      )}
-      {calendarHref && (
-        <div className="mt-4">
-          <Link
-            href={calendarHref}
-            data-testid="region-link-today"
-            className={actionLinkClass}
-          >
-            {text("calendarAction")}
-          </Link>
-        </div>
-      )}
-    </Region>
+    </div>
   );
 }

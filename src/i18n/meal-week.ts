@@ -26,13 +26,10 @@ const es: typeof en = {
   otherMeals: "Otras comidas",
 };
 export function useMealWeekText() {
-  const { locale } = useTranslation();
+  const { t } = useTranslation();
   return useCallback(
     (key: keyof typeof en, params?: { count: number }) =>
-      (locale === "es" ? es : en)[key].replace(
-        "{count}",
-        String(params?.count ?? ""),
-      ),
-    [locale],
+      t(key, params ? { count: params.count } : { count: "" }, { en, es }),
+    [t],
   );
 }

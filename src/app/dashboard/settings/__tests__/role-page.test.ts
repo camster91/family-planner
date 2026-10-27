@@ -91,6 +91,8 @@ describe("Settings server page", () => {
       betaMetrics: { enabled: true },
       calendarSync: true,
       aiCaptureSettings: false,
+      aiUsage: undefined,
+      calendarFeedReviewScope: "fam-1",
     });
   });
 

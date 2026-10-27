@@ -114,3 +114,152 @@ was created without a parent; a worry about what a child can see.
 - [BACKUPS.md](BACKUPS.md) — backups, retention and restore
 - [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md) — incident loop
 - `docs/product/ACCOUNT_DELETION.md` — how deletion works
+
+## Twenty anticipated support cases — #146
+
+This is a source-backed triage guide, not proof that a feature is enabled or a
+recovery journey has passed. Feature availability, role rules and current
+release configuration still apply. Never ask for passwords, tokens, invite/link
+codes, API keys, exports, private screenshots or household record contents.
+Use a case ID, approximate time, route template, public release/build identity,
+platform and a content-free description. Ask the adult/account owner to use
+canonical self-service actions; support must not impersonate them.
+
+| # | Problem | Safe first action | Escalation / boundary |
+| --- | --- | --- | --- |
+| 1 | Verification email did not arrive | Account owner checks spam and requests a fresh verification link; use the newest link | Record time and whether any message arrived, not address/token in GitHub. Widespread failure is SEV1; sending config belongs to #103 |
+| 2 | Password reset failed or expired | Request one fresh reset link and use the account owner's normal sign-in path | Never collect a password/reset link. Repeated or widespread failures go to the owner; do not reset an account from support |
+| 3 | Wrong account or sign-in confusion | Ask the person to confirm which account they intended to use, privately, through the app | Do not infer ownership from a name/email match or reveal whether another account exists; suspected takeover is SEV0 |
+| 4 | Invite expired or wrong household | A signed-in parent reviews pending invitations and explicitly revokes/reissues the intended invite | Do not paste invite codes or join a household to inspect it. An unknown member follows privacy incident handling |
+| 5 | Young family member has no email | Use name-only setup only when its current capability/gates are available | Never invent an email, password or User; unavailable profile setup is a capability issue under #480 |
+| 6 | Profile account link failed | Refresh the canonical profile-link review; check current same-household/role and verified-owner requirements | Revoke only unfinished links. Do not merge people or treat revoke/removal as standalone unlink; use #557 contract |
+| 7 | Google/Apple calendar not showing | Open Calendar connections and inspect the selected source/subscription state | Read-only subscription is distinct from provider write sync. Never ask for calendar credentials, secret feed URLs or OAuth tokens |
+| 8 | Duplicate or missing calendar event | Check viewed range/timezone/source filters and whether the event is local or connected | Do not delete repeated imports or edit provider records from support; preserve content-free source/range/request evidence for #124 |
+| 9 | Weekly chore is on the wrong day | Parent reviews chosen weekdays/start or monthly anchor in the canonical chore editor | Preserve occurrence history; do not bulk-delete a series to hide a recurrence problem; #450 owns schedule semantics |
+| 10 | Routine order/steps do not match | Parent opens the existing dated/future routine editor and reviews the exact affected scope | Do not substitute a label for stable routine/step identity. Preserve unknown-save request/recovery state |
+| 11 | Completed chore still waits for approval | Explain the existing parent-review state and direct the parent to the canonical review action | A child's completion is not parent approval. Do not approve on behalf of a parent or promise points before canonical verification |
+| 12 | Points or reward balance looks wrong | Review the app's own earned/claimed/approved states with the account owner | Never grant points, transfer awards or change a balance from support; a credit/Undo mismatch is a data-integrity case |
+| 13 | Groceries shortcut or count is confusing | Open the direct grocery destination; distinguish all shared lists from grocery lists and preview rows from total | Do not say clear from a short loaded preview. Pending tick/Undo and remaining items need canonical refresh/recovery |
+| 14 | Offline change is stuck or save is uncertain | Keep the original pending work; use the visible sync/recovery path after reconnect | Do not clear browser/app data, re-enter the operation with a new key or copy work to another account; escalate uncertain authority to #135/#564/#565 |
+| 15 | Recipe search/import failed | Keep the reviewed source attribution, try manual entry or another supported public source | Do not embed arbitrary publisher HTML or ask for private-page credentials. Provider failure must not block manual recipes |
+| 16 | Bulk-cooking portions/next prep looks wrong | Open the canonical prep session/dish and review recorded portion use and dates | Do not infer eaten quantities, nutrition or food safety. Preserve unknown operations and use supported correction/Undo |
+| 17 | Shared tablet lost, revoked or stuck | Parent uses the existing personal device revoke/re-pair flow | Profile selection/wake voice never proves a parent identity. Support does not pair/elevate/provision a device on the operator side |
+| 18 | Child/teen sees unexpected controls or another household | Stop using the affected path and report content-free route/release/request evidence | Cross-household exposure/takeover is SEV0; follow immediate stop/containment. Do not request private screenshots or broaden access to investigate |
+| 19 | Export or deletion is unclear | Direct the account owner to the existing private export/account/household deletion flow below | Explain last-parent and backup-retention boundaries; do not restore erased identity or perform operator deletion without exact authorization |
+| 20 | Notification missing, snoozed or too noisy | Check in-app unread/snoozed state, personal preferences and quiet hours | In-app state is distinct from actual email/push delivery. No provider/scheduler is activated by support; preserve snooze/Show now and disabled-provider behavior |
+
+## Response ownership
+
+| Responsibility | Owner and authority |
+| --- | --- |
+| Beta incident commander, severity/stop decision and response coordination | Cameron; use the established severity/containment runbook, not ad hoc access to household content |
+| First-line private support intake and case tracking | Cameron or a specifically designated support operator; no delegation/access is created by this document |
+| Source diagnosis, isolated repair and recovery/communication drafts | Codex; live account/provider/infrastructure actions and sending remain subject to existing exact authorization |
+| Canonical personal/household actions | The authenticated account owner/parent in the app; support cannot substitute for owner verification |
+| Production containment, credential/device changes, restore and rollout | The explicitly authorized operator; follow INCIDENT_RESPONSE.md and the relevant runbook, recording exact scope and evidence |
+| External/user communication, including privacy incidents | Cameron approves the content, audience and sending decision; agents prepare drafts only |
+
+Severity examples and the immediate cross-household stop/containment sequence
+remain in [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md). No incident, support
+outreach, production containment, account recovery or device operation was run
+while preparing this guide. The communication strategy and support scaling
+triggers below are definitions only; their activation, operator dashboards and
+actual recovery/customer evidence remain separate unfinished #146 work.
+
+
+## Public status and communication strategy — defined 2026-10-24
+
+This is the initial operating plan, not a live incident, public message or promise
+of staffed 24-hour coverage. Cameron owns incident communications and approves
+the exact wording, audience, channel and send/publish action. Codex prepares
+content-minimal drafts and technical facts; it does not contact users. The
+incident commander keeps the private decision/timestamp record.
+
+### Channels and broad-launch gate
+
+- Target public surface: a small unauthenticated `/status` page on the existing
+  product web deployment. This is planned, not implemented/available by this
+  definition; it requires no new status vendor, subscription or DNS plan. It
+  should show current component impact, UTC update time and the next update,
+  without names, household/account IDs, message content, diagnostics or tokens.
+- In-app Help should point to that canonical notice once the surface is actually
+  delivered and accepted. Public status must not require signing in, since an
+  authentication outage can prevent access to Help.
+- If the product host is unavailable, Cameron uses an existing owner-controlled
+  public company surface as the fallback; before broad launch, record and
+  privately verify the actual publishing destination and responsible publisher.
+  This document does not assume a fallback is already configured or publish one.
+- Direct affected-user notices use the verified support contact workflow only
+  after owner approval of the recipient scope and content. Existing verification/
+  password email infrastructure is not automatic approval for incident email,
+  bulk messages or invitations. Never ask people to send passwords, tokens,
+  child photos, full exports or screenshots containing private household data.
+
+Before broad launch, require actual evidence that the chosen public and fallback
+surfaces can be updated, reached without auth, read on phone/tablet, and removed
+or corrected by the authorized publisher. Record the real URLs, owner and backup
+publisher, a private draft/review receipt and contact-delivery acceptance. Until
+then this strategy is defined but publication readiness remains open. No status
+service, route, mailbox, subscription, notification or analytics was activated.
+
+### Decision and update cadence
+
+These are internal draft/review targets, not legal deadlines or public SLAs.
+Use the existing incident severity definitions and actual current observations.
+
+| Severity / condition | Initial communication decision | Update/recovery target |
+| --- | --- | --- |
+| SEV0: confirmed privacy, compromise or destructive integrity incident | Cameron reviews a minimal impact/containment draft immediately alongside the stop decision; target draft within 30 minutes of confirmation | Reassess every 30 minutes while material impact is ongoing; publish only approved facts. Handle affected-user/private or specialist notice separately |
+| SEV1: sign-in/core write/sync outage or major client regression | Prepare a public-impact draft within 60 minutes of confirmed widespread impact | Reassess hourly; specify safe next action and next update, even if diagnosis remains unknown |
+| SEV2: non-core provider/AI/notification degradation with manual fallback | Use contextual in-app guidance first; prepare a status draft if impact lasts 4 hours or scope materially expands | Reassess each business day or sooner when impact changes; keep manual paths clear |
+| Planned disruptive maintenance | Prepare impact/window/rollback and user-action draft before requesting the operation | Announce only after the exact operation and publication are approved; update if the window or outcome changes |
+
+If there is no qualified responder/approved publisher for the proposed rollout
+window, hold the next broad rollout and resolve coverage with Cameron. Do not
+invent an automated on-call channel or make an unsupported response promise.
+Missing a target is recorded/escalated, not hidden by an unreviewed message.
+
+Every approved notice should answer: which component is affected; what people
+may observe; the safe next action; what remains unknown; current status
+(investigating/identified/monitoring/resolved); UTC update time and next update.
+Keep the family experience in plain language. Do not publish provider traces,
+account existence, precise affected-family counts that could identify people,
+forensic detail, blame, speculative root cause or unsupported "no data loss".
+
+Resolution needs current scoped recovery/integrity evidence and Cameron's
+communication decision. A deployed patch or healthy HTTP endpoint alone does
+not prove saved writes, household isolation or old clients recovered. Preserve
+incident history and corrections; record any follow-up engineering issue without
+private case data. Do not backdate a notice or manufacture a completed incident
+exercise from this written plan.
+
+## Support scaling triggers — defined 2026-10-24
+
+Use a weekly manual review of the existing restricted support/report case log.
+Record only aggregate actionable new/open cases, age bands, severity, broad
+category, response misses and operator hours. Account verification and raw case
+content stay in the private workflow. Public GitHub gets a technical issue and
+approved minimal reference, never the customer's ticket/export. Do not create a
+new event collector, paid helpdesk, staff account or permission grant from these
+thresholds. They trigger a decision packet for Cameron, not automatic spending.
+
+| Observed trigger | Required decision/action |
+| --- | --- |
+| At least 10 actionable new cases per business day, or 15 open standard cases older than 2 business days, for 2 consecutive weeks | Define a dedicated intake/triage queue with case ownership, category, age and escalation; compare the smallest existing-tool option before considering a paid tool |
+| Support consumes at least 8 operator hours per week for 2 weeks, or accepted response targets are missed in 2 weekly reviews | Nominate a backup operator and protected support time; prepare least-access duties/training and owner approval before any new access or staffing commitment |
+| At least 3 independent households report the same core failure within 7 days | Open/link one engineering incident/problem record, assess severity immediately, and consolidate duplicates while preserving each private case and unresolved outcome |
+| Any confirmed cross-family exposure, account compromise or destructive integrity loss | Apply SEV0 immediately; do not wait for volume/weekly thresholds. Use the existing exact containment and approval rules |
+| More than 1 simultaneous SEV1, or no qualified operator can cover the next rollout window | Hold additional broad rollout, assign incident/communication ownership and resolve coverage; do not claim 24-hour service or silently add an alert provider |
+| An unresolved account/privacy/data request has no named owner or next action after 2 business days | Cameron assigns an owner and reviews the private escalation; this internal age trigger does not replace any applicable specialist/privacy process |
+
+At the weekly review, record the observation window, actual aggregate counts,
+case-age calculation in business days, operator hours, repeat-category evidence,
+trigger reached/not reached, decision owner, due action and next review. If there
+are no data, mark Unknown rather than "below threshold". A rising household
+count alone does not justify tooling or access; observed workload and safe
+coverage do. Review thresholds after four recorded operating weeks and adjust
+with an explicit dated decision, preserving prior records.
+
+Current state: the strategy and triggers are defined, not observed/activated.
+Actual support demand, staffing/access, public publishing, response performance,
+operator recovery tools and backup/device/account drills remain unverified.

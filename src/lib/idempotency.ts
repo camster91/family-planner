@@ -38,9 +38,9 @@ import { canonicalRequestJson } from '@/lib/idempotency-request-json'
 import { NextResponse } from 'next/server'
 import { logRouteError } from '@/lib/api-error'
 import type { PrismaClient } from '@prisma/client'
-import { IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
+import { IDEMPOTENCY_TTL_MS, IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
 
-export const IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export { IDEMPOTENCY_TTL_MS } from '@/lib/idempotency-key'
 /** An in-progress row older than this is treated as abandoned (the first request died). */
 export const IDEMPOTENCY_LOCK_TIMEOUT_MS = 30 * 1000
 /** Stored response bodies larger than this (serialised) are replaced by `{ success: true }`. */
@@ -95,7 +95,7 @@ export interface IdempotencyContext {
   action: string
 }
 
-type RecordDelegate = Pick<PrismaClient['idempotencyRecord'], 'create' | 'findFirst' | 'update' | 'updateMany' | 'deleteMany'>
+type RecordDelegate = Pick<PrismaClient['idempotencyRecord'], 'create' | 'findFirst' | 'findMany' | 'update' | 'updateMany' | 'deleteMany'>
 export type IdempotencyDb = { idempotencyRecord: RecordDelegate }
 
 /**
@@ -137,7 +137,17 @@ function storableBody(body: unknown): unknown {
 async function maybePrune(db: IdempotencyDb, now: Date): Promise<void> {
   if (idempotencyRuntime.random() >= IDEMPOTENCY_PRUNE_PROBABILITY) return
   try {
-    await db.idempotencyRecord.deleteMany({ where: { expires_at: { lt: now } } })
+    // Housekeeping must not put the entire expired backlog on one request.
+    // Recheck expiry at deletion: a concurrently renewed row must survive.
+    const expired = await db.idempotencyRecord.findMany({
+      where: { expires_at: { lt: now } },
+      orderBy: [{ expires_at: 'asc' }, { id: 'asc' }],
+      take: 500,
+      select: { id: true },
+    })
+    if (expired.length) await db.idempotencyRecord.deleteMany({
+      where: { id: { in: expired.map(row => row.id) }, expires_at: { lt: now } },
+    })
   } catch (error) {
     // Pruning is housekeeping; it must never fail the request.
     logRouteError('idempotency.prune', error, undefined)

@@ -91,25 +91,45 @@ describe("RecipePicker", () => {
     expect(screen.getByTestId("selected").textContent).toBe("Tomato soup");
   });
 
-  it("follows nextOffset so recipes beyond the first page are pickable", async () => {
+  it("loads another page only on request and keeps the chosen recipe visible", async () => {
+    const user = userEvent.setup();
+    const firstPage = Array.from({ length: 24 }, (_, index) => ({
+      ...SOUP, id: index === 0 ? SOUP.id : `r_${index}`,
+      title: index === 0 ? SOUP.title : `Recipe ${index}`,
+    }));
     const calls = mockFetch((url) =>
       url.includes("offset=0")
-        ? { status: 200, body: { recipes: [SOUP], nextOffset: 200 } }
-        : {
-            status: 200,
-            body: {
-              recipes: [{ ...SOUP, id: "r_late", title: "Zucchini bake" }],
-              nextOffset: null,
-            },
-          },
+        ? { status: 200, body: { recipes: firstPage, nextOffset: 24 } }
+        : { status: 200, body: { recipes: [{ ...SOUP, id: "r_late", title: "Zucchini bake" }], nextOffset: null } },
     );
     render(<Harness />);
+    await screen.findByRole("option", { name: SOUP.title });
+    expect(calls).toHaveLength(1);
+    await user.selectOptions(screen.getByLabelText("Recipe (optional)"), SOUP.id);
+    await user.click(screen.getByRole("button", { name: "More recipes" }));
     await screen.findByRole("option", { name: "Zucchini bake" });
-    expect(screen.getByRole("option", { name: "Tomato soup" })).toBeTruthy();
-    expect(calls.map((c) => c.url)).toEqual([
-      "/api/recipes?limit=200&offset=0",
-      "/api/recipes?limit=200&offset=200",
+    expect(screen.getByRole("option", { name: SOUP.title })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Recipe 1" })).toBeNull();
+    expect((screen.getByLabelText("Recipe (optional)") as HTMLSelectElement).value).toBe(SOUP.id);
+    expect(calls.map((call) => call.url)).toEqual([
+      "/api/recipes?limit=24&offset=0", "/api/recipes?limit=24&offset=24",
     ]);
+  });
+
+  it("searches the full library without submitting the meal or clearing its selection", async () => {
+    const user = userEvent.setup();
+    const onSubmit = jest.fn();
+    const calls = mockFetch((url) => ({ status: 200, body: {
+      recipes: url.includes("q=beans") ? [] : [SOUP], nextOffset: null,
+    } }));
+    render(<Harness onSubmit={onSubmit} />);
+    await screen.findByRole("option", { name: SOUP.title });
+    await user.selectOptions(screen.getByLabelText("Recipe (optional)"), SOUP.id);
+    await user.type(screen.getByRole("searchbox", { name: "Search saved recipes" }), "beans{Enter}");
+    await screen.findByText("No matching recipes. Try another search.");
+    expect(calls[calls.length - 1].url).toBe("/api/recipes?limit=24&offset=0&q=beans");
+    expect(screen.getByTestId("selected").textContent).toBe(SOUP.title);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('shows an empty state and hides "New recipe" when the role cannot create (child, O-7)', async () => {

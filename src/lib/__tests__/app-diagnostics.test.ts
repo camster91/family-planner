@@ -7,11 +7,13 @@ jest.mock('@capacitor/app', () => ({ App: { getInfo: jest.fn() } }))
 jest.mock('@capacitor/network', () => ({ Network: {} }))
 jest.mock('@capacitor/share', () => ({ Share: {} }))
 const build = { version: '0.1.0', commit: 'abcdef0123456789', builtAt: '2026-10-10T19:00:00.000Z' }
-beforeEach(() => { jest.resetAllMocks(); global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => build }) })
+const capabilities = { contract: 'herewoven.capabilities.v1', memberProtocols: [1], queueContainerVersion: 1, queueActions: [] }
+beforeEach(() => { jest.resetAllMocks(); global.fetch = jest.fn(async url => ({ ok: true, json: async () => String(url) === '/api/capabilities' ? capabilities : build }) as Response) })
+afterEach(() => jest.useRealTimers())
 test('browser does not call the installed App bridge', async () => {
   const report = await readAppDiagnostics()
   expect(report.client.installed).toBe('not-native'); expect(App.getInfo).not.toHaveBeenCalled()
-  expect(report.server).toEqual(build)
+  expect(report.server).toEqual(build); expect(report.capabilities).toEqual(capabilities)
   expect(fetch).toHaveBeenCalledWith('/api/version', expect.objectContaining({ credentials: 'omit', cache: 'no-store' }))
 })
 test('installed identity is distinct from website identity and excludes extra fields', async () => {
@@ -62,3 +64,27 @@ test('a broken legacy platform detector does not label a native install as a bro
   const details = await readNativeClientDetails()
   expect(details.platform).toBe('unknown'); expect(details.installed).toBe('unavailable')
 })
+
+test.each(['headers', 'body'])('ignored-abort public %s stalls settle without private/raw output', async phase => {
+  jest.useFakeTimers();
+  global.fetch = jest.fn(async () => phase === 'headers' ? new Promise<Response>(() => undefined)
+    : { ok: true, json: () => new Promise(() => undefined) } as Response);
+  const pending = readAppDiagnostics();
+  await jest.advanceTimersByTimeAsync(3000);
+  const report = await pending;
+  expect(report.server).toBeNull(); expect(report.capabilities).toBeNull();
+  expect(report.client.installed).toBe('not-native');
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+test('bounds both public payloads before decoding declared oversized metadata', async () => {
+  const json = jest.fn();
+  global.fetch = jest.fn(async () => ({ ok: true, json, headers: new Headers({ 'content-length': '65536' }) }) as unknown as Response);
+  const report = await readAppDiagnostics();
+  expect(report.server).toBeNull(); expect(report.capabilities).toBeNull(); expect(json).not.toHaveBeenCalled();
+});
+test('does not start bridge/network work for an already closed panel', async () => {
+  const controller = new AbortController(); controller.abort(); global.fetch = jest.fn();
+  const report = await readAppDiagnostics({ signal: controller.signal });
+  expect(fetch).not.toHaveBeenCalled(); expect(App.getInfo).not.toHaveBeenCalled();
+  expect(report.server).toBeNull(); expect(report.capabilities).toBeNull();
+});

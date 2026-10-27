@@ -1,3 +1,4 @@
+import { readVisibleChoreRows, afterCreatedChoreCursor } from "@/lib/chore-visible-read";
 import { readSharedPreparationContext, type SharedPreparationContext } from '@/lib/event-preparation/shared-discovery' 
 import { hiddenRoutineOccurrenceIds, scheduledOnceRoutineOccurrenceIds } from "@/lib/routine-occurrence-policy";
 /**
@@ -416,10 +417,8 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         })
       : undefined
 
-  const hiddenRoutineIds = await hiddenRoutineOccurrenceIds(db, familyId)
   const choreWhere = {
     family_id: familyId,
-    id: { notIn: hiddenRoutineIds },
     due_date: { gte: windowStart, lt: windowEnd },
     ...(inspectProfileRows
       ? {
@@ -430,6 +429,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
   const choreSelect = inspectProfileRows
     ? {
         id: true,
+        created_at: true,
         title: true,
         due_date: true,
         status: true,
@@ -444,6 +444,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       }
     : {
         id: true,
+        created_at: true,
         title: true,
         due_date: true,
         status: true,
@@ -491,20 +492,28 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       orderBy: [{ start_time: 'asc' }, { id: 'asc' }],
       take: MAX_EVENTS,
     }),
-    db.chore.findMany({
-      // Protocol 1 remains account-only unless a stored profile row needs to
-      // produce MEMBER_PROTOCOL_UNAVAILABLE instead of being hidden.
-      where: choreWhere,
-      select: choreSelect,
-      orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-      take: MAX_CHORES,
+    readVisibleChoreRows({
+      take: MAX_CHORES, order: 'asc', tieBreakCreatedAt: true,
+      read: (after, batchSize) => db.chore.findMany({
+        where: after ? { AND: [choreWhere, afterCreatedChoreCursor(after)] } : choreWhere,
+        select: choreSelect,
+        orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }], take: batchSize,
+      }),
+      hidden: (ids) => hiddenRoutineOccurrenceIds(db, familyId, { ids }),
     }),
     needsProfileCompatibilityProbe
-      ? db.chore.findFirst({
-          where: { ...profileCompatibilityProbeWhere(familyId, windowStart, windowEnd), id: { notIn: hiddenRoutineIds } },
-          select: { id: true },
-          orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-        })
+      ? readVisibleChoreRows({
+          take: 1, order: 'asc', tieBreakCreatedAt: true,
+          read: (after, batchSize) => {
+            const where = profileCompatibilityProbeWhere(familyId, windowStart, windowEnd)
+            return db.chore.findMany({
+              where: after ? { AND: [where, afterCreatedChoreCursor(after)] } : where,
+              select: { id: true, due_date: true, created_at: true },
+              orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }], take: batchSize,
+            })
+          },
+          hidden: (ids) => hiddenRoutineOccurrenceIds(db, familyId, { ids }),
+        }).then((rows) => rows[0] ?? null)
       : Promise.resolve(null),
     features.meals
       ? loadBoardDinners(db, familyId, windowStart, windowEnd, withMissing)

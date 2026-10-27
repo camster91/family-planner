@@ -65,6 +65,7 @@ function deletionIdempotencyDb(): IdempotencyDb {
     idempotencyRecord: {
       create: (args: any) => records.create(args),
       findFirst: (args: any) => records.findFirst(args),
+      findMany: (args: any) => records.findMany(args),
       updateMany: (args: any) => records.updateMany(args),
       deleteMany: (args: any) => records.deleteMany(args),
       update: (async (args: any) => {

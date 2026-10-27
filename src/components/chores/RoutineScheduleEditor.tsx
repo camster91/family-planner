@@ -6,6 +6,7 @@ import { formatWeeklyDays } from "@/lib/chore-weekdays";
 import {
   firstRoutineOccurrence,
   routineViewerDay,
+  routineScheduleAnchorDay,
 } from "@/lib/routine-schedule";
 import { Dialog } from "@/components/ui/dialog";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
@@ -62,6 +63,10 @@ export function RoutineScheduleEditor({
   onSave: (review: { at: Date; zone: string }) => void;
   onClose: () => void;
 }) {
+  const viewerZone = React.useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
   const t = useRoutineScheduleText(),
     { locale } = useTranslation();
   const [stage, setStage] = React.useState(0),
@@ -103,7 +108,8 @@ export function RoutineScheduleEditor({
   }
 
   const index = Math.min(selected, draft.steps.length - 1),
-    step = draft.steps[index];
+    step = draft.steps[index],
+    parsedStart = parseDateOnly(draft.schedule.starts_on);
   const choices = assignments.filter(
     (option) => draft.schedule.frequency === "once" || option.canRepeat,
   );
@@ -126,22 +132,30 @@ export function RoutineScheduleEditor({
     });
   }
   function changeFrequency(frequency: RoutineSharedSchedule["frequency"]) {
+    const anchor = routineScheduleAnchorDay(draft.schedule.starts_on, viewerZone);
     onChange({
       ...draft,
       schedule: {
         ...draft.schedule,
         frequency,
-        weekly_days: frequency === "weekly" ? [new Date().getDay()] : [],
-        monthly_day: frequency === "monthly" ? new Date().getDate() : null,
+        weekly_days: frequency === "weekly" ? [anchor.getUTCDay()] : [],
+        monthly_day: frequency === "monthly" ? anchor.getUTCDate() : null,
       },
     });
   }
   function next() {
+    const scheduleValid =
+      draft.schedule.frequency === "weekly"
+        ? draft.schedule.weekly_days.length > 0
+        : draft.schedule.frequency === "monthly"
+          ? Number.isInteger(draft.schedule.monthly_day) &&
+            draft.schedule.monthly_day! >= 1 &&
+            draft.schedule.monthly_day! <= 31
+          : true;
     const valid =
       stage === 0
         ? draft.label.trim().length > 0 &&
-          (draft.schedule.frequency !== "weekly" ||
-            draft.schedule.weekly_days.length > 0)
+          scheduleValid
         : draft.steps.every(
             (row) =>
               row.title.trim() &&
@@ -170,11 +184,12 @@ export function RoutineScheduleEditor({
       setStage(stage + 1);
     }
   }
-  function move(offset: number) {
+  function move(position: number, offset: -1 | 1) {
     const steps = [...draft.steps],
-      target = index + offset;
+      target = position + offset;
+    if (position < 0 || position >= steps.length) return;
     if (target < 0 || target >= steps.length) return;
-    [steps[index], steps[target]] = [steps[target], steps[index]];
+    [steps[position], steps[target]] = [steps[target], steps[position]];
     onChange({ ...draft, steps });
     setSelected(target);
   }
@@ -356,15 +371,52 @@ export function RoutineScheduleEditor({
                 className="grid max-h-40 min-w-0 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2"
               >
                 {draft.steps.map((row, position) => (
-                  <li key={row.client_step_id}>
+                  <li
+                    key={row.client_step_id}
+                    className="flex min-w-0 items-center gap-1 rounded-xl border border-[var(--surface-separator)] p-1"
+                  >
                     <button
                       type="button"
                       aria-pressed={position === index}
-                      className="btn-ghost min-h-[44px] max-w-full [overflow-wrap:anywhere]"
+                      className="btn-ghost min-h-[44px] min-w-0 flex-1 text-left [overflow-wrap:anywhere]"
                       onClick={() => setSelected(position)}
                     >
                       {position + 1}. {row.title || t("untitled")}
                     </button>
+                    <div
+                      role="group"
+                      aria-label={t("step", { number: position + 1 })}
+                      className="flex shrink-0 gap-1"
+                    >
+                      <button
+                        type="button"
+                        className="btn-ghost min-h-[44px] min-w-[44px] px-2"
+                        aria-label={t("up", {
+                          title: row.title || t("untitled"),
+                        })}
+                        title={t("up", {
+                          title: row.title || t("untitled"),
+                        })}
+                        disabled={locked || position === 0}
+                        onClick={() => move(position, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-ghost min-h-[44px] min-w-[44px] px-2"
+                        aria-label={t("down", {
+                          title: row.title || t("untitled"),
+                        })}
+                        title={t("down", {
+                          title: row.title || t("untitled"),
+                        })}
+                        disabled={locked || position === draft.steps.length - 1}
+                        onClick={() => move(position, 1)}
+                      >
+                        ↓
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -507,8 +559,9 @@ export function RoutineScheduleEditor({
                   type="button"
                   className="btn-ghost min-h-[44px]"
                   aria-label={t("up", { title: step.title || t("untitled") })}
-                  disabled={index === 0}
-                  onClick={() => move(-1)}
+                  title={t("up", { title: step.title || t("untitled") })}
+                  disabled={locked || index === 0}
+                  onClick={() => move(index, -1)}
                 >
                   ↑
                 </button>
@@ -516,8 +569,9 @@ export function RoutineScheduleEditor({
                   type="button"
                   className="btn-ghost min-h-[44px]"
                   aria-label={t("down", { title: step.title || t("untitled") })}
-                  disabled={index === draft.steps.length - 1}
-                  onClick={() => move(1)}
+                  title={t("down", { title: step.title || t("untitled") })}
+                  disabled={locked || index === draft.steps.length - 1}
+                  onClick={() => move(index, 1)}
                 >
                   ↓
                 </button>
@@ -579,8 +633,20 @@ export function RoutineScheduleEditor({
                 {t(draft.schedule.frequency)}
                 {draft.schedule.frequency === "weekly"
                   ? ` · ${formatWeeklyDays(draft.schedule.weekly_days, locale)}`
-                  : ""}
+                  : draft.schedule.frequency === "monthly"
+                    ? ` · ${t("monthDay")}: ${draft.schedule.monthly_day}`
+                    : ""}
               </p>
+              {draft.schedule.starts_on && (
+                <p>
+                  {t("start")}: {parsedStart
+                    ? new Intl.DateTimeFormat(locale, {
+                        dateStyle: "medium",
+                        timeZone: "UTC",
+                      }).format(parsedStart)
+                    : t("invalid")}
+                </p>
+              )}
               {draft.state === "paused" ? (
                 <p>{t("pausedEdit")}</p>
               ) : (

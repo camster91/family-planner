@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 // Shared two-household harness for route-level isolation tests (#102).
 //
 // This file is NOT a test (jest only collects `*.test.ts`). It provides:
@@ -430,11 +431,14 @@ const COLUMN_DEFAULTS: Record<string, Record<string, unknown>> = {
 class FakeDb {
   tables: Tables = seed()
   writes: Write[] = []
+  // Explicit fixture capability only. No real migration/trigger/lock evidence.
+  foodSourceVersionsReady = false
   private seq = 0
 
   reset() {
     this.tables = seed()
     this.writes = []
+    this.foodSourceVersionsReady = false
     this.seq = 0
   }
 
@@ -798,7 +802,9 @@ function delegate(model: string) {
       log('create', args)
       const row: Row = { id: db.nextId(model), created_at: new Date() }
       if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
+      if (model === 'chore') row.responsibility_generation = randomUUID()
       applyData(model, row, args.data)
+      if (model === 'recipe' && db.foodSourceVersionsReady) { row.food_generation = randomUUID(); row.food_epoch = 0 }
       if (violatesUnique(model, all(), row)) throw uniqueViolation(model)
       all().push(row)
       return project(model, row, args)
@@ -810,7 +816,9 @@ function delegate(model: string) {
       for (const d of data) {
         const row: Row = { id: db.nextId(model), created_at: new Date() }
         if (model === 'chore' || model === 'choreAssignment') row.member_subject_erased = false
+        if (model === 'chore') row.responsibility_generation = randomUUID()
         applyData(model, row, d)
+        if (model === 'recipe' && db.foodSourceVersionsReady) { row.food_generation = randomUUID(); row.food_epoch = 0 }
         if (violatesUnique(model, all(), row)) {
           if (args.skipDuplicates) continue
           throw uniqueViolation(model)
@@ -836,6 +844,7 @@ function delegate(model: string) {
       }
       const created: Row = { id: db.nextId(model), created_at: new Date() }
       applyData(model, created, args.create)
+      if (model === 'recipe' && db.foodSourceVersionsReady) { created.food_generation = randomUUID(); created.food_epoch = 0 }
       all().push(created)
       return project(model, created, args)
     },
@@ -909,8 +918,37 @@ export const fakePrisma: any = new Proxy(
       }
       if (prop === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
+        // Explicit opt-in schema capability stub for recipe identity cases.
+        // This does not execute/catalog-validate SQL or simulate DB triggers.
+        if (sql.startsWith('SELECT COUNT(*) = 11 AND bool_and(') &&
+            sql.includes("FROM unnest(ARRAY['Family','User','Recipe','RecipeIngredient','Ingredient','InventoryItem','FamilyMeal','MealPrepSession','MealBatch','MealBatchConsumption','List']) expected(name)") &&
+            sql.includes("public.herewoven_food_source_version()")) return [{ ready: db.foodSourceVersionsReady }]
+        if (sql === 'SELECT "id" AS "recipeId", "food_generation" AS "recipeGeneration" FROM "Recipe" WHERE "id" = ? AND "family_id" = ? AND "created_by" = ? FOR SHARE') {
+          const row = db.find('recipe', String(values[0]))
+          return db.foodSourceVersionsReady && row && row.family_id === values[1] && row.created_by === values[2] && typeof row.food_generation === 'string'
+            ? [{ recipeId: row.id, recipeGeneration: row.food_generation }] : []
+        }
+        if (sql === 'SELECT "id" FROM "Recipe" WHERE "id" = ? AND "family_id" = ? AND "created_by" = ? AND "food_generation" = ? FOR SHARE') {
+          const row = db.find('recipe', String(values[0]))
+          return db.foodSourceVersionsReady && row && row.family_id === values[1] && row.created_by === values[2] && row.food_generation === values[3]
+            ? [{ id: row.id }] : []
+        }
+        // Exact subscription authority probes. These mirror current fixture
+        // rows only; in-memory locks do not prove PostgreSQL serialization.
+        if (sql === 'SELECT "id", "family_id", "role", "token_version" FROM "User" WHERE "id" = ? FOR SHARE') {
+          const user = db.find('user', String(values[0]))
+          return user ? [{ id: user.id, family_id: user.family_id, role: user.role, token_version: user.token_version }] : []
+        }
+        if (sql === 'SELECT "id" FROM "Family" WHERE "id" = ? FOR SHARE') {
+          const family = db.find('family', String(values[0]))
+          return family ? [{ id: family.id }] : []
+        }
+        if (sql === 'SELECT "id" FROM "CalendarSubscription" WHERE "id" = ? AND "family_id" = ? FOR UPDATE') {
+          const subscription = db.find('calendarSubscription', String(values[0]))
+          return subscription && subscription.family_id === values[1] ? [{ id: subscription.id }] : []
+        }
         // Only the three additive metadata-table probes used by deletion.
-        if (/^SELECT to_regclass\('public\."(HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
+        if (/^SELECT to_regclass\('public\."(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
         // Exact source query for private scheduled-root metadata. Locks are
         // intentionally no-ops in this fixture; concurrency needs real PG.
         if (sql.startsWith('SELECT "routine_series_config" FROM "Chore"')) {
@@ -922,10 +960,19 @@ export const fakePrisma: any = new Proxy(
           return db.rows('chore').filter(row => row.family_id === familyId && (row.id === choreId || (series && row.id === selected?.recurrence_id))).map(row => ({ routine_series_config: row.routine_series_config ?? null }))
         }
         if (sql.startsWith('SELECT c."id", c."recurrence_id", r."id" AS root_id')) {
-          const familyId = values[0], choreId = values[1]
+          const familyId = values[0], selection = values[1]
           const hiddenRead = sql.includes("c.\"status\" IN")
-          return db.rows('chore').filter(row => row.family_id === familyId &&
-            (choreId == null || row.id === choreId)).flatMap(row => {
+          const selected = Array.isArray(selection) ? selection : null
+          const choreId = typeof selection === 'string' ? selection : null
+          const from = hiddenRead ? values[3] as Date | null : null
+          const through = hiddenRead ? values[5] as Date | null : null
+          const before = hiddenRead ? values[7] as Date | null : null
+          return db.rows('chore').filter(row => {
+            if (row.family_id !== familyId || (choreId !== null && row.id !== choreId) ||
+              (selected !== null && !selected.includes(row.id))) return false
+            const when = row.due_date instanceof Date ? row.due_date.getTime() : Date.parse(String(row.due_date))
+            return (!from || when >= from.getTime()) && (!through || when <= through.getTime()) && (!before || when < before.getTime())
+          }).flatMap(row => {
               const root = db.find('chore', String(row.recurrence_id))
               const scopedRoot = root?.family_id === familyId ? root : null
               const own = row.routine_series_config ?? null, config = scopedRoot?.routine_series_config ?? null
@@ -952,7 +999,7 @@ export const fakePrisma: any = new Proxy(
       }
       if (prop === '$executeRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
-        const optionalMetadata = /^DELETE FROM "(HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)" WHERE "family_id" = \?$/.exec(sql)
+        const optionalMetadata = /^DELETE FROM "(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)" WHERE "family_id" = \?$/.exec(sql)
         if (optionalMetadata) {
           const model = optionalMetadata[1][0].toLowerCase() + optionalMetadata[1].slice(1)
           return fakePrisma[model].deleteMany({ where: { family_id: values[0] } }).then((result: { count: number }) => result.count)

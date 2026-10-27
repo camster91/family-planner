@@ -424,6 +424,15 @@ export function routineViewerDay(zone: string, now: Date): string {
   const get = (type: string) => parts.find((part) => part.type === type)?.value;
   return day.parse(`${get("year")}-${get("month")}-${get("day")}`);
 }
+/** Choose defaults from the reviewed start, without changing an invalid draft. */
+export function routineScheduleAnchorDay(
+  startsOn: string | null,
+  viewerZone: string,
+  now: Date = new Date(),
+): Date {
+  const anchor = day.safeParse(startsOn);
+  return parseDateOnly(anchor.success ? anchor.data : routineViewerDay(viewerZone, now))!;
+}
 export const routineScheduleReceipt = z
   .object({
     protocol: z.literal(ROUTINE_SCHEDULE_PROTOCOL),

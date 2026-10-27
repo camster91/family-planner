@@ -254,6 +254,20 @@ describe('withIdempotency', () => {
     expect(records().map((r) => r.key).sort()).toEqual(['bbbbbbbbbbbbbbbbbbbb', 'cccccccccccccccccccc'])
   })
 
+  // Authored UNRUN: one lazy housekeeping pass, not a complete backlog drain.
+  it('prunes at most 500 expired receipts per selected request and leaves the rest for later', async () => {
+    const effect = counter()
+    for (let index = 0; index < 501; index++)
+      await withIdempotency(fakePrisma, `bounded-expired-row-${String(index).padStart(4, '0')}`, ctxA, { x: 1 }, effect)
+    now = new Date(T0.getTime() + IDEMPOTENCY_TTL_MS + 1)
+    random = 0
+    await withIdempotency(fakePrisma, 'bounded-prune-current-0001', ctxB, { x: 1 }, effect)
+    expect(records()).toHaveLength(2)
+    expect(records().filter(row => row.expires_at < now)).toHaveLength(1)
+    await withIdempotency(fakePrisma, 'bounded-prune-current-0002', ctxB, { x: 1 }, effect)
+    expect(records().map(row => row.key).sort()).toEqual(['bounded-prune-current-0001', 'bounded-prune-current-0002'])
+  })
+
   it('preserves an exact receipt completed in the canonical effect transaction', async () => {
     const exact = { note: { body: 'x'.repeat(IDEMPOTENCY_MAX_BODY_CHARS + 1) } }
     const effect = jest.fn(async ({ recordId }: { recordId: string | null }) => {

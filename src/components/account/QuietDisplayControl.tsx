@@ -2,7 +2,7 @@
 
 import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import DisplayPreferencesStatus from "./DisplayPreferencesStatus";
-import { useTranslation } from "@/i18n";
+import { useDisplayPreferencesText } from "@/i18n/display-preferences";
 
 export function QuietDisplayControl({
   compact = false,
@@ -10,21 +10,17 @@ export function QuietDisplayControl({
   compact?: boolean;
 }) {
   const { quiet, saving, syncState, setQuiet } = useDisplayPreferences();
-  const { locale } = useTranslation();
-  const es = locale === "es";
-  const title = es ? "Vista tranquila" : "Quiet view";
+  const text = useDisplayPreferencesText();
   return (
     <div className={compact ? "mb-4" : "card space-y-3"}>
       <label className="flex min-h-[44px] cursor-pointer items-center justify-between gap-4">
         <span className="min-w-0">
           <span className="block text-body font-semibold text-label-primary">
-            {title}
+            {text("quietTitle")}
           </span>
           {!compact && (
             <span className="mt-1 block text-subhead text-label-secondary">
-              {es
-                ? "Oculta puntos, rachas y celebraciones en Inicio y Tareas. Las tareas y recompensas siguen funcionando. Se guarda en tu cuenta para todos tus dispositivos."
-                : "Hide points, streaks and celebrations on Home and Chores. Chores and rewards still work. Saved to your account across devices."}
+              {text("quietDescription")}
             </span>
           )}
         </span>

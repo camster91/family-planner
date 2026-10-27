@@ -1,3 +1,11 @@
+import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
+import {
+  withCalendarSubscriptionAccess,
+  protectCalendarSubscriptionResponse,
+  calendarSubscriptionAccessHeld,
+  type CalendarSubscriptionActor,
+} from "@/lib/calendar-subscription-access";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -63,17 +71,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const subs = await prisma!.calendarSubscription.findMany({
-      where: { family_id: auth.user.family_id },
-      select: SUB_SELECT,
-      orderBy: [{ created_at: "asc" }, { id: "asc" }],
-      take: MAX_SUBSCRIPTIONS_PER_FAMILY,
+    const owner: CalendarReadOwner = { protocol: CALENDAR_OWNER_PROTOCOL, actorId: auth.user.id,
+      familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0 };
+    const expected = request.headers.get(CALENDAR_OWNER_HEADER);
+    if (expected !== null && !sameCalendarOwner(readCalendarOwner(expected), owner))
+      return NextResponse.json({ error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED" },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    const actor: CalendarSubscriptionActor = { userId: auth.user.id, familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0 };
+    const result = await withCalendarSubscriptionAccess(prisma!, actor, "read", async tx => {
+      const subs = await tx.calendarSubscription.findMany({
+        where: { family_id: actor.familyId },
+        select: SUB_SELECT,
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        take: MAX_SUBSCRIPTIONS_PER_FAMILY,
+      });
+      return subs.map((sub) => toSubscriptionDto(sub, { includeUrlHint: role === "parent" }));
     });
-    return NextResponse.json({
-      subscriptions: subs.map((s) =>
-        toSubscriptionDto(s, { includeUrlHint: role === "parent" }),
-      ),
-    });
+    if (result.kind === "held") return calendarSubscriptionAccessHeld();
+    const response = await protectCalendarSubscriptionResponse(prisma!, actor, "read", NextResponse.json({ subscriptions: result.value }));
+    if (response.ok) response.headers.set(CALENDAR_OWNER_HEADER, JSON.stringify(owner));
+    return response;
   } catch {
     console.error("Error listing calendar subscriptions");
     return NextResponse.json(
@@ -110,9 +127,10 @@ export async function POST(request: NextRequest) {
 
     let body: unknown;
     try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      body = await readBoundedJson(request, 16 * 1024);
+    } catch (cause) {
+      return NextResponse.json({ error: cause instanceof RequestBodyTooLargeError ? "Request body too large" : "Invalid JSON" },
+        { status: cause instanceof RequestBodyTooLargeError ? 413 : 400, headers: { "Cache-Control": "private, no-store" } });
     }
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
@@ -139,34 +157,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const count = await prisma!.calendarSubscription.count({
-      where: { family_id: auth.user.family_id },
+    // DNS/URL validation above may wait. Renew the exact authenticated actor
+    // under membership locks before count/create; the same household lock
+    // serializes current-route creates at the existing subscription cap.
+    const actor: CalendarSubscriptionActor = {
+      userId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0,
+    };
+    const result = await withCalendarSubscriptionAccess(prisma!, actor, "create", async tx => {
+      const count = await tx.calendarSubscription.count({ where: { family_id: actor.familyId } });
+      if (count >= MAX_SUBSCRIPTIONS_PER_FAMILY) return { kind: "full" as const };
+      const created = await tx.calendarSubscription.create({
+        data: {
+          family_id: actor.familyId, name: parsed.data.name,
+          url_enc: encryptSecret(url), color: parsed.data.color ?? null,
+          last_status: "pending", created_by: actor.userId,
+        }, select: SUB_SELECT,
+      });
+      return { kind: "created" as const, subscription: toSubscriptionDto(created, { includeUrlHint: true }) };
     });
-    if (count >= MAX_SUBSCRIPTIONS_PER_FAMILY) {
-      return NextResponse.json(
-        {
-          error: `A household can subscribe to at most ${MAX_SUBSCRIPTIONS_PER_FAMILY} calendars`,
-        },
-        { status: 409 },
-      );
-    }
-
-    const created = await prisma!.calendarSubscription.create({
-      data: {
-        family_id: auth.user.family_id,
-        name: parsed.data.name,
-        url_enc: encryptSecret(url),
-        color: parsed.data.color ?? null,
-        last_status: "pending",
-        created_by: auth.user.id,
-      },
-      select: SUB_SELECT,
-    });
-
-    return NextResponse.json(
-      { subscription: toSubscriptionDto(created, { includeUrlHint: true }) },
-      { status: 201 },
+    if (result.kind === "held") return calendarSubscriptionAccessHeld();
+    if (result.value.kind === "full") return NextResponse.json(
+      { error: `A household can subscribe to at most ${MAX_SUBSCRIPTIONS_PER_FAMILY} calendars` },
+      { status: 409, headers: { "Cache-Control": "private, no-store" } },
     );
+    return protectCalendarSubscriptionResponse(prisma!, actor, "create", NextResponse.json(
+      { subscription: result.value.subscription }, { status: 201 },
+    ));
   } catch {
     // Never log the error object: it could echo the submitted URL.
     console.error("Error creating calendar subscription");

@@ -30,6 +30,11 @@ for (const [mode, locale] of [
   it(`${mode}: failed photo retry preserves the draft and blocks saving until upload completes (${locale})`, async () => {
     const user = userEvent.setup();
     const copy = choreFormMessages[locale];
+    // Create uses the owned upload client: a server refusal or a response
+    // without a canonical chore-photo path is deliberately surfaced as
+    // unconfirmed, because the upload may have committed. Edit retains its
+    // older definite-failure wording for the same fixture responses.
+    const uploadError = mode === "create" ? copy.uploadUnconfirmed : copy.uploadFailed;
     const writes: RequestInit[] = [];
     let uploads = 0;
     let finishUpload!: (value: ReturnType<typeof response>) => void;
@@ -102,7 +107,7 @@ for (const [mode, locale] of [
       });
       await user.upload(input, file);
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        copy.uploadFailed,
+        uploadError,
       );
       expect(nativeAlert).not.toHaveBeenCalled();
       expect(title).toHaveValue("Keep this chore 原");
@@ -115,7 +120,7 @@ for (const [mode, locale] of [
       await user.upload(input, file);
       await waitFor(() => expect(uploads).toBe(2));
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        copy.uploadFailed,
+        uploadError,
       );
       expect(title).toHaveValue("Keep this chore 原");
       if (mode === "edit")

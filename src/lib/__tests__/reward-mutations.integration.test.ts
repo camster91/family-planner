@@ -130,6 +130,17 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
   let claimRoute: typeof import("@/app/api/rewards/claim/route").POST;
   let approveRoute: typeof import("@/app/api/rewards/approve/route").POST;
 
+  // Authored UNRUN: new scalar receipts do not duplicate person display data.
+  async function expectReceiptWithoutPeople(key: string): Promise<void> {
+    const receipt = await db.idempotencyRecord.findFirst({
+      where: { family_id: FAMILY_A, key, response_status: 200 },
+      select: { response_body: true },
+    });
+    expect(receipt?.response_body).toHaveProperty("reward.created_by", PARENT_A);
+    expect(receipt?.response_body).not.toHaveProperty("reward.creator");
+    expect(receipt?.response_body).not.toHaveProperty("reward.claimer");
+  }
+
   async function removeFixtures(): Promise<void> {
     if (!db) return;
     await db.idempotencyRecord.deleteMany({
@@ -280,14 +291,16 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
   it("commits a create and its receipt together, and rolls both back on claim failure", async () => {
     const parent = actor(PARENT_A);
     const createBody = { name: "Atomic reward", cost: 25, icon: "gift" };
+    const createKey = freshKey();
     const created = await runEffect(
-      freshKey(),
+      createKey,
       parent,
       "reward.create",
       createBody,
       async (recordId) => (await createReward(db, createBody, parent, recordId)).result,
     );
     expect(created.status).toBe(200);
+    await expectReceiptWithoutPeople(createKey);
     expect(await db.reward.count({ where: { family_id: FAMILY_A } })).toBe(1);
     expect(await db.idempotencyRecord.count({ where: { family_id: FAMILY_A, response_status: 200 } })).toBe(1);
 
@@ -478,6 +491,7 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
       () => authorizeRewardReplay(db, child, false),
     );
     expect(committed.status).toBe(200);
+    await expectReceiptWithoutPeople(committedKey);
     await db.reward.update({ where: { id: committedId }, data: { is_active: false } });
 
     const replay = await runEffect(
@@ -525,6 +539,7 @@ describeWithDatabase("Rewards mutations against disposable PostgreSQL", () => {
     const approvalKey = freshKey();
     const first = await approve(approvalKey);
     const retry = await approve(approvalKey);
+    await expectReceiptWithoutPeople(approvalKey);
     expect(first.status).toBe(200);
     expect(retry.status).toBe(200);
     expect(retry.headers.get("Idempotency-Replayed")).toBe("true");

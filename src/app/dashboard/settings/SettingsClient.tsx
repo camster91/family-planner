@@ -1,4 +1,7 @@
 "use client";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
+import { isClockFormat } from "@/lib/clock-format";
+import { PRODUCT_BRAND } from "@/lib/brand";
 
 import {
   useState,
@@ -57,11 +60,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// Provider examples and the legacy app identity are literal data, not translated copy.
-const AI_URL_EXAMPLE =
-  "https://generativelanguage.googleapis.com/v1beta/openai";
-const AI_MODEL_EXAMPLE = "gemini-2.0-flash";
-const LEGACY_APP_NAME = "Family Planner";
 
 // Settings is the default landing tab, so keep family-only controls out of
 // its startup graph. Each child retains its existing disclosure, state and
@@ -69,6 +67,7 @@ const LEGACY_APP_NAME = "Family Planner";
 const LazyCalendarSubscriptionsSection = lazy(
   () => import("./CalendarSubscriptionsSection"),
 );
+const LazyCalendarFeedReview = lazy(() => import("./CalendarFeedReview"));
 const LazyCalendarSyncSection = lazy(() => import("./CalendarSyncSection"));
 const LazySharedDeviceSettings = lazy(() => import("./SharedDeviceSettings"));
 const LazyAiUsagePanel = lazy(() =>
@@ -208,6 +207,7 @@ export default function SettingsClient({
   calendarSync = false,
   aiCaptureSettings = false,
   aiUsage,
+  calendarFeedReviewScope,
 }: {
   viewerRole: SettingsViewerRole;
   sharedDevice: { hasPin: boolean } | null;
@@ -215,6 +215,7 @@ export default function SettingsClient({
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
   aiUsage?: { userId: string; familyId: string };
+  calendarFeedReviewScope?: string;
 }) {
   const copy = useSettingsCopy();
   const isParent = viewerRole === "parent";
@@ -323,7 +324,8 @@ export default function SettingsClient({
     writeThemePreference(next);
     applyThemePreference(next);
   };
-  const { locale, setLocale, t } = useTranslation();
+  const { locale, setLocale, t, clockFormat, setClockFormat, clockRemembered } = useTranslation();
+  const displayLocale = useDisplayLocale();
   const themeLabels = {
     light: t("preferences.themeLight"),
     dark: t("preferences.themeDark"),
@@ -812,6 +814,23 @@ export default function SettingsClient({
             <option value="en">{t("preferences.languageEnglish")}</option>
             <option value="es">{t("preferences.languageSpanish")}</option>
           </select>
+          <label htmlFor="clockFormat" className="mt-4 mb-2 block text-subhead text-label-primary">
+            {t("preferences.clockFormat")}
+          </label>
+          <select id="clockFormat" value={clockFormat} className="input-field w-full"
+            aria-describedby="clock-format-example clock-format-storage"
+            onChange={(event) => { if (isClockFormat(event.target.value)) setClockFormat(event.target.value); }}>
+            <option value="auto">{t("preferences.clockAuto")}</option>
+            <option value="12h">{t("preferences.clock12")}</option>
+            <option value="24h">{t("preferences.clock24")}</option>
+          </select>
+          <p id="clock-format-example" className="mt-2 text-footnote text-label-secondary">
+            {t("preferences.clockExample", { time: new Date(Date.UTC(2000, 0, 1, 13, 5)).toLocaleTimeString(displayLocale,
+              { hour: "numeric", minute: "2-digit", timeZone: "UTC" }) })}
+          </p>
+          <p id="clock-format-storage" role="status" className="mt-2 text-footnote text-label-secondary">
+            {!clockRemembered ? t("preferences.clockVisitOnly") : null}
+          </p>
         </div>
 
         <div className="card">
@@ -1053,6 +1072,10 @@ export default function SettingsClient({
               </div>
             )}
 
+            {calendarFeedReviewScope && <Suspense fallback={<p role="status">{copy("loadingEllipsis")}</p>}>
+              <LazyCalendarFeedReview key={calendarFeedReviewScope} scope={calendarFeedReviewScope} />
+            </Suspense>}
+
             {feedError && (
               <p className="text-sm text-danger-text mt-3">
                 <SettingsText feedback={feedError} />
@@ -1153,7 +1176,7 @@ export default function SettingsClient({
                     id="aiBaseUrl"
                     value={aiBaseUrl}
                     onChange={(e) => setAiBaseUrl(e.target.value)}
-                    placeholder={AI_URL_EXAMPLE}
+                    placeholder={copy("providerUrlPlaceholder")}
                     className="input-field w-full text-sm"
                   />
                 </div>
@@ -1172,7 +1195,7 @@ export default function SettingsClient({
                     id="aiModel"
                     value={aiModel}
                     onChange={(e) => setAiModel(e.target.value)}
-                    placeholder={AI_MODEL_EXAMPLE}
+                    placeholder={copy("modelPlaceholder")}
                     className="input-field w-full text-sm"
                   />
                 </div>
@@ -1283,12 +1306,12 @@ export default function SettingsClient({
 
       {/* App Info */}
       <div className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">
-        <p className="font-semibold text-foreground">{LEGACY_APP_NAME}</p>
+        <p className="font-semibold text-foreground">{PRODUCT_BRAND.wordmark}</p>
         {build && <p>{copy("version", { build })}</p>}
         <p className="mt-1 text-label-tertiary">
           {copy("copyright", {
             year: new Date().getFullYear(),
-            brand: LEGACY_APP_NAME,
+            brand: PRODUCT_BRAND.legacyName,
           })}
         </p>
       </div>

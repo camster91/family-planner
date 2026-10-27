@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { usePreparationActive } from "@/components/calendar/preparation/PreparationProvider";
 import { useScheduleReviewActive } from "@/components/calendar/review/ScheduleReviewProvider";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { useReviewInboxText } from "@/i18n/review-inbox";
 const Capture = React.lazy(() =>
   import("@/components/capture/CaptureBox").then((module) => ({
@@ -14,6 +15,7 @@ const Capture = React.lazy(() =>
  * Hiding beneath a sibling overlay preserves its in-memory draft and exact intents. */
 export default function CaptureInboxReview({ active }: { active: boolean }) {
   const [hasDraft, setHasDraft] = React.useState(false);
+  const router = useDraftAwareRouter();
   const copy = useReviewInboxText(),
     params = useSearchParams();
   const preparationActive = usePreparationActive(),
@@ -48,8 +50,9 @@ export default function CaptureInboxReview({ active }: { active: boolean }) {
               event.altKey
             )
               return;
-            if (hasDraft && !window.confirm(copy.leaveCapture))
-              event.preventDefault();
+            event.preventDefault();
+            if (hasDraft && !window.confirm(copy.leaveCapture)) return;
+            void router.push("/dashboard/meals/explore");
           }}
         >
           {copy.recipeDrafts}

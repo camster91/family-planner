@@ -7,7 +7,8 @@ import {
   recipeCurationResponse,
 } from "@/lib/recipe-curation-contract";
 import { useRecipeCurationText } from "@/i18n/recipe-curation";
-import { requestOwnedJson } from "@/lib/owned-request-http";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
+import { requestRecipeCurationJson as requestOwnedJson } from "@/lib/recipe-curation-client";
 type Current = {
   id: string;
   revision: number;
@@ -21,7 +22,12 @@ export function RecipeCuration({
   title,
   favorite = false,
   onChanged,
+  expectedOwner,
+  onOwnerHold,
 }: {
+  expectedOwner?: RecipeOwner;
+  /** Mask the containing household view when this control loses its original owner. */
+  onOwnerHold?: () => void;
   id: string;
   title: string;
   favorite?: boolean;
@@ -35,18 +41,37 @@ export function RecipeCuration({
   const [base, setBase] = useState<Current | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [starred, setStarred] = useState(false);
+  // Keep the compact trigger in sync with the last confirmed server value.
+  // The parent list can refresh asynchronously after a save, so relying only
+  // on the incoming prop leaves a newly-favorited recipe looking unstarred.
+  const [savedFavorite, setSavedFavorite] = useState(favorite);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [message, setMessage] = useState<
-    "readError" | "writeError" | "refreshed" | "saved" | "current" | null
+    "readError" | "writeError" | "refreshed" | "saved" | "current" | "ownerChanged" | null
   >(null);
+  const [ownerHold, setOwnerHold] = useState(false);
+  const owner = useRef<RecipeOwner | null>(expectedOwner ?? null);
+  const ownerHeld = useRef(false);
+  const reloadFocus = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (ownerHold && document.activeElement === document.body) reloadFocus.current?.focus(); }, [ownerHold]);
+  const holdOwner = () => {
+    ownerHeld.current = true; setOwnerHold(true); setNeedsRefresh(true); setMessage("ownerChanged");
+    onOwnerHold?.();
+  };
   const generation = useRef(0);
   const action = useRef(false);
   const mutating = useRef(false);
   usePendingFormNavigationController(busy);
   useEffect(() => {
+    setSavedFavorite(favorite);
+  }, [id, favorite]);
+  useEffect(() => {
     generation.current++;
+    owner.current = expectedOwner ?? null;
+    ownerHeld.current = false;
+    setOwnerHold(false);
     action.current = false;
     mutating.current = false;
     setBusy(false);
@@ -57,8 +82,9 @@ export function RecipeCuration({
       generation.current++;
       action.current = false;
     };
-  }, [id]);
+  }, [id, expectedOwner]);
   async function load(preserve: boolean) {
+    if (ownerHeld.current) { setOpen(true); return; }
     if (action.current) return;
     action.current = true;
     const own = ++generation.current;
@@ -66,14 +92,19 @@ export function RecipeCuration({
     setLoading(true);
     setMessage(null);
     try {
+      const init = owner.current ? { headers: { [RECIPE_OWNER_HEADER]: JSON.stringify(owner.current) } } : {};
       const [catalog, state] = await Promise.all([
-        requestOwnedJson("/api/recipes/collections", {}, 128 * 1024),
+        requestOwnedJson("/api/recipes/collections", init, 128 * 1024),
         requestOwnedJson(
           `/api/recipes/${encodeURIComponent(id)}/curation`,
-          {},
+          init,
           32 * 1024,
         ),
       ]);
+      const retired = [catalog, state].some(result => result.kind === "reply" && (
+        result.response.status === 401 || result.response.status === 403 ||
+        (result.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED"));
+      if (retired) { if (own === generation.current) holdOwner(); return; }
       if (
         catalog.kind !== "reply" ||
         state.kind !== "reply" ||
@@ -81,12 +112,20 @@ export function RecipeCuration({
         !state.response.ok
       )
         throw new Error();
+      const catalogOwner = readRecipeOwner(catalog.response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+      const stateOwner = readRecipeOwner(state.response.headers?.get(RECIPE_OWNER_HEADER) ?? null);
+      if (!sameRecipeOwner(catalogOwner, stateOwner) || (owner.current && !sameRecipeOwner(owner.current, stateOwner))) {
+        if (own === generation.current) holdOwner();
+        return;
+      }
       const c = collectionResponse.parse(catalog.body);
       const s = recipeCurationResponse.parse(state.body);
       if (s.id !== id) throw new Error();
       if (own !== generation.current) return;
+      owner.current = stateOwner;
       setCollections(c.collections);
       setBase(s);
+      setSavedFavorite(s.favorite);
       setNeedsRefresh(false);
       if (!preserve) {
         setChosen(s.collectionIds);
@@ -107,6 +146,7 @@ export function RecipeCuration({
   async function save() {
     if (
       action.current ||
+      ownerHeld.current || !owner.current ||
       !base ||
       needsRefresh ||
       chosen.length > 8 ||
@@ -132,11 +172,16 @@ export function RecipeCuration({
         `/api/recipes/${encodeURIComponent(id)}/curation`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", [RECIPE_OWNER_HEADER]: JSON.stringify(owner.current) },
           body: JSON.stringify(desired),
         },
         32 * 1024,
       );
+      if (response.kind === "reply" && (
+        response.response.status === 401 || response.response.status === 403 ||
+        (response.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+        (response.response.ok && !sameRecipeOwner(owner.current, readRecipeOwner(response.response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))
+      )) { if (own === generation.current) holdOwner(); return; }
       if (response.kind !== "reply" || !response.response.ok) throw new Error();
       const result = recipeCurationResponse.parse(response.body);
       if (
@@ -147,6 +192,7 @@ export function RecipeCuration({
         throw new Error();
       if (own !== generation.current) return;
       setBase(result);
+      setSavedFavorite(result.favorite);
       setMessage("saved");
       onChanged?.();
     } catch {
@@ -171,13 +217,13 @@ export function RecipeCuration({
         aria-label={`${text.organize}: ${title}`}
         onClick={() => void load(false)}
       >
-        {favorite ? "★ " : ""}
+        {savedFavorite ? "★ " : ""}
         {text.organize}
       </button>
       <Dialog
         open={open}
         title={text.title}
-        description={`${title}. ${text.help}`}
+        description={ownerHold ? text.ownerChanged : `${title}. ${text.help}`}
         variant="form"
         closeLabel={text.close}
         onClose={
@@ -191,7 +237,7 @@ export function RecipeCuration({
                 setOpen(false);
               }
         }
-        footer={
+        footer={ownerHold ? null :
           <button
             type="button"
             className="btn-primary min-h-[44px] w-full"
@@ -209,7 +255,9 @@ export function RecipeCuration({
           </button>
         }
       >
-        <div className="space-y-3">
+        {ownerHold ? <div role="alert" className="space-y-3"><p>{text.ownerChanged}</p>
+          <button ref={reloadFocus} type="button" className="btn-secondary min-h-[44px]" onClick={() => window.location.reload()}>{text.reload}</button>
+        </div> : <div className="space-y-3">
           {loading && <p role="status">{text.loading}</p>}
           {message && (
             <p
@@ -268,7 +316,7 @@ export function RecipeCuration({
           </fieldset>
           {chosen.length > 8 && <p role="alert">{text.limit}</p>}
           {missing.length > 0 && <p role="alert">{text.missingHelp}</p>}
-        </div>
+        </div>}
       </Dialog>
     </>
   );

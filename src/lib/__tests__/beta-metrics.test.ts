@@ -211,14 +211,14 @@ describe('source scan', () => {
       .sort()
     expect(callers).toEqual([
       'src/app/api/auth/register/route.ts',
-      'src/app/api/chores/verify/route.ts',
       'src/app/api/family/join/route.ts',
       'src/app/api/meals/create/route.ts',
       'src/app/api/meals/route.ts',
-      'src/app/api/rewards/claim/route.ts',
+      'src/lib/chore-check-http.ts',
       'src/lib/chore-complete.ts',
       'src/lib/person-chore-create.ts',
       'src/lib/person-event-create.ts',
+      'src/lib/reward-claim-http.ts',
     ])
   })
 

@@ -498,3 +498,174 @@ continued replay authority. A successful fresh device pairing emits the existing
 purge event so a same-client lookup cannot reuse the previous device queue.
 Custom store wrappers must share their `persistenceLane` when they address the
 same storage; independently constructed wrappers cannot infer that identity.
+
+## Personal item edit/tick authority — 2026-10-24 (#134/#135, source only)
+
+Both `/api/lists/items/edit` and `/api/lists/items/update` now supply the existing
+shared item writer with a trusted personal transaction-authority callback. It
+renews exact current role/session/family and list-feature permission under User
+then household locks before the item lock/read/write. The callback is server
+code, never a request field. Parent/teen/child item editing remains. The same base
+check is extracted from personal create into `person-list-item-authority.ts`;
+create/capture retain their existing policy and stronger default-list permission.
+
+Completed keyed personal replay now renews authority before returning its stored
+historical result. It does not reapply the old edit/check, validate an old version
+against the current row, or recreate a deleted item. These guards do not replace
+the queue owner header/action/body/key contract. Metadata edit's initial target
+lookup/legacy statuses remain. The effect still uses expectedUpdatedAt and the
+existing LIST_ITEM_CHANGED/DUPLICATE_OPEN_ITEM outcomes, monotonic server versions,
+absolute checked state and unchanged no-op attribution.
+
+The shared row-lock query is now joined to the list household, so a foreign
+item request does not first lock another family's item. The following lookup
+retains its existing missing/foreign handling and response policy. Device calls
+continue through the same comparison/write implementation without a personal
+callback; device-session/acting-member authorization stays in its coordinator.
+Their DTO, action namespace, audit and capability/opt-in boundaries are unchanged.
+
+The subsequent local source couples successful personal item edits/ticks with
+exact keyed response completion in that same item transaction. Actor/household
+locks precede a scoped receipt lock, which precedes the item lock. A completed
+200 response with this item ID replays stored JSON before version comparison;
+missing or incompatible completed receipts hold without reapplying. Failed receipt
+storage throws, requesting rollback of the item change. Outer coordinator completion
+already preserves receipts completed by canonical transactions. Unkeyed writes and
+device-coordinator behavior are unchanged. No new schema or queue operation.
+
+Best-effort post-commit section-trip tracking is not made transactional; a failure
+or crash can still omit that auxiliary record. Stored replay dates remain strings,
+so recovery does not record another trip. Metadata edit's pre-coordinator target
+lookup still returns existing missing/foreign statuses, including after deletion.
+Regression cases cover authority-before-receipt, missing/malformed holds, original
+JSON replay, no-op completion and propagated receipt failure; guarded PostgreSQL
+source covers stored-result replay after a later edit. All authored/unrun. No
+actual PostgreSQL rollback/locking/plan, lifecycle/device or release proof.
+
+## Online note content conflicts — 2026-10-25 (#134/#135, local source)
+
+Compatible online note edits now send optional expected_updated_at to the existing
+personal writer. Authority/creator checks and row lock precede comparison; stale
+edits return NOTE_CHANGED without applying a field, with a minimal current saved
+projection. The sheet retains the draft and offers explicit saved-vs-draft review;
+Save requires a choice and rechecks the reviewed version. No automatic overwrite,
+merge, queue operation or new permission. Legacy unversioned behavior remains;
+this is not offline note support or note-create exactly-once recovery. Timestamp
+versions advance monotonically for content writes. Authored cases unrun; actual
+locking/convergence/network/native acceptance remains open, no activation/run.
+
+## Mounted note-create uncertainty — 2026-10-25 (#135, local source)
+
+New web note creates use one secure key/exact normalized body bound to the GET
+writeContext's account/household. Optional POST expectations refuse context changes
+before receipt work, while current authority still renews in the canonical create
+transaction. Uncertain responses preserve the original request/draft and permit
+only deliberate identical retry; cancelled sheets reopen that intent while their
+page stays mounted. Shared request deadlines/body bounds and a24-hour safe retry
+window apply. No optimistic note is invented from an uncertain response.
+
+This does not persist across navigation/reload/native restart, add a note queue,
+inspect removal after completed receipt or enable background sends. The existing
+owned-request journal is not replaced or forked; persistent adoption/recovery and
+all actual failure/restart/lifecycle acceptance remain future work. Legacy unbound
+API callers retain their old behavior. Source cases authored/adapted only; no run.
+
+## Note receipt presence/removal — 2026-10-25 (#135, local source)
+
+Mounted note-create recovery now inspects its exact original request/key through
+personal read-only POST /api/notes/create/receipt. Current authority, owner, scoped
+receipt action/hash/expiry and present note ID are checked without replay/pruning
+or a note write. Present confirms and removed terminates without recreation.
+Only an unissued result may proceed through the original keyed writer within the
+safe client retry window; pending/expired/unknown replies hold. No raw cached note
+content is exposed. Removed recovery gets an explicit EN/ES terminal message.
+
+This extends the preceding mounted-only recovery checkpoint; it still has no
+persistent journal or navigation/reload/native restart guarantee. An absent key
+is not a restored-database exactly-once guarantee. No new queue/scheduler/device
+permission. Source cases unrun; real locks, races, deletion/owner changes, fault/
+restore and lifecycle acceptance remain open.
+
+## Note-create journal foundation — 2026-10-25 (#135, source only)
+
+The note adapter now wraps the existing owned exact-request journal; it does not
+add another queue or migrate legacy unowned notes. Separate current-session note
+owner scopes share household/generation retirement. One strict64KiB request fits
+inside a96KiB journal; bytes/key/issuedAt and owner expectations remain immutable.
+Every send requires renewed context, verified storage baseline, explicit recovered
+review and unissued receipt inspection. Paused matching-owner inspection/dismissal
+remains possible; expired/changed/unknown work holds. New readiness gates and the
+existing queue adoption gates remain off/unmodified.
+
+The current note sheet still uses mounted recovery. Adapter initialization,
+persist-before-first-send, restored request review and exact terminal dismissal/
+storage recovery UI remain next; no restart persistence is claimed yet. Injected
+journal/owner cases authored only, all unrun; native process death/storage faults,
+logout/role/household retirement and actual durable outcomes remain acceptance.
+
+## Note sheet owned-journal adoption — 2026-10-25 (#135/#499, source only)
+
+The sheet now lazily adopts the existing note journal when the server advertises
+retained rollback readiness. New creates stage exact work before send; restored
+work is explicitly reviewed and inspected, with no automatic replay. Current
+presence/removal settles terminally, pending/unknown/expired holds, and only
+unissued within the24h window can use the original keyed writer. Read-only proof
+inspection remains possible after the shorter send window. Shared snapshot display
+metadata is removed only when rebuilding the strict original intent.
+
+Exact storage failures block new sends and expose explicit Retry recovery. Confirmed
+terminal results are retained while local cleanup is repaired; repairing alone
+never sends another create. Owner/permission loss clears the visible personal
+surface, preserving stored work for existing retirement controls. No adopted
+storage failure falls back to unowned or mounted-only sends. Non-adopted servers
+retain mounted behavior. Flags remain off/unmodified; rollback readiness must stay
+advertised until pending journals are reconciled. Source cases are injected/unrun,
+not browser/process-death/replica/retirement/physical-device acceptance. No API/DB/
+cache/storage initialization, QA/build/browser/native/provider/release occurred.
+
+### Wishlist write foreground limits — 2026-10-25 (#135)
+
+Wishlist web source moves all four Wishlist writes onto
+the existing shared15-second foreground deadline and256KiB JSON cap (#135).
+Missing/malformed/oversized replies enter the existing action-specific uncertain
+paths, retaining original mutation keys and drafts/confirmation. Status failures
+still inspect canonical state through bounded reads; no automatic write replay or
+rollback is inferred. Definitive refusal and matched-success validation remain.
+JSON-only bridges retain post-parse bounds. Exact-key oversized-delete source
+coverage authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. Real timeout/retry/concurrency/role and full acceptance open.
+
+### Reward-board write deadlines — 2026-10-25 (#135/#134)
+
+Rewards board source completes reward-board foreground
+transport bounds (#135/#134): claim/approval now share15-second whole-request
+waits and256KiB JSON decode caps with existing exact target recovery. Missing/
+malformed/oversized replies retain original keys and review;408/409/425/429/5xx
+also retain keys rather than infer rollback. Parsed matched success still alone
+updates XP/claim/given state; no automatic replay or local point charge added.
+Existing localized error/review surfaces remain. Deadline/oversize exact-retry
+source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. Actual locking/replay/role/timeout/rendered and native
+lifecycle acceptance remain open; this is not release or durable-queue acceptance.
+
+### Original-owner chat composition and uploads — 2026-10-25 (#135/#136)
+
+Chat/API source binds chat composition to original
+account/household/session (#135/#136). Modern GET advertises a strict writeContext;
+the client freezes it before uploads and includes it in exact send bytes. New
+/send and /attachments/owned routes require those preconditions while sharing
+canonical legacy handlers/effects. Unsupported old servers cannot silently strip
+fields via a legacy fallback. Unknown support keeps drafts local. Fresh user ->
+household locks renew session/feature before message effect/replay, upload row
+creation and post-file publication check. Lost upload authority uses existing
+exact unclaimed-file compensation. Read acknowledgments now renew the same
+locks before appending non-FK read_by IDs. Upload/send/read waits are bounded;
+unknown sends keep original keys and late retired uploads do not trigger sends.
+Legacy endpoints/body formats remain supported. Source contract/API/UI/paired/
+upload-fault cases authored/adapted only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Actual PG/filesystem/race/rollback/native/
+aging/lifecycle acceptance remains open; no persistent message queue is claimed.
+
+Modern read writeContext is `{protocol:"herewoven.message-owner.v1",userId,familyId,generation}`. This is private context, not a token or authority. Optional legacy message fields expected_user_id/expected_family_id/expected_generation must be all absent or all present and match the authenticated actor. POST `/api/messages/send` requires them and an Idempotency-Key, stream-bounds JSON at64KiB and delegates to the same message.create receipt/effect. POST `/api/messages/attachments/owned` requires X-Herewoven-Message-Owner with exact strict context and delegates to the same bounded multipart/storage/compensation handler. Existing message/attachment endpoints remain legacy-compatible; supplied owner constraints still enforce. Neither strict endpoint falls back to a legacy write URL.
+
+The client captures context before asynchronous photo work and masks the thread on generation/context change. Missing marker keeps composing local with EN/ES explanation. Request deadlines are15seconds, upload/read-ack JSON caps32KiB and send cap256KiB. Network/parse/timeout and408/409/425/429/5xx send uncertainty retains original key/body. This is mounted recovery only: no new persistent queue, receipt-retention extension, original-send age guarantee or automatic retry. Existing unbound-media pruning/file compensation and wider erase/claim/rollback/lifecycle races still require real acceptance.

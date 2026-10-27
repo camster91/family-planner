@@ -29,7 +29,7 @@ function mockFetch(answer: (method: string, url: string) => Answer) {
   return calls
 }
 
-const list = (): Answer => ({ status: 200, body: { notifications: [UNREAD, READ] } })
+const list = (): Answer => ({ status: 200, body: { notifications: [UNREAD, READ], nextCursor: null } })
 
 function renderPage() {
   return render(
@@ -221,7 +221,7 @@ it('keeps the row when snoozing fails',async()=>{
 })
 it('returns an expired snooze to unread without creating another notification',async()=>{
  jest.useFakeTimers({now:new Date('2026-10-09T12:00:00Z')})
- mockFetch(()=>({status:200,body:{notifications:[{...UNREAD,snoozed_until:new Date(Date.now()+60_000).toISOString()}]}}))
+ mockFetch(()=>({status:200,body:{notifications:[{...UNREAD,snoozed_until:new Date(Date.now()+60_000).toISOString()}],nextCursor:null}}))
  renderPage()
  await act(async()=>{})
  expect(screen.getByRole('button',{name:'Snoozed (1)'})).toBeTruthy()
@@ -229,3 +229,216 @@ it('returns an expired snooze to unread without creating another notification',a
  expect(screen.getByRole('button',{name:'Snoozed (0)'})).toBeTruthy()
  expect(screen.getByRole('button',{name:'Unread (1)'})).toBeTruthy()
 })
+
+// Source cases for the deferred QA pass; no execution claimed.
+it('loads older pages without duplicates or overwriting a locally marked-read row', async () => {
+  const older = { ...UNREAD, id: 'n3', title: 'Older chore', created_at: '2026-09-28T10:00:00.000Z' }
+  mockFetch((method, url) => method === 'PATCH'
+    ? { status: 200, body: { success: true } }
+    : new URL(url, 'http://localhost').searchParams.has('cursor')
+      ? { status: 200, body: { notifications: [UNREAD, older], nextCursor: null } }
+      : { status: 200, body: { notifications: [UNREAD, READ], nextCursor: 'cursor-a' } })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  await user.click(screen.getByRole('button', { name: 'Load older notifications' }))
+  await screen.findByRole('button', { name: 'Mark "Older chore" as read' })
+  expect(screen.getAllByTestId('notification-row')).toHaveLength(3)
+  expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull()
+  expect(screen.getByText('All notifications loaded.')).toBeTruthy()
+})
+it('retains the current page and exact continuation when an older read fails', async () => {
+  let fail = true
+  const calls = mockFetch((_, url) => new URL(url, 'http://localhost').searchParams.has('cursor')
+    ? fail ? { status: 503, body: { error: 'Older page unavailable' } }
+      : { status: 200, body: { notifications: [READ], nextCursor: null } }
+    : { status: 200, body: { notifications: [UNREAD], nextCursor: 'cursor-a' } })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Load older notifications' }))
+  await screen.findByRole('alert')
+  expect(screen.getByRole('button', { name: 'Mark "Dishes done" as read' })).toBeTruthy()
+  fail = false
+  await user.click(screen.getByRole('button', { name: 'Retry older notifications' }))
+  await screen.findByText('Swim lesson')
+  const olderCalls = calls.filter(c => new URL(c.url, 'http://localhost').searchParams.has('cursor'))
+  expect(olderCalls.map(c => new URL(c.url, 'http://localhost').searchParams.get('cursor'))).toEqual(['cursor-a', 'cursor-a'])
+})
+it('does not claim caught-up or a complete empty inbox from legacy page metadata', async () => {
+  mockFetch(() => ({ status: 200, body: { notifications: [READ] } }))
+  renderPage()
+  await screen.findByText('Swim lesson')
+  expect(screen.queryByText('All caught up')).toBeNull()
+  expect(screen.getByText(/This server cannot load older notification pages yet/)).toBeTruthy()
+})
+
+// Authored only: no navigation or notification mutation is sent by rendering links.
+it('offers the canonical summary destination and withholds arbitrary stored links', async () => {
+  const calls = mockFetch(() => ({ status: 200, body: { notifications: [
+    { ...UNREAD, action_url: '/dashboard/today' },
+    { ...READ, action_url: 'https://invalid.test/private' },
+  ], nextCursor: null } }));
+  renderPage();
+  const link = await screen.findByRole('link', { name: 'Open "Dishes done"' });
+  expect(link.getAttribute('href')).toBe('/dashboard/today');
+  expect(screen.queryByRole('link', { name: 'Open "Swim lesson"' })).toBeNull();
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+});
+
+// Authored source cases only; QA remains deferred.
+it.each(['mark', 'snooze'] as const)('keeps the notification and holds writes after an oversized %s reply', async action => {
+  const decode = jest.fn(async () => ({ success: true, snoozed_until: null }))
+  global.fetch = jest.fn(async (_input, init) => init?.method === 'PATCH'
+    ? ({ ok: true, status: 200, headers: new Headers({ 'content-length': '65536' }), json: decode })
+    : ({ ok: true, status: 200, json: async () => ({ notifications: [UNREAD], nextCursor: null }) })) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  if (action === 'mark') await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  else await user.selectOptions(await screen.findByRole('combobox', { name: 'Snooze "Dishes done"' }), '15')
+  await screen.findByText('The change could not be confirmed. Refresh notifications before trying again.')
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.getByTestId('notification-row').textContent).toContain('Unread: Dishes done')
+  expect((screen.getByRole('button', { name: 'Mark "Dishes done" as read' }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(true)
+})
+
+it('offers an explicit canonical refresh after an unconfirmed mark-read reply', async () => {
+  let reads = 0
+  const calls = mockFetch(method => method === 'PATCH'
+    ? { status: 200, body: {} }
+    : { status: 200, body: { notifications: [{ ...UNREAD, read: ++reads > 1 }], nextCursor: null } })
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  await screen.findByText('The change could not be confirmed. Refresh notifications before trying again.')
+  expect(reads).toBe(1)
+  await user.click(screen.getByRole('button', { name: 'Refresh notifications' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull())
+  expect(reads).toBe(2)
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+})
+
+it('holds manual refresh during the delete Undo window and enables it after Undo', async () => {
+  const user = userEvent.setup()
+  mockFetch(list)
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Delete "Dishes done"' }))
+  expect((screen.getByRole('button', { name: 'Refresh notifications' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.click(screen.getByRole('button', { name: 'Undo' }))
+  expect((screen.getByRole('button', { name: 'Refresh notifications' }) as HTMLButtonElement).disabled).toBe(false)
+  expect(screen.getByRole('button', { name: 'Delete "Dishes done"' })).toBeTruthy()
+})
+
+it('keeps a concurrent mark-read result and retries the exact older cursor after rejecting a stale page', async () => {
+  let release!: () => void
+  let olderReads = 0
+  const urls: string[] = []
+  const older = { ...READ, id: 'n3', title: 'Older appointment' }
+  global.fetch = jest.fn(async (input, init) => {
+    const url = String(input)
+    if (init?.method === 'PATCH') return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    urls.push(url)
+    if (!url.includes('cursor=')) return { ok: true, status: 200, json: async () => ({ notifications: [UNREAD], nextCursor: 'cursor-a' }) } as Response
+    const response = { ok: true, status: 200, json: async () => ({ notifications: [UNREAD, older], nextCursor: null }) } as Response
+    if (++olderReads === 1) return await new Promise<Response>(resolve => { release = () => resolve(response) })
+    return response
+  }) as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Load older notifications' }))
+  await waitFor(() => expect(release).toBeDefined())
+  await user.click(screen.getByRole('button', { name: 'Mark "Dishes done" as read' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull())
+  await act(async () => release())
+  await screen.findByText('Notifications changed while loading. Refresh or retry to see the latest state.')
+  expect(screen.queryByText('Older appointment')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Retry older notifications' }))
+  await screen.findByText('Older appointment')
+  expect(screen.queryByRole('button', { name: 'Mark "Dishes done" as read' })).toBeNull()
+  expect(urls.filter(url => url.includes('cursor='))).toEqual([
+    '/api/notifications?includeSnoozed=true&limit=50&cursor=cursor-a',
+    '/api/notifications?includeSnoozed=true&limit=50&cursor=cursor-a',
+  ])
+})
+
+// Authored for deferred QA: keep the global toast host alive after route exit.
+it.each(['mark', 'snooze', 'delete'] as const)('retires a pending %s response when leaving the inbox', async action => {
+  jest.useFakeTimers()
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+  let release!: (response: Response) => void
+  const writeInits: RequestInit[] = []
+  let writes = 0
+  global.fetch = jest.fn(async (_input, init) => {
+    if (!init?.method || init.method === 'GET')
+      return { ok: true, status: 200, json: async () => ({ notifications: [UNREAD], nextCursor: null }) } as Response
+    writes++
+    writeInits.push(init)
+    // Simulate a native bridge that ignores cancellation and settles late.
+    return await new Promise<Response>(resolve => { release = resolve })
+  }) as unknown as typeof fetch
+  const page = render(<ToastProvider><NotificationsPage /></ToastProvider>)
+  if (action === 'mark')
+    await user.click(await screen.findByRole('button', { name: 'Mark "Dishes done" as read' }))
+  else if (action === 'snooze')
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Snooze "Dishes done"' }), '15')
+  else {
+    await user.click(await screen.findByRole('button', { name: 'Delete "Dishes done"' }))
+    await act(async () => { jest.advanceTimersByTime(UNDO_TOAST_MS + 1000) })
+  }
+  expect(writes).toBe(1)
+  page.rerender(<ToastProvider><p>Next screen</p></ToastProvider>)
+  expect(writeInits[0].signal?.aborted).toBe(true)
+  await act(async () => {
+    release({ ok: action === 'snooze', status: action === 'snooze' ? 200 : 500,
+      json: async () => action === 'snooze'
+        ? { success: true, snoozed_until: '2030-01-01T12:00:00.000Z' }
+        : { error: 'Late private server detail' } } as Response)
+  })
+  expect(writes).toBe(1) // No page-exit replay of a delete already dispatched.
+  expect(screen.queryByText('Late private server detail')).toBeNull()
+  expect(screen.queryByText("Couldn't mark it as read")).toBeNull()
+  expect(screen.queryByText("Couldn't delete the notification")).toBeNull()
+  expect(screen.queryByText('Notification snoozed')).toBeNull()
+  expect(screen.getByText('Next screen')).toBeTruthy()
+})
+
+// Source-only recovery cases: a failed refresh cannot clear an unknown write.
+it.each(['network', 'server', 'malformed'] as const)('holds further changes after a %s snooze result until a valid full refresh', async outcome => {
+  const user = userEvent.setup()
+  let reads = 0
+  const calls = mockFetch(method => {
+    if (method === 'PATCH') return outcome === 'network' ? 'throw'
+      : outcome === 'server' ? { status: 500, body: { error: 'Could not confirm' } }
+      : { status: 200, body: { success: true, snoozed_until: 'invalid' } }
+    if (++reads === 2) return 'throw'
+    return { status: 200, body: { notifications: [UNREAD], nextCursor: null } }
+  })
+  renderPage()
+  await user.selectOptions(await screen.findByRole('combobox', { name: 'Snooze "Dishes done"' }), '15')
+  await screen.findByText('Refresh to check the latest state before making another change.')
+  const snooze = screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement
+  expect(snooze.disabled).toBe(true)
+  expect((screen.getByRole('button', { name: 'Delete "Dishes done"' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.selectOptions(snooze, '60')
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'Refresh notifications' }))
+  await screen.findByText('Check your connection and try again.')
+  expect(screen.getByText('Refresh to check the latest state before making another change.')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Snooze "Dishes done"' }) as HTMLSelectElement).disabled).toBe(false))
+  expect(screen.queryByText('Refresh to check the latest state before making another change.')).toBeNull()
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+  expect(reads).toBe(3)
+})
+
+// Authored UNRUN: exposing an exact link does not perform a target action.
+it('renders exact saved-recipe and list links without mutation requests', async () => {
+  const calls = mockFetch(() => ({status:200,body:{notifications:[
+    {...UNREAD,action_url:'/dashboard/meals/recipes/recipe-a'},
+    {...READ,action_url:'/dashboard/lists/list-a'},
+  ],nextCursor:null}}));
+  renderPage();
+  expect((await screen.findByRole('link',{name:'Open "Dishes done"'})).getAttribute('href')).toBe('/dashboard/meals/recipes/recipe-a');
+  expect(screen.getByRole('link',{name:'Open "Swim lesson"'}).getAttribute('href')).toBe('/dashboard/lists/list-a');
+  expect(calls.every(call => call.method === 'GET')).toBe(true);
+});

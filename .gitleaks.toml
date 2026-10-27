@@ -52,3 +52,37 @@ regexTarget = "line"
 # one test title as a value. Match this exact title only, including it(...).
 # Other lines, test values and secret rules remain fully scanned.
 regexes = ['''it\("refuses\ foreign\ owners,\ stale\ tokens,\ unknown/duplicate\ references\ and\ out\-of\-range\ windows",\ \(\)\ =>\ \{''']
+
+[[allowlists]]
+description = "Exact fake untimed reward retry ID in the legacy recovery test"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^src/app/dashboard/rewards/__tests__/create-form\.test\.tsx$''']
+regexTarget = "secret"
+# Client retry identifier only; this test never authenticates with it.
+# Exact historical fixture value only, so the full PR history stays scanned.
+regexes = ['''^legacy\-reward\-key\-12345678$''']
+
+[[allowlists]]
+description = "Exact historical implementation prose; contains no credential"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/engineering/ISSUE_COMPLETION_LEDGER\.md$''']
+regexTarget = "line"
+regexes = ['''(?m)^\+?reply,\ same\-body/key\ recovery,\ default/normalized\ list\ and\ caller\-mutation\ cases$''']
+
+[[allowlists]]
+description = "Exact historical implementation prose; contains no credential"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/CURRENT_STATE\.md$''']
+regexTarget = "line"
+regexes = ['''(?m)^\+?reply,\ same\-body/key\ recovery,\ default/normalized\ list\ and\ caller\-mutation\ cases$''']
+
+[[allowlists]]
+description = "Exact historical implementation prose; contains no credential"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^docs/plans/import\-review\-ui\.md$''']
+regexTarget = "line"
+regexes = ['''(?m)^\+?The\ API\ path,\ body\ keys,\ parent/family\ guards,\ identity\ checks,\ importer\ ownership,$''']

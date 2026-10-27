@@ -3,7 +3,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FoodPlanSummary } from "../FoodPlanSummary";
 import { makePreview } from "@/lib/food-planning/__tests__/view-fixture";
-jest.mock("@/i18n", () => ({ useTranslation: () => ({ locale: "en" }) }));
 it("does not turn scaled unknown duration into a known cooking estimate or expose save controls", () => {
   const plan = makePreview().plan;
   plan.slots[0].choice = {

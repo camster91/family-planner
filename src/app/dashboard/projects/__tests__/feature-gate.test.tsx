@@ -37,7 +37,7 @@ beforeEach(() => {
 
 it('shows the off state and reads no projects when Projects is off', async () => {
   familyWith(false)
-  const page = await ProjectsPage()
+  const page = await ProjectsPage({})
   expect(page?.type).toBe(FeatureOffState)
   render(<I18nProvider locale="es">{page}</I18nProvider>)
   expect(screen.getByRole('heading', { name: 'Función desactivada: Proyectos' })).toBeTruthy()
@@ -47,7 +47,7 @@ it('shows the off state and reads no projects when Projects is off', async () =>
 
 it('renders the projects page when Projects is on', async () => {
   familyWith(true)
-  const page = await ProjectsPage()
+  const page = await ProjectsPage({})
   expect(page).not.toBeNull()
   expect(page?.type).not.toBe(FeatureOffState)
 })

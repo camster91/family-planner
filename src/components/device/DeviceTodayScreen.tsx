@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useDeviceText, englishDeviceText, type DeviceFeedback, type DeviceText } from '@/i18n/device-management'
 import { Loader2, Lock, UserRound } from 'lucide-react'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import { DeviceGroceryAdd } from './DeviceGroceryAdd'
@@ -9,7 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { DeviceApiError, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import ElevatedBanner from './ElevatedBanner'
 import ElevationSheet from './ElevationSheet'
-import { genericErrorText, useDeviceClient, type DeviceMe } from './use-device-client'
+import { genericDeviceFeedback, renderDeviceFeedback, useDeviceClient, type DeviceMe } from './use-device-client'
 import { useDeviceBoardActions } from './use-device-board-actions'
 import { useDeviceBoardSnapshot } from './use-device-board-snapshot'
 import { useTodayBoardText } from '@/i18n/today-board'
@@ -39,6 +40,7 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * offers the board settings on the tablet itself (no photos, O-15).
  */
 export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2 }) {
+  const text = useDeviceText()
   const client = useDeviceClient()
   const boardText = useTodayBoardText()
   const [me, setMe] = React.useState<DeviceMe | null>(null)
@@ -47,7 +49,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
   const [renameOpen, setRenameOpen] = React.useState(false)
   const [removeOpen, setRemoveOpen] = React.useState(false)
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [status, setStatus] = React.useState<string | null>(null)
+  const [status, setStatus] = React.useState<ElevatedFeedback | null>(null)
 
   const loadMe = React.useCallback(async (): Promise<string | null> => {
     if (!client || client.isPurged()) return null
@@ -133,7 +135,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
   }, [elevated])
 
   const exitParentMode = React.useCallback(
-    (message: string) => {
+    (message: DeviceFeedback) => {
       void client?.endElevation()
       setStatus(message)
     },
@@ -147,22 +149,20 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           {loadError ? (
             <>
               <h1 className="font-display text-[32px] font-bold leading-tight text-label-primary">
-                {protocolError ? boardText('protocolCompatibilityTitle') : "Today's board could not load"}
+                {protocolError ? boardText('protocolCompatibilityTitle') : text('todayLoadFailed')}
               </h1>
               <p role="alert" className={`mt-4 ${errorTextClass}`}>
                 {protocolError ? boardText('protocolCompatibilityBody') : loadError}
               </p>
               <div className="mt-6">
                 <button type="button" onClick={() => void loadBoard()} className={primaryButtonClass}>
-                  {protocolError ? boardText('refreshBoard') : 'Try again'}
+                  {protocolError ? boardText('refreshBoard') : text('retry')}
                 </button>
               </div>
             </>
           ) : (
             <p role="status" className="flex items-center gap-3 text-[21px] text-label-primary">
-              <Loader2 className="h-6 w-6 motion-safe:animate-spin" aria-hidden="true" />
-              Loading today&apos;s board
-            </p>
+              <Loader2 className="h-6 w-6 motion-safe:animate-spin" aria-hidden="true" />{text("loadingTodayBoard")}</p>
           )}
         </div>
       </main>
@@ -180,22 +180,16 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
       disabled={cached}
       className={secondaryButtonClass}
     >
-      <Lock className="h-5 w-5" aria-hidden="true" />
-      Parent
-    </button>
+      <Lock className="h-5 w-5" aria-hidden="true" />{text("parentButton")}</button>
   ) : null
 
   const banner = (
     <>
       {cacheUnavailable && data && (
-        <p role="status" data-testid="device-cache-unavailable" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">
-          This plan could not be saved on this device. Keep the app open during an outage.
-        </p>
+        <p role="status" data-testid="device-cache-unavailable" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">{text("tabletCacheUnavailable")}</p>
       )}
       {cached && (
-        <p role="status" data-testid="device-cached-plan" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">
-          Showing a saved plan. Connect to update it. Parent controls and changes need a fresh connection.
-        </p>
+        <p role="status" data-testid="device-cached-plan" className="mb-5 rounded-[var(--radius-lg)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary">{text("tabletCachedPlan")}</p>
       )}
       {status && (
         <p
@@ -203,15 +197,15 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           data-testid="device-status"
           className="mb-5 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-3 text-[17px] text-label-primary"
         >
-          {status}
+          {renderElevatedFeedback(status, text)}
         </p>
       )}
       {client && elevation && (
         <ElevatedBanner
           client={client}
           session={elevation}
-          onExpire={() => exitParentMode('Parent mode ended.')}
-          onDone={() => exitParentMode('Parent mode ended.')}
+          onExpire={() => exitParentMode({ key: 'parentModeEnded' })}
+          onDone={() => exitParentMode({ key: 'parentModeEnded' })}
           onRename={() => setRenameOpen(true)}
           onRemove={() => setRemoveOpen(true)}
           onSettings={() => setSettingsOpen(true)}
@@ -223,9 +217,9 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           className="mb-5 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-2 text-[17px] text-label-primary"
         >
           <UserRound className="h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
-          <span className="min-w-0 flex-1">Ticking off as {actor.name}</span>
+          <span className="min-w-0 flex-1">{text('tickingAs', { name: actor.name })}</span>
           <button type="button" onClick={forgetActor} className={neutralButtonClass}>
-            Not {actor.name.trim().split(/\s+/)[0]}?
+            {text('notActor', { name: actor.name.trim().split(/\s+/)[0] ?? '' })}
           </button>
         </div>
       )}
@@ -260,7 +254,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
             void loadBoard()
             void loadMe()
           }}
-          title="Board settings"
+          title={text('boardSettings')}
           testId="device-board-settings"
           className="sm:max-w-2xl"
         >
@@ -292,7 +286,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
             })
             setMe((prev) => (prev ? { ...prev, device: res.device } : prev))
             setRenameOpen(false)
-            setStatus(`Renamed to ${res.device.label}.`)
+            setStatus({ key: 'renameDone', params: { label: res.device.label } })
           }}
         />
       )}
@@ -301,7 +295,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
         <RemoveDialog
           open={removeOpen}
           onClose={() => setRemoveOpen(false)}
-          label={me?.device.label ?? 'this tablet'}
+          label={me?.device.label ?? text('thisTablet')}
           onConfirm={async () => {
             await client.request('/api/device/revoke-self', { method: 'POST', elevated: true })
             // The server cleared the cookies; wipe this browser and show the removed screen.
@@ -334,15 +328,21 @@ function deviceSettingsTransport(client: DeviceClient): BoardSettingsTransport {
   }
 }
 
+type ElevatedFeedback = DeviceFeedback | { message: string }
+function elevatedFeedback(err: unknown): ElevatedFeedback {
+  if (err instanceof DeviceApiError && (err.code === 'ELEVATION_EXPIRED' || err.code === 'ELEVATION_REQUIRED'))
+    return { key: 'parentUnlockAgain' }
+  if (err instanceof DeviceApiError && err.code === 'VALIDATION_ERROR')
+    return err.message ? { message: err.message } : { key: 'nameLength' }
+  if (err instanceof DeviceApiError && err.status > 0 && err.status < 500 && err.status !== 429 && err.message)
+    return { message: err.message }
+  return genericDeviceFeedback(err)
+}
+function renderElevatedFeedback(feedback: ElevatedFeedback, text: DeviceText = englishDeviceText): string {
+  return 'message' in feedback ? feedback.message : renderDeviceFeedback(feedback, text)
+}
 function elevatedErrorText(err: unknown): string {
-  if (err instanceof DeviceApiError && (err.code === 'ELEVATION_EXPIRED' || err.code === 'ELEVATION_REQUIRED')) {
-    return 'Parent mode ended. Tap Parent to unlock again.'
-  }
-  if (err instanceof DeviceApiError && err.code === 'VALIDATION_ERROR') return err.message || 'Use 1 to 40 characters.'
-  if (err instanceof DeviceApiError && err.status > 0 && err.status < 500 && err.status !== 429 && err.message) {
-    return err.message
-  }
-  return genericErrorText(err)
+  return renderElevatedFeedback(elevatedFeedback(err))
 }
 
 function RenameDialog({
@@ -356,8 +356,9 @@ function RenameDialog({
   currentLabel: string
   onSave: (label: string) => Promise<void>
 }) {
+  const text = useDeviceText()
   const [label, setLabel] = React.useState(currentLabel)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<ElevatedFeedback | null>(null)
   const [busy, setBusy] = React.useState(false)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -369,14 +370,14 @@ function RenameDialog({
   }, [open, currentLabel])
 
   return (
-    <Dialog open={open} onClose={onClose} title="Rename this tablet" initialFocusRef={inputRef} testId="device-rename">
+    <Dialog open={open} onClose={onClose} title={text('renameThisTablet')} initialFocusRef={inputRef} testId="device-rename">
       <form
         className="space-y-5"
         onSubmit={async (e) => {
           e.preventDefault()
           const trimmed = label.trim()
           if (!trimmed || trimmed.length > 40) {
-            setError('Use 1 to 40 characters.')
+            setError({ key: 'nameLength' })
             return
           }
           setBusy(true)
@@ -384,16 +385,14 @@ function RenameDialog({
           try {
             await onSave(trimmed)
           } catch (err) {
-            setError(elevatedErrorText(err))
+            setError(elevatedFeedback(err))
           } finally {
             setBusy(false)
           }
         }}
       >
         <div>
-          <label htmlFor="device-label" className={labelClass}>
-            Tablet name
-          </label>
+          <label htmlFor="device-label" className={labelClass}>{text("tabletName")}</label>
           <input
             ref={inputRef}
             id="device-label"
@@ -406,16 +405,12 @@ function RenameDialog({
         </div>
         {error && (
           <p role="alert" className={errorTextClass}>
-            {error}
+            {renderElevatedFeedback(error, text)}
           </p>
         )}
         <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={busy} className={primaryButtonClass}>
-            Save name
-          </button>
-          <button type="button" onClick={onClose} className={neutralButtonClass}>
-            Cancel
-          </button>
+          <button type="submit" disabled={busy} className={primaryButtonClass}>{text("saveName")}</button>
+          <button type="button" onClick={onClose} className={neutralButtonClass}>{text("cancel")}</button>
         </div>
       </form>
     </Dialog>
@@ -433,7 +428,8 @@ function RemoveDialog({
   label: string
   onConfirm: () => Promise<void>
 }) {
-  const [error, setError] = React.useState<string | null>(null)
+  const text = useDeviceText()
+  const [error, setError] = React.useState<ElevatedFeedback | null>(null)
   const [busy, setBusy] = React.useState(false)
 
   React.useEffect(() => {
@@ -444,13 +440,13 @@ function RemoveDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Remove ${label}?`}
+      title={text('removeTitle', { label })}
       testId="device-remove"
-      description="It stops showing your family's information right away. A parent can pair it again later."
+      description={text('removeNowDescription')}
     >
       {error && (
         <p role="alert" className={`mb-5 ${errorTextClass}`}>
-          {error}
+          {renderElevatedFeedback(error, text)}
         </p>
       )}
       <div className="flex flex-wrap gap-3">
@@ -464,16 +460,12 @@ function RemoveDialog({
             try {
               await onConfirm()
             } catch (err) {
-              setError(elevatedErrorText(err))
+              setError(elevatedFeedback(err))
               setBusy(false)
             }
           }}
-        >
-          Remove tablet
-        </button>
-        <button type="button" onClick={onClose} className={neutralButtonClass}>
-          Cancel
-        </button>
+        >{text("removeTablet")}</button>
+        <button type="button" onClick={onClose} className={neutralButtonClass}>{text("cancel")}</button>
       </div>
     </Dialog>
   )

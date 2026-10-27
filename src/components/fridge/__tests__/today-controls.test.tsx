@@ -26,11 +26,22 @@ function mount(role = "parent", online = true, choices = links) {
     />,
   );
 }
+// Source adapted for the compact disclosures; execution remains deferred.
+function disclosure(label = "Today controls") {
+  return screen.getByText(label, { selector: "summary" }).closest("details") as HTMLDetailsElement;
+}
+function openDisclosure(label: string) {
+  const control = disclosure(label);
+  control.open = true;
+  fireEvent(control, new Event("toggle"));
+  return control;
+}
 beforeEach(() => refresh.mockClear());
 it.each(["parent", "teen"] as const)(
   "%s gets the relative event-create route and separate grocery and all-list destinations",
   (role) => {
     mount(role);
+    openDisclosure("Add");
     expect(screen.getByRole("link", { name: "Add event" })).toHaveAttribute(
       "href",
       "/dashboard/calendar/create",
@@ -44,6 +55,7 @@ it.each(["parent", "teen"] as const)(
       expect(screen.queryByText("Add chore")).not.toBeInTheDocument();
       expect(screen.queryByText("Household features")).not.toBeInTheDocument();
     }
+    openDisclosure("Today controls");
     expect(screen.getByRole("link", { name: "Groceries" })).toHaveAttribute(
       "href",
       "/dashboard/lists/groceries",
@@ -99,38 +111,40 @@ it("uses the typed Today dictionary for Spanish controls", () => {
   expect(
     screen.getByRole("navigation", { name: "Acciones rápidas de hoy" }),
   ).toBeInTheDocument();
+  openDisclosure("Añadir");
   expect(
     screen.getByRole("link", { name: "Añadir evento" }),
   ).toBeInTheDocument();
+  openDisclosure("Controles de hoy");
   expect(screen.getByRole("link", { name: "Alimentos" })).toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Actualizar ahora" }),
   ).toBeInTheDocument();
 });
 it("refreshes, closes the disclosure and returns focus", () => {
-  const { container } = mount();
-  const details = container.querySelector("details")!;
+  mount();
+  const details = disclosure();
   details.open = true;
   fireEvent.click(screen.getByRole("button", { name: "Refresh now" }));
   expect(refresh).toHaveBeenCalledTimes(1);
   expect(details.open).toBe(false);
-  expect(container.querySelector("summary")).toHaveFocus();
+  expect(details.querySelector("summary")).toHaveFocus();
 });
 it("disables refresh offline", () => {
-  const { container } = mount("parent", false);
-  container.querySelector("details")!.open = true;
+  mount("parent", false);
+  openDisclosure("Today controls");
   expect(screen.getByRole("button", { name: "Refresh now" })).toBeDisabled();
   expect(screen.getByText("Reconnect to refresh.")).toBeInTheDocument();
 });
 it("dismisses on Escape and outside pointer", () => {
-  const { container } = mount();
-  const details = container.querySelector("details")!;
+  mount();
+  const details = disclosure();
   details.open = true;
   fireEvent.keyDown(screen.getByRole("button", { name: "Refresh now" }), {
     key: "Escape",
   });
   expect(details.open).toBe(false);
-  expect(container.querySelector("summary")).toHaveFocus();
+  expect(details.querySelector("summary")).toHaveFocus();
   details.open = true;
   fireEvent.pointerDown(document.body);
   expect(details.open).toBe(false);

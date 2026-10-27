@@ -2,15 +2,20 @@
 
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { MealContextLink as Link } from "./MealContextLink";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { legacyRecipeSource } from "@/lib/recipe-curation-contract";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import { parseRecipeDetail } from "@/lib/recipe-detail-client";
+import { RECIPE_EDIT_PROTOCOL } from "@/lib/recipe-input-contract";
+import { RECIPE_CREATE_COMMAND_MAX_AGE_MS } from "@/lib/recipe-create-command-window";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import { useRecipeEditorText } from "@/i18n/recipe-editor";
 import { RecipeDraftBoundary } from "./RecipeDraftBoundary";
 import type { RecipeEditableDocument } from "@/lib/review-document-contract";
+import type { ReviewReceiptState } from "@/lib/review-document-store";
 import type { RecipeOption } from "./RecipePicker";
 import type { RecipeDetailData } from "./RecipeDetail";
 
@@ -38,6 +43,8 @@ function toMinutes(value: string): number | null | "invalid" {
  * Exported for tests.
  */
 export type RecipeEditorProps = {
+  expectedRecipeOwner?: import("@/lib/recipe-owner-contract").RecipeOwner;
+  onOwnerHold?: () => void;
   recoveryIdentity?: { userId: string; familyId: string };
   recoveryOnly?: boolean;
   onCreated?: (recipe: RecipeOption & { source_url?: string | null }) => void;
@@ -80,6 +87,8 @@ export function RecipeEditor(props: RecipeEditorProps) {
 }
 
 function RecipeEditorForm({
+  expectedRecipeOwner,
+  onOwnerHold,
   onCreated,
   onCancel,
   initialRecipe,
@@ -92,6 +101,16 @@ function RecipeEditorForm({
   onDraftChange,
   onOwnedSubmit,
 }: RecipeEditorProps & RecipeOwnedFormProps) {
+  const originalRecipeOwner = React.useRef(expectedRecipeOwner ? Object.freeze({ ...expectedRecipeOwner }) : null);
+  const currentRecipeOwner = React.useRef(expectedRecipeOwner ?? null);
+  currentRecipeOwner.current = expectedRecipeOwner ?? null;
+  const ownerMismatch = Boolean((originalRecipeOwner.current || currentRecipeOwner.current) &&
+    !sameRecipeOwner(originalRecipeOwner.current, currentRecipeOwner.current));
+  const ownerHeld = React.useRef(false);
+  const [ownerHold, setOwnerHold] = React.useState(false);
+  const reloadFocus = React.useRef<HTMLButtonElement>(null);
+  const callbacks = React.useRef({ onCreated, onSaved, onSavingChange, onOwnerHold });
+  callbacks.current = { onCreated, onSaved, onSavingChange, onOwnerHold };
   const text = useRecipeEditorText();
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
@@ -208,8 +227,8 @@ function RecipeEditorForm({
     ],
   );
   React.useEffect(() => {
-    onDraftChange?.(ownedDraft);
-  }, [ownedDraft, onDraftChange]);
+    if (!ownerHeld.current && !ownerMismatch) onDraftChange?.(ownedDraft);
+  }, [ownedDraft, onDraftChange, ownerMismatch]);
   const [duplicate, setDuplicate] = React.useState<{
     id: string;
     title: string;
@@ -219,6 +238,35 @@ function RecipeEditorForm({
   const [error, setError] = React.useState<string | null>(null);
   const [uncertain, setUncertain] = React.useState(false);
   const uncertainRef = React.useRef(false);
+  const confirmedRef = React.useRef(false);
+  const [confirmed, setConfirmed] = React.useState<{ id: string } | null>(null);
+  const [handoffFailed, setHandoffFailed] = React.useState(false);
+  const [receiptState, setReceiptState] = React.useState<ReviewReceiptState | null>(null);
+  const [receiptFailed, setReceiptFailed] = React.useState(false);
+  const formLive = React.useRef(true);
+  const formEpoch = React.useRef(0);
+  const requestController = React.useRef<AbortController | null>(null);
+  React.useEffect(() => {
+    formLive.current = true;
+    return () => { formLive.current = false; formEpoch.current++; requestController.current?.abort(); };
+  }, []);
+  const holdOwner = React.useCallback(() => {
+    if (!formLive.current || ownerHeld.current) return;
+    ownerHeld.current = true;
+    formEpoch.current++;
+    requestController.current?.abort();
+    mutationPending.current = false;
+    setSaving(false);
+    setOwnerHold(true);
+    // Local containment must survive absent or throwing parent callbacks.
+    try { callbacks.current.onSavingChange?.(false); } catch {}
+    try { callbacks.current.onOwnerHold?.(); } catch {}
+  }, []);
+  React.useEffect(() => { if (ownerMismatch) holdOwner(); }, [ownerMismatch, holdOwner]);
+  React.useEffect(() => {
+    if ((ownerHold || ownerMismatch) && document.activeElement === document.body)
+      reloadFocus.current?.focus();
+  }, [ownerHold, ownerMismatch]);
   const creationAttempt = React.useRef<{
     key: string;
     body: string;
@@ -228,6 +276,7 @@ function RecipeEditorForm({
     initialRecipe ? "uncertain" : "uncertainCreate",
   );
   const markUncertain = () => {
+    if (confirmedRef.current || ownerHeld.current) return;
     uncertainRef.current = true;
     setUncertain(true);
     setError(uncertainMessage);
@@ -261,6 +310,17 @@ function RecipeEditorForm({
     setLines((prev) => prev.filter((l) => l.key !== key));
 
   async function writeRecipe(body: Record<string, unknown>) {
+    if (!formLive.current || ownerHeld.current) return;
+    const own = formEpoch.current;
+    const completionCallbacks = callbacks.current;
+    const expectedOwner = originalRecipeOwner.current;
+    if ((expectedOwner || currentRecipeOwner.current) && !sameRecipeOwner(expectedOwner, currentRecipeOwner.current)) {
+      holdOwner(); return;
+    }
+    if (initialRecipe && expectedOwner && initialRecipe.revision === undefined) {
+      setError(text("editVersionMissing"));
+      return;
+    }
     if (onOwnedSubmit && !initialRecipe) {
       await onOwnedSubmit(
         {
@@ -269,12 +329,14 @@ function RecipeEditorForm({
             ? { source_url: sourceUrl, source_copy: sourceCopy }
             : {}),
           creation_protocol: "herewoven.recipe-create.v1",
+          ...(expectedOwner ? { creation_owner: expectedOwner, creation_issued_at: Date.now() } : {}),
         },
         ownedDraft,
       );
       return;
     }
-    if (!initialRecipe && !creationAttempt.current)
+    if (!initialRecipe && !creationAttempt.current) {
+      const issuedAt = Date.now();
       creationAttempt.current = {
         key: newIdempotencyKey(),
         body: JSON.stringify({
@@ -283,20 +345,24 @@ function RecipeEditorForm({
             ? { source_url: sourceUrl, source_copy: sourceCopy }
             : {}),
           creation_protocol: "herewoven.recipe-create.v1",
+          ...(expectedOwner ? { creation_owner: expectedOwner, creation_issued_at: issuedAt } : {}),
         }),
-        startedAt: Date.now(),
+        startedAt: issuedAt,
       };
+    }
     const attempt = creationAttempt.current;
-    // Never reuse a create key after the server receipt's retention window.
+    // Never renew a create command beyond its original one-day retry window.
     if (
       attempt &&
       (Date.now() < attempt.startedAt ||
-        Date.now() - attempt.startedAt >= 24 * 60 * 60 * 1000)
+        Date.now() - attempt.startedAt >= RECIPE_CREATE_COMMAND_MAX_AGE_MS)
     ) {
       markUncertain();
       setError(text("expiredCreate"));
       return;
     }
+    const abort = new AbortController();
+    requestController.current = abort;
     const result = await runOwnedForeground(
       async (signal) => {
         const response = await fetch(
@@ -308,31 +374,60 @@ function RecipeEditorForm({
             headers: {
               "Content-Type": "application/json",
               ...(attempt ? { [IDEMPOTENCY_HEADER]: attempt.key } : {}),
+              ...(expectedOwner ? { [RECIPE_OWNER_HEADER]: JSON.stringify(expectedOwner) } : {}),
             },
-            body: attempt?.body ?? JSON.stringify(body),
+            body: attempt?.body ?? JSON.stringify({
+              ...body,
+              ...(initialRecipe && expectedOwner ? { edit_protocol: RECIPE_EDIT_PROTOCOL, edit_owner: expectedOwner } : {}),
+            }),
             signal,
           },
         );
+        // Admit the original owner before decoding a successful private body.
+        // Access refusals may be proxy HTML or oversized/slow JSON; their body
+        // is not needed to retire this household view.
+        if (expectedOwner && ([401, 403].includes(response.status) ||
+          (response.ok && !sameRecipeOwner(expectedOwner, readRecipeOwner(response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))))
+          return { kind: "reply" as const, response, reply: null, ownerRefused: true };
         const reply = await readBoundedJsonResponse(
           response,
           signal,
           1024 * 1024,
         );
-        return { kind: "reply" as const, response, reply };
+        return { kind: "reply" as const, response, reply, ownerRefused: false };
       },
-      { timeoutMs: 30_000 },
+      { timeoutMs: 30_000, signal: abort.signal },
     );
+    if (!formLive.current || own !== formEpoch.current) return;
+    if ((expectedOwner || currentRecipeOwner.current) && !sameRecipeOwner(expectedOwner, currentRecipeOwner.current)) {
+      holdOwner(); return;
+    }
     if (result.kind !== "reply") {
       markUncertain();
       return;
     }
     const res = result.response;
+    if (expectedOwner && (result.ownerRefused ||
+        (result.reply as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED")) {
+      markUncertain();
+      holdOwner();
+      return;
+    }
     const data = result.reply as {
       recipe?: RecipeDetailData;
       error?: { code?: string };
       existingRecipe?: { id?: unknown; title?: unknown };
     } | null;
     if (!res.ok) {
+      if (["RECIPE_COMMAND_EXPIRED", "RECIPE_COMMAND_TIME_UNCONFIRMED"].includes(data?.error?.code ?? "")) {
+        markUncertain(); return;
+      }
+      // A prior unknown attempt stays unknown even if this retry is refused.
+      if (res.status === 413 && data?.error?.code === "RECIPE_REQUEST_TOO_LARGE" && !uncertainRef.current) {
+        creationAttempt.current = null;
+        setError(text("requestTooLarge"));
+        return;
+      }
       if (
         data?.error?.code === "RECIPE_SOURCE_EXISTS" &&
         typeof data.existingRecipe?.id === "string" &&
@@ -377,68 +472,117 @@ function RecipeEditorForm({
       markUncertain();
       return;
     }
-    const r = data.recipe;
-    if (
-      initialRecipe &&
-      (r.id !== initialRecipe.id ||
-        !Array.isArray(r.ingredients) ||
-        r.ingredients.some(
-          (line) =>
-            !line?.ingredient || typeof line.ingredient.name !== "string",
-        ) ||
-        [
-          "description",
-          "instructions",
-          "prep_time",
-          "cook_time",
-          "servings",
-        ].some((field) => !(field in r)))
-    ) {
-      markUncertain();
-      return;
+    let r = data.recipe;
+    if (initialRecipe) {
+      try {
+        r = parseRecipeDetail(r, initialRecipe.id, { requireRevision: !!expectedOwner });
+      } catch {
+        markUncertain();
+        return;
+      }
     }
+    confirmRecipe(r, completionCallbacks);
+  }
+
+  function confirmRecipe(r: RecipeDetailData, handoff = callbacks.current) {
+    if (!formLive.current || ownerHeld.current) return;
+    const owner = originalRecipeOwner.current;
+    if ((owner || currentRecipeOwner.current) && !sameRecipeOwner(owner, currentRecipeOwner.current)) {
+      holdOwner(); return;
+    }
+    confirmedRef.current = true;
+    setConfirmed({ id: r.id });
+    setHandoffFailed(false);
     creationAttempt.current = null;
     uncertainRef.current = false;
     setUncertain(false);
-    if (initialRecipe) onSaved?.(r);
-    else
-      onCreated?.({
-        id: r.id,
-        title: r.title,
-        prep_time: r.prep_time,
-        cook_time: r.cook_time,
-        servings: r.servings,
-        source_url: r.source_url ?? sourceUrl ?? null,
-      });
+    setError(null);
+    try {
+      if (initialRecipe) handoff.onSaved?.(r);
+      else
+        handoff.onCreated?.({
+          id: r.id,
+          title: r.title,
+          prep_time: r.prep_time,
+          cook_time: r.cook_time,
+          servings: r.servings,
+          source_url: r.source_url ?? sourceUrl ?? null,
+        });
+    } catch {
+      if (formLive.current) setHandoffFailed(true);
+    }
+  }
+
+  async function inspectCreation() {
+    if ((originalRecipeOwner.current || currentRecipeOwner.current) &&
+      !sameRecipeOwner(originalRecipeOwner.current, currentRecipeOwner.current)) { holdOwner(); return; }
+    const attempt = creationAttempt.current;
+    if (!formLive.current || ownerHeld.current || confirmedRef.current || initialRecipe || !attempt || mutationPending.current || disabled || isMutationPending?.()) return;
+    mutationPending.current = true;
+    const own = ++formEpoch.current;
+    const abort = new AbortController();
+    requestController.current = abort;
+    setSaving(true);
+    callbacks.current.onSavingChange?.(true);
+    setError(null);
+    setReceiptFailed(false);
+    try {
+      const result = await runOwnedForeground(async signal => {
+        const { inspectRecipeCreateReceipt } = await import("@/lib/review-document-receipts");
+        if (signal.aborted) return { kind: "unknown" as const };
+        try {
+          return { kind: "receipt" as const, state: await inspectRecipeCreateReceipt(
+            { key: attempt.key, body: attempt.body }, originalRecipeOwner.current ?? undefined, signal) };
+        } catch (error) {
+          if (error && typeof error === "object" && "reason" in error && error.reason === "OWNER_CHANGED")
+            return { kind: "owner-held" as const };
+          throw error;
+        }
+      }, { signal: abort.signal, timeoutMs: 15_000 });
+      if (!formLive.current || own !== formEpoch.current) return;
+      if (result.kind === "owner-held") { holdOwner(); return; }
+      if (result.kind === "receipt") setReceiptState(result.state);
+      else setReceiptFailed(true);
+    } finally {
+      if (formLive.current && own === formEpoch.current) {
+        mutationPending.current = false;
+        setSaving(false);
+        callbacks.current.onSavingChange?.(false);
+      }
+    }
   }
 
   async function retryCreation() {
     if (
-      initialRecipe ||
+      !formLive.current || ownerHeld.current || confirmedRef.current || initialRecipe ||
       !creationAttempt.current ||
+      receiptState?.state === "committed" || receiptState?.state === "expired" ||
       mutationPending.current ||
       disabled ||
       isMutationPending?.()
     )
       return;
+    const own = formEpoch.current;
     mutationPending.current = true;
     setSaving(true);
-    onSavingChange?.(true);
+    callbacks.current.onSavingChange?.(true);
     setError(null);
     try {
       await writeRecipe({});
     } catch {
-      markUncertain();
+      if (formLive.current && own === formEpoch.current) markUncertain();
     } finally {
-      mutationPending.current = false;
-      setSaving(false);
-      onSavingChange?.(false);
+      if (formLive.current && own === formEpoch.current) {
+        mutationPending.current = false;
+        setSaving(false);
+        callbacks.current.onSavingChange?.(false);
+      }
     }
   }
 
   const submit = async () => {
     if (
-      disabled ||
+      !formLive.current || ownerHeld.current || confirmedRef.current || disabled ||
       isMutationPending?.() ||
       mutationPending.current ||
       saving ||
@@ -536,10 +680,11 @@ function RecipeEditorForm({
       setError(text("tooManyIngredients"));
       return;
     }
+    const own = formEpoch.current;
     mutationPending.current = true;
     setSaving(true);
     try {
-      onSavingChange?.(true);
+      callbacks.current.onSavingChange?.(true);
       setError(null);
       const fields = {
         title: cleanTitle,
@@ -599,7 +744,7 @@ function RecipeEditorForm({
       )
         body.ingredients = ingredients;
       if (initialRecipe && Object.keys(body).length === 0) {
-        onSaved?.(initialRecipe);
+        confirmRecipe(initialRecipe);
         return;
       }
       if (initialRecipe && initialRecipe.revision !== undefined)
@@ -608,11 +753,13 @@ function RecipeEditorForm({
         body.base_updated_at = initialRecipe.updated_at;
       await writeRecipe(body);
     } catch {
-      markUncertain();
+      if (formLive.current && own === formEpoch.current) markUncertain();
     } finally {
-      mutationPending.current = false;
-      setSaving(false);
-      onSavingChange?.(false);
+      if (formLive.current && own === formEpoch.current) {
+        mutationPending.current = false;
+        setSaving(false);
+        callbacks.current.onSavingChange?.(false);
+      }
     }
   };
 
@@ -624,6 +771,20 @@ function RecipeEditorForm({
     }
   };
 
+  const receiptMessage = receiptFailed ? "receiptUnavailable" : receiptState?.state === "committed"
+    ? ({ present: "receiptPresent", removed: "receiptRemoved", unknown: "receiptUnknown" } as const)[receiptState.current]
+    : receiptState ? ({ absent: "receiptAbsent", pending: "receiptPending", expired: "receiptExpired",
+        "duplicate-source": "receiptRefused", refused: "receiptRefused" } as const)[receiptState.state] : null;
+
+  if (ownerHold || ownerMismatch) return (
+    <section role="alert" className="space-y-3 rounded-xl border border-[var(--surface-separator)] p-3">
+      <p className="text-subhead text-label-primary">{text("ownerChanged")}</p>
+      <button ref={reloadFocus} type="button" className="btn-tinted min-h-[44px]" onClick={() => window.location.reload()}>
+        {text("reloadOwner")}
+      </button>
+    </section>
+  );
+
   return (
     <fieldset
       className="space-y-3 rounded-xl border border-[var(--surface-separator)] p-3"
@@ -634,7 +795,7 @@ function RecipeEditorForm({
         {initialRecipe ? text("recipeDetails") : text("newRecipe")}
       </legend>
 
-      <fieldset disabled={uncertain && !initialRecipe} className="space-y-3">
+      <fieldset disabled={!!confirmed || (uncertain && !initialRecipe)} className="space-y-3">
         {!initialRecipe && safeSourceUrl && (
           <div className="space-y-2">
             <a
@@ -882,6 +1043,12 @@ function RecipeEditorForm({
         </p>
       )}
 
+      {confirmed && (
+        <div className="space-y-2">
+          <p role={handoffFailed ? "alert" : "status"} className="text-footnote">{text(handoffFailed ? "savedHandoffFailed" : "savedConfirmed")}</p>
+          <Link href={`/dashboard/meals/recipes/${encodeURIComponent(confirmed.id)}`} className="btn-tinted min-h-[44px] inline-flex items-center">{text("openConfirmedRecipe")}</Link>
+        </div>
+      )}
       {duplicate && (
         <Link
           className="btn-tinted min-h-[44px] inline-flex items-center"
@@ -894,13 +1061,16 @@ function RecipeEditorForm({
         </Link>
       )}
       {uncertain && !initialRecipe && (
-        <button
-          type="button"
-          className="btn-tinted min-h-[44px]"
-          onClick={() => void retryCreation()}
-        >
-          {text("retryCreate")}
-        </button>
+        <div className="space-y-2">
+          {receiptMessage && <p role={receiptFailed ? "alert" : "status"} className="text-footnote">{text(receiptMessage)}</p>}
+          <button type="button" className="btn-tinted min-h-[44px]" onClick={() => void inspectCreation()}>{text("inspectCreate")}</button>
+          {receiptState?.state === "committed" && <Link href="/dashboard/meals/explore" className="btn-plain min-h-[44px] inline-flex items-center">{text("openRecipeBox")}</Link>}
+          <details>
+            <summary className="min-h-[44px] flex items-center cursor-pointer">{text("moreRecovery")}</summary>
+            <button type="button" className="btn-plain min-h-[44px]" disabled={receiptState?.state === "committed" || receiptState?.state === "expired"}
+              onClick={() => void retryCreation()}>{text("retryCreate")}</button>
+          </details>
+        </div>
       )}
       <div className="flex gap-2">
         <button
@@ -913,11 +1083,11 @@ function RecipeEditorForm({
           }}
           className="btn-plain flex-1 min-h-[44px]"
         >
-          {text("cancel")}
+          {text(confirmed ? "closeConfirmed" : "cancel")}
         </button>
         <button
           type="button"
-          disabled={uncertain}
+          disabled={uncertain || !!confirmed}
           onClick={() => void submit()}
           className="btn-tinted flex-1 min-h-[44px]"
         >

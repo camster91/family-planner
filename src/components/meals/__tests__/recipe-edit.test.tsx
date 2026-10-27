@@ -10,14 +10,18 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RecipePage from "@/app/dashboard/meals/recipes/[id]/page";
+import { RecipeEditor } from "../RecipeEditor";
 import type { RecipeDetailData } from "../RecipeDetail";
 
+const originalOwner = { protocol: "herewoven.recipe-owner.v1", actorId: "parent-a", familyId: "family-a", role: "parent", generation: 0 } as const;
+const ownerHeaders = (role = "parent") => new Headers({ "X-Herewoven-Recipe-Owner": JSON.stringify({ ...originalOwner, role }) });
 let mockRouteId = "r1";
 beforeEach(() => {
   mockRouteId = "r1";
 });
 jest.mock("next/navigation", () => ({
   useParams: () => ({ id: mockRouteId }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("next/link", () => ({
   __esModule: true,
@@ -37,6 +41,7 @@ jest.mock("../AddToGroceriesButton", () => ({
 
 const RECIPE: RecipeDetailData = {
   id: "r1",
+  revision: 0,
   title: "Soup",
   description: "Old description",
   instructions: "Chop.\nSimmer.",
@@ -69,7 +74,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 const response = (recipe: RecipeDetailData) =>
-  ({ ok: true, status: 200, json: async () => ({ recipe }) }) as Response;
+  ({ ok: true, headers: ownerHeaders(), status: 200, json: async () => ({ recipe }) }) as Response;
 
 it("ignores a delayed load from the previous route", async () => {
   const pending = deferred<Response>();
@@ -77,7 +82,7 @@ it("ignores a delayed load from the previous route", async () => {
   global.fetch = jest.fn((url) =>
     String(url) === "/api/auth/me"
       ? Promise.resolve({
-          ok: true,
+          ok: true, headers: ownerHeaders(),
           json: async () => ({ user: { role: "parent" } }),
         } as Response)
       : String(url).endsWith("r1")
@@ -111,7 +116,7 @@ it.each(["r2", "r1"])(
         ? pending.promise
         : String(url) === "/api/auth/me"
           ? Promise.resolve({
-              ok: true,
+              ok: true, headers: ownerHeaders(),
               json: async () => ({ user: { role: "parent" } }),
             } as Response)
           : Promise.resolve(response(currentRecipe)),
@@ -163,7 +168,7 @@ function setup(role = "parent") {
       const body = JSON.parse(String(init.body));
       writes.push({ url, method: init.method, body });
       return {
-        ok: true,
+        ok: true, headers: ownerHeaders(role),
         status: 200,
         json: async () => ({
           recipe: { ...RECIPE, ...body, ingredients: RECIPE.ingredients },
@@ -171,7 +176,7 @@ function setup(role = "parent") {
       } as Response;
     }
     return {
-      ok: true,
+      ok: true, headers: ownerHeaders(role),
       status: 200,
       json: async () =>
         url === "/api/auth/me" ? { user: { role } } : { recipe: RECIPE },
@@ -222,7 +227,7 @@ it.each(["Close", "Escape"])(
       "/api/recipes/r1",
       expect.objectContaining({
         method: "PATCH",
-        body: JSON.stringify({ title: "Soup saved" }),
+        body: JSON.stringify({ title: "Soup saved", base_revision: 0, edit_protocol: "herewoven.recipe-edit.v1", edit_owner: originalOwner }),
       }),
     );
     expect(screen.getByRole("dialog", { name: "Edit recipe" })).toBe(dialog);
@@ -283,7 +288,7 @@ it.each([
     await act(async () => {
       first.resolve({
         ok: false,
-        status: outcome === "refusal" ? 403 : 500,
+        status: outcome === "refusal" ? 400 : 500,
         json: async () => ({ error: "Permission refused" }),
       } as Response);
     });
@@ -338,7 +343,7 @@ it("allows a corrected Save after validation without leaving detail dismissal lo
   await user.click(screen.getByRole("button", { name: "Save recipe" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(writes).toEqual([
-    { url: "/api/recipes/r1", method: "PATCH", body: { servings: 80 } },
+    { url: "/api/recipes/r1", method: "PATCH", body: { servings: 80, base_revision: 0, edit_protocol: "herewoven.recipe-edit.v1", edit_owner: originalOwner } },
   ]);
   expect(document.activeElement).toBe(trigger);
 });
@@ -377,7 +382,7 @@ it("keeps the edit dialog open and disables cancellation while a Save is in flig
   expect(screen.getByRole("dialog")).toBeTruthy();
   expect(global.fetch).toHaveBeenCalledTimes(1);
   resolve({
-    ok: true,
+    ok: true, headers: ownerHeaders(),
     status: 200,
     json: async () => ({ recipe: { ...RECIPE, title: "Soup new" } }),
   } as Response);
@@ -409,6 +414,9 @@ it("replaces changed ingredients only on Save while retaining canonical IDs, opt
     url: "/api/recipes/r1",
     method: "PATCH",
     body: {
+      base_revision: 0,
+      edit_protocol: "herewoven.recipe-edit.v1",
+      edit_owner: originalOwner,
       ingredients: [
         { ingredient_id: "i2", amount: 3, unit: "tsp", note: null },
         { ingredient_id: "i1", amount: 2, unit: null, note: "ripe" },
@@ -486,10 +494,125 @@ it.each(["parent", "teen"])(
       {
         url: "/api/recipes/r1",
         method: "PATCH",
-        body: { title: "Summer soup" },
+        body: { title: "Summer soup", base_revision: 0, edit_protocol: "herewoven.recipe-edit.v1", edit_owner: { ...originalOwner, role } },
       },
     ]);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByText("Chop. Simmer.", { exact: false })).toBeTruthy();
   },
 );
+
+// Authored UNRUN: do not replace a dispatch callback's captured parent generation.
+it("keeps an in-flight edit bound to the parent callback that started it", async () => {
+  const pending = deferred<Response>();
+  global.fetch = jest.fn(() => pending.promise) as typeof fetch;
+  let generation = 0;
+  const applied = jest.fn();
+  const firstCallback = (recipe: RecipeDetailData) => { if (generation === 0) applied(recipe) };
+  const view = render(<RecipeEditor initialRecipe={RECIPE} onSaved={firstCallback} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Pending edit' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+  generation = 1;
+  const nextCallback = (recipe: RecipeDetailData) => { if (generation === 1) applied(recipe) };
+  view.rerender(<RecipeEditor initialRecipe={{ ...RECIPE, title: 'New current title' }} onSaved={nextCallback} onCancel={jest.fn()} />);
+  await act(async () => { pending.resolve(response({ ...RECIPE, title: 'Pending edit' })) });
+  expect(applied).not.toHaveBeenCalled();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+// Authored UNRUN: permission loss masks the whole detail, unlike validation refusal.
+it('retires the visible recipe and editor when a bound edit loses access', async () => {
+  const user = userEvent.setup();
+  setup();
+  await user.click(await screen.findByRole('button', { name: 'Edit recipe' }));
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Private new title' } });
+  global.fetch = jest.fn(async () => ({ ok: false, status: 403,
+    json: async () => ({ error: 'Private denial detail' }) }) as Response) as typeof fetch;
+  await user.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await screen.findByRole('heading', { name: 'Reload recipes' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Soup' })).toBeNull();
+  expect(screen.queryByText('Private denial detail')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
+});
+
+// Authored UNRUN: malformed successful writes never become renderable detail.
+it('keeps a malformed successful edit unknown without handing it to its parent or resending', async () => {
+  const onSaved = jest.fn();
+  global.fetch = jest.fn(async () => response({ ...RECIPE,
+    ingredients: [{ ...RECIPE.ingredients[0], amount: 'not-a-number' }],
+  } as unknown as RecipeDetailData)) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} onSaved={onSaved} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Pending soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('may have been saved'));
+  expect(onSaved).not.toHaveBeenCalled();
+  expect((screen.getByRole('button', { name: 'Save recipe' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+it('projects a validated edit reply before handing it to its parent', async () => {
+  const onSaved = jest.fn();
+  global.fetch = jest.fn(async () => response({ ...RECIPE, title: 'Saved soup', privateExtra: 'discard' } as RecipeDetailData)) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} onSaved={onSaved} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Saved soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(onSaved.mock.calls[0][0]).toEqual({ ...RECIPE, title: 'Saved soup' });
+  expect(onSaved.mock.calls[0][0]).not.toHaveProperty('privateExtra');
+});
+
+// Authored UNRUN: owner/header refusal precedes any private body decoder.
+it.each(['missing', 'changed', 'denied'] as const)('holds a bound edit with %s owner admission without decoding its body', async condition => {
+  const onSaved = jest.fn();
+  const onOwnerHold = jest.fn();
+  const json = jest.fn(() => new Promise(() => undefined));
+  const headers = condition === 'missing' ? new Headers() : condition === 'changed'
+    ? new Headers({ 'X-Herewoven-Recipe-Owner': JSON.stringify({ ...originalOwner, familyId: 'family-b' }) })
+    : ownerHeaders();
+  global.fetch = jest.fn(async () => ({ ok: condition !== 'denied', status: condition === 'denied' ? 403 : 200,
+    headers, json }) as unknown as Response) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
+    onSaved={onSaved} onOwnerHold={onOwnerHold} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target: { value: 'Bound save' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await waitFor(() => expect(onOwnerHold).toHaveBeenCalledTimes(1));
+  expect(json).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+// Authored UNRUN: editor containment does not depend on its parent reacting.
+it.each(['absent', 'throws'] as const)('masks its own private fields when the owner callback %s', async callback => {
+  const json = jest.fn();
+  const onOwnerHold = callback === 'throws' ? jest.fn(() => { throw new Error('Parent handoff failed') }) : undefined;
+  global.fetch = jest.fn(async () => ({ ok:false, status:403, json }) as unknown as Response) as typeof fetch;
+  render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
+    onOwnerHold={onOwnerHold} onCancel={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('Recipe name'), { target:{ value:'Private draft' } });
+  const retainedSave = clickHandler(screen.getByRole('button', { name:'Save recipe' }));
+  fireEvent.click(screen.getByRole('button', { name:'Save recipe' }));
+  await screen.findByText('Your account or household context changed. Reload before continuing with recipes.');
+  expect(screen.queryByLabelText('Recipe name')).toBeNull();
+  expect(screen.queryByRole('button', { name:'Save recipe' })).toBeNull();
+  expect(screen.getByRole('button', { name:'Reload' })).toBeTruthy();
+  await act(async () => { retainedSave() });
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(json).not.toHaveBeenCalled();
+});
+
+it('does not expose the old recipe editor after an owner prop change', async () => {
+  const originalHold = jest.fn();
+  const newHold = jest.fn();
+  global.fetch = jest.fn() as typeof fetch;
+  const view = render(<RecipeEditor initialRecipe={RECIPE} expectedRecipeOwner={originalOwner}
+    onOwnerHold={originalHold} onCancel={jest.fn()} />);
+  expect(originalHold).not.toHaveBeenCalled();
+  view.rerender(<RecipeEditor initialRecipe={RECIPE}
+    expectedRecipeOwner={{ ...originalOwner, familyId:'family-b' }} onOwnerHold={newHold} onCancel={jest.fn()} />);
+  await screen.findByRole('button', { name:'Reload' });
+  expect(screen.queryByLabelText('Recipe name')).toBeNull();
+  expect(newHold).toHaveBeenCalledTimes(1);
+  expect(global.fetch).not.toHaveBeenCalled();
+});

@@ -31,11 +31,14 @@ import { Camera, Loader2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
+import { runOwnedForeground } from "@/lib/owned-request-http";
+import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import {
   readInventoryIntakeContext,
   makeInventoryIntakeIntent,
   type IntakeContext,
   type IntakeIntent,
+  type IntakeOutcome,
 } from "@/lib/inventory-intake-client";
 import { createInventorySchema } from "@/lib/inventory";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
@@ -173,16 +176,11 @@ async function prepareImage(file: Blob): Promise<Blob> {
   }
 }
 
-async function scanError(res: Response): Promise<InventoryFeedback> {
+function scanError(res: Response, body: unknown): InventoryFeedback {
   let message: string | null = null;
-  try {
-    const body = await res.json();
-    const err = body?.error;
-    if (typeof err === "string") message = err;
-    else if (err && typeof err.message === "string") message = err.message;
-  } catch {
-    // fall through
-  }
+  const err = body && typeof body === "object" && "error" in body ? body.error : null;
+  if (typeof err === "string") message = err;
+  else if (err && typeof err === "object" && "message" in err && typeof err.message === "string") message = err.message;
   if (res.status === 404) return feedback("scanUnavailable");
   if (res.status === 403)
     return message !== null ? { raw: message } : feedback("scanForbidden");
@@ -244,13 +242,22 @@ export function ScanFridgeDialog({
   const scanningRef = React.useRef(false);
   const photoRequest = React.useRef<AbortController | null>(null);
   const photoGeneration = React.useRef(0);
-  React.useEffect(
-    () => () => {
+  const live = React.useRef(true);
+  const suspendedRef = React.useRef(suspended);
+  const saveEpoch = React.useRef(0);
+  if (suspendedRef.current !== suspended) {
+    saveEpoch.current++;
+    suspendedRef.current = suspended;
+  }
+  React.useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+      saveEpoch.current++;
       photoGeneration.current++;
       photoRequest.current?.abort();
-    },
-    [],
-  );
+    };
+  }, []);
   React.useEffect(() => {
     if (!suspended) return;
     photoGeneration.current++;
@@ -329,45 +336,54 @@ export function ScanFridgeDialog({
     if (captureMode === "receipt") setReceiptReady(false);
     scanningRef.current = true;
     const own = ++photoGeneration.current;
-    const current = () => own === photoGeneration.current;
     const request = new AbortController();
+    const current = () => own === photoGeneration.current && live.current && !suspendedRef.current && !request.signal.aborted;
     photoRequest.current = request;
-    const deadline = setTimeout(() => request.abort(), 60000);
     setPhase({ step: "scanning" });
     setAddError(null);
     try {
-      const image = await prepareImage(file);
+      const result = await runOwnedForeground(async (signal) => {
+        const image = await prepareImage(file);
+        // Late decoding must never start an upload after its foreground deadline.
+        if (!current() || signal.aborted) throw new Error("Retired photo preparation");
+        if (image.size > MAX_UPLOAD_BYTES) return { kind: "large" as const };
+        const form = new FormData();
+        form.append("image", image, "food.jpg");
+        if (captureMode !== "fridge") {
+          form.append("protocol", FOOD_PHOTO_PROTOCOL);
+          form.append("capture_mode", captureMode);
+          form.append("expected_user_id", context.userId);
+          form.append("expected_family_id", context.familyId);
+        }
+        const res = await fetch("/api/inventory/scan", {
+          method: "POST", body: form, cache: "no-store",
+          credentials: "same-origin", signal,
+        });
+        if (!current() || signal.aborted) throw new Error("Retired photo response");
+        // An access refusal is useful without waiting for an error body.
+        const body = [401, 403].includes(res.status) ? null
+          : await readBoundedJsonResponse(res, signal, 256 * 1024).catch(error => {
+              if (res.ok) throw error;
+              return null;
+            });
+        return { kind: "reply" as const, res, body };
+      }, { signal: request.signal, timeoutMs: 60000 });
       if (!current()) return;
-      if (request.signal.aborted) {
+      if (result.kind === "unknown") {
         setPhase({ step: "error", message: feedback("scanNetwork") });
         return;
       }
-      if (image.size > MAX_UPLOAD_BYTES) {
+      if (result.kind === "large") {
         setPhase({ step: "error", message: feedback("photoLarge") });
         return;
       }
-      const form = new FormData();
-      form.append("image", image, "food.jpg");
-      if (captureMode !== "fridge") {
-        form.append("protocol", FOOD_PHOTO_PROTOCOL);
-        form.append("capture_mode", captureMode);
-        form.append("expected_user_id", context.userId);
-        form.append("expected_family_id", context.familyId);
-      }
-      const res = await fetch("/api/inventory/scan", {
-        method: "POST",
-        body: form,
-        signal: request.signal,
-      });
-      if (!current()) return;
+      const { res, body: response } = result;
       if (!res.ok) {
         if ([401, 403].includes(res.status)) onVerifyAccess?.();
-        const message = await scanError(res);
+        const message = scanError(res, response);
         if (current()) setPhase({ step: "error", message });
         return;
       }
-      const response: unknown = await res.json();
-      if (!current()) return;
       if (captureMode === "fridge") {
         const parsed = suggestionsResponse
           .extend({ dropped: z.number().int().nonnegative().optional() })
@@ -393,8 +409,8 @@ export function ScanFridgeDialog({
       if (current())
         setPhase({ step: "error", message: feedback("scanNetwork") });
     } finally {
-      clearTimeout(deadline);
       if (current()) {
+        photoRequest.current = null;
         scanningRef.current = false;
         if (inputRef.current) inputRef.current.value = "";
       }
@@ -457,93 +473,109 @@ export function ScanFridgeDialog({
     }
     addingRef.current = true;
     setAdding(true);
-    let added = 0,
-      failed = 0;
-    for (const row of selectedRows) {
-      let attempt = attempts.current.get(row.key);
-      if (!attempt) {
-        attempt = {
-          intent: makeInventoryIntakeIntent(
-            {
-              name: row.name.trim(),
-              location: row.location,
-              amount: row.amount.trim() === "" ? null : Number(row.amount),
-              unit: row.unit.trim() || null,
-              expires_on: row.expiresOn || null,
-              date_kind: row.dateKind,
-            },
-            context,
-            row.idempotencyKey,
-            undefined,
-            row.document
-              ? { package_size: row.packageSize.trim() || null }
-              : undefined,
-          ),
-          uncertain: false,
-        };
-        attempts.current.set(row.key, attempt);
+    let failed = 0;
+    const epoch = saveEpoch.current;
+    const currentSave = () => live.current && !suspendedRef.current && saveEpoch.current === epoch;
+    const keepUncertain = (rowKey: string, attempt: { intent: IntakeIntent; uncertain: boolean }) => {
+      attempt.uncertain = true;
+      if (live.current) setRows(previous => previous.map(value => value.key === rowKey
+        ? { ...value, uncertain: true, error: feedback("intakeUnknown") } : value));
+    };
+    try {
+      for (const row of selectedRows) {
+        if (!currentSave()) return;
+        let attempt = attempts.current.get(row.key);
+        if (!attempt) {
+          attempt = {
+            intent: makeInventoryIntakeIntent(
+              {
+                name: row.name.trim(),
+                location: row.location,
+                amount: row.amount.trim() === "" ? null : Number(row.amount),
+                unit: row.unit.trim() || null,
+                expires_on: row.expiresOn || null,
+                date_kind: row.dateKind,
+              },
+              context,
+              row.idempotencyKey,
+              undefined,
+              row.document
+                ? { package_size: row.packageSize.trim() || null }
+                : undefined,
+            ),
+            uncertain: false,
+          };
+          attempts.current.set(row.key, attempt);
+        }
+        let outcome: IntakeOutcome;
+        try {
+          outcome = await sendIntake(attempt.intent);
+        } catch {
+          outcome = { kind: "unknown" };
+        }
+        if (!currentSave()) {
+          keepUncertain(row.key, attempt);
+          return;
+        }
+        const accessChanged = outcome.kind === "refused" && outcome.accessChanged;
+        if (accessChanged) onVerifyAccess?.();
+        if (outcome.kind === "confirmed") {
+          attempts.current.delete(row.key);
+          addedCountRef.current++;
+          setAddedCount(addedCountRef.current);
+          setRows((previous) =>
+            previous.filter((value) => value.key !== row.key),
+          );
+          continue;
+        }
+        failed++;
+        if (outcome.kind === "removed") {
+          attempts.current.delete(row.key);
+          setRows((previous) =>
+            previous.map((value) =>
+              value.key === row.key
+                ? {
+                    ...value,
+                    include: false,
+                    uncertain: false,
+                    idempotencyKey: newIdempotencyKey(),
+                    error: feedback("intakeRemoved"),
+                  }
+                : value,
+            ),
+          );
+          continue;
+        }
+        if (outcome.kind === "unknown" || attempt.uncertain) {
+          keepUncertain(row.key, attempt);
+        } else {
+          attempts.current.delete(row.key);
+          setRows((previous) =>
+            previous.map((value) =>
+              value.key === row.key
+                ? {
+                    ...value,
+                    idempotencyKey: newIdempotencyKey(),
+                    error: feedback("intakeRefused"),
+                  }
+                : value,
+            ),
+          );
+        }
+        if (accessChanged) return;
       }
-      const outcome = await sendIntake(attempt.intent);
-      if (outcome.kind === "refused" && outcome.accessChanged)
-        onVerifyAccess?.();
-      if (outcome.kind === "confirmed") {
-        attempts.current.delete(row.key);
-        added++;
-        setRows((previous) =>
-          previous.filter((value) => value.key !== row.key),
-        );
-        continue;
+      if (!currentSave()) return;
+      const total = addedCountRef.current;
+      if (!attempts.current.size) {
+        const released = await navigation.releaseBeforeNavigation();
+        if (!released || !currentSave()) return;
       }
-      failed++;
-      if (outcome.kind === "removed") {
-        attempts.current.delete(row.key);
-        setRows((previous) =>
-          previous.map((value) =>
-            value.key === row.key
-              ? {
-                  ...value,
-                  include: false,
-                  uncertain: false,
-                  idempotencyKey: newIdempotencyKey(),
-                  error: feedback("intakeRemoved"),
-                }
-              : value,
-          ),
-        );
-        continue;
-      }
-      if (outcome.kind === "unknown" || attempt.uncertain) {
-        attempt.uncertain = true;
-        setRows((previous) =>
-          previous.map((value) =>
-            value.key === row.key
-              ? { ...value, uncertain: true, error: feedback("intakeUnknown") }
-              : value,
-          ),
-        );
-      } else {
-        attempts.current.delete(row.key);
-        setRows((previous) =>
-          previous.map((value) =>
-            value.key === row.key
-              ? {
-                  ...value,
-                  idempotencyKey: newIdempotencyKey(),
-                  error: feedback("intakeRefused"),
-                }
-              : value,
-          ),
-        );
-      }
+      if (!failed) report(photoAddedFeedback(total));
+      else setAddError(partialScanFeedback(total, failed));
+    } finally {
+      addingRef.current = false;
+      if (live.current) setAdding(false);
     }
-    const total = addedCountRef.current + added;
-    addedCountRef.current = total;
-    setAddedCount(total);
-    if (!attempts.current.size) await navigation.releaseBeforeNavigation();
-    addingRef.current = false;
-    setAdding(false);
-    if (!failed) report(photoAddedFeedback(total));
-    else setAddError(partialScanFeedback(total, failed));
   };
 
   /** The only way out (Escape or Close): report anything already added so the page reloads. */

@@ -340,6 +340,7 @@ export async function runMorningSummary(
             'morning_summary',
             {
               userId: user.id,
+              familyId: user.family_id!,
               ...morningSummaryEmail({
                 name: user.name,
                 dayLabel: summary.dayLabel,

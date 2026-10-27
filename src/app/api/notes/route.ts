@@ -1,3 +1,4 @@
+import { refuseNoteRecoveryOwner, noteRecoveryAdopted } from "@/lib/note-create-recovery-server";
 import {
   assistantSourceGuard,
   AssistantSourceRefused,
@@ -15,6 +16,8 @@ import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { createNoteSchema } from "@/lib/validations";
 import { refusePairedDevice } from "@/lib/device-route";
+
+import { parseNotePaging, encodeNoteCursor, afterNoteCursor } from "@/lib/note-paging";
 
 export const dynamic = "force-dynamic";
 
@@ -37,17 +40,31 @@ export async function GET(request: NextRequest) {
     const gate = await featureGate(auth.user.family_id, "notes");
     if (gate) return gate;
 
+    const paging = parseNotePaging(request.nextUrl.searchParams, auth.user.family_id);
+    if (!paging.ok) return NextResponse.json(
+      { error: paging.error, code: "NOTES_INVALID_PAGE" }, { status: 400 },
+    );
     const notes = await prisma!.pinnedNote.findMany({
-      where: { family_id: auth.user.family_id },
-      orderBy: { created_at: "desc" },
+      where: {
+        family_id: auth.user.family_id,
+        ...(paging.paged && paging.cursor ? afterNoteCursor(paging.cursor) : {}),
+      },
+      orderBy: paging.paged ? [{ created_at: "desc" }, { id: "asc" }] : { created_at: "desc" },
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
     });
+    const hasMore = paging.paged && notes.length > paging.limit;
+    const page = paging.paged ? notes.slice(0, paging.limit) : notes;
 
     return NextResponse.json({
-      notes: notes.map((note) => ({
+      writeContext: { userId: auth.user.id, familyId: auth.user.family_id },
+      recoveryAdopted: noteRecoveryAdopted(),
+      ...(paging.paged ? { nextCursor: hasMore && page.length
+        ? encodeNoteCursor(auth.user.family_id, page[page.length - 1]) : null } : {}),
+      notes: page.map((note) => ({
         ...note,
         ...notePermissions(auth.user.role, auth.user.id, note.created_by),
       })),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     logRouteError("GET /api/notes", err, getRequestId(request));
     return NextResponse.json(
@@ -82,6 +99,11 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    if (parsed.data.expected_user_id !== undefined &&
+      (parsed.data.expected_user_id !== auth.user.id || parsed.data.expected_family_id !== auth.user.family_id))
+      return NextResponse.json({ error: { code: "NOTE_OWNER_CHANGED", retryable: false } }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+    const ownerRefusal = refuseNoteRecoveryOwner(request, auth.payload, auth.user, true);
+    if (ownerRefusal) return ownerRefusal;
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     const actor = {

@@ -26,7 +26,7 @@ type Row = Record<string, any>
 
 function seedExtras() {
   const t = new Date('2026-09-01T00:00:00Z')
-  for (const model of ['householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+  for (const model of ['choreTopUpCursor', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
     db.rows(model).push(
       { id: `${model}-a`, family_id: FAMILY_A, user_id: 'parent-a' },
       { id: `${model}-b`, family_id: FAMILY_B, user_id: 'parent-b' },
@@ -170,7 +170,7 @@ describe('deletion plan', () => {
     const order = HOUSEHOLD_DELETION_PLAN.map((s) => s.model)
     expect(order[0]).toBe('deviceSession')
     expect(order[order.length - 1]).toBe('user')
-    for (const metadata of ['responsibilityState', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
+    for (const metadata of ['responsibilityState', 'choreTopUpCursor', 'householdProfileLinkChallenge', 'aiUsageRequest', 'aiUsagePolicy']) {
       expect(order.indexOf(metadata)).toBeGreaterThan(order.indexOf('parentElevationPin'))
       expect(order.indexOf(metadata)).toBeLessThan(order.indexOf('householdMember'))
     }
@@ -634,4 +634,74 @@ describe('getDeletionOptions', () => {
       canDeleteHousehold: false,
     })
   })
+})
+
+// Authored current/former-household erasure source case; runtime/PG QA deferred.
+it('erases former device parent references without replacing another parent or revoking their tablet', async () => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  Object.assign(db.find('householdDevice', 'dev-b')!, {
+    confirmed_by: 'parent-a', revoked_by: 'parent-b', elevated_user_id: 'parent-a',
+    elevation_token_hash: 'fabricated-elevation', elevated_token_version: 0,
+    elevation_method: 'password', elevation_started_at: new Date('2026-10-25T00:00:00Z'),
+  })
+  Object.assign(db.find('devicePairing', 'pair-b')!, { confirmed_by: 'parent-a' })
+  await deleteMemberAccount('parent-a', deps().d)
+  expect(db.find('householdDevice', 'dev-b')).toMatchObject({
+    created_by: 'parent-b', confirmed_by: null, revoked_by: 'parent-b', revoked_at: null,
+    elevated_user_id: null, elevation_token_hash: null, elevated_token_version: null,
+    elevation_method: null, elevation_started_at: null, elevation_last_used_at: null, elevation_expires_at: null,
+  })
+  expect(db.find('devicePairing', 'pair-b')).toMatchObject({ created_by: 'parent-b', confirmed_by: null })
+  expect(db.find('deviceSession', 'dsess-b')).toMatchObject({ revoked_at: null })
+  expect(db.find('user', 'parent-b')).toBeDefined()
+})
+
+it('hands current accepted requests to the local successor and erases former creator requests without cross-household handover', async () => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  const accepted = new Date('2026-10-24T12:00:00Z')
+  db.find('familyInvite', 'invite-a')!.accepted_at = accepted
+  db.find('devicePairing', 'pair-a')!.device_id = 'dev-a'
+  db.rows('familyInvite').push({ ...db.find('familyInvite', 'invite-a'), id: 'old-invite', family_id: FAMILY_B, token_hash: 'fabricated-old-invite' })
+  db.rows('devicePairing').push({ ...db.find('devicePairing', 'pair-a'), id: 'old-pair', family_id: FAMILY_B, code_hash: 'fabricated-old-pair', device_id: 'dev-b' })
+  await deleteMemberAccount('parent-a', deps().d)
+  expect(db.find('familyInvite', 'invite-a')).toMatchObject({ family_id: FAMILY_A, created_by: 'parent-a2' })
+  expect(db.find('devicePairing', 'pair-a')).toMatchObject({ family_id: FAMILY_A, created_by: 'parent-a2' })
+  expect(db.find('familyInvite', 'old-invite')).toBeUndefined()
+  expect(db.find('devicePairing', 'old-pair')).toBeUndefined()
+  expect(db.find('familyInvite', 'invite-b')).toMatchObject({ created_by: 'parent-b' })
+  expect(db.find('devicePairing', 'pair-b')).toMatchObject({ created_by: 'parent-b' })
+  expect(db.find('householdDevice', 'dev-b')).toMatchObject({ revoked_at: null })
+  expect(db.find('deviceSession', 'dsess-b')).toMatchObject({ revoked_at: null })
+})
+
+it.each(['current', 'detached'] as const)('preserves former household content with that household successor for a %s account', async membership => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  if (membership === 'detached') db.find('user', 'parent-a')!.family_id = null
+  db.find('list', 'list-b')!.created_by = 'parent-a'
+  db.find('listItem', 'item-b')!.added_by = 'parent-a'
+  db.find('listItem', 'item-b')!.checked_by = 'parent-a'
+  db.find('pinnedNote', 'note-b')!.created_by = 'parent-a'
+  await deleteMemberAccount('parent-a', deps().d)
+  expect(db.find('list', 'list-b')).toMatchObject({ family_id: FAMILY_B, created_by: 'parent-b' })
+  expect(db.find('listItem', 'item-b')).toMatchObject({ added_by: 'parent-b', checked_by: null })
+  expect(db.find('pinnedNote', 'note-b')).toMatchObject({ family_id: FAMILY_B, created_by: 'parent-b' })
+  expect(db.find('pinnedNote', 'note-a')).toMatchObject({ family_id: FAMILY_A, created_by: 'parent-a2' })
+  expect(db.find('user', 'parent-a')).toBeUndefined()
+  expect(db.find('user', 'parent-b')).toBeDefined()
+})
+it('refuses historical shared-content erasure when its household has no local successor', async () => {
+  db.reset()
+  seedExtras()
+  addSecondParent()
+  db.rows('family').push({ id: 'orphaned-history', name: 'Fabricated old household' })
+  db.rows('pinnedNote').push({ ...db.find('pinnedNote', 'note-a'), id: 'old-orphan-note', family_id: 'orphaned-history' })
+  await expect(deleteMemberAccount('parent-a', deps().d)).rejects.toMatchObject({ code: 'HISTORICAL_SUCCESSOR_REQUIRED', status: 409 })
+  expect(db.find('user', 'parent-a')).toBeDefined()
+  expect(db.find('pinnedNote', 'old-orphan-note')).toMatchObject({ created_by: 'parent-a', family_id: 'orphaned-history' })
 })

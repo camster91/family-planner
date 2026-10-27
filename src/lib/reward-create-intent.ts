@@ -1,6 +1,6 @@
 "use client";
 
-import { isValidIdempotencyKey } from "@/lib/idempotency-key";
+import { IDEMPOTENCY_TTL_MS, isValidIdempotencyKey } from "@/lib/idempotency-key";
 import {
   REWARD_CREATE_INTENT_MAX_INTENTS,
   REWARD_CREATE_INTENT_STORAGE_VERSION,
@@ -56,7 +56,7 @@ function cloneDraft(draft: RewardCreateDraft): RewardCreateDraft {
 }
 
 function cloneIntent(intent: RewardCreateIntent): RewardCreateIntent {
-  return { key: intent.key, draft: cloneDraft(intent.draft) };
+  return { key: intent.key, draft: cloneDraft(intent.draft), ...(intent.issuedAt !== undefined ? { issuedAt: intent.issuedAt } : {}) };
 }
 
 function validDraft(
@@ -135,6 +135,7 @@ function persist(
   owner: RewardCreateOwner,
   store: RewardCreateOwnerStore,
 ): void {
+  if (store.storageHeld) return;
   const target = rewardCreateStorage();
   if (!target) return;
   const intents: Record<string, RewardCreateIntent> = {};
@@ -168,7 +169,7 @@ function getStore(owner?: RewardCreateOwner): RewardCreateOwnerStore | null {
     try {
       raw = target.getItem(rewardCreateStorageKey(owner));
     } catch {
-      raw = null;
+      store.storageHeld = true;
     }
     const persisted = parsePersistedState(raw, owner);
     if (persisted) {
@@ -180,15 +181,20 @@ function getStore(owner?: RewardCreateOwner): RewardCreateOwnerStore | null {
         ]),
       );
     } else if (raw !== null) {
-      try {
-        target.removeItem(rewardCreateStorageKey(owner));
-      } catch {
-        // Browser storage can be blocked or quota-limited.
-      }
+      // Preserve the exact bytes for a compatible reader or explicit cleanup.
+      // A foreign/unsupported/corrupt envelope is not evidence of no work.
+      store.storageHeld = true;
     }
+  } else {
+    store.storageHeld = true;
   }
   rewardCreateStores.set(scope, store);
   return store;
+}
+
+/** Sticky for this owner store; storage becoming available is not an empty-history proof. */
+export function rewardCreateStorageHeld(owner?: RewardCreateOwner): boolean {
+  return Boolean(getStore(owner)?.storageHeld);
 }
 
 export function rewardCreateSignature(draft: RewardCreateDraft): string {
@@ -226,22 +232,37 @@ export function rewardCreateIntent(
   return intent ? cloneIntent(intent) : null;
 }
 
+/** Bounded owner-only snapshots; a caller cannot mutate the recovery journal. */
+export function rewardCreateIntents(
+  owner: RewardCreateOwner | undefined,
+): Array<{ signature: string; intent: RewardCreateIntent }> {
+  const store = getStore(owner);
+  if (!store || store.storageHeld) return [];
+  return Array.from(store.intents, ([signature, intent]) => ({ signature, intent: cloneIntent(intent) }));
+}
+
 export function rememberRewardCreateIntent(
   owner: RewardCreateOwner | undefined,
   signature: string,
   draft: RewardCreateDraft,
   key: string,
+  issuedAt = Date.now(),
 ): boolean {
   const store = getStore(owner);
   if (
     !store ||
+    store.storageHeld ||
     !isValidIdempotencyKey(key) ||
     !validDraft(draft, false) ||
     rewardCreateSignature(draft) !== signature ||
     (store.intents.size >= MAX_INTENTS && !store.intents.has(signature))
   )
     return false;
-  store.intents.set(signature, { key, draft: cloneDraft(draft) });
+  const existing = store.intents.get(signature);
+  // Never replace a prior key or manufacture timing for legacy/unknown work.
+  if (existing) return existing.key === key;
+  if (!Number.isSafeInteger(issuedAt) || issuedAt < 0) return false;
+  store.intents.set(signature, { key, draft: cloneDraft(draft), issuedAt });
   persist(store.owner, store);
   return true;
 }
@@ -270,4 +291,11 @@ export function forgetLatestRewardCreateDraft(
     store.latestDraft = null;
     persist(store.owner, store);
   }
+}
+
+
+/** Local original-age precondition only, not authoritative receipt/outcome proof. */
+export function rewardCreateWithinRetryWindow(intent: RewardCreateIntent, now = Date.now()): boolean {
+  return typeof intent.issuedAt === "number" && Number.isSafeInteger(intent.issuedAt) && intent.issuedAt >= 0
+    && Number.isSafeInteger(now) && now >= intent.issuedAt && now - intent.issuedAt < IDEMPOTENCY_TTL_MS;
 }

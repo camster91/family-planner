@@ -12,6 +12,16 @@ jest.mock("next/navigation", () => ({
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => true,
 }));
+// This suite exercises create-form payloads and retry recovery. The pending
+// navigation sentinel owns browser history while a request is in flight; a
+// JSDOM history traversal is not part of these form contracts and can leave a
+// fake-timer retry waiting on a popstate that JSDOM never emits.
+jest.mock("@/components/layout/pending-form-navigation", () => ({
+  usePendingFormNavigationController: () => ({
+    releaseBeforeNavigation: async () => true,
+  }),
+  usePendingFormNavigation: () => null,
+}));
 
 const calls: Array<{ url: string; init?: RequestInit }> = [];
 const profile = {
@@ -459,7 +469,7 @@ describe("profile target in the create chore form", () => {
     }
   });
 
-  it("reuses the frozen weekly body and key after a response-loss date rollover", async () => {
+  it("reuses the frozen weekly body/key after edits, midnight and an old reviewed start", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-10-12T12:00:00.000Z"));
     try {
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
@@ -502,6 +512,7 @@ describe("profile target in the create chore form", () => {
       );
       await user.click(screen.getByRole("button", { name: "Weekly" }));
       await user.click(screen.getByRole("checkbox", { name: "Monday" }));
+      fireEvent.change(screen.getByLabelText("Starts on or after"), { target: { value: "2026-10-12" } });
       await user.type(screen.getByLabelText("Title"), "Pack a bag");
       await user.click(screen.getByRole("button", { name: "Create Chore" }));
       expect(
@@ -512,6 +523,9 @@ describe("profile target in the create chore form", () => {
       const firstKey = new Headers(firstCall.init?.headers).get("Idempotency-Key");
       const firstBody = firstCall.init?.body;
       jest.setSystemTime(new Date("2026-10-13T12:00:00.000Z"));
+      const title = screen.getByLabelText("Title");
+      await user.clear(title); await user.type(title, "Temporary edit");
+      await user.clear(title); await user.type(title, "Pack a bag");
       await user.click(screen.getByRole("button", { name: "Create Chore" }));
       await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 
@@ -669,4 +683,34 @@ describe("profile target in the create chore form", () => {
     expect(title.value).toBe("Edited while waiting");
     expect(push).not.toHaveBeenCalled();
   });
+  // Authored UNRUN: a later refusal cannot erase an earlier unknown profile save.
+  it("keeps the original request after an unknown result and a capability refusal", async () => {
+    const read = global.fetch; let attempts = 0;
+    global.fetch = jest.fn(async (url, init) => {
+      if (url !== "/api/chores/create") return read(url, init);
+      calls.push({ url: String(url), init }); attempts++;
+      if (attempts === 1) throw new Error("Fixture response lost");
+      return attempts === 2
+        ? { ok: false, status: 404, json: async () => ({ error: { code: "MEMBER_PROTOCOL_UNAVAILABLE" } }) }
+        : { ok: true, status: 200, json: async () => validProfileCreateResponse };
+    }) as typeof fetch;
+    const user = userEvent.setup(); render(<CreateChorePage />);
+    await screen.findByRole("option", { name: /Jamie/ });
+    await user.selectOptions(screen.getByLabelText("Assign To"), "profile:profile-jamie");
+    await user.type(screen.getByLabelText("Title"), "Pack a bag");
+    fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await screen.findByText(profileSetupMessages.en.profileTargetError);
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await screen.findByText(profileSetupMessages.en.profileTargetUnsupported);
+    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
+    const writes = calls.filter(call => call.url === "/api/chores/create");
+    expect(writes).toHaveLength(3);
+    for (const write of writes.slice(1)) {
+      expect(write.init?.body).toBe(writes[0].init?.body);
+      expect(new Headers(write.init?.headers).get("Idempotency-Key")).toBe(new Headers(writes[0].init?.headers).get("Idempotency-Key"));
+    }
+  });
+
 });

@@ -55,3 +55,27 @@ Every family-owned domain should have two-family negative tests and role/device 
 
 ## High-risk stop condition
 Any confirmed cross-family read/write is a release/beta stop condition until contained and re-verified.
+### Budget server-page authority — 2026-10-25 (source only)
+
+The direct Budget server-page path now owns an explicit authenticated parent
+check before any private budget query instead of relying solely on the outer
+middleware/layout route allowlist. getServerActor supplies the original verified
+cookie generation. The page renews actual User role, family and generation before
+queries and compares the same frozen authority again after all asynchronous
+aggregates/rows, before constructing/serializing BudgetDashboard initialData.
+A missing/revoked account redirects to login; non-parent/changed household
+redirects to Dashboard; a disabled feature returns the existing off state.
+No child/teen/unknown role or newer generation is adopted for these rows. Queries
+stay scoped to the original household; parent management/feature copy does not
+come from a stale session role. Internal generation is not a client DTO field.
+
+This protects the page read/serialization boundary. It does not claim a locked
+or repeatable-read finance snapshot, cancellation of already-started reads, an
+entire SSR authorization audit, or protection after an already-served page has
+been displayed. API boundaries, paired-device refusal, UTC/USD and existing
+budget ownership remain unchanged. Source cases deliberately invoke the page
+without a middleware/layout wrapper and cover non-parent/no-person, initial
+changed authority, authority changes during aggregates and feature disable.
+They are authored/adapted, unrun. No QA/tests/checks/build/browser/CI/API/DB/native/
+provider/push/merge/deploy ran; direct HTTP/role/generation/race/renderer acceptance
+and full #136 remain open.

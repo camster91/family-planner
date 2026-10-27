@@ -12,6 +12,7 @@ jest.mock('@/lib/feature-gate-server', () => ({
 
 import * as recipes from '../route'
 import * as recipe from '../[id]/route'
+import { recipeCurationHttp } from '@/lib/recipe-curation-http'
 import {
   db,
   req,
@@ -35,6 +36,7 @@ function patch(as: UserKey | null, id: string, body: unknown) {
 describe('recipes — two households, roles and gate', () => {
   beforeEach(() => {
     db.reset()
+    db.foodSourceVersionsReady = true // Explicit migrated fixture; not real trigger evidence.
     mockGate.mockReset()
     mockGate.mockImplementation(async () => null)
   })
@@ -90,6 +92,16 @@ describe('recipes — two households, roles and gate', () => {
     expect(foreign.status).toBe(404)
     await expectDenied(foreign, [404])
     expect(await foreign.json()).toEqual(await missing.json())
+  })
+
+  // Authored UNRUN: schema unavailability refuses before new canonical effects.
+  it('holds a fresh create before ingredient writes when insertion identity storage is unavailable', async () => {
+    db.foodSourceVersionsReady = false
+    const response = await create('parentA', { title: 'Held soup', servings: 2, ingredients: [{ name: 'New food', amount: 1, unit: 'cup' }] })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_IDENTITY_UNAVAILABLE' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('ingredient')).toHaveLength(0)
   })
 
   it('a teen creates a recipe; named ingredients are upserted by normalized name in the household', async () => {
@@ -217,4 +229,173 @@ describe('recipes — two households, roles and gate', () => {
     expect(new Set(mockGate.mock.calls.map((c) => c[0]))).toEqual(new Set(['family-A']))
     expect(db.writes).toHaveLength(0)
   })
+})
+
+// Request budget source cases authored UNRUN; no database/provider action ran.
+describe('recipe write body budget', () => {
+  beforeEach(() => { db.reset(); mockGate.mockReset(); mockGate.mockResolvedValue(null); });
+  it.each(['create', 'edit'])('rejects declared oversized %s before invoking a decoder or writing', async mode => {
+    const request = req({ as: 'parentA', method: mode === 'create' ? 'POST' : 'PATCH', headers: { 'content-length': String(1024 * 1024 + 1) }, body: { title: 'Fixture soup' } });
+    request.json = jest.fn(async () => ({ title: 'Fixture soup' }));
+    const response = await (mode === 'create' ? recipes.POST(request) : recipe.PATCH(request, P('recipe-a')));
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_REQUEST_TOO_LARGE' } });
+    expect(request.json).not.toHaveBeenCalled();
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(db.writes).toHaveLength(0);
+  });
+  it.each(['create', 'edit'])('bounds chunked UTF-8 %s with no declared length before JSON/schema/write work', async mode => {
+    const request = req({ as: 'parentA', method: mode === 'create' ? 'POST' : 'PATCH' });
+    const cancel = jest.fn();
+    request.body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"title":"'));
+        controller.enqueue(new TextEncoder().encode('é'.repeat(600000)));
+      },
+      cancel,
+    });
+    request.json = jest.fn();
+    const response = await (mode === 'create' ? recipes.POST(request) : recipe.PATCH(request, P('recipe-a')));
+    expect(response.status).toBe(413);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(request.json).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+});
+
+// Original-scope renewal cases authored UNRUN. No API/DB/runtime was invoked.
+it.each(['library', 'detail', 'collections', 'curation'])('refuses private %s data after original household access changes', async mode => {
+  db.reset(); mockGate.mockReset();
+  let checks = 0;
+  mockGate.mockImplementation(async () => {
+    if (++checks === 1) db.find('user', 'parent-a')!.family_id = 'family-B';
+    return null;
+  });
+  const input = req({ as: 'parentA', method: 'GET' });
+  const response = mode === 'library' ? await recipes.GET(input)
+    : mode === 'detail' ? await recipe.GET(input, P('recipe-a'))
+    : await recipeCurationHttp(input, mode === 'curation' ? 'recipe-a' : undefined);
+  expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body).toMatchObject({ code: 'RECIPE_SCOPE_CHANGED' });
+  expect(JSON.stringify(body)).not.toContain('Home lasagne');
+  expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(db.writes).toHaveLength(0);
+});
+
+// Supplied owner intent is checked before source decoding or domain mutation.
+it('refuses a retired recipe curation owner before parsing or writing', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockResolvedValue(null);
+  const input = req({ as: 'parentA', method: 'PATCH', body: {}, headers: {
+    'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-b', familyId: 'family-B', role: 'parent', generation: 0 }),
+  } });
+  input.json = jest.fn(async () => ({}));
+  const response = await recipeCurationHttp(input, 'recipe-a');
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ error: { code: 'RECIPE_OWNER_CHANGED' } });
+  expect(input.json).not.toHaveBeenCalled(); expect(mockGate).not.toHaveBeenCalled();
+  expect(db.writes).toHaveLength(0);
+});
+
+// Authored UNRUN: original imported-create authority is checked before effects.
+describe('recipe original create owner', () => {
+  beforeEach(() => { db.reset(); mockGate.mockReset(); mockGate.mockResolvedValue(null) })
+  const original = { protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-a', familyId: 'family-A', role: 'parent', generation: 0 }
+  it('rejects a different original session before allocating a recipe receipt', async () => {
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: { title: 'Reviewed soup', servings: 2 }, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify({ ...original, generation: 9 }),
+    } }))
+    expect(response.status).toBe(409)
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+  })
+  it('rejects old owner metadata retained in a restored body without a matching header', async () => {
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: {
+      title: 'Restored soup', creation_protocol: 'herewoven.recipe-create.v1', creation_issued_at: Date.now(), creation_owner: { ...original, generation: 9 },
+    } }))
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+  })
+  // Authored UNRUN: an old command must not restart after receipt expiry/cleanup.
+  it('refuses an expired owner-bound command before receipt allocation', async () => {
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: {
+      title: 'Old soup', creation_protocol: 'herewoven.recipe-create.v1', creation_owner: original,
+      creation_issued_at: Date.now() - 24 * 60 * 60 * 1000 - 1,
+    } }))
+    expect(response.status).toBe(410)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_COMMAND_EXPIRED' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('idempotencyRecord')).toHaveLength(0)
+  })
+  it('does not adopt a new allowed role after a pre-write wait', async () => {
+    mockGate.mockImplementation(async () => { db.find('user', 'parent-a')!.role = 'teen'; return null })
+    const response = await recipes.POST(req({ as: 'parentA', method: 'POST', body: { title: 'Reviewed soup', servings: 2, ingredients: [] }, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify(original),
+    } }))
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } })
+    expect(writesTo('recipe')).toHaveLength(0)
+    expect(writesTo('ingredient')).toHaveLength(0)
+  })
+})
+
+// Authored source cases, UNRUN: optional detail-owner continuity admission.
+describe('recipe detail original owner', () => {
+  beforeEach(() => { db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null) })
+  it.each(['GET', 'PATCH'] as const)('refuses %s with a different expected household before touching recipe data', async method => {
+    const request = req({ as: 'parentA', method, body: { title: 'Must not apply' }, headers: {
+      'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-B', role:'parent', generation:0 }),
+    } })
+    const response = await recipe[method](request, P('recipe-a'))
+    expect(response.status).toBe(409)
+    expect((await response.json()).error.code).toBe('RECIPE_OWNER_CHANGED')
+    expect(writesTo('recipe')).toHaveLength(0)
+  })
+  it('adds server-captured owner metadata without changing the legacy detail body', async () => {
+    const response = await recipe.GET(req({ as:'parentA' }), P('recipe-a'))
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.headers.get('X-Herewoven-Recipe-Owner')!)).toMatchObject({ actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 })
+    expect((await response.json()).recipe.id).toBe('recipe-a')
+  })
+})
+
+it('refuses a body-only edit owner mismatch before recipe effects', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
+    title:'Must not apply', base_revision:0, edit_protocol:'herewoven.recipe-edit.v1',
+    edit_owner:{ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-B', role:'parent', generation:0 },
+  } }), P('recipe-a'))
+  expect(response.status).toBe(409)
+  expect((await response.json()).error.code).toBe('RECIPE_OWNER_CHANGED')
+  expect(writesTo('recipe')).toHaveLength(0)
+})
+
+it('admits matching body ownership without persisting command metadata as recipe fields', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  db.find('recipe', 'recipe-a')!.revision = 0
+  const commandOwner = { protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 }
+  const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
+    title:'Updated soup', base_revision:0, edit_protocol:'herewoven.recipe-edit.v1', edit_owner:commandOwner,
+  } }), P('recipe-a'))
+  expect(response.status).toBe(200)
+  expect(JSON.parse(response.headers.get('X-Herewoven-Recipe-Owner')!)).toEqual(commandOwner)
+  const update = writesTo('recipe').find(write => write.op === 'update')!
+  expect(update.args.data.title).toBe('Updated soup')
+  expect(update.args.data).not.toHaveProperty('edit_owner')
+  expect(update.args.data).not.toHaveProperty('edit_protocol')
+})
+
+it('rejects stale owner-bound revisions without changing recipe or ingredient rows', async () => {
+  db.reset(); mockGate.mockReset(); mockGate.mockImplementation(async () => null)
+  db.find('recipe','recipe-a')!.revision = 2
+  const response = await recipe.PATCH(req({ as:'parentA', method:'PATCH', body:{
+    title:'Older edit', base_revision:1, edit_protocol:'herewoven.recipe-edit.v1',
+    edit_owner:{ protocol:'herewoven.recipe-owner.v1', actorId:'parent-a', familyId:'family-A', role:'parent', generation:0 },
+  } }), P('recipe-a'))
+  expect(response.status).toBe(409)
+  expect((await response.json()).error.code).toBe('REVISION_CONFLICT')
+  expect(writesTo('recipe')).toHaveLength(0)
+  expect(writesTo('recipeIngredient')).toHaveLength(0)
 })

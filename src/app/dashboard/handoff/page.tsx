@@ -238,6 +238,7 @@ function HandoffForm({
   showActions?: boolean
 }) {
   const [form, setForm] = React.useState<HandoffFormData>(initial ? handoffToForm(initial) : emptyForm())
+  const formText = useHandoffText()
   const recoveryText = useHandoffRecoveryText()
 
   const set = (key: keyof HandoffFormData, value: string) => setForm((f) => ({ ...f, [key]: value }))
@@ -260,7 +261,7 @@ function HandoffForm({
             </div>
           )}
           <FormField label={t('handoff.sitterName')}>
-            {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder="e.g. Sarah" />}
+            {(id) => <Input id={id} value={form.sitter_name} onChange={(v) => set('sitter_name', v)} placeholder={formText("sitterPlaceholder")} />}
           </FormField>
           <FormField label={t('handoff.arrivalTime')}>
             {(id) => (
@@ -294,7 +295,7 @@ function HandoffForm({
                     id={id}
                     value={form.kids_bedtimes}
                     onChange={(v) => set('kids_bedtimes', v)}
-                    placeholder="e.g. Emma: 8pm, Max: 8:30pm"
+                    placeholder={formText("bedtimesPlaceholder")}
                     rows={2}
                   />
                 )}
@@ -305,7 +306,7 @@ function HandoffForm({
                     id={id}
                     value={form.where_snacks}
                     onChange={(v) => set('where_snacks', v)}
-                    placeholder="e.g. Snacks in the pantry, fruit in the fridge"
+                    placeholder={formText("snacksPlaceholder")}
                     rows={2}
                   />
                 )}
@@ -316,7 +317,7 @@ function HandoffForm({
                     id={id}
                     value={form.pickup_authorized}
                     onChange={(v) => set('pickup_authorized', v)}
-                    placeholder="e.g. Grandma Jane, Uncle Bob"
+                    placeholder={formText("pickupPlaceholder")}
                     rows={2}
                   />
                 )}
@@ -327,7 +328,7 @@ function HandoffForm({
                     id={id}
                     value={form.code_words}
                     onChange={(v) => set('code_words', v)}
-                    placeholder="e.g. Code word for emergencies: PINEAPPLE"
+                    placeholder={formText("codeWordsPlaceholder")}
                     rows={2}
                   />
                 )}
@@ -338,7 +339,7 @@ function HandoffForm({
                     id={id}
                     value={form.pet_care}
                     onChange={(v) => set('pet_care', v)}
-                    placeholder="e.g. Dog: walk at 7pm, cat: no special care"
+                    placeholder={formText("petCarePlaceholder")}
                     rows={2}
                   />
                 )}
@@ -349,7 +350,7 @@ function HandoffForm({
                     id={id}
                     value={form.emergency_notes}
                     onChange={(v) => set('emergency_notes', v)}
-                    placeholder="Allergies, medical info, emergency contacts..."
+                    placeholder={formText("emergencyPlaceholder")}
                     rows={3}
                   />
                 )}
@@ -360,7 +361,7 @@ function HandoffForm({
                     id={id}
                     value={form.house_notes}
                     onChange={(v) => set('house_notes', v)}
-                    placeholder="e.g. Thermostat, TV codes, alarm code..."
+                    placeholder={formText("houseNotesPlaceholder")}
                     rows={3}
                   />
                 )}
@@ -371,7 +372,7 @@ function HandoffForm({
                     id={id}
                     value={form.general_notes}
                     onChange={(v) => set('general_notes', v)}
-                    placeholder="Any other notes for the sitter..."
+                    placeholder={formText("notesPlaceholder")}
                     rows={3}
                   />
                 )}

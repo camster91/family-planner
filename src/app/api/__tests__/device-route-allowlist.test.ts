@@ -117,6 +117,7 @@ const PUBLIC_ROUTES: Record<string, number[]> = {
  * #253: shared devices stay read-only until #157 device writes exist).
  */
 const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
+  "GET /api/calendar/feed/review": [403],
   // Bulk prep records belong to signed-in planners, never paired device sessions.
   "GET /api/meals/bulk": [403],
   "POST /api/meals/bulk": [403],
@@ -167,6 +168,8 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
   // Pinned notes are person-session routes; paired tablets are refused before auth.
   "GET /api/notes": [403],
   "POST /api/notes": [403],
+  "POST /api/notes/create/receipt": [403],
+  "GET /api/notes/recovery": [403],
   "PATCH /api/notes/[id]": [403],
   "DELETE /api/notes/[id]": [403],
 };
@@ -177,6 +180,8 @@ const DEVICE_REFUSED_ROUTES: Record<string, number[]> = {
  * new private domain cannot silently inherit the combined-cookie gap (#510).
  */
 const PRIVATE_PERSON_ROUTES = [
+  { route: 'POST /api/admin/imports/[source]/owned', module: '../admin/imports/[source]/owned/route', method: 'POST', path: '/api/admin/imports/budget-app/owned' },
+  { route: 'GET /api/budget/archive', module: '../budget/archive/route', method: 'GET', path: '/api/budget/archive' },
   {
     route: "GET /api/budget/categories",
     module: "../budget/categories/route",
@@ -242,6 +247,18 @@ const PRIVATE_PERSON_ROUTES = [
     module: "../messages/route",
     method: "POST",
     path: "/api/messages",
+  },
+  {
+    route: "POST /api/messages/send",
+    module: "../messages/send/route",
+    method: "POST",
+    path: "/api/messages/send",
+  },
+  {
+    route: "POST /api/messages/attachments/owned",
+    module: "../messages/attachments/owned/route",
+    method: "POST",
+    path: "/api/messages/attachments/owned",
   },
   {
     route: "PATCH /api/messages",
@@ -601,6 +618,9 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "POST /api/assistant/food/undo-grocery",
   "GET /api/chores/create/receipt",
   "POST /api/chores/preparation-context",
+  "POST /api/chores/stacks/receipt",
+  "GET /api/chores/verify/owned",
+  "POST /api/chores/verify/owned",
   "GET /api/chores/routines/independent/recovery",
   "POST /api/chores/routines/independent/recovery",
   "GET /api/chores/routines/independent",
@@ -631,6 +651,7 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "GET /api/coordination/weekly-reset/summary",
   "GET /api/family/ai-usage",
   "POST /api/family/ai-usage",
+  "PATCH /api/family/name",
   "GET /api/family/display-defaults",
   "PATCH /api/family/display-defaults",
   "GET /api/family/profile-links",
@@ -744,6 +765,8 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "DELETE /api/notes/[id]",
   "GET /api/notes",
   "POST /api/notes",
+  "POST /api/notes/create/receipt",
+  "GET /api/notes/recovery",
   "GET /api/notifications",
   "POST /api/notifications",
   "PATCH /api/notifications",
@@ -767,8 +790,11 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "GET /api/recipes",
   "POST /api/recipes",
   "POST /api/rewards/approve",
+  "POST /api/rewards/approve/owned",
   "POST /api/rewards/claim",
+  "POST /api/rewards/claim/owned",
   "GET /api/rewards",
+  "GET /api/rewards/owned",
   "POST /api/rewards",
   "PATCH /api/rewards",
   "GET /api/search",
@@ -778,6 +804,7 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "PATCH /api/users",
   "PATCH /api/wishlist/[id]",
   "DELETE /api/wishlist/[id]",
+  "GET /api/wishlist/[id]",
   "PATCH /api/wishlist/[id]/status",
   "GET /api/wishlist",
   "POST /api/wishlist",

@@ -14,6 +14,8 @@ import { POST as sendToCalendar } from "../[id]/send-to-calendar/route";
 import { db, req, params, bodyOf, writesTo, expectDenied, expectNoForeignData } from "@/__tests__/helpers/two-household";
 import { DEFAULT_FAMILY_TIMEZONE } from "@/lib/calendar-import/timezone";
 import * as projectCalendar from "@/lib/project-calendar";
+import * as membershipLocks from "@/lib/household-lock";
+import { defaultFeatures } from "@/lib/features";
 
 const DUE = new Date("2026-10-15T00:00:00Z"); // picked "2026-10-15" in a date input
 
@@ -38,7 +40,55 @@ const send = (body?: unknown) =>
 describe("send-to-calendar", () => {
   beforeEach(() => {
     db.reset();
+    db.find("family", "family-A")!.features = { ...defaultFeatures(), projects: true };
     taskA().due_date = DUE;
+  });
+
+  // Authored/unrun. Fake lifecycle interleavings are not PostgreSQL lock proof.
+  it.each([
+    ["session revocation", () => { db.find("user", "parent-a")!.token_version = 1; }, 401, "SESSION_CHANGED"],
+    ["household change", () => { db.find("user", "parent-a")!.family_id = "family-B"; }, 403, "PROJECT_SEND_UNAVAILABLE"],
+    ["unsupported role", () => { db.find("user", "parent-a")!.role = "unsupported"; }, 403, "PROJECT_SEND_UNAVAILABLE"],
+    ["Projects switched off", () => { db.find("family", "family-A")!.features = { ...defaultFeatures(), projects: false }; }, 403, "FEATURE_DISABLED"],
+  ] as const)("renews authority after %s while the send was waiting", async (_label, change, status, code) => {
+    const original = membershipLocks.lockHousehold;
+    const lock = jest.spyOn(membershipLocks, "lockHousehold").mockImplementation(async (tx, familyId) => {
+      await original(tx, familyId);
+      change();
+    });
+    try {
+      const response = await send({ timeZone: "UTC" });
+      expect(response.status).toBe(status);
+      expect(await bodyOf(response)).toMatchObject({ code });
+      expect(writesTo("event")).toHaveLength(0);
+    } finally { lock.mockRestore(); }
+  });
+
+  it("refuses a project moved out of the household before its row lock completed", async () => {
+    const original = projectCalendar.lockProjectRow;
+    const lock = jest.spyOn(projectCalendar, "lockProjectRow").mockImplementation(async (tx, id) => {
+      await original(tx, id);
+      db.find("project", id)!.family_id = "family-B";
+    });
+    try {
+      const response = await send({ timeZone: "UTC" });
+      expect(response.status).toBe(404);
+      expect(await bodyOf(response)).toMatchObject({ code: "PROJECT_NOT_FOUND" });
+      expect(writesTo("event")).toHaveLength(0);
+    } finally { lock.mockRestore(); }
+  });
+
+  it("uses the current locked project name for generated descriptions", async () => {
+    taskA().description = null;
+    const original = projectCalendar.lockProjectRow;
+    const lock = jest.spyOn(projectCalendar, "lockProjectRow").mockImplementation(async (tx, id) => {
+      await original(tx, id);
+      db.find("project", id)!.name = "Current synthetic name";
+    });
+    try {
+      expect((await send({ timeZone: "UTC" })).status).toBe(200);
+      expect(writesTo("event")[0].args.data.description).toBe("Task from project: Current synthetic name");
+    } finally { lock.mockRestore(); }
   });
 
   it("creates an all-day event on the task's calendar day in the caller's zone", async () => {
@@ -129,6 +179,52 @@ describe("send-to-calendar", () => {
     const body = await bodyOf(await send({ timeZone: "UTC" }));
     expect(body.eventsCreated).toBe(1);
     expect(writesTo("event").map((w) => w.args.data.source_uid)).toEqual(["project-task:task-a"]);
+  });
+
+  // Authored/unrun. A batch boundary must not become a partial-send cap.
+  it("sends every eligible task across internal batches and remains repeat-safe", async () => {
+    for (let i = 0; i < 205; i++) addTask(`batch-${String(i).padStart(4, "0")}`, `Synthetic ${i}`);
+    const first = await bodyOf(await send({ timeZone: "UTC" }));
+    expect(first.eventsCreated).toBe(206);
+    expect(first.events).toHaveLength(206);
+    expect(new Set(eventsOfProjectA().map((event) => event.source_uid)).size).toBe(206);
+    const second = await bodyOf(await send({ timeZone: "UTC" }));
+    expect(second.eventsCreated).toBe(0);
+    expect(eventsOfProjectA()).toHaveLength(206);
+  });
+
+  it("returns a count-only summary for the new web request while sending all batches", async () => {
+    for (let i = 0; i < 205; i++) addTask(`summary-${String(i).padStart(4, "0")}`, `Synthetic ${i}`);
+    const body = await bodyOf(await send({ timeZone: "UTC", responseMode: "summary-v1" }));
+    expect(body).toEqual({ protocol: "herewoven.project-calendar-summary.v1", state: "created", eventsCreated: 206 });
+    expect(eventsOfProjectA()).toHaveLength(206);
+    expect(body.events).toBeUndefined();
+    expect(await bodyOf(await send({ responseMode: "summary-v1" }))).toEqual({
+      protocol: "herewoven.project-calendar-summary.v1", state: "all-sent", eventsCreated: 0,
+    });
+  });
+
+  it("refuses an unsupported requested response mode before effects", async () => {
+    const response = await send({ responseMode: "unsupported" });
+    expect(response.status).toBe(400);
+    expect(await bodyOf(response)).toMatchObject({ code: "PROJECT_CALENDAR_RESPONSE_UNSUPPORTED" });
+    expect(writesTo("event")).toHaveLength(0);
+  });
+
+  it("continues past a complete already-sent batch to new tasks later in ID order", async () => {
+    for (let i = 0; i < 200; i++) {
+      const id = `batch-${String(i).padStart(4, "0")}`;
+      addTask(id, `Synthetic ${i}`);
+      db.rows("event").push({
+        id: `sent-${i}`, family_id: "family-A", project_id: "proj-a", is_task: true,
+        title: `Earlier ${i}`, source_uid: projectCalendar.projectTaskUid(id),
+        start_time: DUE, end_time: DUE, created_by: "parent-a", created_at: DUE,
+      });
+    }
+    const result = await bodyOf(await send({ timeZone: "UTC" }));
+    expect(result.eventsCreated).toBe(1);
+    expect(result.events[0].title).toBe(taskA().title);
+    expect(writesTo("event")).toHaveLength(1);
   });
 
   it("another household's linked event does not block this household, and their project stays refused", async () => {

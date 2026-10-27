@@ -5,6 +5,18 @@ import { useTranslation } from "@/i18n";
 
 const en = {
   notifications: "Notifications",
+  refreshNotifications: "Refresh notifications",
+  notificationReadChanged: "Notifications changed while loading. Refresh or retry to see the latest state.",
+  openNotification: "Open",
+  openNotificationLabel: 'Open "{title}"',
+  unreadShownCount: "{count} unread shown",
+  loadedNotifications: "Loaded notifications",
+  noMatchingLoaded: "No matching notifications loaded",
+  loadedScope: "Counts and filters apply to the notifications loaded here.",
+  allLoaded: "All notifications loaded.",
+  pagingUnavailable: "This server cannot load older notification pages yet. Refresh after the server is updated.",
+  loadOlder: "Load older notifications",
+  retryOlder: "Retry older notifications",
   caughtUp: "All caught up",
   unreadCount: "{count} unread",
   all: "All",
@@ -16,7 +28,9 @@ const en = {
   invalidNotifications:
     "The notification response could not be read. Try again.",
   offline:
-    "Check your connection and try again. Your notifications are unchanged.",
+    "Check your connection and try again.",
+  notificationRecoveryHold: "Refresh to check the latest state before making another change.",
+  notificationWriteUncertain: "The change could not be confirmed. Refresh notifications before trying again.",
   markFailed: "Couldn't mark it as read",
   deleteFailed: "Couldn't delete the notification",
   snoozeFailed: "Couldn't change snooze",
@@ -75,6 +89,18 @@ const en = {
 } as const;
 const es: Record<keyof typeof en, string> = {
   notifications: "Notificaciones",
+  refreshNotifications: "Actualizar notificaciones",
+  notificationReadChanged: "Las notificaciones cambiaron durante la carga. Actualiza o reintenta para ver el estado más reciente.",
+  openNotification: "Abrir",
+  openNotificationLabel: 'Abrir "{title}"',
+  unreadShownCount: "{count} sin leer mostradas",
+  loadedNotifications: "Notificaciones cargadas",
+  noMatchingLoaded: "No hay notificaciones coincidentes cargadas",
+  loadedScope: "Los recuentos y filtros corresponden a las notificaciones cargadas aquí.",
+  allLoaded: "Todas las notificaciones están cargadas.",
+  pagingUnavailable: "Este servidor aún no carga páginas de notificaciones anteriores. Actualiza cuando se haya actualizado el servidor.",
+  loadOlder: "Cargar notificaciones anteriores",
+  retryOlder: "Reintentar notificaciones anteriores",
   caughtUp: "Todo al día",
   unreadCount: "{count} sin leer",
   all: "Todas",
@@ -86,7 +112,9 @@ const es: Record<keyof typeof en, string> = {
   invalidNotifications:
     "No se pudo leer la respuesta de notificaciones. Inténtalo de nuevo.",
   offline:
-    "Comprueba la conexión e inténtalo de nuevo. Tus notificaciones no han cambiado.",
+    "Comprueba la conexión e inténtalo de nuevo.",
+  notificationRecoveryHold: "Actualiza para comprobar el estado más reciente antes de hacer otro cambio.",
+  notificationWriteUncertain: "No se pudo confirmar el cambio. Actualiza las notificaciones antes de volver a intentarlo.",
   markFailed: "No se pudo marcar como leída",
   deleteFailed: "No se pudo eliminar la notificación",
   snoozeFailed: "No se pudo cambiar la pausa",

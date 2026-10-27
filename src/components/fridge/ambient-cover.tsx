@@ -3,6 +3,8 @@
 import * as React from 'react'
 import type { BoardPhoto } from '@/app/dashboard/today/today-board-data'
 import { AMBIENT_PHOTO_MS, type AmbientState } from '@/lib/ambient'
+import { useCoreI18n } from '@/i18n/core'
+import { localizeWeatherSummary } from '@/i18n/weather'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import {
   formatLongDate,
@@ -38,6 +40,7 @@ export function AmbientCover({
   onWake: () => void
 }) {
   const text = useTodayBoardText()
+  const { locale: appLocale } = useCoreI18n()
   const [shown, setShown] = React.useState(false)
   const locale = useDisplayLocale()
   const [broken, setBroken] = React.useState<Set<string>>(() => new Set())
@@ -103,7 +106,7 @@ export function AmbientCover({
                 data-testid="ambient-clock"
                 className="text-[88px] font-semibold leading-none tabular-nums md:text-[120px] 2xl:text-[160px]"
               >
-                <span className="sr-only">Time: </span>
+                <span className="sr-only">{text('ambientTime')}</span>
                 {formatTime(now, locale)}
               </p>
               <p
@@ -124,7 +127,7 @@ export function AmbientCover({
                   <span className="tabular-nums">
                     {current.temperature}°{weather!.weather.unit}
                   </span>
-                  <span>{current.summary}</span>
+                  <span>{localizeWeatherSummary(appLocale, current.summary)}</span>
                 </p>
               )}
             </>
@@ -135,13 +138,13 @@ export function AmbientCover({
             <div className="min-w-0 max-w-[40rem] space-y-3 text-[22px] md:text-[24px] 2xl:text-[28px]">
               {next && (
                 <p data-testid="ambient-next" className="break-words">
-                  <span className="font-semibold">Next · {next.when}</span>
+                  <span className="font-semibold">{text('ambientNext', { when: next.when })}</span>
                   <span className="block">{next.title}</span>
                 </p>
               )}
               {dinner && (
                 <p data-testid="ambient-dinner" className="break-words">
-                  <span className="font-semibold">Tonight</span>
+                  <span className="font-semibold">{text('ambientTonight')}</span>
                   <span className="block">{dinner}</span>
                 </p>
               )}
@@ -150,7 +153,7 @@ export function AmbientCover({
           <div className="relative z-10 ml-auto flex flex-col items-end gap-3">
             {state.ambient && (
               <p className="text-[18px] text-white/80 md:text-[20px]">
-                Tap anywhere to show the board
+                {text('ambientWake')}
               </p>
             )}
             <button

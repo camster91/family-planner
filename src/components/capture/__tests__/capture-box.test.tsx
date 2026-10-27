@@ -8,7 +8,7 @@ import '@testing-library/jest-dom'
 import * as React from 'react'
 import { webcrypto } from 'node:crypto'
 import { TextDecoder, TextEncoder } from 'node:util'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LegacyCaptureBox as CaptureBox } from '../CaptureBox'
 import { I18nProvider } from '@/i18n'
@@ -27,6 +27,24 @@ const PHOTO_EVENTS = [
 
 function json(status: number, data: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => data } as unknown as Response
+}
+
+function responseWithJson(
+  status: number,
+  headers: HeadersInit,
+  decode: () => Promise<unknown>,
+) {
+  // jsdom does not expose a native Response and importing undici at module
+  // scope requires a ReadableStream that this Jest environment deliberately
+  // does not install. Keep the transport shape real at the boundary while
+  // using jsdom's native Headers implementation for the bounded-reader path.
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(headers),
+    body: null,
+    json: decode,
+  } as unknown as Response
 }
 
 /** `eventStatus(title)` decides each POST /api/events answer. */
@@ -760,6 +778,7 @@ it('retires a typed preview after a committed-but-removed receipt', async () => 
 })
 
 it('retires an absent typed preview without clearing a newer preview', async () => {
+  const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true)
   let previewPosts = 0
   let eventPosts = 0
   global.fetch = jest.fn(async (url, init) => {
@@ -806,6 +825,7 @@ it('retires an absent typed preview without clearing a newer preview', async () 
   expect(screen.getByRole('button', { name: 'Add it' })).toBeTruthy()
   expect(previewPosts).toBe(2)
   expect(eventPosts).toBe(1)
+  confirm.mockRestore()
 })
 
 it('removes only the terminal photo row and preserves other unresolved proposals', async () => {
@@ -1159,6 +1179,7 @@ it('keeps a logical refusal when forbidden-role recovery purge cannot be confirm
 
 // Authored/unrun: a replacement parse failure must not erase the reviewed draft.
 it('keeps the existing typed draft when a later extraction is malformed', async () => {
+  const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true)
   mockFetch(() => 201)
   const baseFetch = global.fetch
   let previews = 0
@@ -1181,6 +1202,7 @@ it('keeps the existing typed draft when a later extraction is malformed', async 
   await screen.findByText(captureEnglish.couldNotRead)
   expect(screen.getByText('Dentist')).toBeVisible()
   expect((global.fetch as jest.Mock).mock.calls.some(([url]) => String(url) === '/api/events')).toBe(false)
+  confirm.mockRestore()
 })
 
 // Authored only; execution remains in the consolidated QA pass.
@@ -1206,3 +1228,162 @@ it.each(['parent', 'teen'])('keeps task proposals out of the event create path f
   } else expect(link).not.toBeInTheDocument()
   expect(jest.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/api/events'))).toBe(false)
 })
+
+// Receipt transport source cases authored UNRUN; no application/provider requests.
+describe('bounded saved-capture status checks', () => {
+  afterEach(() => jest.useRealTimers());
+  function seedReceipt() {
+    const key = 'capture-bounded-receipt-12345678';
+    const storageKey = captureRecoveryStorageKey('user-a', 'family-a');
+    window.localStorage.setItem(storageKey, JSON.stringify([{
+      version: 1, key, action: 'event.create', requestHash: 'a'.repeat(64),
+      body: JSON.stringify({ title: 'Dentist', event_type: 'other' }),
+      title: 'Dentist', kind: 'event', createdAt: Date.now(), photo: false,
+    }]));
+    return { key, storageKey };
+  }
+  it('releases a stalled body, retains recovery and ignores a late committed reply', async () => {
+    const { key, storageKey } = seedReceipt();
+    let late!: (value: unknown) => void;
+    const checks: RequestInit[] = [];
+    global.fetch = jest.fn(async (url, init) => {
+      if (String(url) === '/api/capture') return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' });
+      if (String(url) === '/api/capture/receipt') {
+        checks.push(init!);
+        if (checks.length === 1) return { ok: true, status: 200, json: () => new Promise(resolve => { late = resolve; }) } as Response;
+        return json(200, { state: 'pending' });
+      }
+      throw new Error('Unexpected write during status check');
+    }) as typeof fetch;
+    const onSaved = jest.fn(); render(<CaptureBox onSaved={onSaved} />);
+    const control = await screen.findByRole('button', { name: 'Check status for Dentist' });
+    jest.useFakeTimers();
+    fireEvent.click(control); fireEvent.click(control);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(15001); });
+    expect(screen.getByText(captureEnglish.couldNotCheck)).toBeTruthy();
+    expect(checks).toHaveLength(1);
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+    expect(screen.getByRole('button', { name: 'Check status for Dentist' })).toHaveProperty('disabled', false);
+    await act(async () => { late({ state: 'committed', current: 'present' }); });
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+    jest.useRealTimers();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Check status for Dentist' }));
+    await screen.findByText(captureEnglish.stillProcessing);
+    expect(checks).toHaveLength(2);
+    expect(checks[1].headers).toEqual(checks[0].headers);
+  });
+  it('refuses a declared oversized receipt before decoding without discarding recovery', async () => {
+    const { key, storageKey } = seedReceipt();
+    const decode = jest.fn(async () => ({ state: 'committed', current: 'present' }));
+    const oversized = responseWithJson(200, { 'content-length': String(32 * 1024 + 1) }, decode);
+    global.fetch = jest.fn(async url => String(url) === '/api/capture'
+      ? json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' })
+      : oversized) as typeof fetch;
+    render(<CaptureBox />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Check status for Dentist' }));
+    await screen.findByText(captureEnglish.couldNotCheck);
+    expect(decode).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+  });
+});
+
+// Explicit retry transport source authored UNRUN; no API/provider writes ran.
+it('bounds a stalled saved-capture retry, ignores late success and preserves exact deliberate replay', async () => {
+  const key = 'capture-retry-deadline-12345678';
+  const storageKey = captureRecoveryStorageKey('user-a', 'family-a');
+  const body = JSON.stringify({ title: 'Dentist', event_type: 'other' });
+  window.localStorage.setItem(storageKey, JSON.stringify([{
+    version: 1, key, action: 'event.create', requestHash: 'a'.repeat(64), body,
+    title: 'Dentist', kind: 'event', createdAt: Date.now(), photo: false,
+  }]));
+  const posts: RequestInit[] = [];
+  let late!: (value: Response) => void;
+  let checks = 0;
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/capture') return json(200, { configured: true, allowed: true, userId: 'user-a', familyId: 'family-a' });
+    if (String(url) === '/api/events') {
+      posts.push(init!);
+      return posts.length === 1 ? new Promise<Response>(resolve => { late = resolve; }) : json(201, {});
+    }
+    if (String(url) === '/api/capture/receipt') { checks++; return json(200, { state: 'committed', current: 'present' }); }
+    throw new Error('Unexpected capture request');
+  }) as typeof fetch;
+  const onSaved = jest.fn(); render(<CaptureBox onSaved={onSaved} />);
+  const retry = await screen.findByRole('button', { name: 'Retry Dentist' });
+  jest.useFakeTimers();
+  try {
+    fireEvent.click(retry); fireEvent.click(retry);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(45001); });
+    expect(screen.getByText(captureEnglish.couldNotSaveCapture)).toBeTruthy();
+    expect(posts).toHaveLength(1); expect(checks).toBe(0);
+    expect(window.localStorage.getItem(storageKey)).toContain(key);
+    expect(screen.getByRole('button', { name: 'Retry Dentist' })).toHaveProperty('disabled', false);
+    await act(async () => { late(json(201, {})); });
+    expect(onSaved).not.toHaveBeenCalled(); expect(checks).toBe(0);
+  } finally { jest.useRealTimers(); }
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Retry Dentist' }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(posts).toHaveLength(2); expect(checks).toBe(1);
+  expect(posts[0].body).toBe(body); expect(posts[1].body).toBe(body);
+  expect(posts[1].headers).toEqual(posts[0].headers);
+});
+
+// Initial confirmed-proposal write cases authored UNRUN.
+it('bounds initial save body decoding and keeps its original recoverable operation after late success', async () => {
+  mockFetch(() => 201);
+  const onSaved = jest.fn(); const user = userEvent.setup();
+  render(<CaptureBox onSaved={onSaved} />);
+  await user.type(screen.getByLabelText('What would you like to add?'), 'dentist Tuesday 3pm');
+  await user.click(screen.getByRole('button', { name: 'Read it' }));
+  const add = await screen.findByRole('button', { name: 'Add it' });
+  const initialFetch = global.fetch;
+  let late!: (value: unknown) => void;
+  const posts: RequestInit[] = [];
+  global.fetch = jest.fn(async (url, init) => {
+    if (String(url) === '/api/events') {
+      posts.push(init!);
+      return { ok: true, status: 201, json: () => new Promise(resolve => { late = resolve; }) } as Response;
+    }
+    return initialFetch(url, init);
+  }) as typeof fetch;
+  const hash = jest.spyOn(require('@/lib/capture-recovery'), 'hashCaptureRequest').mockResolvedValue('a'.repeat(64));
+  jest.useFakeTimers();
+  try {
+    fireEvent.click(add);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(45001); });
+    expect(screen.getByText(captureEnglish.uncertainSave)).toBeTruthy();
+    expect(posts).toHaveLength(1);
+    expect(onSaved).not.toHaveBeenCalled();
+    const storage = window.localStorage.getItem(captureRecoveryStorageKey('user-a', 'family-a'));
+    expect(storage).toContain((posts[0].headers as Record<string, string>)['Idempotency-Key']);
+    expect(screen.getByRole('button', { name: 'Add it' })).toHaveProperty('disabled', false);
+    await act(async () => { late({ event: { id: 'late-event' } }); });
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(captureRecoveryStorageKey('user-a', 'family-a'))).toBe(storage);
+  } finally { jest.useRealTimers(); hash.mockRestore(); }
+});
+it('refuses an oversized initial write reply before decoding and leaves recovery available', async () => {
+  mockFetch(() => 201);
+  const user = userEvent.setup(); const onSaved = jest.fn();
+  render(<CaptureBox onSaved={onSaved} />);
+  await user.type(screen.getByLabelText('What would you like to add?'), 'dentist Tuesday 3pm');
+  await user.click(screen.getByRole('button', { name: 'Read it' }));
+  const add = await screen.findByRole('button', { name: 'Add it' });
+  const initialFetch = global.fetch;
+  const decode = jest.fn(async () => ({ event: { id: 'not-confirmed' } }));
+  const oversized = responseWithJson(201, { 'content-length': String(256 * 1024 + 1) }, decode);
+  global.fetch = jest.fn(async (url, init) => String(url) === '/api/events'
+    ? oversized
+    : initialFetch(url, init)) as typeof fetch;
+  await user.click(add);
+  await screen.findByText(captureEnglish.uncertainSave);
+  expect(decode).not.toHaveBeenCalled(); expect(onSaved).not.toHaveBeenCalled();
+  expect(await screen.findByTestId('capture-recovery')).toBeTruthy();
+});

@@ -698,6 +698,7 @@ export default function TodayBoard({
       ]),
     );
     return {
+      day: today,
       today: eventsLeftToday(data.events, now),
       dinner: dinnerOn(data.dinners, today),
       chores: choresDueTodayByPerson(
@@ -821,6 +822,7 @@ export default function TodayBoard({
       case "dinner":
         return (
           <DinnerRegion
+            day={view.day}
             dinner={view.dinner}
             mealsEnabled={data.dinners !== null}
             mealsHref={data.links.meals}
@@ -1012,6 +1014,7 @@ export default function TodayBoard({
               />
             )}
             <DinnerRegion
+              day={view.day}
               dinner={view.dinner}
               compactLandscape={fridgeMode}
               mealsEnabled={data.dinners !== null}

@@ -7,17 +7,18 @@ import {
 import { newIdempotencyKey } from "@/lib/idempotency-key";
 import { INVENTORY_RECOVERY_OWNER_HEADER } from "@/lib/inventory-recovery-contract";
 import { inventoryWriteDeadline } from "@/lib/inventory-write-deadline";
+import { requestOwnedJson } from "@/lib/owned-request-http";
 export type IntakeContext = { userId: string; familyId: string };
 export type IntakeIntent = { key: string; body: string };
 export async function readInventoryIntakeContext(
   signal: AbortSignal,
 ): Promise<IntakeContext> {
-  const response = await fetch("/api/inventory/intake", {
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) throw new Error("Intake context unavailable");
-  return inventoryIntakeContext.parse(await response.json());
+  const result = await requestOwnedJson(
+    "/api/inventory/intake", { method: "GET", signal }, 16 * 1024,
+  );
+  if (result.kind !== "reply" || !result.response.ok)
+    throw new Error("Intake context unavailable");
+  return inventoryIntakeContext.parse(result.body);
 }
 export function makeInventoryIntakeIntent(
   item: InventoryIntakeInput["item"],

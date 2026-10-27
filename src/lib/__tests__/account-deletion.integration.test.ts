@@ -18,6 +18,8 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { createHash } from 'crypto'
+import { notificationOccurrenceIdentity } from '@/lib/notification-event-contract'
 
 const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
 
@@ -113,6 +115,9 @@ describeWithDatabase('account deletion against Postgres', () => {
       data: { id: id('chore'), family_id: f, title: 'Dishes', assigned_to: child, due_date: t, created_by: parent, routine_stack_id: id('routine-stack'), photo_url: `/api/files/chores/${filename}` },
     })
     await db.chore.create({ data: { id: id('chore-parent'), family_id: f, title: 'Bins', assigned_to: teen, due_date: t, created_by: parent } })
+    // Additive household cursor metadata is not reached through a Chore
+    // relation, so seed it explicitly for whole-household coverage.
+    await db.choreTopUpCursor.create({ data: { family_id: f, after_id: id('chore') } })
     await db.choreAssignment.create({ data: { id: id('assign'), family_id: f, chore_id: id('chore'), assigned_to: child, due_date: t } })
     await db.responsibilityState.create({ data: { id: id('responsibility'), family_id: f, chore_id: id('chore'), source_token: 'a'.repeat(64) } })
     await db.eventPreparation.create({ data: { id: id('preparation'), family_id: f, event_id: id('event'), reviewed_event_source: 'b'.repeat(64) } })
@@ -140,7 +145,8 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.habitLog.create({ data: { id: id('habit-log'), family_id: f, habit_id: id('habit'), user_id: child, logged_date: t } })
     await db.badgeDefinition.create({ data: { id: id('badge'), family_id: f, name: 'Star', description: 'x', icon: 'x', requirement: {} } })
     await db.earnedBadge.create({ data: { id: id('earned'), family_id: f, badge_id: id('badge'), user_id: child } })
-    await db.reward.create({ data: { id: id('reward'), family_id: f, name: 'Ice cream', created_by: parent } })
+    const notificationGeneration = '11111111-1111-4111-8111-111111111111'
+    await db.reward.create({ data: { id: id('reward'), family_id: f, name: 'Ice cream', created_by: parent, notification_generation: notificationGeneration } })
     await db.rewardRedemption.create({ data: { id: id('redeem'), family_id: f, reward_id: id('reward'), requested_by: child, points: 1 } })
     await db.familyGoal.create({ data: { id: id('goal'), family_id: f, title: 'Trip', target_points: 10, created_by: parent } })
     await db.pushSubscription.create({ data: { id: id('push'), family_id: f, user_id: parent, endpoint: `https://push.example.test/${h}`, keys: {} } })
@@ -154,6 +160,27 @@ describeWithDatabase('account deletion against Postgres', () => {
     fs.writeFileSync(path.join(uploadDir, 'messages', messageFilename), 'x')
     await db.messageAttachment.create({ data: { id: id('message-attachment'), family_id: f, uploaded_by: parent, message_id: id('msg'), filename: messageFilename, content_type: 'image/jpeg', size_bytes: 1 } })
     await db.notification.create({ data: { id: id('notif'), user_id: child, title: 't', message: 'm', type: 'system' } })
+    // Notification admission keeps minimal occurrence/recipient metadata
+    // alongside visible inbox rows; both rows are household-owned fixtures.
+    const notificationEnvelope = {
+      protocol: 'herewoven.notification-event.v1' as const, familyId: f, kind: 'reward.created' as const,
+      sourceId: id('reward'), sourceGeneration: notificationGeneration, transitionId: 'created',
+      occurredAt: t.toISOString(), deliverBefore: later.toISOString(),
+    }
+    await db.notificationEventOccurrence.create({
+      data: {
+        id: id('notification-event'),
+        family_id: f,
+        occurrence_key: createHash('sha256').update(notificationOccurrenceIdentity(notificationEnvelope)).digest('hex'),
+        envelope: notificationEnvelope,
+      },
+    })
+    await db.notificationRecipientDecision.create({
+      data: {
+        id: id('notification-recipient'), family_id: f, event_id: id('notification-event'), slot: 0,
+        user_id: child, notification_id: id('notif'), status: 'created', quiet: false,
+      },
+    })
     await db.activity.create({ data: { id: id('act'), family_id: f, user_id: parent, subject_member_id: id('member'), type: 'x', title: 'x' } })
     // Lists and budget
     await db.list.create({ data: { id: id('list'), family_id: f, name: 'Groceries', type: 'grocery', created_by: parent } })

@@ -3,7 +3,7 @@
  */
 // Family chat thread: the 5s poll must not yank a reader scrolling history,
 // a failed send says why and keeps the text, and older history can be loaded
-// with GET /api/messages?cursor=<oldest created_at>.
+// with explicit household-bound message keysets.
 import * as React from 'react'
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -38,6 +38,7 @@ function msg(n: number, sender = 'u2'): Msg {
 }
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => msg(from + i))
 
+const WRITE_OWNER = { protocol: 'herewoven.message-owner.v1', userId: 'u1', familyId: 'family-a', generation: 0 }
 let latest: Msg[] = []
 let older: Msg[] = []
 let postReply: () => Promise<Response>
@@ -69,13 +70,13 @@ beforeEach(() => {
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
     if (method === 'POST') return postReply()
-    if (url.startsWith('/api/messages?cursor=')) {
-      return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1' }) } as Response
+    if (new URL(url, 'http://localhost').searchParams.has('cursor')) {
+      return { ok: true, status: 200, json: async () => ({ messages: older, members: [], userId: 'u1', writeContext: WRITE_OWNER, nextCursor: older.length >= 50 ? 'history-next' : null, readContext: { userId: 'u1', familyId: 'family-a' } }) } as Response
     }
     return {
       ok: true,
       status: 200,
-      json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }),
+      json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER, nextCursor: latest.length >= 50 ? 'history-start' : null, readContext: { userId: 'u1', familyId: 'family-a' } }),
     } as Response
   }) as unknown as typeof fetch
 })
@@ -100,7 +101,7 @@ async function runPoll() {
   await act(async () => {
     poll?.()
   })
-  await waitFor(() => expect(calls.filter((c) => c.url === '/api/messages').length).toBeGreaterThan(1))
+  await waitFor(() => expect(calls.filter((c) => c.url === '/api/messages?paging=keyset-v1&limit=50').length).toBeGreaterThan(1))
 }
 
 describe('initial loading recovery', () => {
@@ -112,7 +113,7 @@ describe('initial loading recovery', () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }),
+        json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }),
       }) as unknown as typeof fetch
 
     render(
@@ -155,7 +156,7 @@ describe('initial loading recovery', () => {
     const user = userEvent.setup()
     let finishPoll!: (response: Response) => void
     const pendingPoll = new Promise<Response>(resolve => { finishPoll = resolve })
-    const fresh = { messages: [msg(20)], members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }
+    const fresh = { messages: [msg(20)], members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }
     global.fetch = jest.fn()
       .mockRejectedValueOnce(new Error('offline'))
       .mockReturnValueOnce(pendingPoll)
@@ -185,7 +186,7 @@ describe('initial loading recovery', () => {
     await act(async () => { poll?.(); poll?.() })
     expect(global.fetch).toHaveBeenCalledTimes(1)
     await act(async () => {
-      finishLoad({ ok: true, json: async () => ({ messages: latest, members: [], userId: 'u1' }) } as Response)
+      finishLoad({ ok: true, json: async () => ({ messages: latest, members: [], userId: 'u1', writeContext: WRITE_OWNER }) } as Response)
       await pendingLoad
     })
     expect(await screen.findByText('Message 3')).toBeInTheDocument()
@@ -279,17 +280,18 @@ describe('pickup links and photos', () => {
           json: async () => ({ pickups: [{ id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false }] }),
         } as Response
       }
-      if (url === '/api/messages/attachments') {
+      if (url === '/api/messages/attachments/owned') {
+        expect(new Headers(init?.headers).get('X-Herewoven-Message-Owner')).toBe(JSON.stringify(WRITE_OWNER))
         expect(init?.body).toBeInstanceOf(FormData)
         expect((init?.body as FormData).get('file')).toBe(photo)
         return { ok: true, status: 201, json: async () => ({ attachment: { id: 'attachment-1' } }) } as Response
       }
       if (method === 'POST') {
         const body = JSON.parse(String(init?.body))
-        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'] })
+        expect(body).toEqual({ content: 'Dinner tonight', type: 'text', pickup_id: 'pickup-1', attachment_ids: ['attachment-1'], expected_user_id: 'u1', expected_family_id: 'family-a', expected_generation: 0, issued_at: expect.any(String) })
         return { ok: true, status: 200, json: async () => ({ message: { ...msg(99, 'u1'), content: 'Dinner tonight', pickup: { id: 'pickup-1', title: 'School pickup', pickup_time: '2026-09-01T15:30:00.000Z', completed: false, assignee: null }, attachments: ['/api/messages/attachments/attachment-1'] } }) } as Response
       }
-      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }) } as Response
+      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }) } as Response
     }) as unknown as typeof fetch
 
     render(<MessagesPage />)
@@ -304,7 +306,7 @@ describe('pickup links and photos', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
     expect(await screen.findByText('Dinner tonight')).toBeInTheDocument()
-    expect(calls.some((call) => call.url === '/api/messages/attachments' && call.method === 'POST')).toBe(true)
+    expect(calls.some((call) => call.url === '/api/messages/attachments/owned' && call.method === 'POST')).toBe(true)
   })
 })
 
@@ -475,9 +477,11 @@ describe('read recovery', () => {
       calls.push({ url, method, headers: new Headers(init?.headers), body: typeof init?.body === 'string' ? init.body : undefined })
       if (method === 'PATCH') {
         readAttempts += 1
-        return (readAttempts === 1 ? { ok: false, status: 503 } : { ok: true, status: 200 }) as Response
+        return (readAttempts === 1
+          ? { ok: false, status: 503, json: async () => ({}) }
+          : { ok: true, status: 200, json: async () => ({}) }) as Response
       }
-      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1' }) } as Response
+      return { ok: true, status: 200, json: async () => ({ messages: latest, members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: WRITE_OWNER }) } as Response
     }) as unknown as typeof fetch
     const user = userEvent.setup()
     render(<MessagesPage />)
@@ -509,8 +513,8 @@ describe('Load earlier messages', () => {
     await user.click(button)
 
     await screen.findByText('Message 60')
-    const cursorCall = calls.find((c) => c.url.startsWith('/api/messages?cursor='))!
-    expect(cursorCall.url).toBe(`/api/messages?cursor=${encodeURIComponent(latest[0].created_at)}&limit=50`)
+    const cursorCall = calls.find((c) => new URL(c.url, 'http://localhost').searchParams.has('cursor'))!
+    expect(cursorCall.url).toBe('/api/messages?paging=keyset-v1&limit=50&cursor=history-start')
     const texts = screen.getAllByText(/^Message \d+$/).map((el) => el.textContent)
     expect(texts[0]).toBe('Message 60')
     expect(texts[texts.length - 1]).toBe('Message 149')
@@ -563,4 +567,136 @@ describe('mergeLatest', () => {
     expect(prependEarlier(prev, range(1, 3)).map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm4'])
     expect(prependEarlier(prev, range(3, 4))).toBe(prev)
   })
+})
+
+// Authored source cases; no QA/test invocation at this checkpoint.
+it('keeps loaded same-time history and a just-sent boundary message during keyset refresh', () => {
+  const at = '2026-10-25T12:00:00.000Z'
+  const a = { ...msg(1), id: 'a', created_at: at }
+  const b = { ...msg(2), id: 'b', created_at: at }
+  const c = { ...msg(3), id: 'c', created_at: at }
+  const sent = { ...msg(4), id: '0', created_at: at }
+  const prev = [c, b, a, sent]
+  expect(mergeLatest(prev, [b, a], true)).toBe(prev)
+  const changed = mergeLatest(prev, [{ ...b, content: 'Updated safe display' }, a], true)
+  expect(changed.map(row => row.id)).toEqual(['c', 'b', 'a', '0'])
+  expect(changed[1].content).toBe('Updated safe display')
+})
+it('retries the exact opaque history position without clearing the message draft', async () => {
+  latest = range(100, 149)
+  older = range(60, 99)
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 149')
+  await user.type(screen.getByLabelText('Message text'), 'Keep this unsent text')
+  ;(global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: false, status: 503 }) as Response)
+  await user.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+  await screen.findByText("Couldn't load earlier messages. Try again.")
+  await user.click(screen.getByRole('button', { name: 'Load earlier messages' }))
+  await screen.findByText('Message 60')
+  const urls = (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url)).filter(url => new URL(url, 'http://localhost').searchParams.has('cursor'))
+  expect(urls).toEqual([
+    '/api/messages?paging=keyset-v1&limit=50&cursor=history-start',
+    '/api/messages?paging=keyset-v1&limit=50&cursor=history-start',
+  ])
+  expect(screen.getByLabelText('Message text')).toHaveValue('Keep this unsent text')
+})
+it('masks the thread and composer when a same-account reply changes the household context', async () => {
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  await user.type(screen.getByLabelText('Message text'), 'Private old household draft')
+  ;(global.fetch as jest.Mock).mockImplementationOnce(async () => ({ ok: true, status: 200, json: async () => ({
+    messages: [{ ...msg(100), content: 'New context content' }], members: [{ id: 'u1', name: 'Me' }], userId: 'u1', writeContext: { ...WRITE_OWNER, familyId: 'family-b' }, nextCursor: null,
+    readContext: { userId: 'u1', familyId: 'family-b' },
+  }) }) as Response)
+  await act(async () => { poll?.() })
+  await screen.findByText('Reload messages to confirm your current household before continuing.')
+  expect(screen.queryByLabelText('Message text')).toBeNull()
+  expect(screen.queryByText('Message 3')).toBeNull()
+  expect(screen.queryByText('New context content')).toBeNull()
+  expect(calls.some(call => call.method === 'POST')).toBe(false)
+})
+it('labels an older server recent-only rather than inventing an earlier cursor', async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ messages: range(100, 149), members: [], userId: 'u1' }) })) as unknown as typeof fetch
+  render(<MessagesPage />)
+  await screen.findByText('Message 149')
+  expect(screen.getByText('This server shows recent messages only. Earlier history needs a server update.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Load earlier messages' })).toBeNull()
+})
+
+it('keeps an older-server draft local while sending support is unknown', async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ messages: latest, members: [], userId: 'u1' }) })) as unknown as typeof fetch
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  await user.type(screen.getByLabelText('Message text'), 'Keep this draft local')
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+  expect(screen.getByText('Sending needs an updated server. Your draft stays here.')).toBeTruthy()
+  expect(screen.getByLabelText('Message text')).toHaveValue('Keep this draft local')
+  expect((global.fetch as jest.Mock).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+})
+it('never sends after a photo upload finishes in a retired session context', async () => {
+  let generation = 0
+  let finish!: (response: Response) => void
+  const paths: string[] = []
+  global.fetch = jest.fn(async (input, init) => {
+    const path = String(input); paths.push(path)
+    if (path === '/api/messages/attachments/owned') return await new Promise<Response>(resolve => { finish = resolve })
+    if (init?.method === 'PATCH') return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    return { ok: true, status: 200, json: async () => ({ messages: latest, members: [], userId: 'u1', nextCursor: null, readContext: { userId: 'u1', familyId: 'family-a' }, writeContext: { ...WRITE_OWNER, generation } }) } as Response
+  }) as typeof fetch
+  const user = userEvent.setup()
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  await user.type(screen.getByLabelText('Message text'), 'Private original photo')
+  const photoInput = screen.getAllByLabelText('Add a photo').find((element) => element.tagName === 'INPUT')!
+  await user.upload(photoInput, new File(['fabricated-image'], 'fixture.png', { type: 'image/png' }))
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(finish).toBeDefined())
+  generation = 1
+  await act(async () => { poll?.() })
+  await screen.findByText('Reload messages to confirm your current household before continuing.')
+  await act(async () => { finish({ ok: true, status: 201, json: async () => ({ attachment: { id: 'original-draft-photo' } }) } as Response) })
+  expect(paths).not.toContain('/api/messages/send')
+  expect(screen.queryByLabelText('Message text')).toBeNull()
+})
+
+it('retains original bytes across draft edits and holds an aged retry until explicit review (source only)', async () => {
+  const user = userEvent.setup()
+  let now = Date.parse('2026-10-25T12:00:00.000Z')
+  jest.spyOn(Date, 'now').mockImplementation(() => now)
+  // Constructor and Date.now must agree for the initial intent; capture its actual
+  // serialized time below before advancing only the freshness clock.
+  postReply = async () => { throw new Error('fabricated lost reply') }
+  render(<MessagesPage />)
+  await screen.findByText('Message 3')
+  const input = screen.getByLabelText('Message text')
+  await user.type(input, 'Original draft')
+  // Use the real wall clock until the intent has been serialized.
+  now = new Date().getTime()
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await screen.findByText("Couldn't send your message. Check your connection and try again.")
+  const first = calls.filter(call => call.method === 'POST')[0]
+  now = Date.parse(JSON.parse(first.body!).issued_at) + 1000
+  await user.type(input, ' changed')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(2))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+  await user.clear(input)
+  await user.type(input, 'Original draft')
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST')).toHaveLength(3))
+  const retry = calls.filter(call => call.method === 'POST')[2]
+  expect(retry.body).toBe(first.body)
+  expect(retry.headers.get('Idempotency-Key')).toBe(first.headers.get('Idempotency-Key'))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+  now += 2 * 86400000
+  await user.click(screen.getByRole('button', { name: 'Send' }))
+  const release = await screen.findByRole('button', { name: 'I checked — allow a new send' })
+  expect(input).toHaveValue('Original draft')
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(3)
+  await user.click(release)
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(3) // review never dispatches
+  expect(input).toHaveValue('Original draft')
 })

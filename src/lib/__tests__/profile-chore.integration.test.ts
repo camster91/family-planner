@@ -16,6 +16,7 @@ import {
   profileChoreActionAvailability,
   profileChoreCreateSchema,
   readChoreSubject,
+  readCreatedProfileChore,
 } from "@/lib/chore-profile";
 import {
   completeProfileChoreInTx,
@@ -497,6 +498,13 @@ dbDescribe("profile-only chores against disposable PostgreSQL", () => {
       async () => ({ status: 200, body: { shouldNotRun: true } }),
     );
     expect(changed.status).toBe(422);
+    // HTTP response hydration uses current canonical fields, not cached prose.
+    await db.chore.update({ where: { id: firstBody.choreId }, data: { title: "Synthetic updated title" } });
+    const actor = { id: PARENT_A, familyId: FAMILY_A, tokenVersion: 0 };
+    const current = await readCreatedProfileChore(db, actor, firstBody, CHILD_A);
+    expect(current).toMatchObject({ ok: true, chore: { title: "Synthetic updated title", subject: { kind: "profile", memberId: CHILD_A } } });
+    const wrongBirth = await readCreatedProfileChore(db, actor, { choreId: firstBody.choreId, choreGeneration: "00000000-0000-4000-8000-000000000000" }, CHILD_A);
+    expect(wrongBirth).toEqual({ ok: false, status: 409 });
   });
 
   it("creates bounded selected-weekday profile occurrences and stops safely on lifecycle change", async () => {

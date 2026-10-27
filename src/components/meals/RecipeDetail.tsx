@@ -12,6 +12,8 @@ import { formatRecipeAmount } from "@/lib/recipe-scaling";
 import { publicRecipeUrl } from "@/lib/recipe-discovery";
 import { formatMinutes } from "@/lib/meal-slots";
 import { useTranslation } from "@/i18n";
+import { useRecipeDetailText } from "@/i18n/recipe-detail";
+import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 
 export interface RecipeDetailData {
   id: string;
@@ -42,7 +44,8 @@ export function RecipeDetail({
   actions?: React.ReactNode;
 }) {
   const { locale } = useTranslation();
-  const es = locale === "es";
+  const detailText = useRecipeDetailText();
+  const text = useRecipePresentationText();
   const sourceMatch = /^Source: (https:\/\/[^\n]+)\n/.exec(
     recipe.description ?? "",
   );
@@ -58,12 +61,12 @@ export function RecipeDetail({
   const prep = formatMinutes(recipe.prep_time);
   const cook = formatMinutes(recipe.cook_time);
   const facts: Array<{ label: string; value: string; servings?: boolean }> = [];
-  if (prep) facts.push({ label: es ? "Preparación" : "Prep", value: prep });
-  if (cook) facts.push({ label: es ? "Cocción" : "Cook", value: cook });
+  if (prep) facts.push({ label: text("prep"), value: prep });
+  if (cook) facts.push({ label: text("cook"), value: cook });
   if (recipe.servings)
     facts.push({
-      label: es ? "Porciones" : "Serves",
-      value: String(recipe.servings),
+      label: text("serves"),
+      value: new Intl.NumberFormat(locale).format(recipe.servings),
       servings: true,
     });
 
@@ -80,6 +83,15 @@ export function RecipeDetail({
         >
           {recipe.title}
         </h1>
+        {recipe.favorite && (
+          <span
+            className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-[var(--surface-fill)] px-3 text-footnote font-semibold text-label-primary"
+            data-testid="recipe-favorite"
+          >
+            <span aria-hidden="true">★</span>
+            {detailText("favorite")}
+          </span>
+        )}
         {description && (
           <p className="text-body text-label-secondary break-words whitespace-pre-line">
             {description}
@@ -92,7 +104,7 @@ export function RecipeDetail({
             rel="noopener noreferrer"
             className="inline-flex min-h-[44px] items-center text-[var(--accent-text)] break-all"
           >
-            {es ? "Receta original" : "Original recipe"} ·{" "}
+            {text("original")} ·{" "}
             {new URL(sourceUrl).hostname} ↗
           </a>
         )}
@@ -117,13 +129,11 @@ export function RecipeDetail({
 
       <section aria-labelledby="recipe-ingredients">
         <h2 id="recipe-ingredients" className="section-header">
-          {es ? "Ingredientes" : "Ingredients"}
+          {text("ingredients")}
         </h2>
         {recipe.ingredients.length === 0 ? (
           <p className="card-apple p-4 text-subhead text-label-secondary">
-            {es
-              ? "Esta receta no tiene ingredientes registrados."
-              : "No ingredients listed for this recipe."}
+            {text("noIngredients")}
           </p>
         ) : (
           <ul
@@ -160,7 +170,7 @@ export function RecipeDetail({
       {recipe.instructions && (
         <section aria-labelledby="recipe-instructions">
           <h2 id="recipe-instructions" className="section-header">
-            {es ? "Pasos" : "Method"}
+            {text("method")}
           </h2>
           <p className="card-apple p-4 text-body text-label-primary break-words whitespace-pre-line">
             {recipe.instructions}

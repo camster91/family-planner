@@ -32,8 +32,7 @@ jest.mock("@/lib/api-auth", () => ({
 
 jest.mock("@/lib/prisma", () => {
   const findMany = () => jest.fn().mockResolvedValue([]);
-  return {
-    prisma: {
+  const prisma = {
       user: { findUnique: jest.fn() },
       family: { findUnique: jest.fn() },
       chore: { findMany: findMany() },
@@ -84,7 +83,13 @@ jest.mock("@/lib/prisma", () => {
       calendarConnection: { findMany: findMany() },
       pushSubscription: { findMany: findMany() },
       budgetCategory: { findMany: findMany() },
-    },
+  } as any;
+  // Parent exports include notification-event portability, which uses the
+  // canonical transaction boundary.  Keep this route fixture's transaction
+  // wrapper faithful without adding a second data store.
+  prisma.$transaction = jest.fn(async (work: (tx: typeof prisma) => unknown) => work(prisma));
+  return {
+    prisma,
   };
 });
 

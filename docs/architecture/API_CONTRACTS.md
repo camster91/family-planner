@@ -591,7 +591,7 @@ review of installed Android clients (which builds still call the route, per requ
 | Route | Status | Contract |
 | --- | --- | --- |
 | `DELETE /api/lists/items/[id]` | New (REST form) | Parent only; `lists` feature on; the item's list must be in the caller's household. 200 `{ success: true }`; 401; 403 teen/child (`Only parents can perform this action`), lists off, or a paired shared device (`DEVICE_WRITE_NOT_ALLOWED`, before person auth); 404 `{ error: 'Item not found' }` for a missing item and for another household's item alike. Not idempotent-keyed: a repeat is 404. The web list page calls it. |
-| `DELETE /api/lists/items/delete?itemId=` | Deprecated, kept | Installed Android builds call it. Same helper (`deleteHouseholdListItem`) and the same answers as the REST route, plus 400 `Missing itemId`; `Link` names `/api/lists/items/<itemId>`. Change in #289: another household's item is now the same 404 as a missing one (was 403). A paired device with only its device cookie still gets 401, as before. |
+| `DELETE /api/lists/items/delete?itemId=` | Deprecated, kept | Installed Android builds call it. Same personal transactional helper (`deletePersonListItem`, delegating to `deleteHouseholdListItem`) and the same answers as the REST route, plus 400 `Missing itemId`; `Link` names `/api/lists/items/<itemId>`. Change in #289: another household's item is now the same 404 as a missing one (was 403). A paired device with only its device cookie still gets 401, as before. |
 | `GET /api/lists/items?listId=` | Deprecated, kept | No in-app caller (the list page reads on the server); only `e2e/`. Body unchanged (see "Grocery store sections"). |
 | `GET /api/admin/imports` | Kept (operator) | Parent only. `{ jobs: [{ id, source_app, source_version, status, dry_run, started_at, completed_at, summary, error }] }`, the caller's household's last 50 `ImportJob` rows, newest first. For operators checking an import (`POST /api/admin/imports/[source]`); no page calls it. |
 | `GET`/`POST /api/projects/[id]/tasks` | Wired | "Add task" on an active project's page posts `{ title (1–200), due_date?: 'YYYY-MM-DD', assigned_to?: user id }`; 201 `{ task }` (with `assignee`). Any household member. Since #289 the project and the assignee are looked up with the caller's household: another household's project, or a member of another household as assignee, is the same 404 as a missing one (was 403). 400 on a completed or archived project. |
@@ -1085,3 +1085,1276 @@ No new cached private DTO, automatic replay, schema/index or mutation authority.
 Legacy no-limit reads/version hashes stay unbounded, not silently truncated.
 Source authored only; compatibility/permission/sync/DB/rendered acceptance awaits
 consolidated QA, as detailed in WEB_IMPLEMENTATION_HANDOFF.md.
+
+
+## Project summary read paging — #134, source 2026-10-24
+
+`GET /api/projects?limit=24[&cursor=...][&status=active|completed|archived]`
+opts into additive summary paging. Limit is1–100; repeated limit/cursor/status
+parameters, malformed/noncanonical cursors, a cursor without limit, an unknown
+paged status or a cursor from a different current household/status scope returns
+400. Cursor contents are bounded protocol metadata and a read position, never
+authority: every request authenticates, derives its household and checks Projects.
+A cursor preserves creation timestamp/id position even if that row was deleted;
+it does not grant access to a supplied household or require a lookup by cursor ID.
+
+Paged response is `{ projects, nextCursor: string | null }`. Unpaged callers
+retain `{ projects }`, original invalid-status fallback and no truncation; that
+legacy read remains unbounded until explicitly migrated/retired. Responses are
+private/no-store. Stable paged order is created_at DESC, id ASC. A concurrent
+rename/status update is not a creation-order change; this is keyset continuation,
+not a transactionally frozen whole-household snapshot. Refresh newest for a fresh
+view after relevant changes.
+
+The web overview opts in at24 rows and offers older/newest navigation. Empty
+later pages and invalid positions have distinct copy rather than a false global
+empty state. Only the returned project IDs participate in one family-scoped task
+aggregate grouped by project_id/completed, yielding at most two counts per
+project. Total/completed counts share that aggregate statement; task IDs/bodies
+are not materialized for progress cards. Project detail/task writing is unchanged.
+
+Existing family/status/project-task indexes remain; no claim is made that limit
+alone bounds DB scan/sort work. Evaluate a family/created_at/id index and a
+status-prefixed variant against representative query plans before a separate
+additive migration. Current/previous client, concurrent paging/deletion,
+permission/feature changes, malformed cursor, large-household query plan and
+rendered keyboard/phone/tablet acceptance remain unexecuted. No runtime or scale
+result is claimed for this authored source.
+
+
+## Personal notification read paging — #134/#141, source 2026-10-24
+
+`GET /api/notifications?limit=50[&cursor=...][&unread=true|false][&includeSnoozed=true|false]`
+opts into stable created_at DESC/id ASC continuation. Limit is1–100. The bounded
+cursor carries its protocol, current authenticated user, both filter choices and
+position. Repeated paging/filter values, malformed/noncanonical/cross-user or
+changed-filter cursors are refused; a cursor without limit is invalid. A cursor
+is a read position, never authentication/household authority. The personal user
+predicate stays separate from the combined snooze-window and position predicates.
+
+Paged response is `{ notifications, nextCursor: string | null }`; no-limit
+callers keep their previous50-row `{ notifications }` response and snooze/unread
+behavior, without new required fields. Successful reads are private/no-store.
+No write, notification/provider policy, schema or offline allowlist changes.
+The original named personal/API authorization and paired-context boundaries
+remain the authority; paging metadata cannot grant account access.
+
+The web inbox requests50 at a time and explicitly loads older pages. It keeps
+loaded rows on an older-read failure, retains the exact continuation for retry,
+deduplicates IDs while retaining newer local read/snooze/Undo state, and filters
+pending deletes. Current-cycle guards discard late results after refresh/unmount.
+Reads settle after15 seconds even when abort is ignored; a late result has no
+state callback. Cycling/nonadvancing cursors and empty continuing pages are
+refused. Keyboard-initiated continuation preserves control/status focus without
+stealing focus from someone who moved elsewhere.
+
+Until all supported pages are loaded, unread/empty text and the scope hint refer
+to loaded notifications, not a complete caught-up inbox. A rolled-back server
+without nextCursor can still show its latest rows, but gets explicit unsupported
+paging/refresh copy rather than a false complete state. An unsupported older
+response never replaces loaded rows or silently discards the continuation.
+Counts remain a view of loaded rows, not fleet/delivery telemetry. A concurrent
+new notification is discovered on refresh, not by claiming a frozen snapshot.
+
+Original mark-read, snooze/expiry/Show now, deferred Delete/Undo and notification
+preference paths stay canonical. Fresh authorization, duplicate/overlapping
+pages, load/write races, timeout/unmount, old-server recovery and EN/ES
+keyboard/phone/tablet journeys remain unexecuted. Evaluate a user/created_at/id
+index against representative query plans before a separate migration; the row
+limit alone is not a bounded-DB-work or scale proof.
+
+## Wishlist continuation and row recovery — source 2026-10-24 (#134)
+
+`GET /api/wishlist` still returns the full `{items}` contract and original
+created-descending ordering when no paging arguments are present. This legacy
+exception remains explicitly unbounded. New opt-in `limit=1..100` returns at most
+limit rows plus `nextCursor: string | null`, reading limit+1 internally. Paged
+order is created_at DESC, id ASC. Cursor positions bind version, authenticated
+household and requester filter; lexical canonical base64url and strict tuple
+validation reject malformed/duplicate/cross-scope positions. They confer no
+access and do not choose household ownership.
+
+Optional `mine=true|false` requires limit. True filters requested_by to the
+current authenticated user **before** paging; false/absent retains household
+read scope. Duplicate/invalid mine, limit and cursor parameters refuse with400;
+cursor requires limit. The existing family authentication/shared-device and
+Wishlist feature guards precede data reads. No writer permission changed.
+
+`GET /api/wishlist/[id]` adds one canonical household-scoped row read with the
+same guards and existing requester/status-changer projection and Decimal string
+serialization. Missing/foreign IDs return404, not foreign data. It is used only
+to inspect a mutation target absent from loaded pages; a present canonical
+collection row is reused without a redundant row query. Page absence cannot
+prove deletion or a failed save. Successful collection/row and missing-row
+responses are private/no-store. Existing writes/receipts are unchanged.
+
+The web requests24 per page, server-filtered own wishes for child/teen and
+household wishes for parents. It loads more only on explicit action, keeps the
+same cursor on error, rejects repeated cursors, deduplicates concurrent-page IDs
+and re-reads only viewer-loaded depth after a write. Per-read body/transport
+has a15s timeout, generations suppress obsolete/unmounted read application, and
+background page refresh blocks concurrent continuation. These are authored
+controls, not measured latency or rendered behavior.
+
+Loaded-only summaries/empty copy, EN/ES continuation and guarded focus recovery
+avoid claiming unloaded data is absent. An older server that ignores paging
+retains its legacy response; missing continuation metadata is treated as unknown
+coverage. The new row inspection may fail against that older server, keeping
+recovery unresolved rather than inventing proof. No offline/backend copy,
+migration, index, background work or household write was introduced.
+
+No QA executed. Route/paging source cases and original Wishlist UI mock URL
+adoption are authored. New UI source cases cover explicit continuation, retrying
+the same failed cursor, child mine requests and target-read contradiction of
+page absence during delete recovery. None ran. Real query plans,
+concurrent changes, role/session/feature transitions, old/current server/client
+matrix, all write/recovery cases and rendered behavior remain unverified.
+
+## Legacy import authority renewal — source 2026-10-24 (#104)
+
+The existing parent-only POST /api/admin/imports/[source] success/body contract
+is unchanged. Dispatch now carries auth.payload.tv (legacy missing claim ->0)
+as an internal sessionVersion option to persisted importers; no client field
+controls it. All three writers renew original household/current-parent/mapped
+user authority under ordered User advisory locks, household lock and ordered
+User row locks before creating a job and again before canonical effects. A stale
+session returns401 with code SESSION_CHANGED; existing identity conflicts retain
+409 IDENTITY_CONFLICT. Core parent/shared-device guards still run before import.
+Internal non-HTTP callers can omit sessionVersion but not current parent/household
+and mapping validation. Pure dry-run plans remain non-writing, not review receipts.
+
+Operational failure updates are exact family/source/job + status running under
+household lock. They cannot recreate deleted jobs or overwrite completed status;
+fixed diagnostics avoid raw exception data and accounting failure does not hide
+the original refusal. No schema/client payload change, automatic retry, background
+work or provider. See plans/import-review-ui.md for exact source and remaining
+review-snapshot, real PG/concurrency/deletion/replay/reconciliation/rollback and
+compatibility acceptance. Source cases authored/unrun; no QA/import executed.
+
+## Import reviewed-scope precondition — source 2026-10-24 (#104)
+
+Opt-in request `reviewProtocol: 1` adds `review: {protocol: 1, actorId, familyId}`
+to the existing import result, derived from the authenticated caller. A persisted
+request using that protocol must include strict `expectedScope: {actorId,
+familyId}`. Missing scope ->400 IMPORT_REVIEW_REQUIRED; either ID different from
+current authentication ->409 IMPORT_SCOPE_CHANGED before dispatcher/mapping
+reads. Scope never chooses a target or grants access. The writer still uses the
+authenticated original family and renews parent/mappings/session under locks.
+
+Legacy callers without reviewProtocol keep their original success response shape
+and existing write path; this is an explicit compatibility exception. Supplied
+expectedScope is always checked, including for legacy requests. Invalid protocol,
+scope shape/IDs refuse400. Opt-in success is private/no-store. This is an intent
+precondition, not a signed proof that source bytes or target state were reviewed.
+
+The new web requests protocol1, freezes returned actor/household in its exact
+reviewed persistence body and consumes local approval on a refusal as on other
+write outcomes. Scope IDs are excluded from its reconciliation JSON display.
+New web against an old server lacking metadata cannot enable persistence and
+shows a localized refresh/review message; it does not silently downgrade. Current
+API can serve legacy clients unchanged. No schema/store/secret/provider action
+or automatic retry added. Source cases authored/unrun; exact current/previous
+server/client, account/household switch, lifecycle/PG and original import
+reconciliation/rollback acceptance remain open.
+
+## Note mutation lifecycle follow-through — 2026-10-24 (#134/#136, source only)
+
+Existing `PATCH/DELETE /api/notes/[id]` request bodies and successful response
+shapes remain. Both now delegate to `person-note-mutation.ts`: User then household
+locks, exact current role/session/membership, stored Notes feature permission
+protected by a Family share lock, then owned PinnedNote row lock and creator
+re-read before a scoped write. Parents edit any owned-household note; teen/child
+edit only their own; deletion stays parent-only. Device refusal and outer route
+checks remain. A missing/foreign locked target returns the same404 rather than
+serializing another household's record. Results from the effect are private/no-store.
+
+`person-content-authority.ts` extracts the existing list-container/note base
+check without changing create/replay policy. Creation and note edit/delete reuse
+it; per-record/action policy remains in the domain mutation. Body trimming and
+unknown-color-to-yellow behavior are preserved. No new client authority field,
+schema, queue action, assistant command, provider or activation was added.
+
+This closes an unprotected read-then-write source gap, not all multi-device edit
+semantics: absolute-field writes remain last-writer behavior, without a new
+optimistic version, delete receipt or Undo. Lost responses still need canonical
+reinspection. Current authority/feature/creator/range decisions, two-household
+isolation and paired-device tests are authored/adapted but unrun. No API/database,
+test/check/build/browser/native/provider or release was executed; mock transactions
+do not prove actual PostgreSQL isolation, rollback or deadlock behavior. Full
+#134/#136 acceptance remains open.
+
+### Personal list-item deletion authority — 2026-10-24 (#134/#135, local source)
+
+Both REST and deprecated installed-client delete routes now renew current personal
+session generation, role, household and list-feature permission under User then
+household locks in the canonical delete transaction. Parent-only authorization
+precedes a scoped item row lock and the shared delete primitive; its final delete
+predicate repeats list household ownership. Missing/foreign/repeated deletion is
+still404. Existing outer refusals and legacy deprecation headers remain; successful
+transactional responses use private/no-store. No offline queue, keyed receipt,
+tombstone/Undo/schema or new device permission. Generation/role/household-change
+race cases for both routes authored/unrun. PostgreSQL contention/rollback/isolation,
+installed-device and original full acceptance remain unverified; no execution or
+release occurred.
+
+### Legacy member Activity opt-in continuation — 2026-10-25 (#134/#135, local source)
+
+`GET /api/activity?paging=keyset-v1[&limit=1..100][&cursor=...]` adds explicit stable
+continuation for compatible clients. Default opt-in limit30; response includes
+`activities` and `nextCursor` (null at the observed end). Reads use limit+1 and
+`created_at DESC, id ASC`; opaque base64url cursors carry a fixed version, the
+original household, canonical UTC timestamp and ID. They are positions, not
+credentials; ordinary current member authentication/household filtering still runs.
+No query fetches the pivot row, so deletion does not invalidate its position.
+Duplicate/invalid mode/limit/cursor, noncanonical encoding/date, or different-
+household cursors get400 before read-side housekeeping/database feed queries.
+
+No `paging` keeps installed legacy behavior: limit defaults30/clamps1..100, the
+old timestamp-only cursor and activities-only response. Its same-timestamp skip
+limitation is retained for compatibility; clients must opt in to the new contract.
+Existing all-member projection, legacy analytics/private-timeline type exclusions,
+parent timeline-marker masking and private/no-store successful responses remain.
+No new role/device permission, metadata field, web surface or changed parent inbox.
+No current web caller was found in this source inspection; UI/client adoption is
+not claimed. New inserts/history mutation can change later pages: this is not a
+snapshot or complete-history/retention guarantee. No schema/index migration.
+
+Pure/route source covers round-trip/refusal, ties, deleted pivot, household scope
+and legacy shape; all unrun. Actual PostgreSQL collation/query plans/isolation,
+installed clients, network/lifecycle and #134/#135 original acceptance remain open.
+
+### Pinned-note edit precondition — 2026-10-25 (#134/#135/#499, local source)
+
+`PATCH /api/notes/[id]` accepts optional `expected_updated_at` (ISO datetime with
+offset). The existing body id and permission policy remain; no new URL/body
+binding or delete policy. After current personal authority and owned-record lock,
+author/parent edit permission is checked before comparing the server timestamp.
+Mismatch returns private/no-store409 `error.code: NOTE_CHANGED`, retryable:false,
+plus `current` containing only id/title/body/color/created_at/updated_at. No creator
+or lifecycle markers. No content change is applied. Known content fields cause a
+server timestamp advance to max(current clock, previous+1ms), including clock
+retreat/same-millisecond updates. Empty patches retain existing behavior. Legacy
+unversioned callers still work and retain their existing overwrite limitation.
+
+The web sheet sends the loaded version when present. A recognized conflict keeps
+the draft/form mounted, displays saved content and disables Save until the person
+chooses Keep my draft or Use saved version. The first retains draft fields, the
+second explicitly replaces them with saved content; both adopt only that reviewed
+version and neither writes. A later Save still rechecks permission/version, so a
+second intervening edit conflicts again. EN/ES text and44px review controls are
+authored. Older servers without versions retain existing compatibility; complete
+conflict protection on those servers is not claimed. Cancel still follows existing
+draft-close policy; no automatic merge, idempotent receipt or destructive Undo.
+
+Server/schema/mounted comparison-choice cases authored/unrun. No PG/concurrency,
+unknown-outcome, browser/long-text/locale/device or release acceptance is inferred;
+notes create recovery and broader async/membership boundaries remain separate.
+
+### Mounted note-create request binding — 2026-10-25 (#134/#135/#499, local source)
+
+Notes GET now adds `writeContext: {userId,familyId}` for the authenticated personal
+session. It grants no permission; existing household/feature/device read policy
+remains. POST accepts paired optional expected_user_id/expected_family_id, both
+1..128 characters. Supplying only one gets400. A mismatched pair gets private/
+no-store409 NOTE_OWNER_CHANGED before key claiming or create/replay effect. Current
+transaction authority still renews session/role/family/feature normally. Legacy
+unbound bodies remain accepted; no new server key namespace or table.
+
+The sheet's new client freezes normalized title/body/color and expected owner in
+one exact body with a secure Idempotency-Key. It reuses canonical POST, whose note
+and exact keyed response already commit together. The shared owned HTTP helper
+bounds fetch/body wait15 seconds and response256KiB (JSON-only bridges are bounded
+after allocation). Only a successful note ID with the expected family/creator is
+confirmed. Network/deadline/5xx/in-progress or malformed success remains uncertain.
+An uncertain intent remains read-only and retains key/body across sheet Cancel/
+reopen on the same mounted page. A deliberate Save retries those exact bytes; no
+automatic retry. The immediate request latch prevents overlapping note mutations.
+After an uncertain result, later refusals retain the held intent. A fresh definitive
+client refusal before uncertainty releases it for ordinary editing. A24-hour wall-
+clock window (also refusing backwards time) prevents sending stale mounted intents
+near the server's seven-day retention. Expired requests hold for manual review.
+
+This is mounted recovery only: no storage/journal, reload/navigation/process-death
+persistence or canonical item-removed receipt inspection. Leaving the page loses
+the in-memory intent. The UI tells the person to keep the page open; it does not
+claim all #135 exactly-once acceptance. Older servers missing writeContext hold
+new creates until refreshed/updated; browsing/edit legacy bodies remain compatible.
+No offline queue/device capability/provider/schema change. Pure/route/mounted source
+cases authored/unrun; real fault/PG/native/owner/storage acceptance remains open.
+
+### Original note-create receipt inspection — 2026-10-25 (#134/#135/#499, local source)
+
+`POST /api/notes/create/receipt` is read-only. It takes the original owner-bound
+create JSON and Idempotency-Key in the header, keeping private draft text/key out
+of URL logs. Paired devices are refused, personal auth is required, and both owner
+fields/key are mandatory. Current User/household/role/session/notes-feature renewal
+precedes receipt lookup under existing lifecycle locks. The scoped receipt is read
+under FOR SHARE; action note.create, canonical parsed request hash, stored expiry
+and compatible successful response pointer are checked. No receipt claiming,
+pruning/replay/effect or content recreation is called.
+
+Successful replies expose only state: unissued (no matching scoped receipt),
+pending, expired, unavailable (malformed/unsupported completed receipt), or
+present/removed with noteId. Current presence is read by exact id+household with
+id-only projection; cached note title/body/creator markers are never returned.
+Owner mismatch is409 NOTE_OWNER_CHANGED; action/hash mismatch422
+IDEMPOTENCY_KEY_REUSED; ordinary auth/feature refusals retain their codes. Responses
+are private/no-store, including failures.
+
+Mounted uncertain Save now inspects first using shared15s/32KiB bounds. Present
+confirms without another write; removed ends recovery with EN/ES explanation and
+never recreates. Only unissued can continue through the same original keyed POST,
+subject to the existing24h client window and canonical atomic-receipt assumption.
+Pending/expired/unavailable/malformed/non-success inspection holds the original
+intent. A missing receipt is not a disaster-restore proof; post-restore key/history
+continuity remains a separate acceptance requirement. No background retry/new key,
+queue/storage schema, device permission or persistent journal is added.
+
+Server/client/mounted/device-inventory source authored/adapted only. No real API/DB/
+locking/fault/restart/native/privacy/browser/test/build/release execution occurred.
+Persistent adoption/reload/process-death and full #135 acceptance remain open.
+
+### Note-create owned recovery foundation — 2026-10-25 (#135/#499, local source)
+
+GET /api/notes/recovery is personal-only, rate-limited240/minute by account,
+private/no-store and uses current User/session/role/household/notes-feature renewal.
+It returns herewoven.note-create-recovery.v1, enabled, userId/familyId and a nullable
+person owner. The note owner preserves the existing generation/household retirement
+fields but hashes a note-specific namespace from the actual current session owner;
+it is continuity metadata, never a credential. No token/PIN/draft is returned.
+
+Readiness requires existing QUEUE_OWNER_RECOVERY_ENABLED and
+QUEUE_OWNER_RECOVERY_ROLLBACK_READY plus NOTE_CREATE_RECOVERY_ENABLED and
+NOTE_CREATE_RECOVERY_ROLLBACK_READY, all exactly1. No values were activated.
+POST notes and receipt inspection accept optional X-Herewoven-Note-Owner. When
+supplied, the exact current note scope must match or409 NOTE_RECOVERY_OWNER_CHANGED
+before claiming/reading a receipt; journal-origin creates additionally refuse with
+NOTE_RECOVERY_PAUSED while gates are off. Matching receipt inspection remains
+possible during a write pause. Legacy no-header requests retain existing policy.
+
+The strict note contract holds one note-create entry with original key/body/issuedAt,
+not an editable/offline-action queue. Body is at most64KiB and journal96KiB, with
+owner-bound title/body/color only; unknown fields/legacy-unbound entries refuse.
+The store wraps createOwnedRequestJournal, reusing CAS/leases, replica verification,
+uncertain-storage recovery, explicit review, owner/retirement and keep-until-dismiss
+semantics. Browser adoption uses only ownedQueueLocation in the note namespace;
+there is no unowned storage fallback or import-time work. Context is renewed by
+canonical GET. Before every send it inspects the original receipt; only unissued
+inside the client window is eligible. Present/removed must be resolved separately
+through inspection and confirmed dismissal. No background send or automatic erasure.
+
+This is an uninitialized foundation. The current sheet has not adopted the adapter;
+persist-before-first-send, recovered-request discovery/inspection/dismissal and
+explicit storage-repair UI are next source work. Injected source cases cover exact
+reload, required review, post-write fault hold/repair, owner switch, immutable body,
+strict contract, namespace and readiness/proof pause. All unrun. No storage/DB/API/
+browser/native/permission/provider activation or acceptance is inferred.
+
+### Note journal sheet adoption — 2026-10-25 (#135/#499, local source)
+
+Notes GET adds recoveryAdopted from NOTE_CREATE_RECOVERY_ROLLBACK_READY. Once
+adopted, retain that rollback-readiness advertisement through a write pause so
+pending requests remain discoverable; clearing it before owned work is reconciled
+is not a supported rollback. No environment values changed. Current no-adoption/
+older servers keep mounted-only behavior without probing browser storage.
+
+The adopted sheet lazily initializes the note adapter after validated owner context.
+Restored entries appear as a generic Review saved request action, with no automatic
+open/send/dismiss. Opening restores exact original read-only fields. New requests
+are staged/verified before canonical create; every deliberate Save inspects the
+receipt under renewed journal ownership. Present/removed settle without another
+create, unissued may send exact saved bytes through the existing journal's renewed
+review/proof path, and pending/expired/unknown holds. Save/new-create is blocked
+during initialization/storage recovery. Context changes and known owner-loss
+refusals clear the old personal UI, retaining owned storage for retirement policy.
+
+Confirmed terminal results precede local dismissal. Failed dismissal/staging keeps
+recovery blocked and offers Retry recovery inside the sheet and on the page. The
+same controller repairs only its exact uncertain CAS transition; repair alone never
+sends a create. If repaired cleanup is empty and same-owner terminal proof remains,
+the sheet finishes rather than sending again. Legacy mounted intent handling stays
+separate when adoption is absent. No new queue/storage engine or automatic fallback
+from an adopted storage failure. Paused owner-matching reads/terminal cleanup use
+the shared journal's existing allow-paused semantics.
+
+Read-only receipt inspection may now recognize committed/unremoved requests after
+the shorter client send window; only sends require age0..24h. Server expiry still
+holds invalidated receipts. Internal reconstruction projects durable entry fields
+before strict validation because shared snapshots add reviewRequired display metadata;
+the durable contract still rejects unknown fields. EN/ES44px review/repair actions
+and focused recovery from disabled Save are authored. No rendered/a11y proof.
+
+Injected sheet cases cover restored-present/no-create, stage-before-write, post-write
+storage fault/explicit repair, terminal cleanup fault/no second send and owner-loss
+UI clearing without journal erasure. Client cases cover older read-only proof with
+no create. All source unrun. Real storage/replicas/reload/process-death, logout/
+retirement/multitab/paused flags, wire/lifecycle/long-text/accessibility/locale/native
+and disaster-restore acceptance remain open. Flags off; no initialization or run.
+
+### Note edit/delete foreground bounds — 2026-10-25 (#135)
+
+Notes web source moves note edits/deletes onto the shared
+15-second foreground deadline and bounded JSON decoder (#135). PATCH replies cap
+at256KiB and DELETE replies at32KiB. An absent/malformed/oversized reply retains
+the draft or delete confirmation and releases the sheet's pending latch; it does
+not imply rollback or trigger a retry. Edit version/conflict review remains, and
+404 deletion remains an error. JSON-only older bridges retain post-parse limits.
+Source coverage for oversized replies authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered timeout/conflict/
+permission and complete recovery acceptance remain open.
+
+### Notes page decode and revoked-authority bounds — 2026-10-25 (#134/#135)
+
+Notes web source caps Notes page JSON at2MiB within its
+existing 15-second deadline (#134/#135). The shared decoder bounds streamed bytes;
+older JSON-only bridges retain post-parse limits. A401/403 response clears prior
+personal notes/drafts without waiting for an error body. Existing page/cursor/
+generation validation, exact retry and create recovery remain. Oversize/revoked-
+authority source cases authored only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Runtime timeout, rendered privacy recovery,
+old-server compatibility and full acceptance remain open.
+
+### Wishlist bounded read decoding — 2026-10-25 (#134)
+
+Wishlist web source caps Wishlist list/target reads at2MiB
+and account-role lookup at32KiB within the existing15-second deadline (#134).
+The shared decoder bounds streaming bytes; JSON-only bridges retain post-parse
+limits.401/403 can enter existing refusal handling without waiting for error
+JSON. Exact-cursor retry, target inspection and mutation behavior remain. Source
+cases for oversize/account refusal authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Rendered recovery, fault/timeout,
+role/privacy, old-server compatibility and full acceptance remain open.
+
+### Notification foreground reply bounds — 2026-10-25 (#141)
+
+Notification web source bounds foreground notification mark,
+snooze and delayed-delete requests through the shared15-second deadline/32KiB
+JSON decoder (#141). Success requires an explicit success:true acknowledgment;
+snooze also validates its date. Missing/malformed/oversized replies keep read/
+snooze state or restore the locally hidden delete row without claiming server
+rollback. EN/ES copy calls the outcome unconfirmed. Existing Undo delay and page-
+exit keepalive dispatch remain separate/unchanged; no write replay/delivery or
+scheduler added. Source oversize cases authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual lifecycle, races,
+role/privacy, timeout/Undo and full acceptance remain open.
+
+### Notification explicit refresh recovery — 2026-10-25 (#141)
+
+Notification web source adds a visible44px EN/ES Refresh
+notifications control (#141), completing the explicit action named by uncertain-
+write copy. It reloads canonical first-page state without replaying a write.
+Manual refresh pauses through reads, mark/snooze, queued Undo deletes and actual
+foreground delete waits; immediate refs also guard pre-render clicks. Undo or
+foreground settlement releases delete busy tracking; page-exit dispatch keeps
+its existing best-effort semantics. Source refresh/Undo cases authored only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered
+focus/reflow, read-write races, lifecycle and original acceptance remain open.
+
+### Notification stale read/action fencing — 2026-10-25 (#141)
+
+Notification web source fences notification page replies
+against intervening local actions (#141). First/older reads capture a write
+epoch; mark/snooze begin+settlement, delete/Undo/settlement and exit dispatch
+advance it. Changed or still-pending actions reject stale page application and
+retain explicit EN/ES refresh/exact-cursor retry. Older reads pause while actions
+are pending; in-flight delete rows cannot be submitted twice. Existing overlapping
+page merge and original Undo/send behavior remain. Concurrent-page source case
+authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Runtime race, focus, native lifecycle and full acceptance remain open.
+
+### Assistant chat and report transport bounds — 2026-10-25 (#464/#144)
+
+Assistant panel source bounds assistant chat/report transport
+(#464/#144). Chat uses the shared foreground deadline at45 seconds, above the
+existing30-second provider timeout, and256KiB JSON cap. Network/unreadable/deadline
+failures keep existing localized retry/draft paths; no automatic provider retry
+or app write occurs. Feedback reads use15seconds/512KiB and validate/project at
+most25 report rows; saves use15seconds/64KiB and retain exact original request IDs/
+bodies on uncertainty. JSON-only bridges retain post-parse bounds. Oversize chat/
+report source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/
+provider/push/merge/deploy ran. Actual timeout, grounding, private identity, action/
+report concurrency and rendered/lifecycle acceptance remain open.
+
+### Opt-in private feedback summary — 2026-10-25 (#464/#136)
+
+Feedback API/panel source adds opt-in feedback summary responses
+(#464/#136). The personal panel requests X-Herewoven-Feedback-View:summary-v1.
+GET selects/projects only id/kind/title/status/created_at for the existing25-row
+own-user/household list; POST projects the same receipt only after unchanged
+ownership/session and exact-request checks. Details, pathname and owner/request
+IDs stay out of opted-in responses. No-header callers retain the original shape;
+older servers may ignore the header and the panel still projects display fields.
+No schema/permission changes or external forwarding. Source projection/legacy
+cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime privacy/compatibility/replay and full acceptance open.
+
+### Historical-content erasure hold response — 2026-10-25 (#136/#142)
+
+Account deletion source completes translated recovery for
+historical shared-content ownership holds (#136/#142). The server returns409
+HISTORICAL_SUCCESSOR_REQUIRED only for a missing former-household successor;
+current-household NO_SUCCESSOR remains unchanged. The dialog renders owned EN/ES
+guidance, retains password/confirmation and does not claim deletion or replay it
+when locale changes. No former household name/ID is exposed. Existing older
+clients retain the generic server-text fallback. Locale/draft/no-replay source
+case authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime rollback/compatibility/rendered and full acceptance open.
+
+### Reward collection continuation and exact status inspection — 2026-10-25 (#134/#499)
+
+Rewards API/SSR/web source adds reward collection continuation
+(#134/#499). A shared API/SSR timestamp/ID reader returns24 web rows or up to100
+opt-in API rows with one lookahead, household/status-bound cursor and no pivot
+lookup. No-limit legacy responses remain complete. EN/ES Older/Newest/invalid/
+page-only copy is wired; current identity/family and analytics role are renewed
+before SSR serialization. Recovery inspects one exact owned reward through an
+optional target filter and bounded transport; absent targets never prove an
+outcome. Closed/off-page uncertain claims retain original keys and accessible
+review, still-available reads keep recovery, and page links hold during actions/
+review. Source parser/API/UI cases authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Query/index/compatibility/race/
+rendered/navigation and full reward acceptance remain open; no new DDL applied.
+
+Protocol: GET /api/rewards?limit=24[&status=available|claimed|approved|redeemed][&cursor=...] returns rewards plus nullable nextCursor. Duplicate/invalid paging and foreign household/status positions refuse400 REWARDS_INVALID_PAGE. GET ?rewardId=<id> is an exclusive exact-target filter returning the same rewards array shape with zero/one own-household row; it cannot combine with paging/status. Older servers may ignore the filter; clients still match the target and hold on absent/unreadable replies. This is not a write receipt or deletion tombstone. Legacy no-limit/no-target calls retain prior representation and ordering.
+
+Index follow-up is measured planning only: compare existing Reward family/status indexes with proposed family+created_at+id and family+status+created_at+id paths. No index/migration or latency result is implied. Reward history follows canonical erasure/retention; no time-based pruning is introduced.
+
+### Opt-in message history keysets — 2026-10-25 (#134)
+
+Message API source adds opt-in tie-safe message API
+continuation (#134). paging=keyset-v1 uses default50/max100 plus one lookahead,
+household-bound canonical timestamp/ID positions and no pivot lookup. The cursor
+is built before chronological DTO reversal; sender/pickup projection and complete
+current roster remain. Legacy no-mode timestamp reads/shape/order stay unchanged.
+Parser/foreign/tied/deleted-pivot/legacy source cases authored only. The current
+chat has not adopted the new mode: merge/refresh/scroll/exact retry and old-server
+handling remain the next source slice. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Relation/index/client/runtime acceptance
+remain open; no complete roster-size or whole-response bound is claimed.
+
+GET /api/messages?paging=keyset-v1[&limit=1..100][&cursor=...] returns the existing messages/members/userId plus nullable nextCursor. Invalid/duplicate mode/limit/cursor or another household position refuses400 MESSAGES_INVALID_PAGE. Page selection is created_at DESC/id ASC; the response reverses only that selected page for chronological display. Complete current-member roster and canonical sender/pickup masking remain. No mode retains the legacy timestamp-only API, including its tie limitation; no client adoption or read-snapshot guarantee is implied.
+
+Next source integration: latest/earlier client reads must validate explicit continuation, retain the exact failed cursor, preserve all loaded same-time messages during a latest merge, keep unsent text/attachments/unknown send keys, and retain scroll position/focus. Specify unknown/older-server recovery rather than inventing a cursor from timestamps. Later QA owns actual refresh/send/read/history races and query plans. Compare a proposed Message(family_id,created_at DESC,id ASC) index only after plan measurement; no DDL/retention change here.
+
+### Chat history keyset adoption — 2026-10-25 (#134/#135)
+
+Message web source connects chat to message history
+keysets (#134/#135). Latest/earlier reads use15-second/2MiB bounded decoding,
+validated50-row unique pages and explicit opaque continuation. Failed older reads
+retain the exact cursor; loop/unread/unknown pages do not advance it. Latest
+merges preserve loaded timestamp ties and just-sent boundary rows; scroll/focus
+and unsent text/attachments/send intents remain. Modern API readContext binds
+user/household; changed/revoked read context masks the thread/composer and stops
+new reads until explicit reload. Older servers show recent-only EN/ES notice,
+without invented continuation. Source fixtures/cases authored/adapted only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual
+tie collation, same-window edits, send/read/history races, large refresh gaps,
+old-client/server, async owner/lifecycle and rendered acceptance remain open.
+
+Modern message responses now also include readContext:{userId,familyId}; it is observed read scope, never a write permission or cached authority. The client validates it before merging latest/history. Unknown old-server responses remain recent-only with no fabricated history cursor. Legacy no-mode API shape remains unchanged. Existing5-second polling/sending/upload/read-ack paths are not new delivery or offline queues; their wider lifecycle/owner mutation requirements remain separate. Read scopes do not prove an in-flight send's outcome or revoke an already dispatched action. Streaming bytes are bounded; JSON-only bridges retain post-parse limits.
+
+### Original-owner chat composition and uploads — 2026-10-25 (#135/#136)
+
+Chat/API source binds chat composition to original
+account/household/session (#135/#136). Modern GET advertises a strict writeContext;
+the client freezes it before uploads and includes it in exact send bytes. New
+/send and /attachments/owned routes require those preconditions while sharing
+canonical legacy handlers/effects. Unsupported old servers cannot silently strip
+fields via a legacy fallback. Unknown support keeps drafts local. Fresh user ->
+household locks renew session/feature before message effect/replay, upload row
+creation and post-file publication check. Lost upload authority uses existing
+exact unclaimed-file compensation. Read acknowledgments now renew the same
+locks before appending non-FK read_by IDs. Upload/send/read waits are bounded;
+unknown sends keep original keys and late retired uploads do not trigger sends.
+Legacy endpoints/body formats remain supported. Source contract/API/UI/paired/
+upload-fault cases authored/adapted only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Actual PG/filesystem/race/rollback/native/
+aging/lifecycle acceptance remains open; no persistent message queue is claimed.
+
+Modern read writeContext is `{protocol:"herewoven.message-owner.v1",userId,familyId,generation}`. This is private context, not a token or authority. Optional legacy message fields expected_user_id/expected_family_id/expected_generation must be all absent or all present and match the authenticated actor. POST `/api/messages/send` requires them and an Idempotency-Key, stream-bounds JSON at64KiB and delegates to the same message.create receipt/effect. POST `/api/messages/attachments/owned` requires X-Herewoven-Message-Owner with exact strict context and delegates to the same bounded multipart/storage/compensation handler. Existing message/attachment endpoints remain legacy-compatible; supplied owner constraints still enforce. Neither strict endpoint falls back to a legacy write URL.
+
+The client captures context before asynchronous photo work and masks the thread on generation/context change. Missing marker keeps composing local with EN/ES explanation. Request deadlines are15seconds, upload/read-ack JSON caps32KiB and send cap256KiB. Network/parse/timeout and408/409/425/429/5xx send uncertainty retains original key/body. This is mounted recovery only: no new persistent queue, receipt-retention extension, original-send age guarantee or automatic retry. Existing unbound-media pruning/file compensation and wider erase/claim/rollback/lifecycle races still require real acceptance.
+
+### Original chat send time — 2026-10-25 (source only, no QA)
+
+The unreleased strict `/api/messages/send` contract now requires canonical UTC
+`issued_at` alongside the original owner triple and idempotency key. The client
+captures it once per logical draft, keeps it in exact serialized request bytes,
+and restores the whole intent/key/time when editing away and back after an
+unknown reply. Modern retries stop before24h; the pure shared window is capped
+at one quarter of canonical receipt retention (currently7days, unchanged), with
+at most5minutes future skew. Device-clock problems hold rather than renew the
+intent. Server time checks run before receipt acquisition, after actor/household
+locks, and after receipt/media reads before message creation. A supplied legacy
+time enforces the same bound; absent legacy fields retain existing behavior.
+
+EN/ES hold copy retains the draft and directs the person to the conversation and
+device clock. An explicit review acknowledgment retires only that held mounted
+intent; it neither sends nor proves the original message absent. A later Send is
+a deliberate new intent. Ordinary uncertain retries never silently renew age or
+key. This extends the local, unreleased owner-v1 candidate together with its web
+consumer; legacy endpoints are unchanged and the strict URLs have no fallback.
+Timestamp validation adds no stored column/migration or queue. Browser relaunch,
+receipt inspection, durable recovery and upload-retry identity are still outside
+this mounted-send slice. Source time-boundary/API/UI fixtures are authored/adapted
+but unrun. QA, real lock/retention/clock/lifecycle behavior, compatibility and all
+release acceptance remain open. No runtime, database or external activation ran.
+
+Latest bounded source work (2026-10-25) binds the Imports form to original
+parent/account/household/session context (#104/#136). A strict owned endpoint
+requires the bounded marker before source-body parsing, reuses canonical legacy
+handlers/effects and renews original authority before private success echo. The
+client freezes context, requires matching owner/review replies, masks retired
+file/report controls and never falls back to a legacy write URL. Old-server
+missing support holds backend actions with EN/ES recovery; legacy contracts stay
+supported. API/UI/paired source cases are authored/adapted UNRUN. No QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; full source/export/client/race/rollback acceptance and the
+pending unlink product-choice question remain unresolved.
+
+Full owned-import/legacy compatibility contract: docs/plans/import-review-ui.md.
+
+## Paired recipe curation read owner and write intent — 2026-10-25
+
+#460/#136 source: collection catalog and recipe curation GETs now echo a bounded
+X-Herewoven-Recipe-Owner header with protocol, original server actor/family/role/
+session generation after existing authority renewal. Response JSON shapes stay
+unchanged. Supplied expected-owner headers are validated before feature/body/
+mutation work; mismatch/malformed markers refuse409 RECIPE_OWNER_CHANGED. Legacy
+callers without the optional request header retain existing API compatibility.
+Mutation responses renew original access before echoing the context; later refusal
+does not prove a prior write rolled back.
+
+RecipeCuration requires matching owner echoes from both parallel reads before
+showing the catalog/current choices or enabling edits. The first accepted pair
+freezes the mounted sheet's owner; refresh and writes carry that exact header.
+Refresh cannot rebind an uncertain draft to another account/household/role/session.
+Mismatched/missing/old-server echoes or explicit access refusal latch a masked
+EN/ES reload hold. The previous draft stays mounted but hidden; no new write or
+legacy fallback is sent. Reload is explicit and44px, and receives focus only if
+removal left focus on body. Close/reopen does not clear the hold; a new route ID
+or page reload creates a new mount context.401/403 are recognized before body
+reading even for empty native responses. Existing bounded deadlines/CAS recovery
+and user-authored recipe/collection text remain otherwise unchanged.
+
+This is intent binding and paired-response admission, not a credential, signed
+snapshot, proof of absent effects or complete SSR-origin owner boundary. The first
+pair begins with current server authority; an original server-rendered owner,
+full app masking/native/process-death/restore acceptance remain separate. Other
+recipe consumers retain their existing contracts. No schema/provider activation.
+Pure marker, mixed/missing pair, frozen uncertain refresh/write-header and server
+pre-decode refusal cases are authored/adapted UNRUN. No QA/tests/checks/build/
+browser/CI/API/DB/provider/push/merge/deploy ran. #460/#136 remain open.
+
+## Household name authority and conflict recovery — 2026-10-25
+
+#499/#136 source: legacy PATCH /api/family and strict PATCH /api/family/name now
+share family-name-http.ts. Both bound bodies to8KiB, keep existing parent/person/
+family checks and use a5second transaction/max-wait. User then household advisory
+locks precede actual User FOR SHARE and Family FOR UPDATE; fresh parent/family/
+original session-generation checks run before family lookup/write. Ordinary role,
+password/session or membership updates are fenced by the row lock. Responses keep
+only the existing display selection, private/no-store; billing/invite/feed/AI
+secrets remain outside the writable/display contract.
+
+The dedicated name route requires name_protocol1, exact observed baseName and
+requested name. It refuses409 FAMILY_NAME_CHANGED when the locked current value
+matches neither base nor request. A matching requested value confirms current
+state without updating again. Legacy callers retain their old stripped-input/
+last-value semantics, now with fresh authority; unknown billing fields cannot
+change plan state. The new web never falls back to that legacy write when an old
+server lacks the strict route. No new schema, epoch, receipt or migration exists.
+This is compare-value conflict protection, not immutable revisions/ABA detection
+or proof of which request originally set an already-matching value.
+
+Household Settings adopts bounded15second reads/writes (256KiB account-read and
+64KiB save replies), abort/retirement on reload/unmount and synchronous read/save
+exclusion. Unknown replies retain the entry and never claim saved. A known name
+conflict requires explicit Check current name; that read preserves the draft,
+shows the actual saved name and enables a deliberate reviewed save. It never
+silently substitutes a different household. Existing typed EN/ES copy gains short
+review/check feedback; profile/account/board subflows remain canonical/separate.
+Full original client actor/session binding, auth-me read semantics, server body-
+read deadlines, SQL/lock/restore and rendered/native acceptance remain separate.
+
+Legacy behavior, strict conflict/no-write convergence, role/family/generation
+change during decoding, required protocol/body bound, retained draft/review and
+stalled reply/late success source cases are authored/adapted UNRUN. No QA/tests/
+checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#136 remain open.
+
+## Board Settings personal transport bounds and audience retirement — 2026-10-25
+
+#499/#135 source: personBoardSettingsTransport now bounds fetch and response JSON:
+15second reads/search,45second settings writes,90second deliberate photo uploads,
+and2MiB reply limit. Same-origin/no-store is explicit. Body/network/size/deadline
+uncertainty produces typed EN/ES unconfirmed-change feedback for writes; it never
+automatically sends a second setting or photo. Known HTTP diagnostics and custom
+transport message semantics are preserved. JSON-only bridges retain post-decode
+allocation limits; timers do not preempt synchronous serialization/FormData work.
+
+BoardSettings exposes an explicit44px retry after load failure. Each transport/
+retry generation clears the old audience view and retires previous results.
+Load cancellation and generation-guarded save/search/upload outcomes prevent an
+old transport from repainting names/settings or clearing a newer busy state.
+Synchronous lanes reject duplicate operations before React state updates; an old
+upload cannot continue into load/selection after audience retirement. Custom
+paired-tablet transports keep their original interface and error semantics; this
+patch does not add transport-level cancellation/deadlines to arbitrary custom
+promises or change elevation/provider/permission behavior.
+
+Stalled body/late result, single exact unconfirmed write, oversize-before-decode,
+explicit custom-load retry and old-save/new-audience cases are authored UNRUN.
+This is bounded personal transport and local audience retirement, not full server
+owner echo, compare-and-set setting updates, unknown upload reconciliation,
+native physical cancellation or rendered/role acceptance. No QA/tests/checks/
+build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#135 remain open.
+
+
+### Owned reward action source candidate (#135/#136/#141, 2026-10-25)
+
+Default-off `REWARD_ACTION_COMMANDS_ENABLED` exposes strict POST claim/approve
+`/owned` wrappers sharing canonical handlers. `herewoven.reward-action.v1` binds
+original owner/session, reward birth, reviewed claim cost or approval claimant,
+issue time and required existing idempotency key; unknown fields/missing context
+hold, with no legacy fallback. Exact packet participates in the existing receipt
+hash. Source/authority/time checks precede replay/effects; late expiry after
+writes throws for rollback. Protocol acknowledgement and every result are private/
+no-store. Original endpoints retain optional-key/representation compatibility.
+Schema expansion/Prisma generation are prerequisites, not performed. Browser
+capability/adoption/owned reads and real acceptance remain unfinished; do not
+activate from authored mocks. Detailed source/rollout limits are in
+`docs/plans/notification-delivery-v1.md`. No new provider or scheduler.
+
+
+The owned reward source candidate now includes default-off SSR browser selection
+and GET `/api/rewards/owned` current-state recovery with strict original-owner
+header, protocol acknowledgement/echo and minimal same-household target. Client
+packets keep reviewed birth/cost/claimant/issue time/key across retries; no automatic
+fallback or current-read renewal. Source replacement cannot resolve the original
+request. All source and cases remain unrun; flags, schema/client-generation and
+old-client/restore/runtime/device rollout acceptance remain separate and open.
+
+
+The private notification source envelope candidate additionally recognizes
+`reward.created` for a fresh canonical Reward birth. The default-off create cohort
+captures the creator-excluded bounded account roster, then atomically stores
+Reward/event/terminal inbox-or-suppression decisions/receipt through the existing
+sender. Old envelope readers hold the new kind; this is no activation or universal
+keyless-create dedupe claim. Exact active-available focus uses existing personal
+claim confirmation. All source/rollback/client/runtime acceptance remains open;
+see the dated notification-delivery plan. No new schema or provider.
+
+
+### Reward JSON request byte bounds — 2026-10-25 (#135/#136)
+
+Ordinary POST/PATCH `/api/rewards` use the existing streamed JSON reader with a 16-KiB input limit. Legacy and owned POST claim/approve handlers share an 8-KiB limit. `Content-Length` can reject early; missing/inaccurate declarations do not bypass streamed byte accounting. Oversize input returns 413 with the existing `{ error: 'Invalid JSON' }` body; malformed JSON remains 400. Refusal occurs before idempotency receipt allocation or reward/XP/notification effects. Existing schema field validation, ordinary optional keys and owned packet/key requirements remain unchanged; no protocol rollout is enabled. Current bounded name/description/icon fields fit within the byte budget, including escaped/unicode text. Previously unbounded legacy reward ID strings, additional unknown fields and whitespace also consume that budget; this introduces no separate ID-format rule.
+
+Legacy bridges without a body stream have only the existing post-decoder byte limit, not bounded allocation. This change supplies no slow-stream time limit. Four ordinary handler streamed-oversize fixtures are authored in the existing idempotency suite, UNRUN. Actual transport, old/installed clients, timeout/rate/lifecycle and broader API/QA acceptance remain open. No QA/tests/checks/build/browser/DB/migrations/push/merge/deploy/activation ran.
+
+
+### Recipe collection mounted-owner admission — 2026-10-25 (#460/#135/#136)
+
+`RecipeCollections` now uses the existing `X-Herewoven-Recipe-Owner` protocol already emitted/admitted by the canonical collections HTTP route. It captures the first validated catalog owner and sends that exact account/household/role/session context on refresh/create/rename/delete. Successful replies require the same marker; missing/changed markers, 401/403 or `RECIPE_OWNER_CHANGED` mask the collection UI/draft and require a page reload. No replacement owner is adopted by refreshing a draft. Write permission still requires the existing parent/teen boundary and `canEdit`; the canonical server writer remains unchanged. The original synchronous action latch and revision/name conflict handling remain.
+
+Collection requests now carry the mounted abort signal through the existing foreground deadline/body limits; unmount retires callbacks and aborts transport without claiming mutation cancellation. Favorites and collection management share the same extracted curation transport, with no second queue/write engine. Two focused mounted-owner fixtures are authored, UNRUN. This does not pair the wider Explore library/session, establish durable command recovery or settle uncertain writes by identity alone. Server concurrency, exact-command durability, old-server behavior, accessibility/rendered/locale/native and all runtime acceptance remain open. No QA/checks/build/browser/CI/DB/migration/release/activation ran.
+
+
+### Explore recipe library page admission — 2026-10-25 (#460/#134/#135)
+
+The Explore recipe-box read now uses the shared 15-second/1-MiB recipe foreground reader instead of raw unbounded fetch/JSON waits. Its existing 100-row explicit page size remains. The library adapter admits allowed unique search filters, safe offset arithmetic, at most 100 projected summaries, unique path-safe IDs and a nullable exact `offset + 100` continuation only after a full page. Malformed, repeated or backward continuation refuses into the existing localized retry state; it never converts failure into an empty library or automatically fetches another page. Replacement/unmount still aborts/retire reads; a bridge that ignores abort cannot hold the caller indefinitely. Repeated IDs across separately valid pages update one card rather than adding duplicate React keys.
+
+Source fixtures describe projection/search and malformed/duplicate/filter boundaries, UNRUN. No collection API, canonical writer, permission or provider changes. The adapter strips unused fields without accepting payload identity as household authority. Account/household pairing across library/auth/collections, whole-library duplicate absence, offset stability during concurrent title edits and actual transport/rendered/locale/native acceptance remain open. No QA/tests/checks/build/browser/CI/DB/migration/release/activation ran.
+
+
+### Explore discovery and preview foreground bounds — 2026-10-25 (#460/#125/#135)
+
+Explore online discovery and import-preview requests now use the shared foreground race with a 15-second deadline and 512-KiB response cap. Unlike only scheduling AbortController.abort(), the race settles the UI even if headers or the JSON bridge ignore abort. Response schemas still admit bounded discovery cards/extracted review fields before display; no partial or truncated recipe is silently accepted. Timeout/transport/oversize failure restores the existing localized network/retry state, keeps manual/external source paths, and never saves canonical recipe state. Existing request generations and unmount/replacement signals suppress late preview/search completions. Provider fetching, SSRF/input/role/rate contracts and manual review/save remain unchanged.
+
+Two mounted ignored-abort stall fixtures (preview body and search headers) are authored, UNRUN. Bridge bodies without streams retain the shared post-decode limit, not bounded allocation. Original account/session pairing across discovery/preview/library/editor, real mounted/locale/old-client behavior and provider/role/negative acceptance remain open. No QA/tests/checks/build/browser/CI/DB/migration/release/provider activation ran.
+
+
+### Saved-library owner continuity — 2026-10-25 (#460/#135/#136)
+
+GET `/api/recipes` additively emits the existing recipe-owner header after original HTTP authority renewal, and checks an optional expected header before household queries. Legacy callers without a header keep the response JSON shape. Explore requires a valid successful marker, pins the first admitted library owner across filters/refresh/continuation, and sends it on later reads. Changed/missing owner markers and access-loss responses hold/mask the mounted page; it never adopts another account/household to keep loading. Header admission happens before body decoding. Its favorites and collection controls receive that same original owner before their own first read, retaining existing canonical writer validation.
+
+A bounded, advisory `/api/auth/me` role read preserves public/manual import affordances during a library-only failure; it cannot replace an admitted owner or authorize a write. Discovery/preview/editor owner pairing is still unfinished, as is propagating an individual child control's hold to the full parent page. Existing recipe save review/authority remains mandatory. Old servers without the marker hold this new library UI rather than silently weakening owner admission; this is a server/web candidate compatibility requirement, not store rollout evidence. Fixture sources are adapted and a pre-decode owner-mismatch case added, UNRUN. No actual old-client, concurrency, mounted/rendered/locale/native or runtime acceptance claimed. No QA/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Recipe control holds mask the containing library — 2026-10-25 (#460/#135/#136)
+
+Collections and per-recipe favorite/collection controls notify their optional containing owner boundary when an original-owner marker is missing/changed or access is lost. Explore routes that signal to the existing library hold: original library cards and preview/editor controls are masked, pending discovery/preview callbacks are retired and the existing EN/ES reload guidance is focused. This closes the prior child-only masking gap in this host; standalone controls keep their own masking without a required parent. No replacement owner is adopted, no write is retried, and abort/unmount does not prove an in-flight mutation was cancelled.
+
+The mounted parent-mask and child notification fixtures are authored/extended, UNRUN. Preview/editor original-context admission, exact-command/durable recovery and actual mounted/focus/locale/concurrency/native/old-client acceptance remain open. No API, schema, permission or provider activation change; no QA/tests/checks/build/browser/CI/DB/migrations/push/merge/deploy ran.
+
+
+### Recipe discovery/preview original owner and editor identity — 2026-10-25 (#460/#135/#136)
+
+Discovery and preview APIs now use the existing recipe-owner protocol: an optional expected marker is compared only with server-captured authenticated authority before publisher work; successful output emits that authority after existing renewal. Headerless legacy callers retain request/JSON shape and role/rate/provider rules. Explore sends its pinned context and requires the same successful marker; known access loss, missing/changed markers and owner refusals invoke the existing page hold. Search and preview can establish the initial page owner during a library-only failure. A library request dispatched before that adoption must still match the newly pinned owner before installing rows, closing the parallel-bootstrap race. The existing bounded curation transport skips 401/403 bodies before returning those known access statuses; all public preview content still requires schema admission.
+
+An imported editor receives the existing recoveryIdentity user/household boundary so it cannot bootstrap a different person's/household's review document. This is not full preview-to-editor role/session-generation admission; review/recovery context and canonical submit renewal remain separate work, including propagation of editor holds. No private household data is added to publisher requests, no writer/store is forked and no provider is activated. Two API foreign-owner and one changed-session mounted fixture are authored; existing fixtures aligned with their explicit review-document identity. All UNRUN. Actual concurrency, missing/old-server compatibility, rendered/locale/native and runtime acceptance remain open. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Imported editor review-context continuity — 2026-10-25 (#460/#135/#136)
+
+Imported RecipeEditor receives the page's full recipe-owner context in addition to its existing user/household recovery identity. RecipeDraftBoundary freezes that context on mount; changing/removing it cannot rebind a later current-context check. Recipe review-context reads and the existing browser document store's resolveContext pass that frozen optional owner header. GET `/api/review-documents/context?domain=recipe` checks it against server-captured account/household/role/session before the family lookup and additively returns the marker after its existing final renewal. Recipe clients supplying the marker require the matching echo plus matching user/household/role body fields. Other review domains and headerless clients keep the existing JSON contract; new imported readers hold on old servers lacking the echo.
+
+Editor owner loss retires private draft display and notifies the existing Explore mask. Ordinary role changes also hold the existing mounted context instead of adopting them. No recovery location, queue owner schema, mutation receipt or canonical writer is replaced. Focused original-session context refusal and editor forwarding/hold propagation fixtures are authored, UNRUN. This is read-time review/context renewal, not proof of atomic original-session admission at a later legacy write or transaction; that gap, exact durable/restore/old-reader behavior and actual mounted/concurrent/rendered/locale/native acceptance remain open. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/provider activation ran.
+
+
+### Imported recipe create request authority — 2026-10-25 (#460/#135/#136)
+
+Imported ordinary create and adopted review-submit dispatch now carry the existing original recipe-owner marker. POST `/api/recipes` admits an optional expected marker before body/idempotency work, freezes actor ID/household/role/session from initial authentication and passes those fields to the canonical effect/replay/detail helpers. The canonical recipe authority helper, when given originalRole, takes actual User/Family share locks after existing advisory locks and checks exact original role plus token generation, household and enabled feature. Headerless HTTP creates also capture their initial exact role; other internal helper callers retain optional-role compatibility. Authority is renewed after detail projection and success echoes the captured marker. Client ordinary and adopted paths require a matching successful marker when originating from a bound import; known owner loss masks private work through the existing host hold without retiring uncertain requests as successful.
+
+No second canonical writer, receipt engine, body/key regeneration or schema is introduced. Receipt request hashes remain based on existing canonical input, not a newly durable original-owner record. Thus this closes request-time/transactional captured-authority gaps only; original-owner provenance across restored commands, recipe source-birth replay identity and old-reader/restore/actual row-lock/concurrency/runtime/native acceptance remain open. Two API source cases describe changed original generation and a parent-to-teen change during a pre-write wait; UNRUN. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Recipe create receipts retain insertion identity — 2026-10-25 (#460/#135/#136)
+
+The compact canonical create receipt now stores `{ recipeId, recipeGeneration }`, using the existing Recipe.food_generation assigned by `database/migration-zzzzzzzzz-food-source-versions.sql`. The existing storage capability probe must confirm that migration's columns/triggers before any fresh ingredient/recipe effect; missing readiness returns `RECIPE_IDENTITY_UNAVAILABLE` rather than manufacturing identity. After insertion, a scoped generation read supplies the compact pointer; invalid proof throws for rollback. No new migration or schema field is introduced or applied. **This existing unapplied migration/trigger is now a prerequisite for ordinary new recipe creation in this candidate**, including while AI features are off. Do not release until its original migration/rollback/old-reader and actual DB acceptance is established.
+
+POST success/replay hydration requires the stored pointer and locks the exact original birth, household and creator before projecting current fields. ID-only legacy receipts hold confirmation instead of adopting a current same-ID row; ordinary detail/PATCH hydration keeps its existing separate authorized path. State-only recipe receipt inspection likewise distinguishes an exact original insertion from replacement/moved/other-creator rows. It captures original HTTP role/session, locks the owned receipt and uses a bounded five-second scope plus final authority renewal; no private recipe fields or generations are returned. Missing legacy birth is committed/current unknown, never inferred from current row/time or permission to create again.
+
+Parser, legacy/receipt-state fixtures and an opt-in DB wrong-generation case are authored/adapted, UNRUN. A generation match remains source identity, not actor credentials or material-version proof; edits within the original birth retain current authorized projection. Restore/trigger continuity, full original-browser receipt binding, command provenance and all actual DB/locking/concurrency/old-reader/rendered/native acceptance remain open. No QA/tests/checks/build/browser/CI/DB/migration/generation/push/merge/deploy/activation ran.
+
+
+### Imported recipe receipt-inspection continuity — 2026-10-25 (#460/#135/#136)
+
+Every receipt callback in the imported recipe boundary now retains its frozen recipe owner. The existing read-only adapter checks context user/household/role/generation before hashing and sends that marker with the original key/hash. Recipe receipt HTTP checks the optional expected owner against original captured authentication before reading a record and echoes that owner only after final renewal on successful state-only replies. Bound readers require matching success acknowledgement; known owner/access loss throws an owner hold rather than being reclassified as a normal terminal receipt refusal. Headerless callers and non-recipe receipt domains retain their existing representation.
+
+No receipt is written/refreshed/pruned, no request is resent and no old body/key is replaced. API original-session refusal and inspector forwarding fixture sources are authored, UNRUN. This is mounted original-owner continuity at inspection, not new durable ownership provenance in historical receipt hashes or proof about restore/trigger history. Legacy create journal durability, exact-command ownership across future mounts, old-reader/concurrency/rendered/native and actual runtime acceptance remain open. Existing unapplied recipe generation migration prerequisite remains. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### New imported recipe command owner provenance — 2026-10-25 (#460/#135/#136)
+
+New bound imported-create bodies add optional `creation_owner` using the existing strict recipe-owner schema, only with `herewoven.recipe-create.v1`. Both ordinary and adopted builders freeze that field with the original body/key. Existing canonical parsing retains it, so it participates in the existing request hash without a second receipt store. POST validates it against initial authenticated authority before idempotency allocation/replay; the canonical helper independently matches account/household/generation and exact role against current locked authority. Changing the owner changes the canonical hash and cannot reuse a stored key as the same request. Headerless commands carrying old owner metadata cannot silently adopt current authentication.
+
+New compact successful receipts and retained source-refusal receipts preserve this bounded `creationOwner` metadata. State-only inspection compares stored provenance with captured current authority even without a browser marker, before source lookup or terminal-state disclosure. The browser inspector also refuses disagreement between saved command owner and mounted owner before hashing. No names, tokens or provider content are added to provenance; it is an expected identity assertion, never an actor credential. It binds user/household/role/token-version generation under the existing protocol, not a new per-cookie/session-ID credential.
+
+Older bodies remain accepted by their existing contract, and older receipts are not rewritten or assigned inferred ownership. Older strict servers reject the extra field; no new-client fallback drops it or replaces the key. Source fixtures cover canonical retention/protocol requirement, restored old-body refusal, hash distinction/canonical generation refusal and stored receipt provenance. All UNRUN. Legacy ordinary-create journal durability, older-record provenance, actual rollback/restore/multi-store/old-reader/concurrency/native/runtime acceptance remain open. Existing food-source migration prerequisite remains unapplied; no new migration/store/activation introduced. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy ran.
+
+
+### Bound recipe command original issue window — 2026-10-25 (#460/#135/#136)
+
+New `creation_owner` bodies also require their first `creation_issued_at` with the existing create protocol. The timestamp is frozen in the original ordinary attempt or adopted exact body and participates in existing canonical hashing; retries, receipt reads and owner refresh cannot renew that packet. Returning after a confirmed noncommit to review a deliberate new command may create a new key/time, while the old exact packet stays unchanged. New bound commands use the editor/review flow's existing one-day command window, shorter than seven-day receipt retention. Missing/unsupported/future timing holds as `RECIPE_COMMAND_TIME_UNCONFIRMED`; age >= one day refuses `RECIPE_COMMAND_EXPIRED`. The original local clock/future hold is retained, with no invented timestamp or server claim that client time is trusted clock proof.
+
+POST checks before idempotency allocation, completed replay checks again after authorization waits, and canonical effects check after receipt/source/storage waits before effects. Expiry after ingredient/recipe/receipt effects throws to roll back the transaction; postcommit response holds never imply rollback or authorize recreation. Ordinary clients retain unknown state/key on time refusals; adopted submitted documents remain held. No timestamp is added to old records. Old unbound bodies retain their prior contract; partial owner-without-time bodies from earlier source candidates are unsupported/held rather than upgraded. This is a compatibility requirement, not old-reader acceptance.
+
+Pure exact-boundary/missing/future cases and API expired-before-allocation source cases are authored; earlier owner-bound fixtures aligned. All UNRUN. Actual clock/concurrency/rollback/restore/multi-store/old-reader/native behavior remains open, as does broader legacy-create durability. Existing identity migration prerequisite remains unapplied. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Ordinary uncertain recipe create: read-only inspection — 2026-10-25 (#460/#135/#499/#142)
+
+The ordinary editor's primary uncertain-save action is now **Check original save**, using the existing state-only receipt endpoint with the original key and hash of canonical parsed saved body. Optional original-owner context follows the same header/acknowledgement path as adopted recovery. Dynamic module load, hashing and read are bounded together by the existing 15-second foreground race; response remains 8 KiB, unmount aborts/retire callbacks, and a synchronous action latch prevents overlapping retry/read/submit work. No POST is made by inspection, no body/key/time is replaced and no receipt is mutated.
+
+EN/ES pending/absent/expired/committed-present/removed/unknown/refused/unavailable messages distinguish state-only proof from a usable recipe DTO. Fields stay locked; neither absence nor expiry grants a new create. Committed results offer recipe-box navigation without auto-calling onCreated or guessing a recipe ID. The unchanged exact POST retry is explicitly named **Retry original save** under a compact native disclosure and disabled after committed/expired inspection, while server/local original age rules still apply. Inspection is available after the command's send window; reading does not renew that window.
+
+Source fixtures adapt explicit retry semantics and describe GET-only present/absent inspection with unchanged key/hash, locked fields and no selection callback. UNRUN. Ordinary attempt storage remains mounted memory, not durable all-store recovery. Actual focus/Back/unmount/callback/locale/responsive/native/old-reader/restore acceptance remains open, and existing identity migration remains unapplied. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Ordinary recipe foreground lifetime — 2026-10-25 (#460/#135/#136)
+
+The ordinary RecipeEditor form now shares one mounted lifetime/epoch/controller across receipt inspection and foreground create/edit transport. Unmount aborts the active transport and retires late response/state/selection/saving callbacks, including bridges that ignore abort. Write completion checks mounted lifetime plus current original-owner continuity before applying any response; latest parent callbacks are used within the admitted lifetime. Retry/submit catch/finally paths likewise avoid touching a retired parent. Existing synchronous mutation latches, immutable create packet/body/key/issue time, explicit retry and adopted boundary remain.
+
+One ignored-abort ordinary-create/unmount callback fixture is authored, UNRUN. An abort/retired callback never proves that the server did not commit; no original request is recreated or automatically discarded. Ordinary attempt durability is still mounted memory. Parent callback failures, same-component target replacement, native process death, restore/old-reader and actual mounted/rendered/locale/runtime acceptance remain open. Existing identity migration prerequisite is unapplied. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Confirmed recipe result survives parent handoff — 2026-10-26 (#460/#135/#499/#142)
+
+Ordinary recipe save records a synchronous confirmed guard and visible read-only result before invoking optional parent selection/save callbacks. Confirmed fields and submit/retry are locked; no second body/key is generated if the host stays mounted or a synchronous callback throws. Known success is not reclassified as network uncertainty. Existing owner/lifetime admission still precedes confirmation. EN/ES guidance offers the known canonical recipe link and Close; raw callback errors are not rendered. Unchanged existing-recipe completion uses the same handoff behavior without issuing a new write.
+
+Adopted create enters its existing completed view immediately after confirmed receipt retirement, before navigation release or onCreated. A failed/blocked handoff cannot leave a submitted/retry UI with its saved entry already retired. The known-present confirmation and recipe-box path remain available; no new journal/receipt/writer is introduced. Completion retains the callback captured at dispatch, preserving the parent route-generation guard if props refresh while waiting. Two ordinary/adopted callback-failure cases and one dispatch-generation case are authored, UNRUN. This is UI result ownership, not acceptance of arbitrary asynchronous host behavior, process death, restore/old-reader or actual mounted/rendered/locale/native behavior. Existing migration prerequisite remains unapplied. No QA/tests/checks/build/browser/CI/DB/migration/push/merge/deploy/activation ran.
+
+
+### Notification write admission — 2026-10-26 source candidate
+
+`POST /api/notifications` reads at most16KiB of JSON; `PATCH`/`DELETE` on that
+route and `PATCH /api/notifications/snooze` read at most8KiB using the existing
+stream-bounded reader. Oversized bodies return413; malformed JSON remains400.
+Authentication and existing POST parent admission precede decoding. No accepted
+request field or success body changes. Legacy decoder-only bridges have the
+shared reader's post-decode bound, not a preallocation guarantee.
+
+Single-row mark-read/delete now include both ID and authenticated user ID in
+the database mutation predicate. Missing or foreign targets retain neutral404.
+Bulk actions keep their existing user scope. Relative snooze minutes recompute
+the target time on another deliberate request and are not an exact retry after
+uncertainty; refresh the canonical inbox first. No schema/migration or provider
+change. Fixture source is UNRUN; session-renewal, concurrent same-owner row
+replacement, native/old-reader and all runtime acceptance remain separate.
+
+
+### Canonical recipe detail browser read — 2026-10-26 source candidate
+
+The existing detail page uses `recipe-detail-client.ts` and the shared bounded
+recipe transport:15-second foreground deadline and1MiB JSON response. Replacing
+a read or leaving the route aborts the page-owned controller; existing route/
+request-generation guards still reject retired completions. Canonical404 maps
+to the existing missing/foreign state without error-body decoding. Other read
+failures keep the localized Retry state. No write or provider request is added.
+
+The display projection checks the requested canonical ID, complete nested
+ingredient/display fields, finite nonnegative amounts/times, positive servings
+(or null), optional valid revision/time metadata and no more than100 unique
+line IDs. Unrecognized fields are stripped. Unsupported legacy/malformed data
+holds with Retry; it is never silently truncated, normalized or presented as
+an empty recipe. These are read-shape bounds, not reapplication of write-time
+text/portion limits. Advisory role loading uses the shared foreground helper
+and64KiB body bound; failure grants no extra controls or server permission.
+
+Seven fixture cases are authored, UNRUN. The existing server remains household
+scoped and renews authority before responding, but this browser slice does not
+pin detail, later edits or curation to one original owner generation. Same-ID
+birth replacement, owner handoff, notification exact-link admission and current/
+previous native acceptance remain separate work. No schema/migration/QA/release
+or provider activation ran.
+
+
+### Recipe detail owner continuity — 2026-10-26 source candidate
+
+Detail GET and PATCH now admit the optional existing recipe-owner header against
+the server-captured principal before reading recipe data or edit JSON. Successful
+responses echo that marker. Legacy headerless response bodies remain unchanged.
+PATCH passes the original role into the existing locked writer and detail reader.
+The marker is comparison metadata, never a credential or source-read grant.
+
+The browser detail helper now returns the validated recipe and owner together.
+It refuses absent/malformed/mismatched successful metadata before decoding the
+private body;401/403/409 hold the owner context. A canonical404 still maps to
+the existing neutral missing state. The page retains its first admitted owner
+across refreshes/route IDs in the same mounted lifetime and derives advisory
+role controls from that owner, removing the separate auth read. Edit and
+curation controls receive this original context and report owner holds to the
+containing page, which retires reads and replaces all recipe/action content
+with localized reload guidance. No owner is silently adopted on Retry.
+
+The new detail reader holds against older servers without marker support. An
+already-open edit followed by server rollback is a distinct unresolved case:
+older PATCH readers may ignore this header and still accept the edit payload.
+There is no strict edit-version/owner body refusal barrier in this slice, so
+forward/rollback release acceptance is not established. No new safe-retry
+promise, immutable recipe birth, full session-ID binding, durable edit journal
+or grocery-action owner contract is added. Other actions still authorize in
+their own canonical handlers; this page does not convert notifications or links
+into capabilities. Five added owner-admission/response cases and existing
+response fixtures are authored/adapted, UNRUN. No QA/checks/build/browser/DB/
+migration/CI/push/merge/deploy or activation ran. #460/#135/#473 remain open.
+
+
+### Recipe edit strict predecessor refusal — 2026-10-26 source candidate
+
+This supersedes the preceding note that owner-bound edits had no body barrier.
+New owner-bound editors send `edit_protocol: herewoven.recipe-edit.v1` and the
+original `edit_owner` alongside the existing PATCH fields. The canonical strict
+input accepts both together or neither; missing pairs, unknown versions and
+malformed owners refuse. The route compares the body owner with its captured
+principal before starting recipe effects, independently of the optional header.
+Protocol/owner fields are stripped before building Recipe update data. Existing
+legacy callers without either field retain the established edit path.
+
+The inspected predecessor is base `3b4e1046fee45e5924ac24b3498f0e2ef26b5669`,
+`src/lib/recipe-input-contract.ts` blob
+`ef8b807f059b13c10f9fde0d014f6c18fa7c653f`: its update object is strict and has
+neither edit field. The new command therefore cannot be admitted by that
+source schema. The client does not remove metadata or retry an unbound body
+after a refusal. This is source provenance, not an executed old-server test or
+a compatibility claim about unknown older implementations.
+
+Three new fixture cases cover pair/version validation, mismatched body-only
+ownership refusal and matching ownership without metadata persistence; existing
+editor payload assertions are adapted. All are UNRUN. No exact-edit receipt/
+idempotency contract, original issue-time admission, immutable birth identity,
+full session-ID binding or durable pending journal is supplied. Migration,
+forward/rollback binaries, real DB concurrency and complete household/UI/native
+acceptance remain separate. No QA/checks/build/browser/DB/CI/push/merge/deploy or
+activation ran. #460/#135/#473 remain open.
+
+
+### Reviewed revision required for bound recipe edits — 2026-10-26 source
+
+The recipe detail projection now requires nonnegative safe-integer revision
+metadata before rendering recipe actions. Owner-bound edit input additionally
+requires `base_revision`; legacy unbound callers retain their prior shape. A
+directly reused bound editor without a loaded revision refuses dispatch and
+shows localized reload guidance. The existing PATCH row lock and revision
+comparison reject an older form with `REVISION_CONFLICT` before changing recipe
+or ingredient rows. No version is guessed, refreshed or silently rebased.
+
+Three new fixture cases describe unversioned-detail refusal, stale bound-edit
+refusal and whole-page access-loss masking. Existing owner/payload fixtures now
+carry the reviewed revision; the dismissal/retry fixture uses validation400,
+while permission403 has separate containing-page retirement coverage. All are
+UNRUN. This is revision-based stale-write source behavior, not exact original
+request receipt inspection or proof of no effect after an unknown response. A
+same-ID replacement could share revision and still needs immutable birth
+continuity. Durable pending edits, rebase/recovery UX, real row-lock/concurrency
+and current/previous installed-client acceptance remain separate. No tests/
+checks/build/browser/DB/migration/CI/push/merge/deploy or activation ran.
+
+
+### Recipe edit response projection — 2026-10-26 source candidate
+
+The browser edit response now uses the same `parseRecipeDetail` projection as
+the canonical detail reader before passing data to `onSaved`. It validates
+exact target ID, complete nested display/ingredient shape, finite numeric
+fields, capped unique line identities and (for bound edits) revision metadata,
+and strips unrelated response properties. Existing role/owner/lifetime guards
+remain before this handoff. Ordinary create still hands off its existing
+summary; this change concerns the full edit-detail result.
+
+Malformed successful edit JSON becomes an unconfirmed outcome: no parent
+recipe replacement or callback, no second request, and Save remains disabled
+under the existing uncertainty behavior. This does not assert rollback or
+provide receipt inspection. Legacy unbound editors may accept absent revision
+metadata; newly bound edits and detail reads require it. No input/response is
+silently truncated or reinterpreted as an empty recipe.
+
+Two source fixture cases describe malformed-success containment and removal
+of unrelated fields from a validated callback. Two existing page payload
+assertions missed in the prior owner/revision changes are also adapted. All
+are UNRUN. Durable recovery, source birth continuity, exact edit retries and
+real client/DB/concurrency/rendered acceptance remain separate. No QA/checks/
+build/browser/DB/CI/push/merge/deploy or activation ran.
+
+
+### Ordinary bound recipe response admission before decoding — 2026-10-26
+
+The ordinary editor create/edit transport now checks401/403 and successful
+original-owner metadata immediately after receiving headers, before decoding
+the body. Missing/changed successful metadata or access refusal retires the
+owner view without waiting on proxy HTML or oversized/stalled JSON. Matching
+replies retain the shared body/deadline bounds and detail projection. A
+structured409 still uses the bounded decoder to distinguish revision conflict
+from explicit owner refusal. The adopted draft transport remains separate.
+
+Three source cases use a never-settling decoder to describe missing-owner,
+changed-owner and denied-access responses; the decoder must remain uncalled.
+They are UNRUN. No conclusion about server commit/rollback, body transport
+cancellation, exact receipt recovery or durable pending state follows from
+this response hold. No QA/checks/build/browser/DB/CI/push/merge/deploy ran.
+
+
+### Recipe editor local owner containment — 2026-10-26 source candidate
+
+The form now owns a sticky original-owner hold in addition to notifying its
+containing page. A changed/missing owner prop masks private fields during the
+render; the effect retires the request epoch, aborts local foreground work and
+releases busy state. Response/receipt owner refusals use the same local hold.
+Optional missing/throwing parent callbacks cannot restore fields or prevent
+containment. Reload guidance is typed EN/ES and receives focus when appropriate.
+
+Retained submit/retry/inspection/confirmation handlers refuse held work, and
+write preflight compares the current owner ref rather than a dispatch closure's
+old prop. The draft-change effect does not forward old private content to a
+changed-owner callback. The original pending request body/key remain untouched;
+no journal is purged, ownership reassigned, retry inferred or server rollback
+asserted. Same-owner draft editing outside these signals is unchanged.
+
+Three fixture cases describe absent/throwing callbacks and a prop-only owner
+change without writes or forwarding the old draft. They are UNRUN. Durable
+restore/cross-tab ownership, actual effect outcomes, full session identity and
+role/native/rendered acceptance remain separate. No QA/checks/build/browser/
+DB/CI/push/merge/deploy or activation ran.
+
+
+### Exact event GET household predicate — 2026-10-26 source candidate
+
+`GET /api/events?id=<id>` now scopes its lookup by both event ID and the
+authenticated household before fetching event/creator data. Missing and foreign
+IDs return the same404; the former foreign403 distinction is removed. An
+explicit empty `id` or multiple `id` values returns400 rather than widening to
+a family list or selecting an ambiguous value. Existing successful shape and
+source attribution, established allowed family roles and collection reads stay
+unchanged. This does not grant target access from a notification URL.
+
+Three fixture cases are authored, UNRUN. Related-person projection, late-session
+renewal across all legacy event reads, local recurring occurrence semantics and
+actual DB/role/installed-client acceptance remain separate. No QA/checks/build/
+browser/DB/CI/push/merge/deploy or provider activation ran.
+
+
+### Event GET creator projection and final viewer renewal — 2026-10-26 source
+
+Exact, paged-range and legacy `GET /api/events` now load scalar event rows and
+project creator display objects from current same-household User queries, in
+batches of100 events/at most100 distinct creator IDs. Missing/moved creators
+become null; `created_by` stays scalar household history. Names are not fetched
+through the unscoped event creator relation. Source attribution, event ordering,
+paging/lookahead and established family-role policy remain.
+
+The route freezes original actor/family/role/token-generation context and renews
+it after event/person/source waits, before serializing successful private
+no-store JSON. Changed context returns409 `EVENT_SCOPE_CHANGED`; current auth
+refusal retains its response with private no-store. No loaded household body is
+returned on refusal. Malformed/missing target errors remain separate.
+
+Five source fixture cases cover moved creators in exact/range/legacy reads,
+a viewer move during projection and bounded/minimal person projection. All are
+UNRUN. This is point-in-time checking, not recall or serialization of related
+people after lookup, original browser-session-ID binding, or coverage of event
+mutation/SSR replies. No actual DB, role/native/rollback/recurrence acceptance,
+QA/checks/build/browser/CI/push/merge/deploy or provider activation ran.
+
+
+### Browser calendar range transport/projection — 2026-10-26 source candidate
+
+`fetchPlanningRange` uses the existing foreground helper for one30-second
+range-job deadline (all pages/headers/body waits) and an8MiB streamed response
+limit per page. JSON-only older bridges retain the helper's post-decode bound,
+not a preallocation guarantee. Non-success response bodies are not decoded.
+The existing ten-page/2000-event budget remains, with explicit truncation only
+when that deliberate budget is reached. Internal page budgets outside1–10 and
+invalid/nonpositive/over45-day ranges refuse before dispatch.
+
+Each page projects complete typed planning/source display fields, strict
+calendar instants and nonnegative intervals (including existing zero-duration
+points), range overlap, at most200 unique event IDs and bounded cursor metadata.
+Empty continuation pages, within-page duplicate IDs, malformed metadata or
+repeated cursors refuse. Unrelated properties are stripped; a failed/malformed
+later page never returns an apparently complete partial calendar. Existing
+cross-page ID reconciliation is retained, not a snapshot-convergence claim.
+
+Seven new fixture cases describe a stalled later page, size refusal before
+decoding, malformed display/time/duplicate rows, minimal projection and invalid
+page budget. Existing pagination and one source-attribution fixture are adapted
+to real response shape and the shared owned signal. All are UNRUN. No original
+browser-owner pinning across pages, stable DB snapshot, local recurrence engine,
+CPU/latency/memory benchmark or native/rendered/rollback acceptance is supplied.
+No QA/tests/checks/build/browser/DB/CI/push/merge/deploy or activation ran.
+
+
+### Compact analytics coverage — #134, 2026-10-26 (local source only)
+
+`GET /api/analytics?projection=summary-v1` is an additive compact display mode.
+Unspecified projection retains the legacy response shape/cap; unknown, empty or
+repeated projection selectors are400. The compact mode requests at most5001
+rows in each of its two existing90-day chore collections. Exactly5000 is
+admissible; a lookahead row in either collection yields422 with
+`code: ANALYTICS_SUMMARY_LIMIT`, no totals/member payload, private/no-store.
+This refuses silent truncation instead of presenting partial counts as complete.
+
+Successful compact replies add `coverage: { kind: "complete", windowDays:90,
+rowLimit:5000, memberLimit:1000, memberScope:"accounts" }`. The current browser requires that marker before canonical DTO
+admission. Its meaning is limited to those source collections not exceeding
+their cap at read time: it is not a stable database snapshot, original-owner
+proof, historical profile attribution or a completed routine/cohort audit. The
+5000-row cap remains a real product limit requiring future aggregation design.
+The browser maps only the known422 code, under a16KiB error-body budget, into
+localized limit guidance with a canonical chores link. Other failures/missing
+coverage use the existing localized error/retry. It never displays raw errors
+or zeroed-out substitute totals.
+
+Server-first promotion is required for this source candidate: older servers
+may ignore the projection parameter but do not emit coverage, so the new
+browser withholds their summaries rather than inferring completeness. Server
+rollback with a new installed client may leave this optional view unavailable;
+a coordinated compatible-client rollback/support strategy and actual old-client,
+DB/concurrency, EN/ES/accessibility/device/performance acceptance remain open.
+No tests/checks/build/browser/DB/CI/promotion/rollback/release ran. Existing page
+fixtures are adapted as source only, UNRUN. Later checks must cover4999/5000/5001
+in either collection, successful empty collections, strict selector admission,
+known/unknown/oversized/stalled error bodies, absent/invalid coverage, legacy
+response preservation and localized nonnumeric limit presentation.
+
+
+Analytics GET also freezes its original authenticated account/household/role/
+token generation before any feature/query wait and uses that household for all
+reads. Before returning either legacy/compact data or compact size-limit422,
+it reads the original feature gate again, then reauthenticates the request and
+compares all four original fields. Auth refusal is propagated privately; drift
+returns private/no-store409 `ANALYTICS_SCOPE_CHANGED`; a feature refusal is
+returned only after the original principal still matches. The async response
+helper is awaited inside the existing route error boundary. These are point-
+in-time checks, not a transactional snapshot or membership/feature serialization;
+related-person projection and browser original-owner/session-ID continuity
+remain separate. No runtime authority/concurrency/feature-flip/legacy acceptance
+was run in this no-QA pass.
+
+
+Legacy analytics activity names now use an independently household-scoped User
+projection instead of traversing `Activity.user` without a household predicate.
+The activity collection remains capped at ten; its unique actor IDs feed at
+most one bounded User lookup with the original household plus exact IDs, a
+minimal id/name/family projection and a defensive household/ID filter. Scalar
+activity history stays in its original household. `recentActivity.userName`
+retains its legacy string type; missing/moved actors receive an empty string,
+not a foreign name or a fabricated localized person. Compact reads skip both
+activity and actor-name queries. The existing final principal/feature renewal
+runs after this additional lookup. Projection is point-in-time, not a lock on
+related-person membership; subsequent moves, profile/erasure provenance,
+historical title/description policy and original compatibility/privacy/runtime
+acceptance remain separate. No QA or database/provider/release action ran.
+
+
+### Analytics scheduled-occurrence visibility — #134/#450, 2026-10-26
+
+Analytics' rate/participation source now uses the same `readVisibleChoreRows` +
+`hiddenRoutineOccurrenceIds` policy as ordinary chore reads. It retains the
+original household,90-day due-or-completed predicate and due-descending/ID-
+ascending ordering. Outer chunks request at most500 visible rows through the
+existing reader, which bounds each candidate/private-metadata batch to at most
+200. Continuation uses a private due-date/ID keyset until the visible limit or
+true exhaustion, and rejects a repeated visible ID instead of silently double
+counting a row. No new independent routine policy or public cursor is introduced.
+
+Visibility precedes the5000 legacy cap or5001 compact lookahead. Paused/retired/
+unsupported open occurrences are hidden by the existing policy; evidence-bearing
+and completed/verified history retains that policy's visibility. The separate
+completed-history query remains bounded and bypasses the open-occurrence filter.
+A hidden prefix cannot consume the visible cap, and hidden rows do not trigger
+compact limit refusal. Private root metadata never enters an analytics DTO.
+
+This source depends on the existing routine metadata schema, including
+`database/migration-zzzz-routine-schedules.sql`, just like the other canonical
+routine-aware readers. No schema probe, generation or migration ran. Missing
+read readiness must fail rather than bypass visibility; staged schema/old-reader
+compatibility remains unperformed. Bounded query payloads do not establish a
+bounded number of queries, a stable snapshot or latency: a dense all-hidden
+window can require many reads, and concurrent date/status/config changes retain
+snapshot/measurement work. Source helper limits90-day input and at most5001
+retained rows; larger-window aggregation/profile/owner/history policy remains
+separate. No QA/tests/checks/build/browser/DB/CI/release ran. Later cases must
+cover hidden prefixes across multiple batches/chunks, all-hidden exhaustion,
+equal due-date IDs, lookahead4999/5000/5001, retained completion/evidence,
+malformed/paused/retired roots, repeated IDs, metadata errors and household scope.
+
+
+Compact analytics also limits its current-User cohort read to1001 rows in stable
+ID order. Exactly1000 members is admitted; a lookahead row produces the same
+renewed/private422 size-limit result, without member or numeric summary data.
+This is an optional summary-processing budget, not a household join/create cap;
+no membership mutation is changed. The compact coverage marker now includes
+`memberLimit:1000`, and the browser requires it alongside the chore limits.
+Older/intermediate servers without that field cannot be treated as proving a
+complete bounded cohort. Legacy unprojected reads retain their existing User
+query/response contract, including the still-unbounded member collection.
+
+The EN/ES limit guidance covers omitted people as well as omitted work. All
+compact source collections now have explicit row budgets:1001 current Users,
+5001 visible rate-source chores retained across bounded candidates,5001 completed
+history rows, and no activity collection. These are row/retention bounds, not
+server byte/CPU/query-count/time/snapshot guarantees. Account-free profiles and
+original member lifecycle/erasure attribution remain separate, and the current
+browser2MiB/15-second transport guard remains in effect. No runtime, schema,
+compatibility, dense/concurrent or locale/device acceptance was run. Deferred
+cases include999/1000/1001 current Users, active member count changing during a
+read, matching/missing/wrong coverage memberLimit and unchanged legacy responses.
+
+
+Compact analytics coverage explicitly declares `memberScope:"accounts"` and
+the browser requires that value before DTO admission. It describes the existing
+User-backed participation list, not member-protocol2 support or profile credit
+ownership. Per-person counts are over the existing90-day window, while the ring
+and trend retain their separately defined week windows. The EN/ES participant
+caption states login-account coverage and the90-day range, and is associated
+with the list through aria-describedby. Household totals continue to count all
+canonically visible chores, including profile-owned rows where present, without
+moving those rows into another person's participation/XP ledger.
+
+No profile roster, namespace conversion, account link, points/streak/reward
+attribution or permission/capability grant is introduced. Full email-free profile
+analytics remains a separate #480/#557 identity/history/credit design and runtime
+requirement. The explicit scope prevents a current account-only cohort from
+being described as complete all-person coverage; it does not complete that
+feature. New clients withhold old/intermediate servers lacking the scope marker;
+server-first/rollback compatibility and actual EN/ES/screen-reader/role/household
+acceptance remain unperformed. No QA or provider/data/release action ran.

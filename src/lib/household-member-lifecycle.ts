@@ -1,3 +1,4 @@
+import { accountContentHouseholds } from '@/lib/household-content-erasure'
 import { accountErasureImportHouseholds } from '@/lib/account-erasure-imports'
 import { accountErasureHistoryHouseholds } from '@/lib/account-erasure-history'
 import { rewriteRoutineSubjectsInTx, routineSubjectHouseholds } from '@/lib/routine-subject-lifecycle'
@@ -15,7 +16,7 @@ export async function lockAccountProfileHouseholds(tx: any, userId: string, fami
   const profiles: Array<{ family_id: string }> = await tx.householdMember.findMany({
     where: { erasure_user_id: userId }, select: { family_id: true },
   })
-  const families = new Set([...profiles.map((p) => p.family_id), ...await routineSubjectHouseholds(tx, userId), ...await accountErasureHistoryHouseholds(tx, userId), ...await accountErasureImportHouseholds(tx, userId)])
+  const families = new Set([...profiles.map((p) => p.family_id), ...await routineSubjectHouseholds(tx, userId), ...await accountErasureHistoryHouseholds(tx, userId), ...await accountErasureImportHouseholds(tx, userId), ...await accountContentHouseholds(tx, userId)])
   if (familyId) families.add(familyId)
   const ordered = [...families].sort()
   for (const id of ordered) await lockHousehold(tx, id)

@@ -14,7 +14,7 @@ import type { TodayBoardData } from "@/app/dashboard/today/today-board-data";
 import { useDeviceBoardActions } from "@/components/device/use-device-board-actions";
 import type { DeviceClient } from "@/lib/device-client";
 import { QueueError } from "@/lib/offline-queue";
-import { I18nProvider } from "@/i18n";
+import { I18nProvider, useTranslation } from "@/i18n";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -164,7 +164,7 @@ afterEach(() => {
 });
 
 describe('tile sections keep clear destinations (no "Open …" buttons)', () => {
-  it("keeps section links and the combined Next up heading readable", async () => {
+  it("keeps section links and the Today/Chores headings readable", async () => {
     await renderBoard();
     expect(
       screen.queryByRole("link", {
@@ -186,12 +186,12 @@ describe('tile sections keep clear destinations (no "Open …" buttons)', () => 
     ).toHaveAttribute("href", "/dashboard/lists");
     expect(
       within(screen.getByTestId("region-today")).getByRole("heading", {
-        name: "Next up",
+        name: /Today\s*, open calendar/,
       }),
     ).toBeTruthy();
     expect(
       within(screen.getByTestId("region-today")).getByRole("link", {
-        name: "Calendar",
+        name: /Today\s*, open calendar/,
       }),
     ).toHaveAttribute("href", "/dashboard/calendar");
     expect(
@@ -1027,4 +1027,52 @@ describe("profile protocol compatibility", () => {
     );
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
+});
+
+// Authored/unrun: translating a paired board must not replace its action
+// ownership set, cancel an in-progress subject selection or replay a write.
+it("keeps tablet action ownership and the picker across a locale change", async () => {
+  const fc = fakeClient();
+  const board = data();
+  let current: BoardActions | undefined;
+  function StableActionsHarness() {
+    const { setLocale } = useTranslation();
+    const result = useDeviceBoardActions({
+      client: fc.client, enabled: true,
+      features: { chores: true, lists: true }, members: board.members,
+      afterChange: () => undefined,
+    });
+    current = result.actions;
+    return <>{result.picker}
+      <button onClick={() => setLocale("es")}>Spanish copy</button>
+      <button onClick={() => setLocale("en")}>English copy</button>
+    </>;
+  }
+  render(<I18nProvider locale="en"><StableActionsHarness /></I18nProvider>);
+  const original = current!;
+  let prepared!: Promise<boolean>;
+  act(() => { prepared = original.prepare!(); });
+  fireEvent.click(screen.getByRole("button", { name: "Spanish copy" }));
+  expect(current).toBe(original);
+  expect(screen.getByRole("heading", { name: "¿Quién eres?" })).toBeInTheDocument();
+  expect(screen.getByRole("list", { name: "Miembros de la familia" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Avery Parent" }));
+  await act(async () => { expect(await prepared).toBe(true); });
+  expect(original.choreDoneNote!(board.chores[0])).toBe("Un padre o una madre lo revisará.");
+  const failed = jest.fn();
+  const stop = original.onGroceryFailed!(failed);
+  try {
+    await act(async () => {
+      expect(await original.setGroceryChecked(board.shopping!.items[0], true)).toEqual({ ok: true });
+    });
+    const op = deviceQueue.list()[0];
+    expect(op.payload).toMatchObject({ itemId: "i1", checked: true, actingMemberId: "p" });
+    fireEvent.click(screen.getByRole("button", { name: "English copy" }));
+    expect(current).toBe(original);
+    expect(original.choreDoneNote!(board.chores[0])).toBe("A parent will check it.");
+    await act(async () => { deviceQueue.fail(op.id); });
+    expect(failed).toHaveBeenCalledWith("i1", true);
+    expect(deviceQueue.enqueue).toHaveBeenCalledTimes(1);
+    expect(fc.request).not.toHaveBeenCalled();
+  } finally { stop(); }
 });

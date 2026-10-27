@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
-import { deleteHouseholdListItem } from '@/lib/list-item-delete'
+import { deletePersonListItem } from '@/lib/list-item-delete'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -16,7 +16,7 @@ interface RouteContext {
 /**
  * DELETE /api/lists/items/[id] (route inventory F-6, #289): the REST form of
  * `DELETE /api/lists/items/delete?itemId=`, which stays for installed Android
- * builds. Same rules through the same helper (`deleteHouseholdListItem`):
+ * builds. Same rules through the same helper (`deletePersonListItem`):
  * lists feature on, parent only, the item's list in the caller's household
  * (another household's item is the same 404 as a missing one). A paired shared
  * device is refused before person auth (403 `DEVICE_WRITE_NOT_ALLOWED`), so
@@ -38,11 +38,12 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (parentError) return parentError
 
     const { id } = await context.params
-    if (!id || !(await deleteHouseholdListItem(prisma!, id, auth.user.family_id))) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true })
+    if (!id) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    const result = await deletePersonListItem(prisma!, id, {
+      familyId: auth.user.family_id, addedBy: auth.user.id,
+      role: auth.user.role, generation: auth.payload?.tv ?? 0,
+    })
+    return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('DELETE /api/lists/items/[id]', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

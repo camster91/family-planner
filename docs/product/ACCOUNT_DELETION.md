@@ -340,3 +340,54 @@ in `member-relation-inventory.json` and `member-subject-inventory.json`.
 Unit evidence covers fixed scoped statements, missing-table compatibility, error
 propagation and two-household deletion/export. Real PostgreSQL FK/rollback and
 migration acceptance remain separate required checks; no live account was changed.
+
+## Optional foreground traversal metadata — source 2026-10-24
+
+`ChoreTopUpCursor` adds a content-free household attempted position. Existing
+authorized whole-household deletion probes its table and deletes its family row
+before profile/domain/Family deletion; absence supports rollback, while SQL
+failure aborts. Family ON DELETE CASCADE is a backstop. Individual account
+removal preserves this household-owned metadata. No authorization or export
+surface is added. Schema/migration and deletion fixture source are authored;
+no migration, erasure or QA has run.
+
+### Retained device actor erasure — 2026-10-25 (#136/#450)
+
+Account-erasure source reconciles retained device account
+references during erasure (#136/#450). Device/pairing actor/creator/elevation
+references now contribute historical households to the existing sorted lock set.
+Erasure clears only the exact account's plain actor slots and complete elevation
+overlay in each locked household, including detached/former contexts. Devices,
+sessions and other parents' references remain; completed pairing creator handover
+is scoped to the current household rather than transferring former requests to
+an unrelated successor. Source discovery/projection/former-household cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/lifecycle and wider erasure acceptance open.
+
+### Former invitation/pairing creator erasure — 2026-10-25 (#136/#450)
+
+Account-erasure source scopes invitation handover to the
+current household (#136/#450). Creator-owned invitations now join historical
+household discovery/ordered locks. Remaining creator-owned invitation/pairing
+requests are explicitly erased per locked household under their existing User
+Cascade policy, after current accepted/completed requests have been handed to
+the local successor. No former request transfers to another household's parent;
+other actors' requests and paired tablet sessions remain. Detached-account
+cleanup uses the same path. Exact-scope/current-versus-former source cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real transaction/FK/concurrency and broader erasure acceptance open.
+
+### Household-local shared-content successors — 2026-10-25 (#136/#450)
+
+Account erasure/removal source preserves shared-content ownership in
+its original household during account erasure (#136/#450). Canonical creator/
+nullable columns move to one shared module, retaining existing exports. Identifier-
+only discovery adds every referenced household to sorted locks; ListItem/ProjectTask
+use List/Project ownership. Current erasure and ordinary removal scope updates to
+their household. Former/detached shared content chooses an existing local parent,
+then local member, in deterministic order and rechecks that successor before
+updates. Missing successor holds the transaction with NO_SUCCESSOR; personal
+subjects retain their existing cascade policy. No records move between households
+or grant roles. Source ownership/discovery/current/detached/no-successor cases
+authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/query plans and wider erasure acceptance open.

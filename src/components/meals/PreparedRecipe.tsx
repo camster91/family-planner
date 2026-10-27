@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { readRecipeJson } from "@/lib/recipe-read-client";
 import { Dialog } from "@/components/ui/dialog";
 import { RecipeDetail } from "@/components/meals/RecipeDetail";
 import { useTranslation } from "@/i18n";
+import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 import { mealRecipeSnapshot } from "@/lib/meal-recipe-history-contract";
 const reply = z.discriminatedUnion("state", [
   z
@@ -23,7 +25,7 @@ const reply = z.discriminatedUnion("state", [
 ]);
 export function PreparedRecipe({ batchId }: { batchId: string }) {
   const { locale } = useTranslation();
-  const es = locale === "es";
+  const text = useRecipePresentationText();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -48,20 +50,16 @@ export function PreparedRecipe({ batchId }: { batchId: string }) {
     setLoading(true);
     setFailed(false);
     setResult(null);
-    const deadline = setTimeout(() => controller.abort(), 10000);
     try {
-      const response = await fetch(
+      const parsed = reply.parse(await readRecipeJson(
         `/api/meals/bulk/${encodeURIComponent(batchId)}/recipe`,
-        { cache: "no-store", signal: controller.signal },
-      );
-      if (!response.ok) throw new Error();
-      const parsed = reply.parse(await response.json());
+        controller.signal, { timeoutMs: 10000 },
+      ));
       if (parsed.batchId !== batchId) throw new Error();
       if (own === generation.current) setResult(parsed);
     } catch {
       if (own === generation.current) setFailed(true);
     } finally {
-      clearTimeout(deadline);
       if (own === generation.current) setLoading(false);
     }
   }
@@ -72,20 +70,14 @@ export function PreparedRecipe({ batchId }: { batchId: string }) {
         className="btn-tinted min-h-[44px]"
         onClick={() => void load()}
       >
-        {es ? "Receta usada" : "Recipe used"}
+        {text("preparedUsed")}
       </button>
       <Dialog
         open={open}
-        title={
-          es ? "Receta guardada al preparar" : "Recipe saved at preparation"
-        }
-        description={
-          es
-            ? "Detalles registrados al marcar la preparación como terminada. No cambian al editar la receta actual."
-            : "Details recorded when prep was marked complete. Editing the current recipe does not change this record."
-        }
+        title={text("preparedTitle")}
+        description={text("preparedDescription")}
         variant="form"
-        closeLabel={es ? "Cerrar" : "Close"}
+        closeLabel={text("close")}
         onClose={() => {
           generation.current++;
           request.current?.abort();
@@ -93,42 +85,35 @@ export function PreparedRecipe({ batchId }: { batchId: string }) {
           setOpen(false);
         }}
       >
-        {loading && <p role="status">{es ? "Cargando…" : "Loading…"}</p>}
+        {loading && <p role="status">{text("preparedLoading")}</p>}
         {failed && (
           <div role="alert">
             <p>
-              {es
-                ? "No pudimos leer este registro. Se conserva sin cambios."
-                : "We could not read this record. It is kept unchanged."}
+              {text("preparedFailed")}
             </p>
             <button
               type="button"
               className="btn-secondary min-h-[44px]"
               onClick={() => void load()}
             >
-              {es ? "Reintentar" : "Try again"}
+              {text("retry")}
             </button>
           </div>
         )}
         {result?.state === "not-recorded" && (
           <p>
-            {es
-              ? "No se registraron los detalles de la receta al preparar esta sesión. La receta actual puede haber cambiado."
-              : "Recipe details were not recorded when this session was prepared. The current recipe may have changed."}
+            {text("preparedNotRecorded")}
           </p>
         )}
         {result?.state === "not-prepared" && (
           <p>
-            {es
-              ? "Esta sesión aún no se ha marcado como preparada."
-              : "This session has not been marked prepared yet."}
+            {text("preparedNotPrepared")}
           </p>
         )}
         {result?.state === "recorded" && (
           <>
             <p className="text-footnote text-label-secondary">
-              {es ? "Registrada" : "Recorded"}:{" "}
-              {new Date(result.capturedAt).toLocaleString(locale)}
+              {text("preparedRecordedAt", { date: new Date(result.capturedAt).toLocaleString(locale) })}
             </p>
             <RecipeDetail recipe={result.snapshot.recipe} />
           </>

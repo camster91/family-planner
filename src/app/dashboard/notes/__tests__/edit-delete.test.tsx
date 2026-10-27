@@ -4,7 +4,7 @@
 // Notes (route inventory F-1): edit and delete go to /api/notes/[id]. They used
 // to PATCH/DELETE /api/notes, which only has GET and POST, so nothing changed.
 import * as React from 'react'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 let mockLocale: 'en' | 'es' = 'en'
@@ -32,6 +32,26 @@ jest.mock('@/components/providers/features-provider', () => ({
   useFeatures: () => ({ canManage: true }),
 }))
 
+let mockRecoveryAdopted = false
+let mockRecoveryRows: Array<{ kind: 'note-create'; key: string; body: string; issuedAt: number }> = []
+type MockRecoveryEntry = (typeof mockRecoveryRows)[number]
+let mockFailStage = false, mockFailDismiss = false, mockUncertainStorage = false
+const mockJournal = {
+  initialize: jest.fn(async () => mockRecoveryRows),
+  snapshot: jest.fn(async () => mockRecoveryRows),
+  stage: jest.fn(async (entry) => { mockRecoveryRows = [entry]; if (mockFailStage) { mockUncertainStorage = true; throw new Error('Fixture stage fault') } }),
+  inspect: jest.fn(async (_key, inspect) => inspect(mockRecoveryRows[0], { owner: { scope: 'a'.repeat(64) } })),
+  send: jest.fn(async (_key, _review, send) => send(mockRecoveryRows[0], 'a'.repeat(64))),
+  dismiss: jest.fn(async () => { mockRecoveryRows = []; if (mockFailDismiss) { mockUncertainStorage = true; throw new Error('Fixture cleanup fault') } }),
+  hasUncertainStorage: () => mockUncertainStorage,
+  recoverStorage: jest.fn(async () => { mockUncertainStorage = false; return mockRecoveryRows }),
+}
+jest.mock('@/lib/note-create-recovery-browser', () => ({
+  browserNoteRecovery: () => mockJournal,
+  noteIntentFromEntry: (entry: MockRecoveryEntry) => { const body = JSON.parse(entry.body); return { key: entry.key, body: entry.body, issuedAt: entry.issuedAt,
+    context: { userId: body.expected_user_id, familyId: body.expected_family_id } } },
+}))
+
 import NotesPage from '../page'
 
 type Call = { url: string; method: string; body: unknown }
@@ -39,31 +59,39 @@ let calls: Call[] = []
 let notePermissions = { can_edit: true, can_delete: true }
 let noteBody = 'abc'
 let noteColor = 'yellow'
+let noteUpdatedAt: string | undefined
 // What a save/delete answers: a status + body, or a thrown network error.
 let mutationReply: () => Promise<Response>
 
 beforeEach(() => {
   calls = []
+  mockRecoveryAdopted = false; mockRecoveryRows = []; mockFailStage = false; mockFailDismiss = false; mockUncertainStorage = false
+  Object.values(mockJournal).forEach(value => { if (jest.isMockFunction(value)) value.mockClear() })
   noteBody = 'abc'
   noteColor = 'yellow'
+  noteUpdatedAt = undefined
   mockLocale = 'en'
   notePermissions = { can_edit: true, can_delete: true }
-  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) as Response
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ note: { id: 'new-note', family_id: 'family-a', created_by: 'account-a' } }) }) as Response
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
-    if (url === '/api/notes' && method === 'GET') {
+    if (url === '/api/notes?limit=24' && method === 'GET') {
       return {
         ok: true,
         status: 200,
         json: async () => ({
+          writeContext: { userId: 'account-a', familyId: 'family-a' },
+          recoveryAdopted: mockRecoveryAdopted,
+          nextCursor: null,
           notes: [{
             id: 'n 1',
             title: 'Wifi code',
             body: noteBody,
             color: noteColor,
             created_at: '2026-09-01T00:00:00Z',
+            ...(noteUpdatedAt ? { updated_at: noteUpdatedAt } : {}),
             ...notePermissions,
           }],
         }),
@@ -123,7 +151,7 @@ it('keeps an open draft while a failed notes load is retried', async () => {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    if (url === '/api/notes' && method === 'GET') {
+    if (url === '/api/notes?limit=24' && method === 'GET') {
       getAttempts += 1
       if (getAttempts === 1) {
         return { ok: false, status: 503, json: async () => ({}) } as Response
@@ -133,6 +161,7 @@ it('keeps an open draft while a failed notes load is retried', async () => {
         ok: true,
         status: 200,
         json: async () => ({
+          nextCursor: null,
           notes: [{
             id: 'recovered-note',
             title: 'Recovered note',
@@ -175,7 +204,7 @@ it('keeps a failed load through locale hydration without refetching', async () =
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    if (url === '/api/notes' && method === 'GET') {
+    if (url === '/api/notes?limit=24' && method === 'GET') {
       getAttempts += 1
       if (getAttempts === 1) {
         return { ok: false, status: 503, json: async () => ({}) } as Response
@@ -185,6 +214,7 @@ it('keeps a failed load through locale hydration without refetching', async () =
         ok: true,
         status: 200,
         json: async () => ({
+          nextCursor: null,
           notes: [{
             id: 'locale-recovered',
             title: 'Recovered locale note',
@@ -232,7 +262,7 @@ describe('failures are shown in the modal, which stays open with the text', () =
     expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('a save that cannot reach the server says to check the connection', async () => {
+  it('an uncertain create retains its exact-request recovery draft', async () => {
     mutationReply = async () => {
       throw new TypeError('Failed to fetch')
     }
@@ -242,7 +272,7 @@ describe('failures are shown in the modal, which stays open with the text', () =
     await user.type(screen.getByLabelText('notes.noteTitle'), 'Dentist')
     await user.click(screen.getByRole('button', { name: 'notes.save' }))
 
-    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorSave common.networkError')
+    expect((await screen.findByRole('alert')).textContent).toBe('notes.errorSave notes.createRecovery')
     expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Dentist')
   })
 
@@ -329,7 +359,7 @@ it('records a confirmed save when refresh fails and retries only the read', asyn
   const fetchOriginal = global.fetch
   let reads = 0
   global.fetch = jest.fn(async (input, init) => {
-    if (String(input) === '/api/notes' && !init?.method && ++reads === 2) return { ok: false, status: 503, json: async () => ({}) } as Response
+    if (String(input) === '/api/notes?limit=24' && !init?.method && ++reads === 2) return { ok: false, status: 503, json: async () => ({}) } as Response
     return fetchOriginal(input, init)
   }) as typeof fetch
   const user = userEvent.setup()
@@ -422,4 +452,230 @@ it('returns Cancel to Add after dismissing an earlier success notice', async () 
   expect(screen.queryByText('notes.saved')).toBeNull()
   await user.click(screen.getByRole('button', { name: 'notes.cancel' }))
   expect(document.activeElement).toBe(opener)
+})
+
+// Authored/unrun: current web requires bounded notes pages, including retries.
+const pagedNote = (id: string) => ({ id, title: id, body: 'Fixture', color: 'yellow', created_at: '2026-10-24T12:00:00Z', can_edit: false, can_delete: false })
+const notesReply = (notes: ReturnType<typeof pagedNote>[], nextCursor: string | null) => ({ ok: true, status: 200, json: async () => ({ notes, nextCursor }) }) as Response
+
+it('replaces each page, returns to previous/newest notes, and retries an exact failed cursor', async () => {
+  const user = userEvent.setup()
+  const urls: string[] = []
+  let olderReads = 0
+  global.fetch = jest.fn(async (input) => {
+    const url = String(input)
+    urls.push(url)
+    if (url.includes('cursor=')) {
+      if (++olderReads === 1) return { ok: false, status: 503, json: async () => ({}) } as Response
+      return notesReply([pagedNote('Older note')], null)
+    }
+    return notesReply(Array.from({ length: 24 }, (_, i) => pagedNote(`Recent ${i}`)), 'fixture-next')
+  }) as typeof fetch
+  render(<NotesPage />)
+  await screen.findByText('Recent 0')
+  expect(screen.getAllByTestId('note-card')).toHaveLength(24)
+  await user.click(screen.getByRole('button', { name: 'notes.older' }))
+  await screen.findByRole('button', { name: 'notes.retry' })
+  await user.click(screen.getByRole('button', { name: 'notes.retry' }))
+  await screen.findByText('Older note')
+  expect(screen.queryByText('Recent 0')).toBeNull()
+  expect(urls.slice(-2)).toEqual(['/api/notes?limit=24&cursor=fixture-next', '/api/notes?limit=24&cursor=fixture-next'])
+  await user.click(screen.getByRole('button', { name: 'notes.previous' }))
+  await screen.findByText('Recent 0')
+  await user.click(screen.getByRole('button', { name: 'notes.older' }))
+  await screen.findByText('Older note')
+  await user.click(screen.getByRole('button', { name: 'notes.newest' }))
+  await screen.findByText('Recent 0')
+  expect(screen.queryByRole('button', { name: 'notes.previous' })).toBeNull()
+})
+
+it.each([
+  { notes: [pagedNote('Legacy note')] },
+  { notes: Array.from({ length: 25 }, (_, i) => pagedNote(`Too many ${i}`)), nextCursor: null },
+  { notes: [pagedNote('Incomplete page')], nextCursor: 'fixture-next' },
+])('rejects old or malformed page envelopes instead of claiming a complete list', async (body) => {
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => body })) as unknown as typeof fetch
+  render(<NotesPage />)
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(screen.queryByTestId('note-card')).toBeNull()
+})
+
+it('ends a stalled response-body read without allowing its late notes to replace recovery', async () => {
+  jest.useFakeTimers()
+  try {
+    let release!: (body: unknown) => void
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: () => new Promise(resolve => { release = resolve }) })) as unknown as typeof fetch
+    render(<NotesPage />)
+    await act(async () => { await Promise.resolve() })
+    await act(async () => { jest.advanceTimersByTime(15_000) })
+    expect(screen.getByRole('button', { name: 'notes.retry' })).toBeTruthy()
+    await act(async () => { release({ notes: [pagedNote('Late note')], nextCursor: null }) })
+    expect(screen.queryByText('Late note')).toBeNull()
+    expect(screen.getByRole('button', { name: 'notes.retry' })).toBeTruthy()
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
+// Authored only: conflict resolution retains the mounted draft and never auto-saves.
+it.each([true, false])('reviews saved content before re-saving a conflicting draft (keep=%s)', async keepDraft => {
+  const user = userEvent.setup();
+  noteUpdatedAt = '2026-09-01T00:00:00.000Z';
+  const current = { id: 'n 1', title: 'Latest title', body: 'Latest saved body', color: 'blue',
+    created_at: '2026-09-01T00:00:00Z', updated_at: '2026-10-25T12:00:00.000Z' };
+  mutationReply = async () => ({ ok: false, status: 409, json: async () => ({ error: { code: 'NOTE_CHANGED' }, current }) }) as Response;
+  render(<NotesPage />);
+  await user.click(await screen.findByText('Wifi code'));
+  await user.clear(screen.getByLabelText('notes.noteTitle'));
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'My draft');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect((await screen.findByRole('alert')).textContent).toBe('notes.changed');
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('My draft');
+  expect((screen.getByRole('button', { name: 'notes.save' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText('Latest saved body')).toBeTruthy();
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: keepDraft ? 'notes.keepDraft' : 'notes.useSaved' }));
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe(keepDraft ? 'My draft' : current.title);
+  expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(1);
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ note: current }) }) as Response;
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await waitFor(() => expect(calls.filter(call => call.method === 'PATCH')).toHaveLength(2));
+  const writes = calls.filter(call => call.method === 'PATCH');
+  expect(writes[0].body).toEqual(expect.objectContaining({ expected_updated_at: noteUpdatedAt }));
+  expect(writes[1].body).toEqual(expect.objectContaining({ expected_updated_at: current.updated_at, title: keepDraft ? 'My draft' : current.title }));
+});
+
+it('retries an uncertain create with the same bytes/key and keeps that draft on reopen', async () => {
+  const user = userEvent.setup();
+  mutationReply = async () => { throw new TypeError('Fixture lost response') };
+  render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.addNote' }));
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Original create');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('notes.createRecovery');
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).readOnly).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'notes.cancel' }));
+  await user.click(screen.getByRole('button', { name: 'notes.addNote' }));
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Original create');
+  mutationReply = async () => calls[calls.length - 1].url.endsWith('/receipt')
+    ? ({ ok: true, status: 200, json: async () => ({ state: 'unissued' }) }) as Response
+    : ({ ok: true, status: 201, json: async () => ({ note: { id: 'created-note', family_id: 'family-a', created_by: 'account-a' } }) }) as Response;
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await waitFor(() => expect(calls.filter(call => call.method === 'POST' && call.url === '/api/notes')).toHaveLength(2));
+  const posts = jest.mocked(fetch).mock.calls.filter(([url, init]) => init?.method === 'POST' && String(url) === '/api/notes');
+  expect(posts[0][1]?.body).toBe(posts[1][1]?.body);
+  expect(new Headers(posts[0][1]?.headers).get('Idempotency-Key')).toBe(new Headers(posts[1][1]?.headers).get('Idempotency-Key'));
+});
+
+it('finishes removed-note recovery without recreating the original note', async () => {
+  const user = userEvent.setup();
+  mutationReply = async () => { throw new TypeError('Fixture lost response') };
+  render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.addNote' }));
+  await user.type(screen.getByLabelText('notes.noteTitle'), 'Removed later');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await screen.findByRole('alert');
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ state: 'removed', noteId: 'old-note' }) }) as Response;
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect(await screen.findByText('notes.createRemoved')).toBeTruthy();
+  expect(calls.filter(call => call.method === 'POST' && call.url === '/api/notes')).toHaveLength(1);
+  expect(calls.filter(call => call.url === '/api/notes/create/receipt')).toHaveLength(1);
+  expect(screen.queryByLabelText('notes.noteTitle')).toBeNull();
+});
+
+function recoveredFixture() {
+  return { kind: 'note-create' as const, key: 'restored-note-fixture-key-001', issuedAt: Date.now(), body: JSON.stringify({
+    title: 'Restored request', body: 'Original stored content', color: 'yellow', expected_user_id: 'account-a', expected_family_id: 'family-a',
+  }) };
+}
+it('reviews a restored journal and settles present proof without another create', async () => {
+  mockRecoveryAdopted = true; mockRecoveryRows = [recoveredFixture()];
+  mutationReply = async () => ({ ok: true, status: 200, json: async () => ({ state: 'present', noteId: 'saved-note' }) }) as Response;
+  const user = userEvent.setup(); render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.reviewRecovery' }));
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Restored request');
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).readOnly).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect(await screen.findByText('notes.saved')).toBeTruthy();
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(0);
+  expect(mockJournal.dismiss).toHaveBeenCalledWith('restored-note-fixture-key-001');
+});
+it.each(['stage', 'cleanup'])('holds an adopted %s fault and repairs without an automatic send', async fault => {
+  mockRecoveryAdopted = true; mockFailStage = fault === 'stage'; mockFailDismiss = fault === 'cleanup';
+  mutationReply = async () => calls[calls.length - 1].url.endsWith('/receipt')
+    ? ({ ok: true, status: 200, json: async () => ({ state: 'unissued' }) }) as Response
+    : ({ ok: true, status: 201, json: async () => {
+      // The request is already staged before the first application write.
+      expect(mockRecoveryRows).toHaveLength(1);
+      return { note: { id: 'saved-note', family_id: 'family-a', created_by: 'account-a' } };
+    } }) as Response;
+  const user = userEvent.setup(); render(<NotesPage />);
+  const add = await screen.findByRole('button', { name: 'notes.addNote' });
+  await waitFor(() => expect((add as HTMLButtonElement).disabled).toBe(false));
+  await user.click(add); await user.type(screen.getByLabelText('notes.noteTitle'), 'Durable request');
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  const dialog = screen.getByRole('dialog');
+  const repair = await within(dialog).findByRole('button', { name: 'notes.repairRecovery' });
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(fault === 'stage' ? 0 : 1);
+  mockFailStage = false; mockFailDismiss = false;
+  await user.click(repair);
+  expect(mockJournal.recoverStorage).toHaveBeenCalledTimes(1);
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(fault === 'stage' ? 0 : 1);
+  if (fault === 'stage') await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  expect(await screen.findByText('notes.saved')).toBeTruthy();
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(1);
+});
+
+it('clears the visible recovered draft on owner change without erasing its journal', async () => {
+  mockRecoveryAdopted = true; mockRecoveryRows = [recoveredFixture()];
+  const original = mockRecoveryRows[0];
+  const user = userEvent.setup(); render(<NotesPage />);
+  await user.click(await screen.findByRole('button', { name: 'notes.reviewRecovery' }));
+  mockJournal.inspect.mockRejectedValueOnce(Object.assign(new Error('Fixture owner changed'), { reason: 'OWNER_CHANGED' }));
+  await user.click(screen.getByRole('button', { name: 'notes.save' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByDisplayValue('Original stored content')).toBeNull();
+  expect(mockRecoveryRows).toEqual([original]);
+  expect(mockJournal.dismiss).not.toHaveBeenCalled();
+  expect(calls.filter(call => call.url === '/api/notes' && call.method === 'POST')).toHaveLength(0);
+});
+
+// Authored source coverage only; execution is deferred with the current no-QA scope.
+it.each(['save', 'delete'] as const)('keeps the note sheet after an oversized %s reply without decoding it', async (action) => {
+  const decode = jest.fn(async () => ({ success: true }))
+  mutationReply = async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': '1048576' }), json: decode }) as unknown as Response
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  await user.click(screen.getByRole('button', { name: `notes.${action}` }))
+  await screen.findByRole('alert')
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.getByRole('dialog')).toBeTruthy()
+  expect((screen.getByLabelText('notes.noteTitle') as HTMLInputElement).value).toBe('Wifi code')
+  expect((screen.getByRole('button', { name: `notes.${action}` }) as HTMLButtonElement).disabled).toBe(false)
+  expect(calls.filter(call => call.method === (action === 'save' ? 'PATCH' : 'DELETE'))).toHaveLength(1)
+})
+
+it('refuses an oversized notes page before decoding and offers recovery', async () => {
+  const decode = jest.fn(async () => ({ notes: [pagedNote('Oversized note')], nextCursor: null }))
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': '3145728' }), json: decode })) as unknown as typeof fetch
+  render(<NotesPage />)
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.queryByTestId('note-card')).toBeNull()
+})
+
+it.each([401, 403])('clears an existing personal note view on %s without decoding its error body', async (status) => {
+  const user = userEvent.setup()
+  render(<NotesPage />)
+  await user.click(await screen.findByText('Wifi code'))
+  const decode = jest.fn(() => new Promise(() => {}))
+  global.fetch = jest.fn(async (_input, init) => init?.method === 'PATCH'
+    ? ({ ok: true, status: 200, json: async () => ({ success: true }) })
+    : ({ ok: false, status, json: decode })) as unknown as typeof fetch
+  await user.click(screen.getByRole('button', { name: 'notes.save' }))
+  await screen.findByRole('button', { name: 'notes.retry' })
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.queryByTestId('note-card')).toBeNull()
 })

@@ -5,6 +5,7 @@ import * as React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("@/components/layout/pending-form-navigation", () => ({
   usePendingFormNavigationController: () => ({
@@ -199,7 +200,7 @@ it("locks an unknown create and checks the identical saved request on retry", as
     screen.queryByRole("textbox", { name: "Recipe name" }),
   ).not.toBeInTheDocument();
   fireEvent.click(
-    await screen.findByRole("button", { name: "Check the same save" }),
+    await screen.findByRole("button", { name: "Retry original save" }),
   );
   await waitFor(() => expect(store.sendExact).toHaveBeenCalledTimes(2));
   expect(store.sendExact.mock.calls[1].slice(0, 3)).toEqual(first);
@@ -229,4 +230,51 @@ it("keeps the unadopted legacy editor independent of browser recovery stores", a
   render(<RecipeEditor onCancel={jest.fn()} />);
   await screen.findByLabelText("Recipe name");
   expect(browserReviewDocument).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: imported review context retains the original full recipe owner.
+it("forwards the preview owner and propagates a context session hold before opening an editor", async () => {
+  const { OwnedRequestRecoveryError } = await import("@/lib/owned-request-journal");
+  const expected = { protocol: "herewoven.recipe-owner.v1", actorId: "fixture-parent", familyId: "fixture-family", role: "parent", generation: 7 } as const;
+  jest.mocked(readReviewDocumentContext).mockRejectedValueOnce(new OwnedRequestRecoveryError("OWNER_CHANGED"));
+  const held = jest.fn();
+  render(<RecipeEditor expectedRecipeOwner={expected} onOwnerHold={held} onCancel={jest.fn()} />);
+  await waitFor(() => expect(held).toHaveBeenCalledTimes(1));
+  expect(readReviewDocumentContext).toHaveBeenCalledWith("recipe", expected);
+  expect(screen.queryByLabelText("Recipe name")).toBeNull();
+  expect(store.freeze).not.toHaveBeenCalled();
+  expect(store.sendExact).not.toHaveBeenCalled();
+});
+
+// Authored UNRUN: every saved-request inspector keeps the frozen preview context.
+it("passes the original preview owner into its saved receipt inspector", async () => {
+  const expected = { protocol: "herewoven.recipe-owner.v1", actorId: "fixture-parent", familyId: "fixture-family", role: "parent", generation: context.owner!.generation } as const;
+  const { inspectReviewDocumentReceipt } = await import("@/lib/review-document-receipts");
+  render(<RecipeEditor expectedRecipeOwner={expected} onCancel={jest.fn()} />);
+  fireEvent.change(await screen.findByLabelText("Recipe name"), { target: { value: "Family soup" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save recipe" }));
+  await waitFor(() => expect(store.sendExact).toHaveBeenCalledTimes(1));
+  const inspector = store.sendExact.mock.calls[0][3];
+  const savedRequest = JSON.parse(rows[0].body).requests[0];
+  await inspector(savedRequest, context);
+  expect(inspectReviewDocumentReceipt).toHaveBeenCalledWith(savedRequest, context, expected);
+});
+
+// Authored UNRUN: confirmed retirement precedes a best-effort parent handoff.
+it("keeps an adopted confirmed save completed when its selection callback throws", async () => {
+  store.sendExact.mockResolvedValue({ sent: true, result: { kind: 'reply', response: { ok: true, status: 201 }, body: {
+    recipe: { id: 'confirmed-recipe', title: 'Confirmed soup', servings: 2, prep_time: null, cook_time: null },
+  } } });
+  store.retireConfirmed.mockImplementation(async () => { rows = []; return true });
+  const created = jest.fn(() => { throw new Error('Fixture callback failure') });
+  render(<RecipeEditor onCreated={created} onCancel={jest.fn()} />);
+  fireEvent.change(await screen.findByLabelText('Recipe name'), { target: { value: 'Confirmed soup' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+  await screen.findByText('The recipe was saved and is still in your recipe box.');
+  expect(screen.queryByRole('button', { name: 'Check the same save' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save recipe' })).toBeNull();
+  expect(screen.getByRole('link', { name: 'Open recipe box' })).toHaveAttribute('href', '/dashboard/meals/explore');
+  expect(store.sendExact).toHaveBeenCalledTimes(1);
+  expect(store.retireConfirmed).toHaveBeenCalledTimes(1);
+  expect(created).toHaveBeenCalledTimes(1);
 });

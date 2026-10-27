@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { PROJECT_CALENDAR_SUMMARY_MODE, projectCalendarSummary } from "@/lib/project-calendar-response";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { useProjectOverviewText } from "@/i18n/project-overview";
+
+class UnconfirmedCalendarSend extends Error {}
 
 function viewerTimeZone(): string | undefined {
   try {
@@ -23,9 +26,19 @@ export function SendToCalendarButton({ projectId }: { projectId: string }) {
   const { addToast } = useToast();
   const text = useProjectOverviewText();
   const [sending, setSending] = useState(false);
+  const generation = useRef(0);
+  const pending = useRef(false);
+  useEffect(() => {
+    generation.current++;
+    pending.current = false;
+    setSending(false);
+    return () => { generation.current++; };
+  }, [projectId]);
 
   const send = async () => {
-    if (sending) return;
+    if (pending.current) return;
+    const epoch = generation.current;
+    pending.current = true;
     setSending(true);
     try {
       const res = await fetch(
@@ -33,19 +46,21 @@ export function SendToCalendarButton({ projectId }: { projectId: string }) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ timeZone: viewerTimeZone() }),
+          body: JSON.stringify({ timeZone: viewerTimeZone(), responseMode: PROJECT_CALENDAR_SUMMARY_MODE }),
         },
       );
       const data = await res.json().catch(() => null);
+      if (epoch !== generation.current) return;
       if (!res.ok) {
+        if (res.status >= 500) throw new UnconfirmedCalendarSend();
         throw new Error(
           (data && typeof data.error === "string" && data.error) ||
             text("taskUpdateFallback"),
         );
       }
-      const created = data?.eventsCreated;
-      if (!Number.isInteger(created) || created < 0)
-        throw new Error(text("calendarError"));
+      const result = projectCalendarSummary.safeParse(data);
+      if (!result.success) throw new UnconfirmedCalendarSend();
+      const created = result.data.eventsCreated;
       addToast({
         type: "success",
         title:
@@ -54,22 +69,26 @@ export function SendToCalendarButton({ projectId }: { projectId: string }) {
               ? text("calendarAddedOne")
               : text("calendarAddedMany", { count: created })
             : text("calendarNothing"),
-        message: created > 0 ? undefined : text("calendarNothingMessage"),
+        message: created > 0 ? undefined : text(result.data.state === "no-tasks" ? "calendarNoDatedTasks" : "calendarNothingMessage"),
       });
       router.refresh();
     } catch (error) {
+      if (epoch !== generation.current) return;
       addToast({
         type: "error",
         title: text("calendarError"),
         message:
-          error instanceof TypeError
-            ? text("taskUpdateNetworkError")
+          error instanceof TypeError || error instanceof UnconfirmedCalendarSend
+            ? text("calendarResultUnknown")
             : error instanceof Error
               ? error.message
               : text("taskUpdateFallback"),
       });
     } finally {
-      setSending(false);
+      if (epoch === generation.current) {
+        pending.current = false;
+        setSending(false);
+      }
     }
   };
 

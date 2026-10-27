@@ -1,0 +1,88 @@
+"use client";
+import { useCallback } from "react";
+import { useTranslation } from "@/i18n";
+
+// Recipe chrome only: authored titles, ingredients, units and instructions are
+// household content and must never be translated or rewritten by these keys.
+export const recipePresentationEnglish = {
+  prep: "Prep",
+  cook: "Cook",
+  serves: "Serves",
+  original: "Original recipe",
+  ingredients: "Ingredients",
+  noIngredients: "No ingredients listed for this recipe.",
+  method: "Method",
+  pickerLoading: "Loading recipes…",
+  pickerFailed: "Couldn’t load recipes. You can still save the meal by name.",
+  pickerEmptyCreate: "No recipes yet. Create one with “New recipe”.",
+  pickerEmpty: "No recipes yet.",
+  pickerLabel: "Recipe (optional)",
+  pickerSearch: "Search saved recipes",
+  pickerNoMatches: "No matching recipes. Try another search.",
+  pickerPages: "Recipe pages",
+  pickerPrevious: "Previous recipes",
+  pickerNext: "More recipes",
+  noRecipe: "No recipe (just a name)",
+  newRecipe: "New recipe",
+  retry: "Try again",
+  reuseLabel: "Reuse saved recipe",
+  reuseReview: "Review the day and portions before saving. This uses the same saved recipe.",
+  reuseFailed: "We could not load this recipe. It may be unavailable in your current household.",
+  reuseLoading: "Loading saved recipe…",
+  usePrep: "Use in a prep session",
+  useMeal: "Plan this recipe",
+  dismiss: "Dismiss",
+  preparedUsed: "Recipe used",
+  preparedTitle: "Recipe saved at preparation",
+  preparedDescription: "Details recorded when prep was marked complete. Editing the current recipe does not change this record.",
+  close: "Close",
+  preparedLoading: "Loading…",
+  preparedFailed: "We could not read this record. It is kept unchanged.",
+  preparedNotRecorded: "Recipe details were not recorded when this session was prepared. The current recipe may have changed.",
+  preparedNotPrepared: "This session has not been marked prepared yet.",
+  preparedRecordedAt: "Recorded: {date}",
+};
+export const recipePresentationSpanish: Record<keyof typeof recipePresentationEnglish, string> = {
+  prep: "Preparación",
+  cook: "Cocción",
+  serves: "Porciones",
+  original: "Receta original",
+  ingredients: "Ingredientes",
+  noIngredients: "Esta receta no tiene ingredientes registrados.",
+  method: "Pasos",
+  pickerLoading: "Cargando recetas…",
+  pickerFailed: "No se pudieron cargar las recetas. Puedes guardar la comida solo con un nombre.",
+  pickerEmptyCreate: "Aún no hay recetas. Crea una con «Nueva receta».",
+  pickerEmpty: "Aún no hay recetas.",
+  pickerLabel: "Receta (opcional)",
+  pickerSearch: "Buscar recetas guardadas",
+  pickerNoMatches: "No hay recetas que coincidan. Prueba otra búsqueda.",
+  pickerPages: "Páginas de recetas",
+  pickerPrevious: "Recetas anteriores",
+  pickerNext: "Más recetas",
+  noRecipe: "Sin receta (solo un nombre)",
+  newRecipe: "Nueva receta",
+  retry: "Reintentar",
+  reuseLabel: "Reutilizar receta guardada",
+  reuseReview: "Revisa el día y las porciones antes de guardar. Se usa la misma receta guardada.",
+  reuseFailed: "No pudimos cargar esta receta. Puede no estar disponible en tu hogar actual.",
+  reuseLoading: "Cargando receta guardada…",
+  usePrep: "Usar en una preparación",
+  useMeal: "Planificar esta receta",
+  dismiss: "Descartar",
+  preparedUsed: "Receta usada",
+  preparedTitle: "Receta guardada al preparar",
+  preparedDescription: "Detalles registrados al marcar la preparación como terminada. No cambian al editar la receta actual.",
+  close: "Cerrar",
+  preparedLoading: "Cargando…",
+  preparedFailed: "No pudimos leer este registro. Se conserva sin cambios.",
+  preparedNotRecorded: "No se registraron los detalles de la receta al preparar esta sesión. La receta actual puede haber cambiado.",
+  preparedNotPrepared: "Esta sesión aún no se ha marcado como preparada.",
+  preparedRecordedAt: "Registrada: {date}",
+};
+const messages = { en: recipePresentationEnglish, es: recipePresentationSpanish };
+export function useRecipePresentationText() {
+  const { t } = useTranslation();
+  return useCallback((key: keyof typeof recipePresentationEnglish, params?: Record<string, string | number>) =>
+    t(key, params, messages), [t]);
+}

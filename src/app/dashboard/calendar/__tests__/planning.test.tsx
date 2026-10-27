@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import * as React from "react";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 jest.mock("../calendar-planner.module.css", () => ({}));
@@ -22,7 +23,7 @@ beforeEach(() => {
     removeEventListener: jest.fn(),
   });
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? {
@@ -35,7 +36,7 @@ it("shows overflow late-day targets in an explicitly labelled list, not shifted 
   const day = new Date(2026, 0, 5, 23, 30);
   const end = new Date(2026, 0, 5, 23, 45);
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }
@@ -69,7 +70,7 @@ it("shows overflow late-day targets in an explicitly labelled list, not shifted 
 });
 it("allocates enough clock-column width for four overlapping 44px targets", async () => {
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }
@@ -91,7 +92,7 @@ it("allocates enough clock-column width for four overlapping 44px targets", asyn
 });
 it("labels a full continuing timed segment without inventing all-day or midnight duration", async () => {
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }
@@ -152,7 +153,7 @@ it("loads a bounded week, discovers empty sources and opens teen details without
   expect(screen.getByText("No events from this calendar")).toBeTruthy();
 });
 it('keeps the week grid available when there are no events', async () => {
-  global.fetch = jest.fn(async (url) => ({ ok: true, json: async () => String(url).includes('subscriptions') ? { subscriptions: [] } : { events: [], hasMore: false, nextCursor: null } })) as jest.Mock;
+  global.fetch = jest.fn(async (url) => ({ ok: true, headers: calendarReadOwnerHeaders(), json: async () => String(url).includes('subscriptions') ? { subscriptions: [] } : { events: [], hasMore: false, nextCursor: null } })) as jest.Mock;
   render(<CalendarPlanner initialDate="2026-01-05" initialView="week" />);
   await screen.findByText('No events in this range');
   expect(screen.getByLabelText('Timed calendar, all 24 hours')).toBeTruthy();

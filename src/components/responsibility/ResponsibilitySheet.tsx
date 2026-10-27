@@ -1,7 +1,9 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 import { Dialog } from "@/components/ui/dialog";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useResponsibilityText } from "@/i18n/responsibility";
 import { browserResponsibilityRecovery } from "@/lib/responsibility-browser";
@@ -45,7 +47,8 @@ export default function ResponsibilitySheet({
   onOpen: (target: ResponsibilityTarget) => void;
 }) {
   const copy = useResponsibilityText(),
-    locale = useDisplayLocale();
+    locale = useDisplayLocale(),
+    router = useDraftAwareRouter();
   const store = React.useRef<Store | null>(null),
     context = React.useRef<ResponsibilityRecoveryContext | null>(null);
   const alive = React.useRef(false),
@@ -81,6 +84,36 @@ export default function ResponsibilitySheet({
     setPreview(null);
     setChooser(null);
     setStorageError(true);
+  }
+  function targetNavigationBlocked() {
+    return (
+      busy ||
+      operation.current ||
+      storageAction.current !== null ||
+      storageError ||
+      ownerHeld.current
+    );
+  }
+  function navigateToTarget(
+    href: ResponsibilityView["href"],
+    event: React.MouseEvent<HTMLAnchorElement>,
+  ) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    if (targetNavigationBlocked()) return;
+    void router.push(href).then((allowed) => {
+      if (allowed) {
+        alive.current = false;
+        epoch.current++;
+      }
+    });
   }
   const current = (version: number) =>
     alive.current && epoch.current === version;
@@ -465,9 +498,20 @@ export default function ResponsibilitySheet({
       <div className="space-y-4" aria-busy={busy}>
         {ownerHeld.current && <p role="alert">{copy.ownerChanged}</p>}
         {view && (
-          <h2 className="break-words text-headline font-semibold">
-            {view.title}
-          </h2>
+          <div className="space-y-2">
+            <h2 className="break-words text-headline font-semibold">
+              {view.title}
+            </h2>
+            <Link
+              className={`${plain} ${targetNavigationBlocked() ? "opacity-50" : ""}`}
+              href={view.href}
+              aria-disabled={targetNavigationBlocked() || undefined}
+              tabIndex={targetNavigationBlocked() ? -1 : undefined}
+              onClick={(event) => navigateToTarget(view.href, event)}
+            >
+              {copy.openTarget}
+            </Link>
+          </div>
         )}
         {busy && <p role="status">{copy.loading}</p>}
         {error && <p role="alert">{copy.error}</p>}

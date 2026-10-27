@@ -1,5 +1,9 @@
 "use client";
 import * as React from "react";
+import { CalendarReadHeld, useCalendarReadScope } from "@/components/calendar/CalendarReadScope";
+import type { CalendarReadOwner } from "@/lib/calendar-read-owner";
+import { EventNotificationFocus } from "@/components/calendar/EventNotificationFocus";
+import type { EventNotificationFocus as Focus } from "@/lib/event-notification-focus";
 import { useCoreTranslation } from "@/i18n/core";
 import {
   calendarPageMessages,
@@ -21,6 +25,8 @@ const LazyImportEventsDialog = React.lazy(() =>
 );
 interface CalendarPageClientProps {
   events: unknown[];
+  initialOwner?: CalendarReadOwner;
+  notificationFocus?: { target: Focus | null };
   currentMonth: number;
   currentYear: number;
   initialDate?: string;
@@ -36,6 +42,8 @@ export function calendarMonthHref(year: number, month: number): string {
 }
 export default function CalendarPageClient({
   events,
+  initialOwner,
+  notificationFocus,
   currentMonth,
   currentYear,
   initialDate,
@@ -51,6 +59,7 @@ export default function CalendarPageClient({
     params?: Record<string, string | number>,
   ) => t(key, params, calendarPageMessages);
   const router = useRouter();
+  const readScope = useCalendarReadScope(initialOwner);
   const [importOpen, setImportOpen] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [imported, setImported] = React.useState<{
@@ -58,17 +67,22 @@ export default function CalendarPageClient({
     at: number;
   } | null>(null);
   const refresh = () => {
+    if (readScope.held) return;
     setRefreshKey((n) => n + 1);
     router.refresh();
   };
   const onImported = (result: ImportCommitResult) => {
+    if (readScope.held) return;
     setImportOpen(false);
     setImported({ result, at: Date.now() });
     refresh();
   };
+  if (readScope.held) return <CalendarReadHeld />;
   return (
     <div className="pb-20">
+      {notificationFocus && <EventNotificationFocus target={notificationFocus.target} />}
       <CalendarPlanner
+        readScope={readScope}
         initialDate={
           initialDate ||
           `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`

@@ -76,6 +76,17 @@ const stack = {
   },
 };
 
+const draft = {
+  scope: "occurrence",
+  family_id: "family-a",
+  stack_id: "stack-a",
+  occurrence_date: "2026-10-11",
+  label: "Morning",
+  steps: [],
+  remove_chore_ids: [],
+  expected_fingerprint: "fingerprint-a",
+};
+
 function request(
   url: string,
   body?: unknown,
@@ -101,7 +112,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest
     .mocked(authenticateWithFamily)
-    .mockResolvedValue([{ user } as any, null]);
+    .mockResolvedValue([{ user, payload: { tv: 0 } } as any, null]);
   jest
     .mocked(requireParent)
     .mockImplementation((role: string) =>
@@ -228,17 +239,6 @@ describe("/api/chores/stacks authorization and scope", () => {
 });
 
 describe("POST /api/chores/stacks", () => {
-  const draft = {
-    scope: "occurrence",
-    family_id: "family-a",
-    stack_id: "stack-a",
-    occurrence_date: "2026-10-11",
-    label: "Morning",
-    steps: [],
-    remove_chore_ids: [],
-    expected_fingerprint: "fingerprint-a",
-  };
-
   it("requires a keyed parent mutation", async () => {
     jest.mocked(readIdempotencyKey).mockReturnValueOnce({
       key: null,
@@ -263,7 +263,7 @@ describe("POST /api/chores/stacks", () => {
     expect(saveParentRoutineStack).toHaveBeenCalledWith(
       expect.anything(),
       draft,
-      { familyId: "family-a", userId: "parent-a", role: "parent" },
+      { familyId: "family-a", userId: "parent-a", role: "parent", tokenVersion: 0 },
       "key-a",
     );
     expect(await responseBody(response as any)).toEqual({
@@ -287,6 +287,7 @@ describe("POST /api/chores/stacks", () => {
         userId: "parent-a",
         role: "parent",
         memberProtocol: 2,
+        tokenVersion: 0,
       },
       "key-a",
     );
@@ -345,4 +346,24 @@ describe("POST /api/chores/stacks", () => {
     expect(readIdempotencyKey).not.toHaveBeenCalled();
     expect(saveParentRoutineStack).not.toHaveBeenCalled();
   });
+});
+
+// Authored UNRUN: generation comes from authentication, never body fields.
+it('carries a nonzero original session generation to routine persistence', async () => {
+  jest.mocked(authenticateWithFamily).mockResolvedValueOnce([{ user, payload: { tv: 7 } } as any, null]);
+  await POST(request('https://family.test/api/chores/stacks', draft, 'key-a'));
+  expect(saveParentRoutineStack).toHaveBeenCalledWith(expect.anything(), draft,
+    expect.objectContaining({ tokenVersion: 7, userId: 'parent-a', familyId: 'family-a' }), 'key-a');
+});
+
+// Authored UNRUN: an expired timestamp refuses before source decoding/writer.
+it('refuses a supplied expired issue-time header before body/receipt work', async () => {
+  const input = request('https://family.test/api/chores/stacks', draft, 'key-a');
+  input.headers.set('X-Herewoven-Routine-Issued-At', '2020-01-01T00:00:00.000Z');
+  input.json = jest.fn(async () => draft);
+  const result = await POST(input);
+  expect(result.status).toBe(409);
+  expect(await responseBody(result as any)).toMatchObject({ error: { code: 'ROUTINE_STACK_WINDOW_CLOSED' } });
+  expect(input.json).not.toHaveBeenCalled();
+  expect(saveParentRoutineStack).not.toHaveBeenCalled();
 });

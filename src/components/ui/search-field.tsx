@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSharedControlsText } from '@/i18n/shared-controls'
 
 /**
  * SearchField — iOS-style rounded search input (rounded-full, soft fill).
@@ -10,8 +11,8 @@ import { cn } from '@/lib/utils'
 export function SearchField({
   value,
   onChange,
-  placeholder = 'Search',
-  clearLabel = 'Clear',
+  placeholder,
+  clearLabel,
   ariaLabel,
   className,
   onSubmit,
@@ -25,6 +26,8 @@ export function SearchField({
   onSubmit?: () => void
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const text = useSharedControlsText()
+  const displayPlaceholder = placeholder ?? text('search')
 
   return (
     <div className={cn('relative', className)}>
@@ -32,11 +35,11 @@ export function SearchField({
       <input
         ref={inputRef}
         type="search"
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? (displayPlaceholder || text('search'))}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onSubmit?.()}
-        placeholder={placeholder}
+        placeholder={displayPlaceholder}
         className="no-native-clear w-full h-11 pl-9 pr-14 rounded-full bg-surface-fill text-subhead text-label-primary placeholder:text-label-tertiary focus:outline-none focus:bg-surface-fill-secondary transition-colors"
       />
       {value && (
@@ -48,7 +51,7 @@ export function SearchField({
             inputRef.current?.focus()
           }}
           className="absolute right-0 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
-          aria-label={clearLabel || 'Clear'}
+          aria-label={clearLabel || text('clear')}
         >
           {/* Keep the small visual circle inside a 44px touch target. */}
           <span

@@ -4,6 +4,9 @@
 // 3. Creates/updates tables to match the current Prisma schema
 // 4. Runs any database/migration-*.sql files (sorted alphabetically, idempotent)
 // 5. Runs POST_FEATURE_SQL (changes to tables those files create)
+// NotificationEventOccurrence is defined in the sorted migration-zzzzzzzzzz-
+// notification-event-occurrences.sql; admission stays separately default-off.
+// Its terminal recipient decisions follow in the next sorted per-feature file.
 // Food source continuity columns (food_generation / food_epoch) for Family,
 // User, Recipe, RecipeIngredient, Ingredient, InventoryItem, FamilyMeal,
 // MealPrepSession, MealBatch, MealBatchConsumption and List are installed with

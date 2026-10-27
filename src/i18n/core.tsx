@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import type { Locale } from "./types";
+import { CLOCK_FORMAT_STORAGE_KEY, isClockFormat, readClockFormat, writeClockFormat, type ClockFormat } from "@/lib/clock-format";
 import { pseudolocalizeTemplate } from "./pseudo";
 
 export type { Locale } from "./types";
@@ -95,6 +96,9 @@ export function translateMessage(
 type CoreI18nContextValue = {
   locale: Locale;
   setLocale: (locale: Locale) => void;
+  clockFormat: ClockFormat;
+  clockRemembered: boolean;
+  setClockFormat: (format: ClockFormat) => void;
   /** Whether a provider was mounted. This preserves provider-free fallbacks. */
   provided: boolean;
   pseudolocalize: boolean;
@@ -103,6 +107,9 @@ type CoreI18nContextValue = {
 const defaultContext: CoreI18nContextValue = {
   locale: "en",
   setLocale: () => {},
+  clockFormat: "auto",
+  clockRemembered: true,
+  setClockFormat: () => {},
   provided: false,
   pseudolocalize: false,
 };
@@ -157,6 +164,26 @@ export function CoreI18nProvider({
   pseudolocalize?: boolean;
 }) {
   const [currentLocale, setCurrentLocale] = useState<Locale>(locale);
+  // Default is identical during SSR/hydration; device storage applies after mount.
+  const [clockFormat, setCurrentClockFormat] = useState<ClockFormat>("auto");
+  const [clockRemembered, setClockRemembered] = useState(true);
+  useEffect(() => {
+    if (!persistLocale) return;
+    setCurrentClockFormat(readClockFormat());
+    const changed = (event: StorageEvent) => {
+      if (event.key === CLOCK_FORMAT_STORAGE_KEY || event.key === null) {
+        setCurrentClockFormat(readClockFormat());
+        setClockRemembered(true);
+      }
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [persistLocale]);
+  const setClockFormat = useCallback((next: ClockFormat) => {
+    if (!isClockFormat(next)) return;
+    setCurrentClockFormat(next);
+    setClockRemembered(persistLocale ? writeClockFormat(next) : false);
+  }, [persistLocale]);
 
   useEffect(() => {
     if (!persistLocale) return;
@@ -182,6 +209,9 @@ export function CoreI18nProvider({
       value={{
         locale: currentLocale,
         setLocale,
+        clockFormat,
+        clockRemembered,
+        setClockFormat,
         provided: true,
         pseudolocalize,
       }}

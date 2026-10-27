@@ -213,6 +213,11 @@ export function normalizeRoutineStackDraft(input: unknown): RoutineStackDraft {
   return {
     ...parsed.data,
     scope: ROUTINE_STACK_SCOPE,
+    // Keep optional wire fields canonical after validation. Consumers use
+    // null to distinguish an unstacked occurrence from a requested stack;
+    // leaving this optional value as undefined makes receipt inspection treat
+    // every create draft as if it carried a mismatched stack id.
+    stack_id: parsed.data.stack_id ?? null,
     label,
     occurrence_date: parsed.data.occurrence_date,
     steps: parsed.data.steps.map((step) => ({

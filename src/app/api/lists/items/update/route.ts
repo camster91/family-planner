@@ -4,6 +4,8 @@ import { featureGate } from '@/lib/feature-gate-server'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { updateListItemSchema } from '@/lib/validations'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { authorizePersonListItemInTx } from '@/lib/person-list-item-authority'
+import { authorizePersonListItemReplay } from '@/lib/person-list-item-create'
 import { updateListItemAndNoteTick } from '@/lib/list-item-update'
 import { apiError, logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -55,6 +57,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
+    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }
     return await withIdempotency(
       prisma!,
       key,
@@ -65,7 +68,8 @@ export async function PATCH(request: NextRequest) {
         action: LIST_ITEM_UPDATE_ACTION,
       },
       parsed.data,
-      () => updateListItemAndNoteTick(prisma!, parsed.data, auth.user)
+      ({ recordId }) => updateListItemAndNoteTick(prisma!, parsed.data, auth.user, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}), receipt: { recordId, action: LIST_ITEM_UPDATE_ACTION } }),
+      { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null) },
     )
   } catch (error) {
     logRouteError('PATCH /api/lists/items/update', error, getRequestId(request))

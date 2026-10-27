@@ -22,11 +22,13 @@ export async function runFamilyImport(options: {
   startedBy: string;
   identityMap?: Readonly<Record<string, string>>;
   dryRun?: boolean;
+  sessionVersion?: number;
 }) {
   const common = {
     familyId: options.familyId,
     startedBy: options.startedBy,
     dryRun: options.dryRun,
+    sessionVersion: options.sessionVersion,
   };
 
   switch (options.source) {

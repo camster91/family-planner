@@ -15,6 +15,8 @@ export type RewardCreateDraft = {
 export type RewardCreateIntent = {
   key: string;
   draft: RewardCreateDraft;
+  /** Missing/unsupported legacy timing is retained as unknown, never renewed. */
+  issuedAt?: unknown;
 };
 
 export type RewardCreateStorage = {
@@ -29,6 +31,8 @@ export type RewardCreateOwnerStore = {
   owner: RewardCreateOwner;
   latestDraft: RewardCreateDraft | null;
   intents: Map<string, RewardCreateIntent>;
+  /** Unknown persisted history must not be overwritten or treated as empty. */
+  storageHeld?: boolean;
 };
 
 export const REWARD_CREATE_INTENT_STORAGE_VERSION = 1;

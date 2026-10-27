@@ -54,6 +54,9 @@ export const routineStackEnglish = {
   retry: "Try again",
   saveError: "Routine could not save",
   retrySave: "Retry save",
+  inspectSave: "Check saved status",
+  inspectUnknown: "The original save is still unconfirmed. Keep this draft unchanged; no new save was sent.",
+  retryWindowClosed: "This save is too old to retry safely, or your device clock changed. Keep the draft and check the saved routine before starting again.",
   unknownSave:
     "We could not confirm whether the routine was saved. Keep this draft unchanged and retry.",
   conflict:
@@ -134,6 +137,9 @@ export const routineStackSpanish: RoutineStackMessages = {
   retry: "Intentar de nuevo",
   saveError: "No se pudo guardar la rutina",
   retrySave: "Reintentar guardado",
+  inspectSave: "Consultar estado del guardado",
+  inspectUnknown: "El guardado original sigue sin confirmarse. Conserva este borrador sin cambios; no se envió un nuevo guardado.",
+  retryWindowClosed: "Este guardado es demasiado antiguo para reintentarlo con seguridad o cambió el reloj del dispositivo. Conserva el borrador y revisa la rutina guardada antes de empezar de nuevo.",
   unknownSave:
     "No pudimos confirmar si se guardó la rutina. Conserva este borrador sin cambios y reintenta.",
   conflict:

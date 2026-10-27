@@ -1,4 +1,6 @@
 "use client";
+import { CHORE_PHOTO_MAX_BYTES, isChorePhotoPath } from "@/lib/chore-photo-contract";
+import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
 import { useTodayKey } from "@/components/ui/use-hydrated";
 import { parseDateOnly, toDateOnlyLocal } from "@/lib/dates";
@@ -35,15 +37,15 @@ import {
   usePendingFormNavigation,
   usePendingFormNavigationController,
 } from "@/components/layout/pending-form-navigation";
-import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import { IDEMPOTENCY_HEADER, IDEMPOTENCY_TTL_MS, newIdempotencyKey } from "@/lib/idempotency-key";
 import { canonicalBodySignature } from "@/lib/request-signature";
 import {
   findActiveHouseholdProfile,
+  readHouseholdProfilesResponse,
   readApiErrorCode,
   type HouseholdProfile,
 } from "@/lib/household-profile-types";
 import {
-  fetchHouseholdProfiles,
   readProfileChoreCreateSuccess,
 } from "@/lib/household-profile-client";
 import { useProfileSetupText } from "@/i18n/profile-setup";
@@ -135,10 +137,27 @@ export default function CreateChoreForm({
     review?.initial.weeklyDays ?? [],
   );
   const [loading, setLoading] = useState(false);
+  const submitPending = useRef(false);
+  const live = useRef(true);
+  const submitEpoch = useRef(0);
+  const submitController = useRef<AbortController | null>(null);
+  const accountRequest = useRef<{ key: string; body: string; issuedAt: number } | null>(null);
+  const originalRecoveryRequest = useRef<{ action: "chore.create" | "chore.profile.create"; key: string; body: string } | null>(null);
+  const [checkingReceipt, setCheckingReceipt] = useState(false);
+  const [receiptFeedback, setReceiptFeedback] = useState<ChoreFormMessage | null>(null);
+  const [accountSaveState, setAccountSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; submitEpoch.current++; submitController.current?.abort(); submitPending.current = false; };
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [familyMembers, setFamilyMembers] = useState<
     { id: string; name: string; role: string }[]
   >([]);
+  const [targetsAttempt, setTargetsAttempt] = useState(0);
+  const [membersState, setMembersState] = useState<"loading" | "ready" | "failed">("loading");
+  const [profilesFailed, setProfilesFailed] = useState(false);
+  const [profilesLoading, setProfilesLoading] = useState(true);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
@@ -149,9 +168,12 @@ export default function CreateChoreForm({
     review?.initial.photoUrl ?? null,
   );
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoError, setPhotoError] = useState(false);
+  const [photoError, setPhotoError] = useState<ChoreFormMessage | null>(null);
+  const photoEpoch = useRef(0);
+  const photoController = useRef<AbortController | null>(null);
   const photoUploadPending = useRef(false);
-  const busy = loading || photoUploading;
+  useEffect(() => () => { photoEpoch.current++; photoController.current?.abort(); photoUploadPending.current = false; }, []);
+  const busy = loading || photoUploading || checkingReceipt;
   const directNavigation = usePendingFormNavigationController(busy && !inSheet);
   const sheetNavigation = usePendingFormNavigation();
   const navigation = inSheet ? sheetNavigation : directNavigation;
@@ -162,19 +184,29 @@ export default function CreateChoreForm({
   const profileIdempotencyKey = useRef<{
     key: string;
     signature: string;
+    issuedAt: number;
   } | null>(null);
-  const profileAmbiguousKeys = useRef(new Map<string, string>());
+  const profileAmbiguousKeys = useRef(new Map<string, { key: string; issuedAt: number; body: Record<string, unknown> }>());
+  const [profileRetryAgeHeld, setProfileRetryAgeHeld] = useState(false);
   const profileDraftRevision = useRef(0);
   const profilePendingRequest = useRef<{
     body: Record<string, unknown>;
     key: string;
     signature: string;
+    issuedAt: number;
     draftRevision: number;
   } | null>(null);
   const markProfileDraftEdited = () => {
     profileIdempotencyKey.current = null;
     profilePendingRequest.current = null;
     profileDraftRevision.current += 1;
+    setProfileRetryAgeHeld(false);
+  };
+  const retainProfileRequest = (original?: typeof profilePendingRequest.current) => {
+    const pending = original ?? profilePendingRequest.current;
+    if (pending) profileAmbiguousKeys.current.set(pending.signature, {
+      key: pending.key, issuedAt: pending.issuedAt, body: pending.body,
+    });
   };
   const assignedTo =
     assignmentTarget.kind === "account" ? assignmentTarget.id : "";
@@ -182,7 +214,7 @@ export default function CreateChoreForm({
     assignmentTarget.kind === "profile" ? assignmentTarget.id : null;
   const profileTargetMissing = Boolean(
     profileTargetId &&
-    !findActiveHouseholdProfile(profileOptions, profileTargetId),
+    (profilesLoading || profilesFailed || !findActiveHouseholdProfile(profileOptions, profileTargetId)),
   );
   // Picture routines (#272).
   const [icon, setIcon] = useState<string | null>(review?.initial.icon ?? null);
@@ -217,6 +249,8 @@ export default function CreateChoreForm({
     rotation,
   };
   const reviewSignature = JSON.stringify(reviewState);
+  const currentDraftSignature = useRef(reviewSignature);
+  currentDraftSignature.current = reviewSignature;
   const previousReviewSignature = useRef(reviewSignature);
   useEffect(() => {
     if (previousReviewSignature.current === reviewSignature) return;
@@ -244,9 +278,12 @@ export default function CreateChoreForm({
         ? []
         : [message("fieldAssignee")]),
   ];
-  const submitHint = profileTargetMissing
-    ? profileText("profileTargetRefresh")
-    : missingFields.length === 0
+  const assignmentReadBlocked = profileTargetId ? profileTargetMissing : membersState !== "ready";
+  const submitHint = !profileTargetId && membersState !== "ready"
+    ? message(membersState === "loading" ? "assignmentLoading" : "assignmentLoadFailed")
+    : profileTargetMissing
+      ? profileText("profileTargetRefresh")
+      : missingFields.length === 0
       ? null
       : missingFields.length === 1
         ? message("missingOne", { field: missingFields[0] })
@@ -270,7 +307,11 @@ export default function CreateChoreForm({
         setWeeklyStart(date);
       }
     }
-    const requestedProfileId = params.get("profile");
+  }, []);
+
+  useEffect(() => {
+    if (reviewRef.current) return;
+    const requestedProfileId = new URLSearchParams(window.location.search).get("profile");
     if (!requestedProfileId || profileOptions.length === 0) return;
     const requestedProfile = findActiveHouseholdProfile(
       profileOptions,
@@ -283,78 +324,61 @@ export default function CreateChoreForm({
   }, [profileOptions]);
 
   useEffect(() => {
-    const loadFamilyMembers = async () => {
-      try {
-        const res = await fetch("/api/family/members");
-        const data = await res.json();
-        if (res.ok && data.members) {
-          setFamilyMembers(data.members);
-          const requestedProfileId = new URLSearchParams(
-            window.location.search,
-          ).get("profile");
-          // A profile query is resolved against the active profile catalog.
-          // Never turn a stale or still-loading profile request into the first
-          // account in the household.
-          if (
-            !reviewRef.current &&
-            data.members.length > 0 &&
-            !assignedTo &&
-            !requestedProfileId
-          ) {
-            const requested = new URLSearchParams(window.location.search).get(
-              "member",
-            );
-            setAssignmentTarget((current) =>
-              current.kind === "profile"
-                ? current
-                : current.id
-                  ? current
-                  : {
-                      kind: "account",
-                      id:
-                        data.members.find(
-                          (m: { id: string }) => m.id === requested,
-                        )?.id ?? data.members[0].id,
-                    },
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Error loading family members:", err);
+    let retired = false;
+    const controller = new AbortController();
+    setMembersState("loading");
+    async function loadFamilyMembers() {
+      const result = await requestOwnedJson("/api/family/members", { signal: controller.signal }, 256 * 1024);
+      if (retired) return;
+      const body = result.kind === "reply" && result.response.ok && result.body && typeof result.body === "object"
+        ? result.body as { members?: unknown } : null;
+      const rows = body?.members;
+      if (!Array.isArray(rows) || rows.some(row => !row || typeof row !== "object" || Array.isArray(row)
+        || typeof row.id !== "string" || !row.id || row.id.length > 128
+        || typeof row.name !== "string" || typeof row.role !== "string")
+        || new Set(rows.map(row => row.id)).size !== rows.length) {
+        setMembersState("failed"); return;
       }
-    };
-    loadFamilyMembers();
-  }, [assignedTo]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadProfiles() {
-      try {
-        const profiles = await fetchHouseholdProfiles();
-        if (!cancelled && profiles) {
-          setProfileRecurrenceSupported(
-            profiles.profileChoreSupported === true &&
-              profiles.profileChoreRecurrenceSupported === true,
-          );
-        }
-        if (!cancelled && profiles?.profileChoreSupported) {
-          setProfileOptions(
-            profiles.profiles.filter((profile) => !profile.archived_at),
-          );
-        }
-      } catch {
-        // Profile setup is optional; the account assignment path remains available.
+      // Retain only the selector's public fields, never member email/extra data.
+      const members = rows.map(row => ({ id: row.id as string, name: row.name as string, role: row.role as string }));
+      setFamilyMembers(members); setMembersState("ready");
+      const params = new URLSearchParams(window.location.search);
+      // Captured tasks require a deliberate choice. A profile query must not
+      // silently become the first account if that profile is not available.
+      if (!reviewRef.current && members.length > 0 && !params.get("profile")) {
+        const requested = params.get("member");
+        setAssignmentTarget(current => current.kind === "profile" || current.id ? current : {
+          kind: "account", id: members.find(member => member.id === requested)?.id ?? members[0].id,
+        });
       }
     }
+    void loadFamilyMembers();
+    return () => { retired = true; controller.abort(); };
+  }, [targetsAttempt]);
+
+  useEffect(() => {
+    let retired = false;
+    const controller = new AbortController();
+    setProfilesFailed(false); setProfilesLoading(true);
+    async function loadProfiles() {
+      const result = await requestOwnedJson("/api/family/profiles", { signal: controller.signal }, 256 * 1024);
+      if (retired) return;
+      setProfilesLoading(false);
+      // A disabled profile capability remains optional; failures are not an
+      // authoritative empty profile list and must not clear a selected draft.
+      if (result.kind === "reply" && result.response.status === 404) { setProfileOptions([]); setProfileRecurrenceSupported(false); return; }
+      const profiles = result.kind === "reply" && result.response.ok ? readHouseholdProfilesResponse(result.body) : null;
+      if (!profiles) { setProfilesFailed(true); return; }
+      setProfileRecurrenceSupported(profiles.profileChoreSupported === true && profiles.profileChoreRecurrenceSupported === true);
+      setProfileOptions(profiles.profileChoreSupported ? profiles.profiles.filter(profile => !profile.archived_at) : []);
+    }
     void loadProfiles();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return () => { retired = true; controller.abort(); };
+  }, [targetsAttempt]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (photoUploadPending.current) return;
+    if (!live.current || submitPending.current || accountSaveState !== "editing" || photoUploadPending.current || assignmentReadBlocked) return;
     if (frequency === "weekly" && !weeklyDays.length) {
       setError(message("chooseWeekday"));
       return;
@@ -367,18 +391,33 @@ export default function CreateChoreForm({
       setError(message("createFailed"));
       return;
     }
+    // Weekly retry identity follows the reviewed weekday/start choice, not
+    // a newly computed occurrence after midnight. Its wire body stays frozen.
+    const profileIntentSignature = canonicalBodySignature({
+      protocol: 2, selection: { memberId: assignmentTarget.id }, title: title.trim(),
+      description: description.trim() || null, points: 10,
+      due_date: frequency === "weekly" ? weeklyStart || null : dueDate,
+      difficulty, frequency, weekly_days: frequency === "weekly" ? [...weeklyDays].sort((a, b) => a - b) : [],
+      photo_url: photoUrl, icon, ...routineRequestFields(routine, routineOrder),
+    });
+    const originalProfileIntent = !reviewRef.current && assignmentTarget.kind === "profile"
+      ? (profilePendingRequest.current?.draftRevision === profileDraftRevision.current
+        ? profilePendingRequest.current : profileAmbiguousKeys.current.get(profileIntentSignature))
+      : null;
     const viewDay = toDateOnlyLocal(new Date());
     if (
       frequency === "weekly" &&
       weeklyStart &&
-      (!parseDateOnly(weeklyStart) || weeklyStart < viewDay)
+      (!parseDateOnly(weeklyStart) || (!originalProfileIntent && weeklyStart < viewDay))
     ) {
       setError(message("weeklyStartInvalid"));
       return;
     }
     const weeklyDueDate =
       frequency === "weekly"
-        ? nextSelectedWeekday(
+        ? originalProfileIntent && typeof originalProfileIntent.body.due_date === "string"
+          ? originalProfileIntent.body.due_date
+          : nextSelectedWeekday(
             parseDateOnly(weeklyStart || viewDay)!,
             weeklyDays,
             true,
@@ -415,11 +454,16 @@ export default function CreateChoreForm({
       setError(message("fieldAssignee"));
       return;
     }
+    submitPending.current = true;
+    const submittedDraftSignature = reviewSignature;
+    const epoch = ++submitEpoch.current;
+    const current = () => live.current && submitEpoch.current === epoch;
     setLoading(true);
-    setError(null);
+    setError(null); setReceiptFeedback(null);
     const submittedProfileDraftRevision = isProfileTarget
       ? profileDraftRevision.current
       : null;
+    let submittedProfileRequest: typeof profilePendingRequest.current = null;
 
     try {
       const headers: Record<string, string> = {
@@ -454,26 +498,24 @@ export default function CreateChoreForm({
         const pending = profilePendingRequest.current;
         let signature: string;
         let key: string;
+        let issuedAt: number;
         if (pending && pending.draftRevision === profileDraftRevision.current) {
-          requestBody = pending.body;
-          signature = pending.signature;
-          key = pending.key;
+          requestBody = pending.body; signature = pending.signature; key = pending.key; issuedAt = pending.issuedAt;
         } else {
-          requestBody = computedRequestBody;
-          signature = canonicalBodySignature(requestBody);
-          key =
-            (profileIdempotencyKey.current?.signature === signature
-              ? profileIdempotencyKey.current.key
-              : profileAmbiguousKeys.current.get(signature)) ??
-            newIdempotencyKey();
-          profilePendingRequest.current = {
-            body: requestBody,
-            key,
-            signature,
-            draftRevision: profileDraftRevision.current,
-          };
+          signature = profileIntentSignature;
+          const previous = profileAmbiguousKeys.current.get(signature);
+          requestBody = previous?.body ?? JSON.parse(JSON.stringify(computedRequestBody));
+          key = previous?.key ?? (profileIdempotencyKey.current?.signature === signature ? profileIdempotencyKey.current.key : newIdempotencyKey());
+          issuedAt = previous?.issuedAt ?? (profileIdempotencyKey.current?.signature === signature ? profileIdempotencyKey.current.issuedAt : Date.now());
+          profilePendingRequest.current = { body: requestBody, key, signature, issuedAt, draftRevision: profileDraftRevision.current };
         }
-        profileIdempotencyKey.current = { key, signature };
+        profileIdempotencyKey.current = { key, signature, issuedAt };
+        const now = Date.now();
+        if (!Number.isSafeInteger(issuedAt) || issuedAt < 0 || now < issuedAt || now - issuedAt >= IDEMPOTENCY_TTL_MS) {
+          setProfileRetryAgeHeld(true); setError(message("profileRetryExpired")); return;
+        }
+        submittedProfileRequest = profilePendingRequest.current;
+        originalRecoveryRequest.current = Object.freeze({ action: "chore.profile.create", key, body: JSON.stringify(requestBody) });
         headers[IDEMPOTENCY_HEADER] = key;
       } else {
         requestBody = {
@@ -501,22 +543,45 @@ export default function CreateChoreForm({
         });
         return;
       }
-      const res = await fetch("/api/chores/create", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(requestBody),
-      });
-      const data = await res.json().catch(() => null);
+      let res: Response;
+      let raw: unknown;
+      if (isProfileTarget) {
+        const controller = new AbortController(); submitController.current = controller;
+        const result = await requestOwnedJson("/api/chores/create", {
+          method: "POST", signal: controller.signal, headers, body: JSON.stringify(requestBody),
+        }, 512 * 1024);
+        if (!current()) return;
+        if (result.kind !== "reply") { retainProfileRequest(submittedProfileRequest); setError(profileText("profileTargetError")); return; }
+        res = result.response; raw = result.body;
+      } else {
+        const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now() });
+        accountRequest.current = packet;
+        originalRecoveryRequest.current = Object.freeze({ action: "chore.create", key: packet.key, body: packet.body });
+        const controller = new AbortController(); submitController.current = controller;
+        const result = await requestOwnedJson("/api/chores/create", {
+          method: "POST", signal: controller.signal,
+          headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key }, body: packet.body,
+        }, 512 * 1024);
+        if (!current()) return;
+        if (result.kind !== "reply") { setAccountSaveState("unknown"); return; }
+        res = result.response; raw = result.body;
+      }
+      if (!current()) return;
+      const data = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
 
       if (!res.ok) {
         if (isProfileTarget) {
           const code = readApiErrorCode(data);
+          if (res.status >= 500 || [401, 403, 408, 409, 425, 429].includes(res.status)) retainProfileRequest(submittedProfileRequest);
+          if ([401, 403].includes(res.status)) { setAccountSaveState("unknown"); return; }
           if (code === "MEMBER_PROTOCOL_UNAVAILABLE") {
-            profileAmbiguousKeys.current.delete(
-              profileIdempotencyKey.current?.signature ?? "",
-            );
-            profileIdempotencyKey.current = null;
-            profilePendingRequest.current = null;
+            const signature = submittedProfileRequest?.signature;
+            // A later capability refusal cannot prove an earlier uncertain
+            // request did not commit. Keep its original body/key/issue time.
+            if (!signature || !profileAmbiguousKeys.current.has(signature)) {
+              profileIdempotencyKey.current = null;
+              profilePendingRequest.current = null;
+            }
             setError(
               profileText(
                 frequency !== "once"
@@ -525,15 +590,13 @@ export default function CreateChoreForm({
               ),
             );
           } else {
-            if (res.status >= 500 && profileIdempotencyKey.current) {
-              profileAmbiguousKeys.current.set(
-                profileIdempotencyKey.current.signature,
-                profileIdempotencyKey.current.key,
-              );
-            }
             setError(profileText("profileTargetError"));
           }
         } else {
+          if (res.status >= 500 || [401, 403, 408, 409, 425, 429].includes(res.status)) {
+            setAccountSaveState("unknown"); return;
+          }
+          accountRequest.current = null;
           setError(
             typeof data?.error === "string"
               ? data.error
@@ -547,16 +610,27 @@ export default function CreateChoreForm({
         isProfileTarget &&
         !readProfileChoreCreateSuccess(data, profileTarget?.id)
       ) {
+        retainProfileRequest(submittedProfileRequest);
         setError(profileText("invalidResponse"));
         return;
+      }
+
+      if (!isProfileTarget) {
+        const chore = data?.chore;
+        if (!chore || typeof chore !== "object" || Array.isArray(chore)
+          || typeof (chore as { id?: unknown }).id !== "string" || !(chore as { id: string }).id) {
+          setAccountSaveState("unknown"); return;
+        }
+        setAccountSaveState("confirmed");
       }
 
       // A native event can still reach a controlled input while a request is
       // in flight (for example through automation). Keep a newly edited draft
       // on screen instead of letting an older response navigate away.
       if (
-        isProfileTarget &&
-        submittedProfileDraftRevision !== profileDraftRevision.current
+        isProfileTarget
+          ? submittedProfileDraftRevision !== profileDraftRevision.current
+          : submittedDraftSignature !== currentDraftSignature.current
       ) {
         return;
       }
@@ -568,26 +642,67 @@ export default function CreateChoreForm({
         profileIdempotencyKey.current = null;
         profilePendingRequest.current = null;
       }
-      if ((await navigation?.releaseBeforeNavigation()) === false) return;
+      if ((await navigation?.releaseBeforeNavigation()) === false || !current()) return;
       router.push("/dashboard/chores");
       router.refresh();
-    } catch (err) {
-      if (isProfileTarget && profileIdempotencyKey.current) {
-        profileAmbiguousKeys.current.set(
-          profileIdempotencyKey.current.signature,
-          profileIdempotencyKey.current.key,
-        );
-      }
+    } catch {
+      if (!current()) return;
+      if (!isProfileTarget && accountRequest.current) { setAccountSaveState("unknown"); return; }
+      if (isProfileTarget) retainProfileRequest(submittedProfileRequest);
       setError(
         isProfileTarget
           ? profileText("profileTargetError")
           : message("unexpected"),
       );
-      console.error(err);
     } finally {
-      setLoading(false);
+      if (current()) { submitController.current = null; submitPending.current = false; setLoading(false); }
     }
   };
+
+  const checkOriginalSave = async () => {
+    const original = originalRecoveryRequest.current;
+    if (!original || !live.current || submitPending.current || photoUploadPending.current) return;
+    submitPending.current = true;
+    const epoch = ++submitEpoch.current;
+    const controller = new AbortController(); submitController.current = controller;
+    const current = () => live.current && submitEpoch.current === epoch;
+    setCheckingReceipt(true); setReceiptFeedback(null);
+    const result = await runOwnedForeground(async signal => {
+      const { inspectChoreCreateReceipt } = await import("@/lib/review-document-receipts");
+      if (signal.aborted) return { kind: "unknown" as const };
+      return { kind: "proof" as const, proof: await inspectChoreCreateReceipt(original, signal) };
+    }, { signal: controller.signal });
+    if (!current()) return;
+    if (result.kind === "unknown") setReceiptFeedback("choreReceiptUnavailable");
+    else {
+      const proof = result.proof;
+      if (proof.state === "committed") {
+        setReceiptFeedback(proof.current === "present" ? "choreReceiptPresent" : proof.current === "removed" ? "choreReceiptRemoved" : "choreReceiptUnknown");
+        if (proof.current === "present") setAccountSaveState("confirmed");
+        else setAccountSaveState("unknown");
+      } else {
+        setReceiptFeedback(proof.state === "pending" ? "choreReceiptPending" : proof.state === "expired" ? "choreReceiptExpired" : proof.state === "absent" ? "choreReceiptAbsent" : "choreReceiptRefused");
+        // No read result can establish permission to recreate or renew a key.
+        setAccountSaveState("unknown");
+      }
+    }
+    submitController.current = null; submitPending.current = false; setCheckingReceipt(false);
+  };
+  const receiptControls = originalRecoveryRequest.current && !review ? <div className="space-y-2">
+    <button type="button" className="btn-plain min-h-11" disabled={busy} onClick={() => void checkOriginalSave()}>{message(checkingReceipt ? "checkingSavedChore" : "checkSavedChore")}</button>
+    {receiptFeedback && <p role="status" className="text-sm text-label-secondary">{message(receiptFeedback)}</p>}
+  </div> : null;
+
+  if (accountSaveState !== "editing") return <div role="status" className="rounded-2xl border border-border bg-surface-fill p-5 space-y-3">
+    <p>{message(accountSaveState === "confirmed" ? "accountSaveConfirmed" : "accountSaveUnknown")}</p>
+    <p className="text-sm text-label-secondary">{message("accountSaveRecoveryLimit")}</p>
+    {receiptControls}
+    <button type="button" className="btn-tinted min-h-11" disabled={busy} onClick={async () => {
+      const epoch = submitEpoch.current;
+      if ((await navigation?.releaseBeforeNavigation()) === false || !live.current || epoch !== submitEpoch.current) return;
+      router.push("/dashboard/chores"); router.refresh();
+    }}>{message("checkChores")}</button>
+  </div>;
 
   return (
     <div className={inSheet ? "" : "max-w-xl mx-auto pb-20"}>
@@ -632,13 +747,15 @@ export default function CreateChoreForm({
         {error && (
           <div className="card-apple p-4 border border-[var(--danger)]">
             <p className="text-body text-[var(--danger-text)]">{error}</p>
+            {receiptControls}
+            {profileRetryAgeHeld && <Link href="/dashboard/chores" className="btn-plain inline-flex min-h-11 items-center">{message("checkChores")}</Link>}
           </div>
         )}
 
         <fieldset
-          disabled={Boolean(profileTargetId) && loading}
+          disabled={busy}
           className="m-0 min-w-0 space-y-4 border-0 p-0"
-          aria-busy={Boolean(profileTargetId) && loading}
+          aria-busy={busy}
         >
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Title */}
@@ -720,6 +837,11 @@ export default function CreateChoreForm({
                       </optgroup>
                     )}
                   </select>
+                  {membersState === "loading" && <p role="status" className="text-footnote text-label-secondary mt-1.5">{message("assignmentLoading")}</p>}
+                  {(membersState === "failed" || profilesFailed) && <div className="mt-1.5 space-y-1">
+                    <p role="alert" className="text-footnote text-danger-text">{message(membersState === "failed" ? "assignmentLoadFailed" : "profileChoicesLoadFailed")}</p>
+                    <button type="button" className="btn-plain min-h-11" disabled={busy || membersState === "loading"} onClick={() => setTargetsAttempt(attempt => attempt + 1)}>{message("retryAssignments")}</button>
+                  </div>}
                   {profileTargetId && (
                     <p className="text-footnote text-label-secondary mt-1.5">
                       {profileRecurrenceSupported
@@ -792,7 +914,7 @@ export default function CreateChoreForm({
                   id="dueDate"
                   type={review ? "text" : "date"}
                   maxLength={80}
-                  placeholder={review ? "YYYY-MM-DD" : undefined}
+                  placeholder={review ? message("datePlaceholder") : undefined}
                   required
                   value={dueDate}
                   onChange={(e) => {
@@ -832,9 +954,13 @@ export default function CreateChoreForm({
                   className="input-apple"
                   type={review ? "text" : "date"}
                   maxLength={80}
-                  placeholder={review ? "YYYY-MM-DD" : undefined}
+                  placeholder={review ? message("datePlaceholder") : undefined}
                   value={weeklyStart}
-                  min={todayKey ?? undefined}
+                  // Profile retries may intentionally reuse a reviewed weekly
+                  // start after midnight. Let submit-time policy distinguish
+                  // that frozen request from a new stale date; a native min
+                  // would block the retry before handleSubmit can inspect it.
+                  min={profileTargetId ? undefined : todayKey ?? undefined}
                   aria-describedby={`${fieldId}-weekly-start-help`}
                   onChange={(event) => {
                     markProfileDraftEdited();
@@ -1013,34 +1139,35 @@ export default function CreateChoreForm({
                 onChange={async (e) => {
                   const input = e.currentTarget;
                   const file = input.files?.[0];
-                  if (!file || photoUploadPending.current || loading) return;
+                  if (!file || !live.current || photoUploadPending.current || submitPending.current || accountSaveState !== "editing") return;
+                  if (file.size > CHORE_PHOTO_MAX_BYTES) {
+                    input.value = ""; setPhotoError("uploadTooLarge"); return;
+                  }
                   photoUploadPending.current = true;
-                  setPhotoError(false);
+                  const epoch = ++photoEpoch.current;
+                  const controller = new AbortController(); photoController.current = controller;
+                  const current = () => live.current && photoEpoch.current === epoch;
+                  setPhotoError(null);
                   markProfileDraftEdited();
                   setPhotoUploading(true);
                   try {
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const res = await fetch("/api/upload", {
-                      method: "POST",
-                      body: fd,
-                    });
-                    const data = await res.json();
-                    if (!res.ok)
-                      throw new Error(data.error || message("uploadFailed"));
-                    if (
-                      typeof data?.url !== "string" ||
-                      !data.url.startsWith("/api/files/chores/")
-                    )
-                      throw new Error(message("uploadFailed"));
-                    setPhotoUrl(data.url);
-                    setPhotoPreview(data.url);
+                    const fd = new FormData(); fd.append("file", file);
+                    const result = await requestOwnedJson("/api/upload", {
+                      method: "POST", body: fd, signal: controller.signal,
+                    }, 64 * 1024);
+                    if (!current()) return;
+                    if (result.kind !== "reply") { setPhotoError("uploadUnconfirmed"); return; }
+                    const data = result.body && typeof result.body === "object" ? result.body as { url?: unknown } : null;
+                    if (!result.response.ok) { setPhotoError(result.response.status >= 500 || [401, 403, 408, 409, 425, 429].includes(result.response.status) ? "uploadUnconfirmed" : "uploadFailed"); return; }
+                    if (!isChorePhotoPath(data?.url)) { setPhotoError("uploadUnconfirmed"); return; }
+                    setPhotoUrl(data.url); setPhotoPreview(data.url);
                   } catch {
-                    setPhotoError(true);
+                    if (current()) setPhotoError("uploadUnconfirmed");
                   } finally {
-                    input.value = "";
-                    photoUploadPending.current = false;
-                    setPhotoUploading(false);
+                    if (current()) {
+                      input.value = ""; photoController.current = null;
+                      photoUploadPending.current = false; setPhotoUploading(false);
+                    }
                   }
                 }}
               />
@@ -1077,7 +1204,7 @@ export default function CreateChoreForm({
                   role="alert"
                   className="mt-2 text-body text-[var(--danger-text)]"
                 >
-                  {message("uploadFailed")}
+                  {message(photoError)}
                 </p>
               )}
               {photoPreview && (
@@ -1091,8 +1218,10 @@ export default function CreateChoreForm({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!live.current || photoUploadPending.current || submitPending.current) return;
+                      photoEpoch.current++;
                       markProfileDraftEdited();
-                      setPhotoError(false);
+                      setPhotoError(null);
                       setPhotoUrl(null);
                       setPhotoPreview(null);
                     }}
@@ -1123,7 +1252,7 @@ export default function CreateChoreForm({
         >
           <button
             type="submit"
-            disabled={busy || submitHint !== null}
+            disabled={busy || profileRetryAgeHeld || submitHint !== null}
             aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
             className="btn-filled w-full"
           >

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { X, ChevronRight, Search } from "lucide-react";
-import { SearchField } from "@/components/ui/search-field";
+import { useCommandPaletteText } from "@/i18n/command-palette";
 import { MORE_HREF, navItemDisplayName, navItems } from "@/lib/nav-items";
 import { useMoreText } from "@/i18n/more";
 import { useFeatures } from "@/components/providers/features-provider";
@@ -25,6 +25,8 @@ export default function CommandPalette({
   onClose,
   role,
 }: CommandPaletteProps) {
+  const text = useCommandPaletteText();
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const [query, setQuery] = React.useState("");
   const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -91,6 +93,50 @@ export default function CommandPalette({
     });
   };
 
+  function onPanelKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const panel = panelRef.current;
+    if (
+      !panel ||
+      !panel.contains(document.activeElement) ||
+      event.nativeEvent.isComposing
+    ) return;
+    if (
+      (event.key === "ArrowDown" || event.key === "ArrowUp") &&
+      !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+    ) {
+      const destinations = Array.from(
+        panel.querySelectorAll<HTMLButtonElement>(
+          "button[data-command-destination]:not(:disabled)",
+        ),
+      );
+      if (!destinations.length) return;
+      event.preventDefault();
+      const index = destinations.indexOf(
+        document.activeElement as HTMLButtonElement,
+      );
+      const next = index < 0
+        ? event.key === "ArrowDown" ? 0 : destinations.length - 1
+        : (index + (event.key === "ArrowDown" ? 1 : -1) + destinations.length) % destinations.length;
+      destinations[next].focus();
+    }
+    if (event.key === "Tab") {
+      const controls = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          "button:not(:disabled), input:not(:disabled), a[href], [tabindex='0']",
+        ),
+      );
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  }
+
   if (!open) return null;
 
   return (
@@ -108,7 +154,9 @@ export default function CommandPalette({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
+        ref={panelRef}
+        aria-label={text("title")}
+        onKeyDown={onPanelKeyDown}
         className={cn(
           "relative w-full max-w-lg mx-4",
           "card-elevated bg-[var(--surface-elevated)] text-label-primary",
@@ -130,6 +178,7 @@ export default function CommandPalette({
             onKeyDown={(e) => {
               if (
                 e.key === "Enter" &&
+                !e.nativeEvent.isComposing &&
                 offerSearch &&
                 filteredNav.length === 0
               ) {
@@ -137,8 +186,8 @@ export default function CommandPalette({
                 handleNavigate(searchHref);
               }
             }}
-            aria-label="Search or go to a page"
-            placeholder="Search or type a command…"
+            aria-label={text("searchLabel")}
+            placeholder={text("searchPlaceholder")}
             className="flex-1 text-body text-label-primary bg-transparent outline-none placeholder:text-label-tertiary"
           />
           {query && (
@@ -148,7 +197,7 @@ export default function CommandPalette({
                 setQuery("");
                 inputRef.current?.focus();
               }}
-              aria-label="Clear search"
+              aria-label={text("clearSearch")}
               className="-my-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
             >
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-fill)]">
@@ -172,6 +221,7 @@ export default function CommandPalette({
           {offerSearch && (
             <button
               type="button"
+              data-command-destination
               className="w-full flex items-center gap-3 px-4 py-2.5 min-h-[44px] text-left active:bg-[var(--surface-fill-secondary)]"
               onClick={() => handleNavigate(searchHref)}
             >
@@ -182,7 +232,7 @@ export default function CommandPalette({
                 />
               </div>
               <span className="text-body text-label-primary flex-1 min-w-0 break-words">
-                Search the household for &ldquo;{searchWords}&rdquo;
+                {text("householdSearch", { query: searchWords })}
               </span>
               <ChevronRight
                 className="w-4 h-4 text-label-tertiary shrink-0"
@@ -193,7 +243,7 @@ export default function CommandPalette({
           {/* Navigation shortcuts */}
           <div>
             <div className="section-header px-4 py-1">
-              {query === "" ? "Go to" : "Results"}
+              {text(query === "" ? "goTo" : "results")}
             </div>
             {filteredNav.map((item) => {
               const Icon = item.icon;
@@ -201,7 +251,8 @@ export default function CommandPalette({
                 <button
                   key={item.href}
                   type="button"
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left active:bg-[var(--surface-fill-secondary)]"
+                  data-command-destination
+                  className="w-full flex items-center gap-3 px-4 py-2.5 min-h-[44px] text-left active:bg-[var(--surface-fill-secondary)]"
                   onClick={() => handleNavigate(item.href)}
                 >
                   <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--surface-fill)] flex items-center justify-center shrink-0">
@@ -218,7 +269,7 @@ export default function CommandPalette({
             })}
             {filteredNav.length === 0 && query !== "" && !offerSearch && (
               <div className="px-4 py-6 text-center text-subhead text-label-tertiary">
-                No results for &ldquo;{query}&rdquo;
+                {text("noResults", { query })}
               </div>
             )}
           </div>
@@ -231,19 +282,19 @@ export default function CommandPalette({
               ⌘K
             </kbd>
             <span className="text-caption-1 text-label-tertiary">
-              to toggle
+              {text("toggleHint")}
             </span>
             <div className="ml-auto flex items-center gap-1">
               <kbd className="text-caption-2 text-label-tertiary bg-[var(--surface-fill)] px-1.5 py-0.5 rounded">
                 ↑↓
               </kbd>
               <span className="text-caption-1 text-label-tertiary">
-                navigate
+                {text("navigateHint")}
               </span>
               <kbd className="text-caption-2 text-label-tertiary bg-[var(--surface-fill)] px-1.5 py-0.5 rounded ml-1">
                 ↵
               </kbd>
-              <span className="text-caption-1 text-label-tertiary">select</span>
+              <span className="text-caption-1 text-label-tertiary">{text("selectHint")}</span>
             </div>
           </div>
         )}

@@ -1,3 +1,4 @@
+import { isChoreBirthGeneration } from "@/lib/chore-create-receipt-identity";
 import type { AssistantSourceGuard } from "./assistant-source-proof";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 import type { RoutineOccurrencePolicy } from "@/lib/routine-occurrence-policy";
@@ -361,6 +362,29 @@ function profileChoreResponse(chore: ProfileChoreDTO): ProfileChoreDTO {
   };
 }
 
+/** Canonical profile-only create response, without account names or private links. */
+function profileCreateDto(chore: ChoreWithSubject, familyId: string, createdAt = chore.created_at): ProfileChoreDTO | null {
+  const subject = readChoreSubject(chore, familyId);
+  if (!subject || subject.kind !== "profile") return null;
+  return profileChoreResponse({
+    id: chore.id,
+    title: chore.title,
+    description: chore.description,
+    due_date: chore.due_date,
+    status: chore.status,
+    frequency: chore.frequency,
+    weekly_days: chore.weekly_days ?? [],
+    recurrence_id: chore.recurrence_id ?? null,
+    is_template: chore.is_template ?? false,
+    difficulty: chore.difficulty,
+    icon: chore.icon ?? null,
+    routine: chore.routine ?? null,
+    routine_order: chore.routine_order ?? null,
+    subject,
+    created_at: createdAt,
+  });
+}
+
 /**
  * Create the profile chore and its keyed response receipt in one transaction.
  * The receipt is locked only after the actor and household membership locks,
@@ -485,26 +509,8 @@ export async function createProfileOnlyChoreInTx(
   if (input.frequency !== "once") {
     await expandSeriesInTx(tx, chore.id, actor.familyId, now);
   }
-  const subject = readChoreSubject(chore, actor.familyId);
-  if (!subject || subject.kind !== "profile")
-    throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
-  const dto = profileChoreResponse({
-    id: chore.id,
-    title: chore.title,
-    description: chore.description,
-    due_date: chore.due_date,
-    status: chore.status,
-    frequency: chore.frequency,
-    weekly_days: chore.weekly_days ?? [],
-    recurrence_id: chore.recurrence_id ?? null,
-    is_template: chore.is_template ?? false,
-    difficulty: chore.difficulty,
-    icon: chore.icon ?? null,
-    routine: chore.routine ?? null,
-    routine_order: chore.routine_order ?? null,
-    subject,
-    created_at: now,
-  });
+  const dto = profileCreateDto(chore, actor.familyId, now);
+  if (!dto) throw new ProfileChoreError("PROFILE_TARGET_CONFLICT");
   await recordTimelineFactInTx(
     tx,
     { userId: actor.id, familyId: actor.familyId },
@@ -512,7 +518,8 @@ export async function createProfileOnlyChoreInTx(
     { kind: "chore", id: chore.id },
     now,
   );
-  const body = options.compactReceipt ? { choreId: chore.id } : { chore: dto };
+  const identity = { choreId: chore.id, choreGeneration: chore.responsibility_generation };
+  const body = options.compactReceipt ? identity : { chore: dto, ...identity };
   if (recordId) {
     await tx.idempotencyRecord.update({
       where: { id: recordId },
@@ -603,4 +610,32 @@ export function profileChoreReadRefusal(request: {
   if (isProfileChoreEnabled() && requestedMemberProtocol(request) === 2)
     return null;
   return { status: 409, body: profileChoreLegacyWriteRefusal() };
+}
+
+/** Reload only the original profile create's birth under current HTTP authority.
+ * Legacy cached snapshots never supply missing identity or current subject data.
+ */
+export function readCreatedProfileChore(
+  db: Pick<PrismaClient, "$transaction">,
+  actor: { id: string; familyId: string; tokenVersion: number },
+  identity: { choreId: string; choreGeneration: string },
+  expectedMemberId: string,
+) {
+  return db.$transaction(async tx => {
+    await lockUser(tx, actor.id); await lockHousehold(tx, actor.familyId);
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.id} FOR SHARE`;
+    await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
+    const current = await tx.user.findUnique({ where: { id: actor.id }, select: { family_id: true, role: true, token_version: true } });
+    if (!current || current.token_version !== actor.tokenVersion) return { ok: false as const, status: 401 };
+    if (current.family_id !== actor.familyId || current.role !== "parent") return { ok: false as const, status: 403 };
+    if (!isChoreBirthGeneration(identity.choreGeneration)) return { ok: false as const, status: 409 };
+    const row = await tx.chore.findFirst({
+      where: { id: identity.choreId, responsibility_generation: identity.choreGeneration,
+        family_id: actor.familyId, created_by: actor.id, assigned_to: null,
+        assigned_member_id: expectedMemberId, member_subject_erased: false },
+      include: choreSubjectInclude,
+    });
+    const chore = row ? profileCreateDto(row, actor.familyId) : null;
+    return chore ? { ok: true as const, chore } : { ok: false as const, status: 409 };
+  }, { timeout: 5000, maxWait: 5000 });
 }

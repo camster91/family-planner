@@ -2,6 +2,28 @@
 
 Status: implemented for #232 (scope approved from the #124 calendar-sync contract). Covers **read-only** import of public/private ICS feed links. CalDAV is out of scope. Two-way Google/Outlook sync over OAuth is a separate feature (#264): [`CALENDAR_SYNC.md`](CALENDAR_SYNC.md).
 
+## Unverified bounded-feed integrity follow-through — 2026-10-24
+
+The export route reads one lookahead beyond its existing2,000-event capacity.
+Above that capacity it returns503 `CALENDAR_FEED_TOO_LARGE` with private/no-store
+JSON and no partial ICS. Supported-size responses retain their prior calendar,
+UID/time/range/cache contract. Large complete export remains unavailable;
+provider-specific behavior on HTTP errors is unverified.
+
+The subscription sync now refuses `parsed.truncated` before reconciliation, for
+both occurrence and per-series iteration caps. It updates only the owned error
+status/attempt time and leaves event rows and last complete conditional validators
+unchanged. Complete parses retain the existing reconcile/delete semantics. Identified malformed events/series now reject the parse instead of being
+silently skipped; missing non-cancelled DTSTART/override identity and invalid
+resolved start/identity are errors. Concatenated calendar roots are refused
+rather than importing only the first. Invalid window/cap options also refuse.
+Parser/library errors are normalized to the existing content-free IcsParseError.
+Cancelled entries and the prior no-UID skip rule remain. This is not complete
+semantic validation or a claim that arbitrary multi-calendar streams are supported. Historical
+already-truncated imports require separate reconciliation/recovery; no live data
+repair or forced refresh is performed. Boundary/overflow and capped-import cases
+are authored/unrun. No QA/test/build/browser/API/database/provider/release ran.
+
 ## Summary
 
 A parent pastes an `https://` or `webcal://` calendar link in **Settings → Subscribed calendars**. The server fetches it (guarded), expands it within a bounded window and stores each occurrence as an `Event` tagged with its source. Imported events show on the family calendar with a "From <name>" badge and cannot be edited or deleted in the app. Removing the subscription removes its events.
@@ -31,11 +53,45 @@ An imported occurrence is identified by **(subscription, iCalendar UID, original
 - non-recurring event: DTSTART instant;
 - recurring instance: the instance's RECURRENCE-ID instant (for generated instances, the generated start). An override that moves an instance keeps the identity of the slot it replaces, so moving it updates the same row.
 
-`UNIQUE (source_subscription_id, source_uid, source_occurrence_start)` (Postgres treats `NULL`s as distinct, so local events never collide). Reconcile loads the subscription's rows, creates missing keys with `createMany(skipDuplicates)`, updates rows whose title/description/location/start/end changed, and deletes stale keys. Importing the same feed twice produces the same rows and zero writes the second time. Events without a UID are skipped because they have no stable identity.
+`UNIQUE (source_subscription_id, source_uid, source_occurrence_start)` (Postgres treats `NULL`s as distinct, so local events never collide). Reconcile now reads the subscription's history in immutable-ID batches of at most200, keeping the bounded parsed feed and one history batch in memory. It creates missing keys in200-row `createMany(skipDuplicates)` batches, updates changed title/description/location/start/end and deletes at most200 stale IDs per statement. The single transaction requests RepeatableRead with the prior30s timeout, so history pages share one existing-row snapshot; a conflicting concurrent write may abort and must surface as failure. Total work/lock time is still unbounded in subscription-history size. These recovery-branch changes and additive index SQL are authored/unapplied/unverified; real concurrency/rollback/query evidence remains open. Importing the same feed twice produces the same rows and zero writes the second time. Events without a UID are skipped because they have no stable identity.
+
+### Reconciliation query compatibility — 2026-10-24
+
+Rows remain scoped to subscription plus household, including updates. Matching
+still uses original UID/occurrence identity, even if the stored event start is
+outside the current import window and the source moves it back inside. Valid
+older history is retained; the prior invalid-key cleanup and in-window stale
+rules remain. Missing creates are delayed until history traversal ends; no
+partial commits or silent prefix cap. Incoming duplicate keys/over-cap arrays
+refuse rather than inventing a winner for an unsupported internal call.
+
+`migration-calendar-import-batches.sql` and the schema add an unapplied
+family/subscription/ID index. Page plans, write/index cost, snapshot conflicts,
+transaction rollback, concurrent refresh/removal and the subsequent metadata/
+conditional-validator update remain unverified. RepeatableRead is not an
+external-feed version lock or exact replay receipt. No automatic retry is added.
+A fabricated multi-page read/update/delete/create/repeat case is authored/unrun;
+it does not model real database isolation. No API/database/migration/provider
+or release action is executed by these source changes.
+
+
+### Source identity ambiguity — unverified recovery source, 2026-10-24
+
+UIDs longer than the existing500-character supported bound now reject instead
+of being truncated as display text. A supported UID is retained at its full
+length. Duplicate master UIDs and duplicate UID/recurrence instants reject the
+whole parse; there is no implicit first/last winner. Override identities are
+resolved with the existing timezone resolver, so equivalent supported forms
+cannot silently replace each other. The existing invalid-feed path preserves
+last-complete events/validators on refusal. Cancellation/no-UID and ordinary
+supported recurring behavior remain; complete semantic/timezone/provider
+compatibility and historical collision recovery are unverified. Boundary,
+ambiguous-feed and sync-preservation source cases are authored/unrun. No live
+household/provider import, cleanup, QA or release is performed.
 
 ## Recurrence and window
 
-Occurrences are expanded in the window **now − 30 days to now + 180 days**. Only occurrences overlapping the window are stored. Guards: at most 3,000 occurrences per feed and 25,000 iterations per series (unbounded `FREQ=DAILY` from years ago still reaches the window; `FREQ=SECONDLY` abuse cannot spin). When a cap is hit the sync still succeeds and `last_error` says some events were skipped. `STATUS:CANCELLED` events or instances are not imported. An override whose master is missing is imported as a single event. `RANGE=THISANDFUTURE` is not supported and is treated as a single-instance override.
+Occurrences are expanded in the window **now − 30 days to now + 180 days**. Only occurrences overlapping the window are stored. Guards: at most 3,000 occurrences per feed and 25,000 iterations per series (unbounded `FREQ=DAILY` from years ago still reaches the window; `FREQ=SECONDLY` abuse cannot spin). Current recovery source refuses capped expansion before reconciliation: `last_status` becomes `error` and a fixed message explains that existing events were kept. No occurrence create/update/delete or new ETag/Last-Modified is committed from a partial parse. This source change is unverified; previously accepted partial imports are not repaired automatically. `STATUS:CANCELLED` events or instances are not imported. An override whose master is missing is imported as a single event. `RANGE=THISANDFUTURE` is not supported and is treated as a single-instance override.
 
 ## Time zones and DST
 
@@ -219,3 +275,62 @@ copying and pasting. Nothing below exists in code; it needs Cameron's decisions 
    `POST /api/events` and marks the rows added; expired rows are deleted when the list is next read (no cron).
 5. **Off until configured**, like the rest: without the inbound secret and domain the route is 404 and no address is
    shown. Privacy page and runbook must describe the stored pending suggestions before it is enabled.
+
+
+### 2026-10-25 — bounded subscription settings reads (local source only)
+
+`CalendarSubscriptionsSection` now loads its list through the shared foreground transport: 15-second whole-request deadline, 128-KiB response limit, no-store/same-origin requests and abort on unmount. A read epoch prevents abort-ignoring late bridge completions from publishing into a retired screen. The existing synchronous read latch still serializes explicit retries; mounted locale changes relabel semantic failure state without another read. This is retirement of this read instance, not original-owner/session server admission.
+
+A browser-safe summary contract shares the existing ten-subscription limit with the server sync module. List admission rejects oversized arrays, duplicate/invalid IDs, invalid scalar fields/dates and unsupported lifecycle status. Only the existing public fields are projected into component state; unknown extras are ignored. Malformed/oversized/unknown responses use the existing failed-read UI, keep Add disabled and retain entered drafts rather than announcing no calendars. The older JSON-only bridge fallback is post-parse size enforcement, not pre-allocation streaming proof.
+
+Regression sources for validation/projection and late-read retirement were authored; the existing explicit retry fixture was adapted for deferred request start. All are UNRUN. Add/rename/remove/refresh write transport and uncertain outcomes are unchanged and remain separate work; server role/session renewal, cross-household races, provider credentials, sync correctness, calendar/device/rendered acceptance are unverified. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #124/#135 remain open.
+
+
+### 2026-10-25 — subscription foreground write recovery holds (local source only)
+
+Add, rename, remove and refresh now share a synchronous mounted write latch, mutually excluded with list reads. Each call captures an original path/method/body before dispatch through the shared 15-second/128-KiB foreground transport. Unmount aborts and retires write epochs; an abort-ignoring late completion cannot publish state, clear fields, announce success or trigger the existing post-create refresh. Confirmed create still uses the existing deliberate add-then-refresh sequence. No provider activation or background retries are added.
+
+Unknown/oversized/malformed responses, 5xx and ambiguous/access refusals retain the original packet in mounted memory and hold all further writes. The localized warning provides an explicit read-only list inspection; a successful read does not prove which original write committed and does not release the hold. 401/403 also masks cached list/draft fields. Form/rename controls are disabled while pending or held. Success requires a validated expected-target summary (and original reviewed name/color where relevant), supported refresh result/counts, or a valid deletion acknowledgement before changing local state. Typed EN/ES copy and a single-flight/unknown-add/read-inspection regression fixture were authored, UNRUN.
+
+This is not durable retry recovery: private feed URLs remain only in mounted memory, no disk journal or new server idempotency receipt is introduced, and leaving/reloading loses the original packet without cancelling a possible write. A held screen intentionally cannot issue a replacement merely because a list read succeeds. Original-session/role renewal and immutable source identity are still server-contract work. Unsupported old servers, multi-tab races, real late responses, native bridge and rendered/accessibility acceptance remain unverified. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran; #124/#135 remain open.
+
+
+### 2026-10-25 — original HTTP authority for subscription collection reads/creates
+
+Collection GET/POST capture the authenticated User/family/role/token generation and use `withCalendarSubscriptionAccess`: user advisory lock, household advisory lock, actual User FOR SHARE and Family FOR SHARE, then exact original role/family/generation validation before reading or creating. Reads still allow current parent/teen; creates still require parent. No feature/role/profile authority is added. Transaction admission and work use existing five-second timeout/max-wait bounds.
+
+Creation performs its existing capacity count and insert in one household-locked transaction after URL/DNS validation; this serializes cooperating current-route creates at the ten-calendar cap and checks original authority again after the wait. The input JSON is byte-bounded at16 KiB, with a post-parse fallback for decoder-only bridges. URLs remain encrypted/write-only and error logs remain fixed content. Both successful list and create responses renew original authority before disclosing DTOs and are private/no-store. A late hold may follow a committed create; withholding a body does not roll back it. Known changed/unconfirmed access responses mask cached Settings fields, including after an explicit list read.
+
+Exact fake-SQL fixture projections and an original-session-change-during-validation case were authored, UNRUN. Fixture locks do not establish real serialization. This is original HTTP actor renewal, not an original-browser command/session protocol, immutable source identity, idempotency receipt or durable retry guarantee. Item PATCH/DELETE, feed refresh/sync/provider and other calendar routes are not covered by this helper yet. Database query/lock/timeouts, two-household races, late renewal, body-size, old-client, rendered/native/provider acceptance remain unverified. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran. #124/#135/#136 remain open.
+
+
+### 2026-10-25 — original HTTP authority for subscription rename/removal
+
+PATCH/DELETE now reuse the same original-account role/family/token renewal and successful-response protection as the collection routes, with unchanged parent-only management. After user/household and actual principal/family locks, the exact original-family subscription is selected FOR UPDATE. PATCH updates only that id/family; absent/foreign targets remain the same private404. Rename input is bounded at4 KiB. URL changes remain unsupported.
+
+Removal extracts the existing canonical delete-events/delete-subscription effects into `removeSubscriptionInTx` and executes them inside the admitted transaction; the old wrapper retains its existing entry point for internal callers/tests. There is no nested transaction or second deletion engine. Original-family/source filters still remove only imported events for that subscription. A final successful-response renewal may withhold an acknowledgement after the write committed, and existing client uncertainty holds apply.
+
+Exact fake-target-lock support and role-change-during-parameter-wait fixtures were authored, UNRUN; no real lock, concurrency or rollback acceptance is claimed. Refresh/sync admission remains separate, as do original-browser commands, immutable source generation, receipt/idempotency/durable recovery and old-client/native/provider/rendered acceptance. The compatibility wrapper itself does not authenticate an actor. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran. #124/#135/#136 remain open.
+
+
+### 2026-10-25 — manual refresh authority across remote waits (source only)
+
+Manual refresh captures and freezes its original HTTP actor, renews it before reading/decrypting the feed source and before every persistence path after remote waits: error status, not-modified status and parsed-event reconciliation. Network fetch/parse stays outside membership/source locks. The persistence transaction admits the original actor, locks the original-family subscription and checks the existing encrypted URL/creator/creation timestamp fingerprint before effects. Internal background persistence takes household/target locks and the same fingerprint guard without inventing a person actor; it remains trusted internal work. The fingerprint is not a new DB-enforced immutable generation.
+
+The existing reconciliation batch algorithm is extracted into `reconcileOccurrencesInTx`; its compatibility wrapper remains. Canonical sync now commits successful event changes and fetched metadata in that same admitted transaction. Refresh uses the existing30-second RepeatableRead reconciliation budget with a five-second transaction-acquisition bound; ordinary collection/management scopes retain their five-second budget. Per-process in-flight keys now include household and original actor/role/session; manual work never joins a background or different-owner promise. No second reconciliation engine, provider integration or scheduler is introduced.
+
+The route renews access for status reads and final private response disclosure. Access/source holds have fixed codes without feed content; late withheld responses do not undo committed effects. A session-loss-during-fetch fixture was authored, UNRUN. This does not prove immutable source generations, total response-version binding, stale concurrent-feed ordering, cross-replica lock/rollback/latency, original-browser command admission, durable retry receipts, provider/DST/recurrence correctness, native lifecycle or rendered acceptance. Existing direct internal reconciliation wrappers are not actor-authenticated. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy, provider call or activation ran. #124/#135/#136 remain open.
+
+
+### 2026-10-25 — localized subscription failure vocabulary (source only)
+
+Subscription Settings now maps known fixed historical feed/status and route validation messages to typed EN/ES copy. Persisted errors are translated during rendering, so mounted locale changes do not reset drafts, renew a request or fetch again. The existing canonical relative-time formatter remains in use. HTTP download statuses admit only the exact fixed message plus a three-digit1xx–5xx value; private/free-form provider text, objects and unknown strings use semantic operation/status fallback. The literal unavailable host hint is translated without altering real host hints. A successful status with an unknown legacy note uses a neutral note rather than claiming a failure.
+
+The shared raw-error behavior used by other Settings sections is unchanged. No API/error-wire/storage rewrite, arbitrary provider-message translation, locale-wide completion or rendered layout/accessibility acceptance is claimed. Existing source fixtures cover mounted saved-error relabeling without a second read and fixed-versus-unknown error classification; all are UNRUN. No tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran. #142/#124 remain open.
+
+
+### 2026-10-25 — compact subscription add and visible capacity (source only)
+
+Settings already mounts subscription management only inside its parent Family section; this change does not add a teen/shared-device surface or change API permissions. The subscription section now shows its loaded count against the shared maximum before submission. At the existing cap, typed EN/ES guidance explains removing one before adding another, and both the submit control and handler refuse a new local create. The server transactional cap remains authoritative when this list is stale or another tab writes. Failed/unknown reads do not produce a count.
+
+The optional colour radios are behind a native labeled disclosure whose summary names the current colour. Name/link stay immediately visible; existing labels, selected radio state, pending/uncertain disabling and drafts are retained. The Add button references the capacity description only when it exists. This reversible presentation change adds no test suite; no tests/checks/build/browser/CI/DB/generation/push/merge/deploy or activation ran. Rendered keyboard/focus, screen reader, long-text/locales, device and original #499/#124 acceptance remain unverified.

@@ -4,6 +4,7 @@
 // Opt-in like the other integration suites: RUN_DB_INTEGRATION=1 DATABASE_URL=...
 // against a disposable database that `node scripts/migrate.js` has prepared.
 import { Client } from 'pg'
+import { assertFixtureTargetAllowed } from '@/lib/fixtures/guard'
 
 const describeWithDatabase = process.env.RUN_DB_INTEGRATION === '1' ? describe : describe.skip
 
@@ -27,6 +28,7 @@ describeWithDatabase('list item update against Postgres', () => {
   }
 
   beforeAll(async () => {
+    assertFixtureTargetAllowed(process.env)
     const mod = await import('@/lib/prisma')
     if (!mod.prisma) throw new Error('Integration database is not configured')
     prisma = mod.prisma
@@ -44,6 +46,7 @@ describeWithDatabase('list item update against Postgres', () => {
   })
 
   afterAll(async () => {
+    if (!prisma) return
     await cleanup()
     await prisma.$disconnect()
   })
@@ -239,4 +242,24 @@ describeWithDatabase('list item update against Postgres', () => {
       ).status,
     ).toBe(409);
   });
+  // Authored only: requires the guarded disposable PostgreSQL fixture target.
+  it('commits the original edit receipt with the row and replays despite the old version', async () => {
+    const recordId = 'liuint-edit-receipt';
+    await prisma.idempotencyRecord.deleteMany({ where: { id: recordId } });
+    await prisma.idempotencyRecord.create({ data: { id: recordId, family_id: FAM, user_id: A,
+      scope: `user:${A}`, key: 'liuint-edit-key', action: 'list-item.edit', request_hash: 'fixture-only',
+      expires_at: new Date(Date.now() + 60_000) } });
+    const before = await prisma.listItem.findUniqueOrThrow({ where: { id: ITEM } });
+    const data = { itemId: ITEM, content: 'Fixture edit', expectedUpdatedAt: before.updated_at.toISOString() };
+    const options = { receipt: { recordId, action: 'list-item.edit' as const } };
+    const first = await lib.updateListItem(prisma, data, user(A), undefined, options);
+    expect(first.status).toBe(200);
+    const stored = await prisma.idempotencyRecord.findUniqueOrThrow({ where: { id: recordId } });
+    expect(stored.response_body).toEqual(JSON.parse(JSON.stringify(first.body)));
+    await prisma.listItem.update({ where: { id: ITEM }, data: { content: 'Later edit' } });
+    const replay = await lib.updateListItem(prisma, data, user(A), undefined, options);
+    expect(replay).toEqual({ status: 200, body: stored.response_body });
+    expect((await prisma.listItem.findUniqueOrThrow({ where: { id: ITEM } })).content).toBe('Later edit');
+  });
+
 })

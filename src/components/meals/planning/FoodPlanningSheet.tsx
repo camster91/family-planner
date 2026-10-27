@@ -5,6 +5,7 @@ import { preparedReuseHref } from "@/lib/prepared-meal-reuse";
 import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
+import { useFoodPlanningSheetText } from "@/i18n/food-planning-sheet";
 import { useOwnedDraftExit } from "@/components/layout/owned-draft-navigation";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { navigateAfterOwnedDrafts } from "@/lib/owned-draft-exit";
@@ -42,11 +43,9 @@ export default function FoodPlanningSheet({
   onSaved: () => void;
 }) {
   const router = useDraftAwareRouter();
+  const text = useFoodPlanningSheetText();
   const session = useFoodPlanningSession(onSaved),
-    latest = React.useRef(session),
-    { locale } = useTranslation(),
-    es = locale === "es",
-    copy = (en: string, spanish: string) => (es ? spanish : en);
+    latest = React.useRef(session);
   latest.current = session;
   const [position, setPosition] = React.useState(0),
     [forget, setForget] = React.useState<string | null>(null),
@@ -95,46 +94,22 @@ export default function FoodPlanningSheet({
       });
   }
   const messages = {
-    ai: copy(
-      "AI choices could not be checked. Your draft is kept; use Find suggestions or try AI again.",
-      "No se pudieron comprobar las opciones de IA. Se conserva el borrador; usa Buscar sugerencias o vuelve a intentarlo.",
-    ),
-    catalog: copy(
-      "Choose a pool of up to 50 recipes, then preview again.",
-      "Elige un grupo de hasta 50 recetas y vuelve a obtener sugerencias.",
-    ),
-    load: copy(
-      "Could not load saved food work.",
-      "No se pudo cargar el trabajo de comidas.",
-    ),
-    owner: copy(
-      "Your account or household changed. Reopen this planner in the current household.",
-      "Tu cuenta o tu hogar han cambiado. Vuelve a abrir el planificador en el hogar actual.",
-    ),
-    storage: copy(
-      "Draft storage needs repair. Your original request will not be sent again automatically.",
-      "Hay que reparar el almacenamiento. Tu solicitud original no se reenviará automáticamente.",
-    ),
-    invalid: copy(
-      "Check the dates, portions, time choices and current source review. Your draft is kept.",
-      "Revisa las fechas, porciones, horarios y datos actuales. Se conserva el borrador.",
-    ),
-    unknown: copy(
-      "The save result is unknown. Inspect the original request before trying again.",
-      "Se desconoce el resultado. Comprueba la solicitud original antes de reintentar.",
-    ),
-    held: copy(
-      "Saved work needs attention. Inspect requests or explicitly reload the stored copy.",
-      "El trabajo guardado necesita atención. Comprueba las solicitudes o vuelve a cargar la copia guardada.",
-    ),
+    ai: text("aiReadFailed"),
+    catalog: text("recipePoolRequired"),
+    load: text("loadFailed"),
+    owner: text("ownerChanged"),
+    storage: text("storageRepairRequired"),
+    invalid: text("invalidDraft"),
+    unknown: text("unknownSave"),
+    held: text("heldWork"),
   };
   return (
     <>
       <Dialog
         open
         variant="form"
-        title={copy("Plan meals and prep", "Planificar comidas y preparación")}
-        closeLabel={copy("Close planner", "Cerrar planificador")}
+        title={text("planMealsAndPrep")}
+        closeLabel={text("closePlanner")}
         onClose={() => {
           void close();
         }}
@@ -147,7 +122,7 @@ export default function FoodPlanningSheet({
                 void close();
               }}
             >
-              {copy("Close", "Cerrar")}
+              {text("close")}
             </button>
             {draft && !view && (
               <button
@@ -156,7 +131,7 @@ export default function FoodPlanningSheet({
                 disabled={disabled}
                 onClick={() => void session.previewDraft()}
               >
-                {copy("Find suggestions", "Buscar sugerencias")}
+                {text("findSuggestions")}
               </button>
             )}
             {draft && view && (
@@ -166,7 +141,7 @@ export default function FoodPlanningSheet({
                 disabled={disabled}
                 onClick={() => session.change(draft)}
               >
-                {copy("Edit choices", "Editar opciones")}
+                {text("editChoices")}
               </button>
             )}
             {draft && session.preview && (
@@ -183,8 +158,8 @@ export default function FoodPlanningSheet({
                 onClick={() => void session.reviewDraft()}
               >
                 {session.review
-                  ? copy("Refresh review", "Actualizar revisión")
-                  : copy("Review save", "Revisar antes de guardar")}
+                  ? text("refreshReview")
+                  : text("reviewSave")}
               </button>
             )}
             {session.review && (
@@ -198,7 +173,7 @@ export default function FoodPlanningSheet({
                 }
                 onClick={() => void session.confirm()}
               >
-                {copy("Confirm and save", "Confirmar y guardar")}
+                {text("confirmAndSave")}
               </button>
             )}
           </div>
@@ -206,7 +181,7 @@ export default function FoodPlanningSheet({
       >
         <div className="space-y-4" aria-busy={session.busy}>
           {session.busy && (
-            <p role="status">{copy("Working…", "Procesando…")}</p>
+            <p role="status">{text("working")}</p>
           )}
           {session.issue && (
             <div role="alert" className="space-y-2">
@@ -218,7 +193,7 @@ export default function FoodPlanningSheet({
                   className="btn-secondary min-h-[44px]"
                   onClick={() => void session.repair()}
                 >
-                  {copy("Repair saved transition", "Reparar cambio guardado")}
+                  {text("repairSavedTransition")}
                 </button>
               ) : (
                 <button
@@ -227,20 +202,14 @@ export default function FoodPlanningSheet({
                   className="btn-secondary min-h-[44px]"
                   onClick={() => setReload(true)}
                 >
-                  {copy(
-                    "Reload saved work",
-                    "Volver a cargar trabajo guardado",
-                  )}
+                  {text("reloadSavedWork")}
                 </button>
               )}
             </div>
           )}
           {session.context && !session.context.enabled && (
             <p role="status">
-              {copy(
-                "New planning is paused or unavailable. Saved requests can still be inspected.",
-                "La nueva planificación está pausada o no disponible. Puedes comprobar las solicitudes guardadas.",
-              )}
+              {text("planningPaused")}
             </p>
           )}
           {!draft && session.context?.enabled && (
@@ -250,23 +219,20 @@ export default function FoodPlanningSheet({
               className="btn-filled min-h-[44px]"
               onClick={() => void session.start(day, mode)}
             >
-              {copy("Start a plan", "Empezar un plan")}
+              {text("startAPlan")}
             </button>
           )}
           {draft?.mode === "prep" &&
             session.context &&
             !session.context.canPrep && (
               <p role="status">
-                {copy(
-                  "Verify your account before saving a prep session. You can keep editing this draft.",
-                  "Verifica tu cuenta antes de guardar una sesión de preparación. Puedes seguir editando el borrador.",
-                )}
+                {text("prepVerificationRequired")}
               </p>
             )}
           {draft && !view && slot && (
             <fieldset disabled={disabled} className="space-y-4 min-w-0">
               <legend className="font-semibold">
-                {copy("What are you planning?", "¿Qué quieres planificar?")}
+                {text("whatAreYouPlanning")}
               </legend>
               <div className="flex flex-wrap gap-2">
                 {(["meals", "prep"] as const).map((choice) => (
@@ -278,36 +244,24 @@ export default function FoodPlanningSheet({
                     onClick={() => update({ mode: choice })}
                   >
                     {choice === "meals"
-                      ? copy("Several meals", "Varias comidas")
-                      : copy("One prep session", "Una sesión de preparación")}
+                      ? text("severalMeals")
+                      : text("onePrepSession")}
                   </button>
                 ))}
               </div>
               {session.context && (
                 <details>
                   <summary className="min-h-[44px] py-3 cursor-pointer">
-                    {copy(
-                      "Recipe pool (optional)",
-                      "Grupo de recetas (opcional)",
-                    )}
+                    {text("recipePoolOptional")}
                   </summary>
                   <p className="text-footnote">
-                    {copy(
-                      "For a large recipe box, choose up to 50 saved recipes to suggest from.",
-                      "Si tienes muchas recetas, elige hasta 50 recetas guardadas para las sugerencias.",
-                    )}
+                    {text("recipePoolHint")}
                   </p>
                   <FoodRecordPicker
                     kind="recipes"
                     multiple
-                    label={copy(
-                      "Suggest from these recipes",
-                      "Sugerir de estas recetas",
-                    )}
-                    emptyLabel={copy(
-                      "Use the household library",
-                      "Usar las recetas del hogar",
-                    )}
+                    label={text("suggestFromTheseRecipes")}
+                    emptyLabel={text("useTheHouseholdLibrary")}
                     values={draft.recipeIds}
                     context={session.context}
                     disabled={disabled}
@@ -318,7 +272,7 @@ export default function FoodPlanningSheet({
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <label>
-                  {copy("Prioritize", "Priorizar")}
+                  {text("prioritize")}
                   <select
                     className={input}
                     value={draft.priority}
@@ -330,13 +284,13 @@ export default function FoodPlanningSheet({
                     }
                   >
                     <option value="use-soon">
-                      {copy("Use food soon", "Usar alimentos pronto")}
+                      {text("useFoodSoon")}
                     </option>
                     <option value="least-shopping">
-                      {copy("Less shopping", "Comprar menos")}
+                      {text("lessShopping")}
                     </option>
                     <option value="quick">
-                      {copy("Shorter recipe time", "Menor tiempo de receta")}
+                      {text("shorterRecipeTime")}
                     </option>
                   </select>
                 </label>
@@ -348,15 +302,12 @@ export default function FoodPlanningSheet({
                       update({ repeatRecipes: event.target.checked })
                     }
                   />
-                  {copy(
-                    "Allow repeated suggestions",
-                    "Permitir sugerencias repetidas",
-                  )}
+                  {text("allowRepeatedSuggestions")}
                 </label>
                 {draft.mode === "prep" && (
                   <>
                     <label>
-                      {copy("Prep day", "Día de preparación")}
+                      {text("prepDay")}
                       <input
                         className={input}
                         type="date"
@@ -367,10 +318,7 @@ export default function FoodPlanningSheet({
                       />
                     </label>
                     <label>
-                      {copy(
-                        "Next prep (optional)",
-                        "Próxima preparación (opcional)",
-                      )}
+                      {text("nextPrepOptional")}
                       <input
                         className={input}
                         type="date"
@@ -390,7 +338,7 @@ export default function FoodPlanningSheet({
                   disabled={index === 0}
                   onClick={() => setPosition(index - 1)}
                 >
-                  {copy("Previous", "Anterior")}
+                  {text("previous")}
                 </button>
                 <span>
                   {index + 1} / {draft.slots.length}
@@ -401,14 +349,14 @@ export default function FoodPlanningSheet({
                   disabled={index + 1 === draft.slots.length}
                   onClick={() => setPosition(index + 1)}
                 >
-                  {copy("Next", "Siguiente")}
+                  {text("next")}
                 </button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {draft.mode === "meals" && (
                   <>
                     <label>
-                      {copy("Day", "Día")}
+                      {text("day")}
                       <input
                         className={input}
                         type="date"
@@ -419,7 +367,7 @@ export default function FoodPlanningSheet({
                       />
                     </label>
                     <label>
-                      {copy("Meal", "Comida")}
+                      {text("meal")}
                       <select
                         className={input}
                         value={slot.mealType}
@@ -431,14 +379,14 @@ export default function FoodPlanningSheet({
                         }
                       >
                         <option value="breakfast">
-                          {copy("Breakfast", "Desayuno")}
+                          {text("breakfast")}
                         </option>
                         <option value="lunch">
-                          {copy("Lunch", "Almuerzo")}
+                          {text("lunch")}
                         </option>
-                        <option value="dinner">{copy("Dinner", "Cena")}</option>
+                        <option value="dinner">{text("dinner")}</option>
                         <option value="snack">
-                          {copy("Snack", "Tentempié")}
+                          {text("snack")}
                         </option>
                       </select>
                     </label>
@@ -446,8 +394,8 @@ export default function FoodPlanningSheet({
                 )}
                 <label>
                   {draft.mode === "prep"
-                    ? copy("Total dish portions", "Porciones totales del plato")
-                    : copy("Servings", "Porciones")}
+                    ? text("totalDishPortions")
+                    : text("servings")}
                   <input
                     className={input}
                     type="number"
@@ -461,10 +409,7 @@ export default function FoodPlanningSheet({
                   />
                 </label>
                 <label>
-                  {copy(
-                    "Recipe time limit (optional minutes)",
-                    "Límite de tiempo de receta (minutos opcionales)",
-                  )}
+                  {text("recipeTimeLimitOptionalMinutes")}
                   <input
                     className={input}
                     type="number"
@@ -479,10 +424,7 @@ export default function FoodPlanningSheet({
                 {draft.mode === "prep" && (
                   <>
                     <label>
-                      {copy(
-                        "Dish label (optional)",
-                        "Nombre del plato (opcional)",
-                      )}
+                      {text("dishLabelOptional")}
                       <input
                         className={input}
                         value={slot.name}
@@ -493,10 +435,7 @@ export default function FoodPlanningSheet({
                       />
                     </label>
                     <label>
-                      {copy(
-                        "Store remaining portions",
-                        "Guardar porciones restantes",
-                      )}
+                      {text("storeRemainingPortions")}
                       <select
                         className={input}
                         value={slot.storage}
@@ -507,10 +446,10 @@ export default function FoodPlanningSheet({
                         }
                       >
                         <option value="fridge">
-                          {copy("Fridge", "Nevera")}
+                          {text("fridge")}
                         </option>
                         <option value="freezer">
-                          {copy("Freezer", "Congelador")}
+                          {text("freezer")}
                         </option>
                       </select>
                     </label>
@@ -522,11 +461,8 @@ export default function FoodPlanningSheet({
                   <FoodRecordPicker
                     key={`recipe-${slot.key}`}
                     kind="recipes"
-                    label={copy("Recipe", "Receta")}
-                    emptyLabel={copy(
-                      "Suggest automatically",
-                      "Sugerir automáticamente",
-                    )}
+                    label={text("recipe")}
+                    emptyLabel={text("suggestAutomatically")}
                     values={slot.recipeId ? [slot.recipeId] : []}
                     context={session.context}
                     disabled={disabled}
@@ -547,14 +483,8 @@ export default function FoodPlanningSheet({
                   <FoodRecordPicker
                     key={`cook-${slot.key}`}
                     kind="people"
-                    label={copy(
-                      "Cook (optional account)",
-                      "Cocinero (cuenta opcional)",
-                    )}
-                    emptyLabel={copy(
-                      "No cook assigned",
-                      "Sin cocinero asignado",
-                    )}
+                    label={text("cookOptionalAccount")}
+                    emptyLabel={text("noCookAssigned")}
                     values={slot.cookId ? [slot.cookId] : []}
                     context={session.context}
                     disabled={disabled}
@@ -567,22 +497,16 @@ export default function FoodPlanningSheet({
                 draft.recipeIds.length > 0 &&
                 !draft.recipeIds.includes(slot.recipeId) && (
                   <p role="status">
-                    {copy(
-                      "This recipe is outside your selected pool. Add it to the pool or clear this choice.",
-                      "Esta receta no está en el grupo seleccionado. Añádela al grupo o quita esta selección.",
-                    )}
+                    {text("recipeOutsidePool")}
                   </p>
                 )}
               {draft.mode === "meals" && (
                 <details>
                   <summary className="min-h-[44px] py-3 cursor-pointer">
-                    {copy(
-                      "Notes and cooking window",
-                      "Notas e intervalo para cocinar",
-                    )}
+                    {text("notesAndCookingWindow")}
                   </summary>
                   <label>
-                    {copy("Notes (optional)", "Notas (opcionales)")}
+                    {text("notesOptional")}
                     <textarea
                       className={input}
                       maxLength={2000}
@@ -598,7 +522,6 @@ export default function FoodPlanningSheet({
                     context={session.context}
                     onFailure={session.reportError}
                     disabled={disabled}
-                    es={es}
                     onChange={(timing) => updateSlot({ timing })}
                   />
                 </details>
@@ -617,13 +540,10 @@ export default function FoodPlanningSheet({
               {draft.mode === "prep" && (
                 <details>
                   <summary className="min-h-[44px] py-3 cursor-pointer">
-                    {copy("Session timing", "Horario de la sesión")}
+                    {text("sessionTiming")}
                   </summary>
                   <label>
-                    {copy(
-                      "Total session limit (optional minutes)",
-                      "Límite de sesión (minutos opcionales)",
-                    )}
+                    {text("totalSessionLimitOptionalMinutes")}
                     <input
                       className={input}
                       type="number"
@@ -641,7 +561,6 @@ export default function FoodPlanningSheet({
                     context={session.context}
                     onFailure={session.reportError}
                     disabled={disabled}
-                    es={es}
                     onChange={(prepTiming) => update({ prepTiming })}
                   />
                 </details>
@@ -666,8 +585,8 @@ export default function FoodPlanningSheet({
                   }}
                 >
                   {draft.mode === "prep"
-                    ? copy("Add dish", "Añadir plato")
-                    : copy("Add meal", "Añadir comida")}
+                    ? text("addDish")
+                    : text("addMeal")}
                 </button>
                 <button
                   type="button"
@@ -682,37 +601,25 @@ export default function FoodPlanningSheet({
                     })
                   }
                 >
-                  {copy("Remove this choice", "Quitar esta opción")}
+                  {text("removeThisChoice")}
                 </button>
               </div>
               <p className="text-footnote text-label-secondary">
-                {copy(
-                  "Suggestions use saved household recipes and recorded food. No stock is consumed and no grocery items are added by preview.",
-                  "Las sugerencias usan recetas y alimentos registrados del hogar. La vista previa no consume existencias ni añade artículos a la compra.",
-                )}
+                {text("previewBoundary")}
               </p>
             </fieldset>
           )}
           {draft && session.context?.canAskAi && !session.review && (
             <details className="rounded-xl border border-[var(--surface-separator)] p-3">
               <summary className="min-h-11 cursor-pointer py-2 font-semibold">
-                {copy(
-                  "Ask AI for meal choices",
-                  "Pedir opciones de comidas a la IA",
-                )}
+                {text("askAiForMealChoices")}
               </summary>
               <div className="space-y-3">
                 <p className="text-footnote text-label-secondary">
-                  {copy(
-                    "Optional: AI compares up to four current recipe options per choice. It sends recipe names, ingredients, recorded food amounts, timing estimates and this preference to your configured AI provider. It cannot change your records. You can use Find suggestions without AI.",
-                    "Opcional: la IA compara hasta cuatro recetas actuales por opción. Envía nombres de recetas, ingredientes, cantidades registradas, estimaciones de tiempo y esta preferencia al proveedor de IA configurado. No puede cambiar tus registros. Puedes usar Buscar sugerencias sin IA.",
-                  )}
+                  {text("aiDisclosure")}
                 </p>
                 <label className="block">
-                  {copy(
-                    "Cooking preference (optional)",
-                    "Preferencia de cocina (opcional)",
-                  )}
+                  {text("cookingPreferenceOptional")}
                   <textarea
                     className={input}
                     maxLength={1000}
@@ -730,7 +637,7 @@ export default function FoodPlanningSheet({
                   disabled={disabled}
                   onClick={() => void session.askAi()}
                 >
-                  {copy("Ask AI", "Preguntar a la IA")}
+                  {text("askAi")}
                 </button>
               </div>
             </details>
@@ -824,29 +731,20 @@ export default function FoodPlanningSheet({
           {session.review && (
             <section className="space-y-2">
               <h3 className="font-semibold">
-                {copy("Confirm the exact save", "Confirmar lo que se guardará")}
+                {text("confirmTheExactSave")}
               </h3>
               <p>
                 {session.review.input.mode === "meals"
-                  ? `${session.review.input.meals.length} ${copy("new meals", "comidas nuevas")}`
-                  : `${session.review.input.input.dishes.length} ${copy("dishes in one unprepared session", "platos en una sesión aún no preparada")}`}
+                  ? `${session.review.input.meals.length} ${text("newMeals")}`
+                  : `${session.review.input.input.dishes.length} ${text("dishesInOneUnpreparedSession")}`}
               </p>
               <p>
                 {session.review.groceries.length
-                  ? copy(
-                      "Selected groceries use full recipe quantities, not estimated shortfalls.",
-                      "La compra seleccionada usa cantidades completas de receta, no déficits estimados.",
-                    )
-                  : copy(
-                      "No grocery items will be added.",
-                      "No se añadirán artículos a la compra.",
-                    )}
+                  ? text("fullRecipeGroceryQuantities")
+                  : text("noGroceryAdds")}
               </p>
               <p className="text-footnote">
-                {copy(
-                  "The review expires after one minute. Refresh it if needed; nothing is saved until you confirm.",
-                  "La revisión vence tras un minuto. Actualízala si es necesario; no se guarda nada hasta confirmar.",
-                )}
+                {text("reviewExpiry")}
               </p>
             </section>
           )}
@@ -854,7 +752,7 @@ export default function FoodPlanningSheet({
             0 && (
             <section className="space-y-3">
               <h3 className="font-semibold">
-                {copy("Saved requests", "Solicitudes guardadas")}
+                {text("savedRequests")}
               </h3>
               {session.rows
                 .filter((entry) => entry.kind === "food-plan")
@@ -875,18 +773,12 @@ export default function FoodPlanningSheet({
                       className="card-apple p-3 space-y-2"
                     >
                       <p className="font-semibold">
-                        {copy("Food request", "Solicitud de comidas")} {i + 1}
+                        {text("foodRequest")} {i + 1}
                       </p>
                       <p>
                         {committed
-                          ? copy(
-                              "Save confirmed. Records may have changed since then.",
-                              "Guardado confirmado. Los registros pueden haber cambiado después.",
-                            )
-                          : copy(
-                              "Outcome unconfirmed. Missing or expired receipts do not prove the save failed.",
-                              "Resultado sin confirmar. Que el recibo falte o venza no demuestra que fallara el guardado.",
-                            )}
+                          ? text("saveConfirmed")
+                          : text("outcomeUnconfirmed")}
                       </p>
                       {committed && hasGroceries && (
                         <FoodGroceryOutcomesView
@@ -907,7 +799,7 @@ export default function FoodPlanningSheet({
                           disabled={session.busy}
                           onClick={() => void session.inspect(entry.key)}
                         >
-                          {copy("Inspect receipt", "Comprobar recibo")}
+                          {text("inspectReceipt")}
                         </button>
                         {proof?.retryEligible && (
                           <button
@@ -916,10 +808,7 @@ export default function FoodPlanningSheet({
                             disabled={session.busy}
                             onClick={() => void session.retry(entry.key)}
                           >
-                            {copy(
-                              "Retry exact request",
-                              "Reintentar solicitud exacta",
-                            )}
+                            {text("retryExactRequest")}
                           </button>
                         )}
                         <button
@@ -936,14 +825,8 @@ export default function FoodPlanningSheet({
                           }}
                         >
                           {committed
-                            ? copy(
-                                "Dismiss saved receipt",
-                                "Quitar recibo guardado",
-                              )
-                            : copy(
-                                "Forget local request…",
-                                "Olvidar solicitud local…",
-                              )}
+                            ? text("dismissSavedReceipt")
+                            : text("forgetLocalRequest")}
                         </button>
                       </div>
                     </article>
@@ -965,17 +848,28 @@ export default function FoodPlanningSheet({
                 );
               }}
             >
-              {copy("Discard editable draft…", "Descartar borrador editable…")}
+              {text("discardEditableDraft")}
             </button>
           )}
           <Link
             href="/dashboard/meals?view=bulk"
             className="inline-flex min-h-[44px] items-center text-[var(--accent-text)]"
+            aria-disabled={session.busy || undefined}
+            tabIndex={session.busy ? -1 : undefined}
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              event.preventDefault();
+              if (!session.busy) void router.push("/dashboard/meals?view=bulk");
+            }}
           >
-            {copy(
-              "Manage prepared meals and eaten portions",
-              "Gestionar comidas preparadas y porciones consumidas",
-            )}
+            {text("managePreparedMeals")}
           </Link>
         </div>
       </Dialog>
@@ -984,13 +878,10 @@ export default function FoodPlanningSheet({
         role="alertdialog"
         title={
           reload
-            ? copy(
-                "Reload stored work?",
-                "¿Volver a cargar el trabajo guardado?",
-              )
-            : copy("Remove local work?", "¿Quitar trabajo local?")
+            ? text("reloadStoredWork")
+            : text("removeLocalWork")
         }
-        closeLabel={copy("Keep working", "Seguir trabajando")}
+        closeLabel={text("keepWorking")}
         onClose={() => {
           setForget(null);
           setReload(false);
@@ -998,14 +889,8 @@ export default function FoodPlanningSheet({
       >
         <p>
           {reload
-            ? copy(
-                "Unsaved changes in this view will be replaced by the stored copy. No server records are removed.",
-                "La copia guardada reemplazará los cambios sin guardar de esta vista. No se eliminan registros del servidor.",
-              )
-            : copy(
-                "This removes local work only. An unconfirmed save or grocery Undo may already have finished. Inspect it first. Removing this entry does not change server records.",
-                "Esto solo quita el trabajo local. Un guardado o deshacer sin confirmar puede haber terminado. Compruébalo primero. Quitar esta entrada no cambia los registros del servidor.",
-              )}
+            ? text("reloadWarning")
+            : text("removeWarning")}
         </p>
         <label className="flex min-h-[44px] items-center gap-2">
           <input
@@ -1013,7 +898,7 @@ export default function FoodPlanningSheet({
             checked={acknowledged}
             onChange={(event) => setAcknowledged(event.target.checked)}
           />
-          {copy("I understand", "Entiendo")}
+          {text("iUnderstand")}
         </label>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1024,7 +909,7 @@ export default function FoodPlanningSheet({
               setReload(false);
             }}
           >
-            {copy("Keep working", "Seguir trabajando")}
+            {text("keepWorking")}
           </button>
           <button
             type="button"
@@ -1042,8 +927,8 @@ export default function FoodPlanningSheet({
             }}
           >
             {reload
-              ? copy("Reload saved copy", "Cargar copia guardada")
-              : copy("Remove locally", "Quitar localmente")}
+              ? text("reloadSavedCopy")
+              : text("removeLocally")}
           </button>
         </div>
       </Dialog>
@@ -1056,7 +941,6 @@ function Timing({
   context,
   onFailure,
   disabled,
-  es,
   onChange,
 }: {
   value: FoodEditorSlot["timing"];
@@ -1064,9 +948,10 @@ function Timing({
   context: FoodRecoveryContext | null;
   onFailure: (error: unknown) => void;
   disabled: boolean;
-  es: boolean;
   onChange: (next: FoodEditorSlot["timing"]) => void;
 }) {
+  const { locale } = useTranslation();
+  const text = useFoodPlanningSheetText();
   let departureRange: { start: string; end: string } | undefined;
   try {
     const start = resolveScheduleWall(value.start, value.startChoice, zone),
@@ -1089,7 +974,7 @@ function Timing({
             onChange({ ...value, enabled: event.target.checked })
           }
         />
-        {es ? "Comprobar un intervalo para cocinar" : "Check a cooking window"}
+        {text("checkACookingWindow")}
       </label>
       {value.enabled && (
         <>
@@ -1100,13 +985,7 @@ function Timing({
                 selected = key === "start" ? "startChoice" : "endChoice";
               return (
                 <label key={key}>
-                  {key === "start"
-                    ? es
-                      ? "Inicio"
-                      : "Start"
-                    : es
-                      ? "Fin"
-                      : "End"}
+                  {key === "start" ? text("start") : text("end")}
                   <input
                     type="datetime-local"
                     className={input}
@@ -1121,9 +1000,7 @@ function Timing({
                   />
                   {choices.length > 1 && (
                     <select
-                      aria-label={
-                        es ? "Elegir desfase horario" : "Choose time offset"
-                      }
+                      aria-label={text("chooseTimeOffset")}
                       className={input}
                       value={value[selected] ?? ""}
                       onChange={(event) =>
@@ -1134,15 +1011,11 @@ function Timing({
                       }
                     >
                       <option value="">
-                        {es ? "Elige una hora exacta" : "Choose an exact time"}
+                        {text("chooseAnExactTime")}
                       </option>
                       {choices.map((choice) => (
                         <option key={choice} value={choice}>
-                          {formatScheduleInstant(
-                            choice,
-                            es ? "es" : "en",
-                            zone,
-                          )}
+                          {formatScheduleInstant(choice, locale, zone)}
                         </option>
                       ))}
                     </select>
@@ -1154,14 +1027,8 @@ function Timing({
           {context && departureRange ? (
             <FoodRecordPicker
               kind="departures"
-              label={
-                es
-                  ? "Salida que limita el horario (opcional)"
-                  : "Departure deadline (optional)"
-              }
-              emptyLabel={
-                es ? "Sin salida seleccionada" : "No departure selected"
-              }
+              label={text("departureDeadlineOptional")}
+              emptyLabel={text("noDepartureSelected")}
               values={value.departureId ? [value.departureId] : []}
               context={context}
               range={departureRange}
@@ -1180,9 +1047,7 @@ function Timing({
             />
           ) : (
             <p className="text-footnote">
-              {es
-                ? "Completa un intervalo exacto para elegir una salida del calendario."
-                : "Complete an unambiguous window to choose a calendar departure."}
+              {text("departureWindowRequired")}
             </p>
           )}
           {!departureRange && value.departureId && (
@@ -1199,7 +1064,7 @@ function Timing({
                 })
               }
             >
-              {es ? "Quitar salida y márgenes" : "Clear departure and buffers"}
+              {text("clearDepartureAndBuffers")}
             </button>
           )}
           {(value.departureId ||
@@ -1209,12 +1074,8 @@ function Timing({
               {(["travel", "departurePreparation"] as const).map((key) => (
                 <label key={key}>
                   {key === "travel"
-                    ? es
-                      ? "Viaje (min)"
-                      : "Travel (min)"
-                    : es
-                      ? "Prepararse para salir (min)"
-                      : "Getting ready to leave (min)"}
+                    ? text("travelMin")
+                    : text("gettingReadyToLeaveMin")}
                   <input
                     type="number"
                     className={input}
@@ -1234,16 +1095,10 @@ function Timing({
             {(["before", "eating", "cleanup"] as const).map((key) => (
               <label key={key}>
                 {key === "before"
-                  ? es
-                    ? "Preparación extra (min)"
-                    : "Extra setup (min)"
+                  ? text("extraSetupMin")
                   : key === "eating"
-                    ? es
-                      ? "Comer (min)"
-                      : "Eating (min)"
-                    : es
-                      ? "Limpiar (min)"
-                      : "Cleanup (min)"}
+                    ? text("eatingMin")
+                    : text("cleanupMin")}
                 <input
                   type="number"
                   className={input}

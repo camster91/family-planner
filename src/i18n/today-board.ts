@@ -4,6 +4,12 @@ import { useCoreTranslation } from "@/i18n/core";
 
 /** Visible Today/fridge-board copy. Event, member, recipe and list values stay caller-supplied. */
 export const todayBoardEnglish = {
+  ambientTime: "Time: ",
+  ambientNext: "Next · {when}",
+  ambientTonight: "Tonight",
+  ambientWake: "Tap anywhere to show the board",
+  weatherHighShort: "H",
+  weatherLowShort: "L",
   from: "From {name}",
   until: "Until {time}",
   allDay: "All day",
@@ -79,8 +85,10 @@ export const todayBoardEnglish = {
   profilePickerTitle: "Who is this chore for?",
   profilePickerDescription: "Choose the family profile completing this chore.",
   todayQuickActions: "Today quick actions",
+  addAction: "Add",
   addEvent: "Add event",
   addChore: "Add chore",
+  addList: "New list",
   groceriesAction: "Groceries",
   planMeals: "Plan meals",
   allLists: "All lists",
@@ -101,6 +109,12 @@ export type TodayBoardMessage = keyof typeof todayBoardEnglish;
 export type TodayBoardMessages = Record<TodayBoardMessage, string>;
 
 export const todayBoardSpanish: TodayBoardMessages = {
+  ambientTime: "Hora: ",
+  ambientNext: "Después · {when}",
+  ambientTonight: "Esta noche",
+  ambientWake: "Toca cualquier lugar para ver el panel",
+  weatherHighShort: "Máx.",
+  weatherLowShort: "Mín.",
   from: "De {name}",
   until: "Hasta {time}",
   allDay: "Todo el día",
@@ -179,8 +193,10 @@ export const todayBoardSpanish: TodayBoardMessages = {
   profilePickerTitle: "¿Para quién es esta tarea?",
   profilePickerDescription: "Elige el perfil familiar que hará esta tarea.",
   todayQuickActions: "Acciones rápidas de hoy",
+  addAction: "Añadir",
   addEvent: "Añadir evento",
   addChore: "Añadir tarea",
+  addList: "Nueva lista",
   groceriesAction: "Alimentos",
   planMeals: "Planear comidas",
   allLists: "Todas las listas",

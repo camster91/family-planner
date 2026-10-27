@@ -1,7 +1,11 @@
 /** Browser-safe canonical recipe input validation; no database/runtime imports. */
 import { z } from "zod";
+import { recipeOwnerSchema } from "@/lib/recipe-owner-contract";
 import { recipeSourceField } from "@/lib/recipe-curation-contract";
 export const RECIPE_MAX_INGREDIENTS = 100;
+// Accommodates all bounded fields/100 ingredient lines even with JSON escapes.
+// This transport budget also bounds whitespace/unknown fields before validation.
+export const RECIPE_WRITE_MAX_BYTES = 1024 * 1024;
 
 const optionalText = (max: number) =>
   z
@@ -42,6 +46,8 @@ export const createRecipeSchema = z
     // Old strict readers refuse this payload before creating anything. A new
     // client must not retry a keyed create against an older key-ignorant route.
     creation_protocol: z.literal("herewoven.recipe-create.v1").optional(),
+    creation_owner: recipeOwnerSchema.optional(),
+    creation_issued_at: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
     source_url: recipeSourceField.nullable().optional(),
     source_copy: z.boolean().optional(),
     title: z.string().trim().min(1).max(200),
@@ -52,10 +58,18 @@ export const createRecipeSchema = z
     servings: z.number().int().min(1).max(100).optional(),
     ingredients: ingredients.optional(),
   })
-  .strict();
+  .strict()
+  .refine(value => (value.creation_owner === undefined && value.creation_issued_at === undefined) ||
+    (value.creation_owner !== undefined && value.creation_issued_at !== undefined && value.creation_protocol === "herewoven.recipe-create.v1"), {
+    message: "Recipe owner and original issue time require the create protocol",
+  });
 
+export const RECIPE_EDIT_PROTOCOL = "herewoven.recipe-edit.v1";
 export const updateRecipeSchema = z
   .object({
+    // The previous strict schema rejects these fields before any edit effects.
+    edit_protocol: z.literal(RECIPE_EDIT_PROTOCOL).optional(),
+    edit_owner: recipeOwnerSchema.optional(),
     base_revision: z.number().int().nonnegative().optional(),
     base_updated_at: z.string().datetime().optional(),
     title: z.string().trim().min(1).max(200).optional(),
@@ -67,4 +81,11 @@ export const updateRecipeSchema = z
     /** When present, replaces the recipe's whole ingredient set. */
     ingredients: ingredients.optional(),
   })
-  .strict();
+  .strict()
+  .refine(value => (value.edit_protocol === undefined && value.edit_owner === undefined) ||
+    (value.edit_protocol !== undefined && value.edit_owner !== undefined), {
+    message: "Recipe edit owner and protocol must be supplied together",
+  })
+  .refine(value => !value.edit_owner || value.base_revision !== undefined, {
+    message: "Owner-bound recipe edits require the reviewed revision",
+  });

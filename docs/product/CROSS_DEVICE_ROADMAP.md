@@ -1,3 +1,23 @@
+## Current source-only programme boundary — 2026-10-26
+
+The latest GitHub read has37 open issues. Current source/planning follow-through
+lives in [CURRENT_STATE](../CURRENT_STATE.md), the
+[issue completion ledger](../engineering/ISSUE_COMPLETION_LEDGER.md) and
+[programme #128](https://github.com/camster91/family-planner/issues/128).
+QA/tests/checks/build/browser/CI, schema execution, provider/native activation
+and release remain deferred. Local source is unpushed, unverified and unreleased;
+there is no new source freeze or full native-parity claim.
+
+The product requirements and named dependencies below remain useful, but earlier
+82-issue counts and verified/live/source-complete statements refer to their old
+candidates/dates. They do not validate the recovered checkout or make actual
+hardware, signing, provider eligibility, old-client recovery or household beta
+evidence available. Preserve those requirements and histories without treating
+their absence as Done. Current owner decisions and remaining source work stay
+in canonical issues; this roadmap is not a second completion board.
+
+---
+
 # Herewoven cross-device experience and family AI
 
 Date: 2026-10-10. Owner: Cameron. Execution: Codex. Parent: [#128](https://github.com/camster91/family-planner/issues/128).
@@ -160,14 +180,77 @@ Current assistant is hidden on paired/shared surfaces. Add a separate safe capab
 
 ### Voice and wake commands
 
-| Mode | Planned behavior | Constraint |
-|---|---|---|
-| All surfaces | Tap mic → visible listening → editable transcript → action preview → Confirm | Permission refusal, silence, cancellation and network failure retain touch/text paths |
-| Phone/iPad | Native push-to-talk plus supported Siri/Shortcuts/App Intents; Android supported system integrations after feasibility | Web and ordinary native apps cannot assume continuous background mic access |
-| Fridge | Explicit opt-in local wake detector while the dedicated app is active; proposed phrase “Hey herewoven,” with configurable activation after hardware validation | Local wake detection first, obvious mic state/mute, bounded command window, night/privacy controls; no provider audio before activation and disclosure |
-| Display wake | Separate touch/proximity/display behavior | Screen wake and spoken wake are different capabilities |
+Mode definition refreshed 2026-10-24 for #563. This separates capabilities and
+records source facts; no native/hardware/provider/permission test or activation
+was performed. Source availability is not installed-device readiness.
 
-A wake phrase opens listening, not a permission grant or automatic destructive action. Handle false wakes from TV/guests/children, accents, kitchen noise, audio playback, interruption, process death and muted microphones. No raw-audio retention by default. Disclose any speech provider and transmission boundary. On-device feasibility, supported device management and background restrictions are release gates, not assumptions.
+| Mode | Current source / bounded delivery | Authority, processing and fallback |
+| --- | --- | --- |
+| Web tap-to-talk | `use-voice-draft.ts` uses an available browser speech constructor after an explicit action; listening stops when hidden or disabled | Editable transcript only. Browser recognition is not advertised as local/offline/private-provider processing; support must be checked on the actual browser. Typed input remains available |
+| Android native tap-to-talk | Default-off `NEXT_PUBLIC_LOCAL_VOICE_PREVIEW`; `LocalVoiceDraft.tsx` / `local-voice.ts` and `LocalVoicePlugin.java`. The plugin checks trusted origin, foreground and on-device recognizer availability before a deliberate one-utterance request | API31+ on-device path in current source; explicit microphone permission, bounded 20s listening and cancel/pause/destroy handling. Model/language availability and actual device behavior remain unverified. No generic remote recognizer fallback for a promised local path |
+| iPhone/iPad native tap-to-talk | Separate native speech adapter remains planned; Android bridge presence does not provide it | Future deliberate mic/transcription permission and clear processing disclosure; cancellation, denial, unavailable recognizer and text fallback before rollout. User-started dictation is meant here, not a walkie-talkie/background-audio entitlement |
+| Android platform voice actions | Separate system integration remains planned: begin with an allowlisted open-Today/open-capture route and reviewed draft handoff, not direct effects | App Actions/shortcuts are distinct from the app's mic input and local wake detector. Supported system/device/account/locale and intent matching require actual feasibility. Do not promise phone-specific App Actions on fridge/tablet hardware |
+| Apple App Intents / Shortcuts | Separate Swift native action declarations remain planned: open a feature or carry an explicitly reviewed draft into the app | System Siri/Shortcuts entry is not app identity, household authority or a microphone session. Require current personal/device scope and review before effects; do not index private household records into system discovery by default |
+| Existing Android foreground phrase experiment | `wakePhraseDraft` recognizes a prefix only after explicit LocalVoice listening; current UI has a deliberate phrase-input action | This is draft parsing, not a detector listening before the mic tap, speaker recognition, unlock or passive/background wake support. Same reviewed non-writing transcript contract |
+| Future foreground local fridge wake prototype | Explicit opt-in local detector while the dedicated app is active; proposed phrase “Hey herewoven,” configurable only after hardware validation | Not implemented by prefix parsing. Visible armed/listening/mute state, bounded command window, night/privacy controls; no provider audio before activation and disclosure. Stop on hide/lock/revoke; no automatic foreground service or background mic grant |
+| Display wake | Separate touch/proximity/display behavior | Screen wake, keeping the display on and spoken wake are separate capabilities and provisioning decisions |
+
+All voice paths follow the same product contract: deliberate activation or an
+approved local wake trigger -> visible listening -> editable transcript -> fresh
+role/household/device-authorized proposal -> exact preview -> explicit Confirm.
+A wake phrase, platform invocation, voice similarity or spoken member name never
+authenticates a parent or executes a write. Shared-device attribution is not
+identity verification. Parent-private work still requires a personal authorized
+session. No special voice mutation backend or queue allowlist is introduced.
+
+**Platform sources checked 2026-10-24.** Android's
+[SpeechRecognizer reference](https://developer.android.com/reference/android/speech/SpeechRecognizer)
+distinguishes the on-device factory/availability API from generic recognition,
+which may use remote processing and is unsuitable as a continuous wake loop.
+[App Actions](https://developer.android.com/develop/devices/assistant/overview)
+describes system capabilities/shortcuts and phone-specific availability; it does
+not establish support on our fridge hardware. Android's
+[microphone foreground-service requirements](https://developer.android.com/develop/background-work/services/fgs/service-types#microphone)
+are separate from a foreground app's explicit tap; a local prototype does not
+authorize background listening or service/permission changes. Apple's
+[App Intents](https://developer.apple.com/documentation/appintents/creating-your-first-app-intent)
+and [App Shortcuts example](https://developer.apple.com/documentation/appintents/acceleratingappinteractionswithappintents)
+define system action surfaces such as Siri, Spotlight and Shortcuts. They do not
+provide an app-specific wake detector or replace our authorization/review policy.
+These sources support the mode distinction, not implementation/device acceptance.
+
+### Voice delivery and evidence sequence (#563)
+
+1. Keep existing text and touch entry usable. Map the active role, device,
+   recognizer/platform capability and language without requesting permissions.
+   No voice transcript/audio/content is placed in telemetry or diagnostic logs.
+2. Finish the deliberate Android path and separately design iOS native speech.
+   Show permission-request context, armed/listening, editable result, no-input,
+   cancel, timeout, denial, unavailable and interruption states. Only a deliberate
+   feature action may request access; permission alone never starts a command.
+3. Implement Android system entry and Apple intents independently, behind their
+   own capability checks. Treat parameters/deep links as untrusted input, resolve
+   current canonical destinations and renew authority. Opening an authenticated
+   review is the initial scope; system invocation must not bypass confirmation.
+4. A fridge wake detector needs a separate local implementation/processing and
+   retained-audio decision before prototype activation. Prefix parsing is not
+   completion. No raw audio retention by default, no provider transmission before
+   disclosure/approval, and no listening after cancellation or lifecycle exit.
+5. Record the named hardware, OS/build, app source/artifact, recognizer/model and
+   EN/ES locale before evaluating. Include noise/distance/TV/guest/child speech,
+   false activation, silence, playback interruption, denial/revocation, night,
+   lock/resume, process death and offline/power behavior. Use the existing target
+   thresholds below as proposed criteria, not observed results or permission.
+6. Publish an evidence-backed go/no-go separately for native tap, Android actions,
+   Apple intents and local wake. If a mode lacks capability/authority/evidence,
+   expose typed/manual fallback; do not silently switch processing or advertise
+   universal voice support. Exact permission/provider/hardware/signing/store/
+   rollout actions retain their own approval requirements.
+
+Codex owns contracts, source adapters, fixtures and later isolated acceptance.
+Cameron owns prototype/device/provider/privacy and distribution decisions. This
+mode definition completes only #563's documentation item; implementation,
+permissions/runtime, hardware trials and the feasibility go/no-go remain open.
 
 ### Reliability, cost and evaluation
 
@@ -217,3 +300,20 @@ The Help app-details card uses the existing shared card, typography, disclosure 
 The report distinguishes installed binary platform/version/build/id and measured App/Network/Share plugin presence from the public loaded server version/commit/build timestamp. Plugin presence is not permission or feature readiness. No family/account identifier, raw exception, provider setting, automatic export or persistent report is included. Older App bridges, offline servers and /api/version 404 remain usable partial reports. /api/version retains its exact three-key response.
 
 This is support evidence only. It does not implement the versioned capability handshake, minimum-client policy, queued-write compatibility, or current/previous-client physical matrix required to close #473. Rollback removes the optional Help card and helper without a data migration or installed-shell change.
+
+## Current compatibility planning boundary — 2026-10-24
+
+The per-platform capability/fallback matrix, support-window decision boundary
+and forward/rollback sequence are in
+[Native, web and API compatibility](../architecture/NATIVE_API_COMPATIBILITY.md#per-platform-capability-and-fallback-contract--2026-10-24).
+This contract expansion is restored in the recovery checkout, not recovered
+from the absent unpublished branch. It does not complete #473: actual
+current/previous client compatibility, older queued work, lifecycle/household
+isolation and physical-device evidence remain unexecuted.
+
+Canonical retained execution: #138 Android/fridge (including retired #120/#242),
+#465 iOS, #135 offline/sync (including retired #371/#466), #473 cross-device
+compatibility, #499 adaptive UI, #480/#557 profile/linking, #563 local voice and
+#145 release automation. Older issue references above are historical work packets;
+closure of a redundant tracker does not mean its native acceptance passed.
+No QA, hardware, signing/store, provider, permission or production action ran.

@@ -1280,7 +1280,7 @@ describe("/dashboard/meals", () => {
       within(dialog)
         .getByRole("link", { name: "View recipe" })
         .getAttribute("href"),
-    ).toBe("/dashboard/meals/recipes/r_lasagna");
+    ).toBe(`/dashboard/meals/recipes/r_lasagna?start=${today}`);
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(calls.some((c) => c.method === "POST")).toBe(true),

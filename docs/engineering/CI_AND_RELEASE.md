@@ -1,11 +1,17 @@
 # CI and Release Workflow Map
 
 **Release route reconciled:** 2026-10-07. Older workflow/configuration observations remain dated below.
-**Default branch:** `main` (renamed from `master` on 2026-10-01) (verify the live repository setting before changing it)
+**Default branch:** `main` (GitHub repository metadata read on 2026-10-25; no setting changed). It was renamed from `master` on 2026-10-01.
 
-## Current production route
+## Current candidate boundary — 2026-10-25
 
-Protected `main` plus existing Coolify source builds is the route recorded by deployment records #362/#363/#377. Cameron’s subsequent “merge all” instruction authorizes these reviewed PR merges and their existing automatic deployments; the separate database cutover and deployment-policy changes remain gated. GitHub validation checks do not deploy; a merge can separately trigger Coolify's existing Auto Deploy. Record the reviewed green source SHA and merged SHA, then verify `/api/version`, `/api/health`, approved assets and safe journeys. Do not call the Coolify build the checked immutable CI image.
+The recovered issue-followthrough candidate is local, unpushed, unverified and unreleased; use CURRENT_STATE.md and programme issue #128 for exact source identity. Cameron's latest instruction defers QA/tests/builds/browser/CI/database/migration work and deployment; the current pass also leaves push/merge/publish/activation untouched. Historical merge/automatic-deployment approval below does not authorize this candidate. No current production, provider, scheduler, native/store or infrastructure state was observed or changed by this documentation reconciliation.
+
+`verify:app` and `scripts/check-local.mjs` remain authored local app-check entry points, not proof that the complete candidate pipeline has run or passed. Their local app subset does not establish hosted artifact identity, the full migration/restore/old-client matrix, browser/accessibility/device acceptance or release approval. The separate existing workflows/gates below remain applicable when QA is resumed; none is dispatched here. #145's full reproducible-gate, actionable-output, identity/promotion, rollback, native-compatibility and protected-secret criteria remain open.
+
+## Recorded production route
+
+Protected `main` plus existing Coolify source builds is the route recorded by deployment records #362/#363/#377. The historical review packet carried scoped “merge all” authorization for those reviewed PRs and their existing automatic deployments. That earlier authorization is not current approval for this recovered candidate; the separate database cutover and deployment-policy decisions also remain gated. GitHub validation checks do not deploy; a merge can separately trigger Coolify's existing Auto Deploy. Record the reviewed green source SHA and merged SHA, then verify `/api/version`, `/api/health`, approved assets and safe journeys. Do not call the Coolify build the checked immutable CI image.
 
 Do not dispatch the retained SSH `Release to VPS` workflow, enable the dormant immutable publisher or change Auto Deploy during this task. #363 is the owner policy decision. This reconciliation changes documentation only; secrets, infrastructure, routing, backup/proxy/security policy and all paused Hermes schedules remain untouched. Candidate-specific evidence and applicable scoped authorization: `COMPLETION_CONTRACT.md`.
 

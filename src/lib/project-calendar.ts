@@ -3,6 +3,52 @@
 
 import { toDateOnlyUTC } from '@/lib/dates'
 import { zonedWallTimeToUtc } from '@/lib/calendar-import/timezone'
+import type { Prisma } from '@prisma/client'
+
+export const PROJECT_CALENDAR_TASK_BATCH = 200
+
+/**
+ * Caller holds current user/household/project authority in the effect transaction.
+ * Immutable task IDs drive internal traversal; UI position changes never skip a
+ * remaining task. Grouped existence reads return at most one row per candidate
+ * UID/title, even if old calendars contain many duplicate events.
+ */
+export async function readProjectCalendarTaskBatch(
+  tx: Prisma.TransactionClient,
+  scope: { familyId: string; projectId: string },
+  afterId: string | null,
+) {
+  const tasks = await tx.projectTask.findMany({
+    where: {
+      project_id: scope.projectId, project: { family_id: scope.familyId },
+      completed: false, due_date: { not: null },
+      ...(afterId ? { id: { gt: afterId } } : {}),
+    },
+    select: { id: true, title: true, description: true, due_date: true },
+    orderBy: { id: 'asc' }, take: PROJECT_CALENDAR_TASK_BATCH,
+  })
+  if (tasks.length === 0) return { tasks, unsent: tasks }
+  const where = { family_id: scope.familyId, project_id: scope.projectId, is_task: true }
+  const [linked, legacy] = await Promise.all([
+    tx.event.groupBy({
+      by: ['source_uid'], where: {
+        ...where, source_uid: { in: tasks.map((task) => projectTaskUid(task.id)) },
+      },
+    }),
+    tx.event.groupBy({
+      by: ['title'], where: {
+        ...where, title: { in: [...new Set(tasks.map((task) => task.title))] },
+        OR: [{ source_uid: null }, { source_uid: '' }],
+      },
+    }),
+  ])
+  const linkedUids = new Set(linked.map((event) => event.source_uid))
+  const legacyTitles = new Set(legacy.map((event) => event.title))
+  return {
+    tasks,
+    unsent: tasks.filter((task) => !linkedUids.has(projectTaskUid(task.id)) && !legacyTitles.has(task.title)),
+  }
+}
 
 /**
  * Stable link from a calendar event back to the project task it came from,

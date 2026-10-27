@@ -7,6 +7,7 @@
 
 jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
 jest.mock('@/lib/feature-gate-server', () => ({ featureGate: async () => null }))
+import { defaultFeatures } from '@/lib/features'
 jest.mock('@/lib/session', () => ({
   verifySessionToken: async (token: string) => {
     if (!token?.startsWith('session:')) return null
@@ -56,7 +57,7 @@ describeWithDatabase('send to calendar against Postgres', () => {
     prisma = mod.prisma
     route = await import('../[id]/send-to-calendar/route')
     await cleanup()
-    await prisma.family.create({ data: { id: FAM, name: 'STC', invite_code: 'stcint-invite' } })
+    await prisma.family.create({ data: { id: FAM, name: 'STC', invite_code: 'stcint-invite', features: { ...defaultFeatures(), projects: true } } })
     await prisma.user.create({
       data: { id: PARENT, email: 'p@stcint.test', name: 'Robin', role: 'parent', family_id: FAM },
     })

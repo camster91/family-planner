@@ -831,7 +831,9 @@ it("does not let a late Reports failure overwrite Report state", async () => {
   const user = userEvent.setup();
   let releaseReports!: (value: unknown) => void;
   global.fetch = jest.fn(async (path, options) => {
-    if (path === "/api/feedback" && !options?.method)
+    // The reports loader sends an explicit GET; keep that pending while the
+    // report form performs its independent POST.
+    if (path === "/api/feedback" && (!options?.method || options.method === "GET"))
       return new Promise((resolve) => {
         releaseReports = resolve;
       });
@@ -843,6 +845,7 @@ it("does not let a late Reports failure overwrite Report state", async () => {
   await user.click(screen.getByRole("button", { name: "AI assistant" }));
   const dialog = screen.getByRole("dialog");
   await user.click(within(dialog).getByRole("button", { name: "My reports" }));
+  await waitFor(() => expect(releaseReports).toEqual(expect.any(Function)));
   await user.click(
     within(dialog).getByRole("button", { name: "Report / Suggest" }),
   );
@@ -1434,7 +1437,9 @@ it("fails closed for a noncanonical or overlong freshness lease", async () => {
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
     "Today context is unavailable right now.",
   );
-  expect(within(dialog).queryByRole("region")).toBeNull();
+  expect(
+    within(dialog).queryByRole("region", { name: "Review proposed action" }),
+  ).toBeNull();
 });
 
 it("expires a Today preview when the tab backgrounds before confirmation", async () => {
@@ -1596,7 +1601,9 @@ it("rejects a Today response that arrives after the request-start lease", async 
       "Today context is unavailable right now.",
     );
     expect(within(dialog).getByLabelText("Your message")).toHaveValue(draft);
-    expect(within(dialog).queryByRole("region")).toBeNull();
+    expect(
+      within(dialog).queryByRole("region", { name: "Review proposed action" }),
+    ).toBeNull();
   } finally {
     performanceSpy.mockRestore();
   }
@@ -1896,3 +1903,43 @@ it.each([true, false])(
     expect(calls).toHaveLength(4);
   },
 );
+
+// Authored source only; no provider request or test execution at this checkpoint.
+it("keeps the chat draft when an oversized reply cannot be decoded", async () => {
+  const decode = jest.fn(async () => ({ reply: "Oversized reply", action: null }));
+  global.fetch = jest.fn(async () => ({ ok: true, status: 200, headers: new Headers({ "content-length": "1048576" }), json: decode })) as unknown as typeof fetch;
+  const user = userEvent.setup();
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await user.type(screen.getByLabelText("Your message"), "Help with dinner");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByRole("alert");
+  expect(decode).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Your message")).toHaveValue("Help with dinner");
+  expect(screen.getByRole("button", { name: "Retry message" })).toBeEnabled();
+  expect(screen.queryByText("Oversized reply")).toBeNull();
+});
+
+it("retains the exact feedback request after an oversized receipt and retries it explicitly", async () => {
+  const bodies: string[] = [];
+  const decode = jest.fn(async () => ({ report: { id: "unconfirmed" } }));
+  global.fetch = jest.fn(async (_input, init) => {
+    bodies.push(String(init?.body));
+    return bodies.length === 1
+      ? ({ ok: true, status: 200, headers: new Headers({ "content-length": "131072" }), json: decode }) as unknown as Response
+      : response({ report: { id: "confirmed-receipt" } });
+  }) as typeof fetch;
+  const user = userEvent.setup();
+  render(<AssistantHost role="parent" />);
+  await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
+  await user.type(screen.getByLabelText("Title"), "Calendar feedback");
+  await user.type(screen.getByLabelText("What happened or what would help?"), "Please preserve this original private report.");
+  await user.click(screen.getByRole("button", { name: "Save report" }));
+  await screen.findByRole("alert");
+  expect(screen.getByLabelText("Title")).toHaveValue("Calendar feedback");
+  expect(decode).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Save report" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("confirmed-receipt");
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toBe(bodies[0]);
+});

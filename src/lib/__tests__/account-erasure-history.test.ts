@@ -14,10 +14,16 @@ it("discovers only exact account references and returns distinct ordered househo
   const tx = {
     message: { findMany: messages },
     auditLog: { findMany: audits },
+    householdDevice: { findMany: jest.fn().mockResolvedValue([{ family_id: "d" }]) },
+    devicePairing: { findMany: jest.fn().mockResolvedValue([{ family_id: "c" }]) },
+    familyInvite: { findMany: jest.fn().mockResolvedValue([{ family_id: "e" }]) },
   } as unknown as Prisma.TransactionClient;
   expect(await accountErasureHistoryHouseholds(tx, "departing")).toEqual([
     "a",
     "b",
+    "c",
+    "d",
+    "e",
     "z",
   ]);
   expect(messages).toHaveBeenCalledWith(
@@ -43,6 +49,9 @@ it("redacts only member-target text/actor identity and exact read markers in loc
     execute = jest.fn();
   const tx = {
     auditLog: { updateMany: update },
+    householdDevice: { updateMany: jest.fn() },
+    devicePairing: { updateMany: jest.fn(), deleteMany: jest.fn() },
+    familyInvite: { deleteMany: jest.fn() },
     $executeRaw: execute,
   } as unknown as Prisma.TransactionClient;
   await eraseRetainedAccountHistoryInTx(
@@ -76,4 +85,44 @@ it("redacts only member-target text/actor identity and exact read markers in loc
         arg.data.actor_user_id === null,
     ),
   ).toBe(true);
+});
+
+it("clears exact device actor slots and the full erased elevation only in locked households", async () => {
+  const devices = jest.fn(), pairings = jest.fn();
+  const tx = {
+    auditLog: { updateMany: jest.fn() }, $executeRaw: jest.fn(),
+    householdDevice: { updateMany: devices }, devicePairing: { updateMany: pairings, deleteMany: jest.fn() },
+    familyInvite: { deleteMany: jest.fn() },
+  } as unknown as Prisma.TransactionClient;
+  await eraseRetainedAccountHistoryInTx(tx, { id: "departing", role: "parent" }, ["old", "current"]);
+  expect(pairings.mock.calls.map(([arg]) => arg)).toEqual([
+    { where: { family_id: "current", confirmed_by: "departing" }, data: { confirmed_by: null } },
+    { where: { family_id: "old", confirmed_by: "departing" }, data: { confirmed_by: null } },
+  ]);
+  const calls = devices.mock.calls.map(([arg]) => arg);
+  expect(calls).toHaveLength(8);
+  expect(calls.every(arg => ["current", "old"].includes(arg.where.family_id))).toBe(true);
+  for (const column of ["created_by", "confirmed_by", "revoked_by"]) {
+    const edits = calls.filter(arg => arg.where[column] === "departing");
+    expect(edits).toHaveLength(2);
+    expect(edits.every(arg => JSON.stringify(arg.data) === JSON.stringify({ [column]: null }))).toBe(true);
+  }
+  expect(calls.filter(arg => arg.where.elevated_user_id === "departing").map(arg => arg.data)).toEqual([0, 1].map(() => ({
+    elevation_token_hash: null, elevated_user_id: null, elevated_token_version: null,
+    elevation_method: null, elevation_started_at: null, elevation_last_used_at: null, elevation_expires_at: null,
+  })));
+});
+
+it("removes creator-owned invitation and pairing requests only from the supplied locked households", async () => {
+  const invites = jest.fn(), pairings = jest.fn();
+  const tx = {
+    auditLog: { updateMany: jest.fn() }, $executeRaw: jest.fn(),
+    householdDevice: { updateMany: jest.fn() },
+    devicePairing: { updateMany: jest.fn(), deleteMany: pairings },
+    familyInvite: { deleteMany: invites },
+  } as unknown as Prisma.TransactionClient;
+  await eraseRetainedAccountHistoryInTx(tx, { id: "departing", role: "parent" }, ["old", "current", "old"]);
+  const expected = ["current", "old"].map(family_id => [{ where: { family_id, created_by: "departing" } }]);
+  expect(invites.mock.calls).toEqual(expected);
+  expect(pairings.mock.calls).toEqual(expected);
 });

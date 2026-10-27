@@ -3,17 +3,39 @@ import { loadHomeSummary } from '../home-summary-data'
 const NOW = new Date('2026-01-05T12:00:00.000Z')
 
 function dbWith(rows: unknown[]) {
-  return {
+  const db = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     chore: {
       findMany: jest.fn().mockResolvedValue(rows),
-      findFirst: jest.fn().mockResolvedValue(null),
+      profileProbe: jest.fn().mockResolvedValue(null),
       count: jest.fn().mockResolvedValue(0),
     },
     user: {
       findMany: jest.fn().mockResolvedValue([{ id: 'u_child', name: 'Casey Child' }]),
     },
-  } as any
+  }
+  // Synthetic query adapter: provide selected creation times and keep probe
+  // fixtures separate from the capped chore payload. No production fallback.
+  const chores = db.chore as any
+  const readChores = chores.findMany.getMockImplementation()
+  chores.findMany.mockImplementation(async (args: any) => {
+    const where = args.where.AND?.[0] ?? args.where
+    const values = where.assigned_to === null
+      ? await chores.profileProbe(args)
+      : await readChores(args)
+    const rows = (Array.isArray(values) ? values : values ? [values] : []).map((row: any) => ({
+      ...row, due_date: row.due_date ?? NOW, created_at: row.created_at ?? NOW,
+    }))
+    rows.sort((a: any, b: any) => a.due_date.getTime() - b.due_date.getTime() ||
+      a.created_at.getTime() - b.created_at.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    const after = args.where.AND?.[1]?.OR?.[2]
+    return rows.filter((row: any) => !after || row.due_date > after.due_date ||
+      (row.due_date.getTime() === after.due_date.getTime() &&
+        (row.created_at > after.created_at ||
+          (row.created_at.getTime() === after.created_at.getTime() && row.id > after.id.gt))))
+      .slice(0, args.take)
+  })
+  return db as any
 }
 
 describe('loadHomeSummary subject compatibility', () => {
@@ -81,7 +103,7 @@ describe('loadHomeSummary subject compatibility', () => {
         assigned_member_id: null,
       },
     ])
-    db.chore.findFirst.mockResolvedValue({ id: 'profile-after-cap' })
+    db.chore.profileProbe.mockResolvedValue({ id: 'profile-after-cap' })
 
     const data = await loadHomeSummary(db, {
       familyId: 'fam_a',
@@ -94,7 +116,7 @@ describe('loadHomeSummary subject compatibility', () => {
       expect.objectContaining({ id: 'account-only-capped-row' }),
     ])
     expect(data.protocolError?.code).toBe('MEMBER_PROTOCOL_UNAVAILABLE')
-    expect(db.chore.findFirst).toHaveBeenCalledWith(
+    expect(db.chore.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           family_id: 'fam_a',
@@ -111,7 +133,7 @@ describe('loadHomeSummary subject compatibility', () => {
             }),
           },
         }),
-        select: { id: true },
+        select: { id: true, due_date: true, created_at: true },
       }),
     )
   })

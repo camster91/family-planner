@@ -1,3 +1,4 @@
+import { PRODUCT_BRAND } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         const html = brandedEmailHtml([
           '<h2>Verify Your Email</h2>',
           `<p>Hi ${escapeHtml(user.name)},</p>`,
-          '<p>Here is a new verification link for your Family Planner account.</p>',
+          `<p>Here is a new verification link for your ${escapeHtml(PRODUCT_BRAND.wordmark)} account.</p>`,
           `<p>${emailButton(verifyUrl, 'Verify Email')}</p>`,
           `<p>Or copy this link: ${escapeHtml(verifyUrl)}</p>`,
           '<p>This link expires in 24 hours.</p>',
@@ -65,9 +66,9 @@ export async function POST(request: NextRequest) {
 
         await sendAccountMail('email_verification', {
           to: email,
-          subject: 'Verify Your Family Planner Email',
+          subject: `Verify your ${PRODUCT_BRAND.wordmark} email`,
           html,
-          text: `Verify your Family Planner email: ${verifyUrl} - this link expires in 24 hours.`,
+          text: `Verify your ${PRODUCT_BRAND.wordmark} email: ${verifyUrl} - this link expires in 24 hours.`,
         })
       } catch (e) {
         // Delivery failed AFTER the new token was written — restore the prior

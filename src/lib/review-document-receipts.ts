@@ -1,3 +1,4 @@
+import { RECIPE_OWNER_HEADER, readRecipeOwner, sameRecipeOwner, type RecipeOwner } from "@/lib/recipe-owner-contract";
 /** Foreground, state-only receipt reads. Never send or prune saved requests. */
 import { z } from "zod";
 import { hashBrowserIdempotentRequest } from "@/lib/idempotency-request-json";
@@ -30,12 +31,17 @@ const receipt = z.union([
 export async function inspectReviewDocumentReceipt(
   request: ReviewExactRequest,
   context: ReviewDocumentContext,
+  expectedRecipeOwner?: RecipeOwner,
 ): Promise<ReviewReceiptState> {
   if (
     !context.owner ||
     context.owner.ownerId !== context.userId ||
     (request.action === "recipe.create") !== (context.domain === "recipe")
   )
+    throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+  if (expectedRecipeOwner && (request.action !== "recipe.create" || context.domain !== "recipe" ||
+      context.userId !== expectedRecipeOwner.actorId || context.familyId !== expectedRecipeOwner.familyId ||
+      context.role !== expectedRecipeOwner.role || context.owner.generation !== expectedRecipeOwner.generation))
     throw new OwnedRequestRecoveryError("OWNER_CHANGED");
   const body: unknown = JSON.parse(request.body);
   // Hash parsed canonical input exactly as the corresponding create route does,
@@ -50,6 +56,11 @@ export async function inspectReviewDocumentReceipt(
           : request.action === "chore.profile.create"
             ? profileChoreCreateSchema.parse(body)
             : captureGrocerySchema.parse(body);
+  if (request.action === "recipe.create" && expectedRecipeOwner) {
+    const commandOwner = (parsed as { creation_owner?: RecipeOwner }).creation_owner;
+    if (commandOwner && !sameRecipeOwner(commandOwner, expectedRecipeOwner))
+      throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+  }
   const hash = await hashBrowserIdempotentRequest(request.action, parsed);
   if (!/^[a-f0-9]{64}$/.test(hash))
     throw new OwnedRequestRecoveryError("UNAVAILABLE");
@@ -60,7 +71,10 @@ export async function inspectReviewDocumentReceipt(
   if (chore && context.role !== "parent")
     throw new OwnedRequestRecoveryError("OWNER_CHANGED");
   const headers = new Headers({ "Idempotency-Key": request.key });
-  if (recipe) headers.set("X-Recipe-Request-Hash", hash);
+  if (recipe) {
+    headers.set("X-Recipe-Request-Hash", hash);
+    if (expectedRecipeOwner) headers.set(RECIPE_OWNER_HEADER, JSON.stringify(expectedRecipeOwner));
+  }
   else if (chore) {
     headers.set("X-Chore-Create-Action", request.action);
     headers.set("X-Chore-Request-Hash", hash);
@@ -68,21 +82,53 @@ export async function inspectReviewDocumentReceipt(
     headers.set("X-Capture-Action", request.action);
     headers.set("X-Capture-Request-Hash", hash);
   }
-  const result = await requestOwnedJson(
-    recipe
-      ? "/api/recipes/receipt"
-      : chore
-        ? "/api/chores/create/receipt"
-        : "/api/capture/receipt",
-    { headers },
-    8192,
-  );
-  if (result.kind !== "reply")
-    throw new OwnedRequestRecoveryError("UNAVAILABLE");
-  if ([401, 403, 409, 422].includes(result.response.status))
-    return { state: "refused" };
+  return readReceiptAt(recipe ? "/api/recipes/receipt" : chore ? "/api/chores/create/receipt" : "/api/capture/receipt", headers, undefined, expectedRecipeOwner);
+}
+
+async function readReceiptAt(path: string, headers: Headers, signal?: AbortSignal, expectedRecipeOwner?: RecipeOwner): Promise<ReviewReceiptState> {
+  const result = await requestOwnedJson(path, { headers, signal }, 8192);
+  if (result.kind !== "reply") throw new OwnedRequestRecoveryError("UNAVAILABLE");
+  if (expectedRecipeOwner && ([401, 403].includes(result.response.status) ||
+      (result.body as { error?: { code?: string } } | null)?.error?.code === "RECIPE_OWNER_CHANGED" ||
+      (result.response.ok && !sameRecipeOwner(expectedRecipeOwner,
+        readRecipeOwner(result.response.headers?.get(RECIPE_OWNER_HEADER) ?? null)))))
+    throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+  if ([401, 403, 409, 422].includes(result.response.status)) return { state: "refused" };
   if (!result.response.ok) throw new OwnedRequestRecoveryError("UNAVAILABLE");
   const proof = receipt.safeParse(result.body);
   if (!proof.success) throw new OwnedRequestRecoveryError("UPDATE_REQUIRED");
   return proof.data;
+}
+
+/** Inspect the original ordinary chore request through the existing state-only
+ * endpoint. Receipt presence is never permission to retry an absent/expired key.
+ * Authentication and current household permissions remain server decisions.
+ */
+export async function inspectChoreCreateReceipt(
+  original: { action: "chore.create" | "chore.profile.create"; key: string; body: string },
+  signal?: AbortSignal,
+): Promise<ReviewReceiptState> {
+  const raw: unknown = JSON.parse(original.body);
+  const parsed = original.action === "chore.create" ? createChoreSchema.parse(raw) : profileChoreCreateSchema.parse(raw);
+  const hash = await hashBrowserIdempotentRequest(original.action, parsed);
+  if (signal?.aborted || !/^[a-f0-9]{64}$/.test(hash)) throw new OwnedRequestRecoveryError("UNAVAILABLE");
+  return readReceiptAt("/api/chores/create/receipt", new Headers({
+    "Idempotency-Key": original.key, "X-Chore-Create-Action": original.action, "X-Chore-Request-Hash": hash,
+  }), signal);
+}
+
+/** Ordinary create inspection uses the same canonical state-only receipt path. */
+export async function inspectRecipeCreateReceipt(
+  original: { key: string; body: string },
+  expectedRecipeOwner?: RecipeOwner,
+  signal?: AbortSignal,
+): Promise<ReviewReceiptState> {
+  const parsed = createRecipeSchema.parse(JSON.parse(original.body));
+  if (expectedRecipeOwner && parsed.creation_owner && !sameRecipeOwner(parsed.creation_owner, expectedRecipeOwner))
+    throw new OwnedRequestRecoveryError("OWNER_CHANGED");
+  const hash = await hashBrowserIdempotentRequest("recipe.create", parsed);
+  if (signal?.aborted || !/^[a-f0-9]{64}$/.test(hash)) throw new OwnedRequestRecoveryError("UNAVAILABLE");
+  const headers = new Headers({ "Idempotency-Key": original.key, "X-Recipe-Request-Hash": hash });
+  if (expectedRecipeOwner) headers.set(RECIPE_OWNER_HEADER, JSON.stringify(expectedRecipeOwner));
+  return readReceiptAt("/api/recipes/receipt", headers, signal, expectedRecipeOwner);
 }

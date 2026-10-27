@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "@/lib/api-auth";
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { fetchFeed } from "@/lib/calendar-import/fetch";
@@ -20,6 +21,12 @@ const inputSchema = z
 async function discover(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
+  const original = Object.freeze({
+    actorId: auth.user.id, familyId: auth.user.family_id,
+    role: auth.user.role, generation: auth.payload.tv ?? 0,
+  });
+  const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+  if (ownerRefusal) return ownerRefusal;
   const gate = await featureGate(auth.user.family_id, "meals");
   if (gate) return gate;
   const limit = await checkRateLimit(
@@ -47,6 +54,8 @@ async function discover(request: NextRequest) {
       { error: "Choose a supported source and enter 2–120 characters." },
       { status: 400 },
     );
+  const beforeFetch = await renewRecipeReadAuthority(request, original);
+  if (beforeFetch) return beforeFetch;
   const selected = recipeSources.filter(
     (source) =>
       input.data.source === "all" || source.name === input.data.source,
@@ -81,6 +90,8 @@ async function discover(request: NextRequest) {
       }
     }),
   );
+  const afterFetch = await renewRecipeReadAuthority(request, original);
+  if (afterFetch) return afterFetch;
   // Round-robin avoids filling all 24 places from the first publisher.
   const results: Array<{
     title: string;
@@ -113,7 +124,7 @@ async function discover(request: NextRequest) {
       searchUrl: selected.length === 1 ? reads[0].searchUrl : null,
       sources: reads.map(({ results: _results, ...source }) => source),
     },
-    { status: unavailable ? 422 : 200 },
+    { status: unavailable ? 422 : 200, headers: recipeReadOwnerHeaders(original) },
   );
 }
 export async function POST(request: NextRequest) {

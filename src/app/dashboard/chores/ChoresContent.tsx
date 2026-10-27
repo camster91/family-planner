@@ -1,4 +1,8 @@
 "use client";
+import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
+import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
+import { ChoreNotificationFocus } from "@/components/chores/ChoreNotificationFocus";
+import type { ChoreNotificationFocus as NotificationFocus } from "@/lib/chore-notification-focus";
 import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
 import { RoutineOriginEntry } from "@/components/chores/RoutineOriginEntry";
 import { useChorePreparationContext } from "@/components/chores/useChorePreparationContext";
@@ -28,6 +32,7 @@ import { useToast, useUndoToast } from "@/components/ui/toast";
 import {
   checkChore,
   setChoreDone,
+  type ChoreTickResult,
   type CheckedChoreState,
 } from "@/lib/chore-tick-client";
 import { LongPressRow } from "@/components/ui/long-press-row";
@@ -83,12 +88,19 @@ const DeferredRoutineScheduleEntry = dynamic(
   { ssr: false, loading: () => null },
 );
 
+const DeferredOwnedChoreReview = dynamic(
+  () => import("@/components/chores/OwnedChoreReview").then(module => module.OwnedChoreReview),
+  { ssr: false, loading: () => null },
+);
+
 function isActiveRepeatingChore(chore: Chore): boolean {
   const frequency = chore.recurrence_frequency ?? chore.frequency;
   return Boolean(chore.recurrence_id && frequency && frequency !== "once");
 }
 
 interface ChoresContentProps {
+  ownedCheck?: { owner: ChoreCheckOwner | null };
+  notificationFocus?: { target: NotificationFocus | null };
   preparationBacklinks?: PreparationBacklinks;
   preparationContextEnabled?: boolean;
   chores: (Chore & {
@@ -250,7 +262,9 @@ function ReassignModal({
 }
 
 export default function ChoresContent({
+  ownedCheck,
   chores,
+  notificationFocus,
   familyMembers,
   currentUserId,
   userRole,
@@ -260,6 +274,10 @@ export default function ChoresContent({
   preparationBacklinks: initialPreparationBacklinks = {},
   preparationContextEnabled = false,
 }: ChoresContentProps) {
+  const checkOwner = userRole === "parent" && ownedCheck?.owner?.userId === currentUserId
+    && ownedCheck.owner.familyId === familyId ? ownedCheck.owner : null;
+  const checkOwnerKey = checkOwner ? JSON.stringify(checkOwner) : null;
+  const [ownedReview, setOwnedReview] = React.useState<{ choreId: string; decision: "approve" | "reject"; ownerKey: string } | null>(null);
   const [view, setView] = React.useState<"chores" | "routines">("chores");
   const [inlineRoutinePanelOpen, setInlineRoutinePanelOpen] =
     React.useState(true);
@@ -282,6 +300,24 @@ export default function ChoresContent({
     }
   };
   const [localChores, setLocalChores] = React.useState(chores);
+  const [focusTarget, setFocusTarget] = React.useState(notificationFocus?.target ?? null);
+  const [focusNeedsRefresh, setFocusNeedsRefresh] = React.useState(false);
+  const focusTargetRef = React.useRef(focusTarget);
+  focusTargetRef.current = focusTarget;
+  React.useEffect(() => { setFocusTarget(notificationFocus?.target ?? null); setFocusNeedsRefresh(false); }, [notificationFocus?.target]);
+  const completionBusyRef = React.useRef(new Set<string>());
+  const [completionBusyIds, setCompletionBusyIds] = React.useState(new Set<string>());
+  const completionRequests = React.useRef(new Set<AbortController>());
+  const completionOwner = React.useRef({ userId: currentUserId, familyId, role: userRole, epoch: 0, live: true });
+  if (completionOwner.current.userId !== currentUserId || completionOwner.current.familyId !== familyId || completionOwner.current.role !== userRole) {
+    completionRequests.current.forEach(request => request.abort());
+    completionOwner.current = { userId: currentUserId, familyId, role: userRole, epoch: completionOwner.current.epoch + 1, live: true };
+  }
+  React.useEffect(() => {
+    completionOwner.current.live = true;
+    return () => { completionOwner.current.live = false; completionOwner.current.epoch++; completionRequests.current.forEach(request => request.abort()); };
+  }, []);
+
   const preparationContext = useChorePreparationContext(
     familyId ? { userId: currentUserId, familyId } : undefined,
     localChores.map((chore) => chore.id),
@@ -353,7 +389,7 @@ export default function ChoresContent({
   // or its explicit recovery readback is pending. The shared controller owns
   // the browser Back sentinel and prevents a stale page transition from
   // unmounting this dialog before the request settles.
-  usePendingFormNavigationController(Boolean(deleteDialog?.pending));
+  usePendingFormNavigationController(Boolean(deleteDialog?.pending) || completionBusyIds.size > 0);
 
   const scheduleVerificationFallback = React.useCallback(() => {
     window.setTimeout(() => {
@@ -509,73 +545,76 @@ export default function ChoresContent({
 
   const handleCompleteChore = React.useCallback(
     async (choreId: string) => {
-      const target = localChores.find((c) => c.id === choreId);
-      // A rollback can arrive while an action sheet or a routine view is
-      // still mounted. Treat the server's paused capability as authoritative
-      // even if a stale child callback fires before the next render.
+      const owner = completionOwner.current;
+      if (!owner.live || owner.userId !== currentUserId || owner.familyId !== familyId || owner.role !== userRole || completionBusyRef.current.has(choreId)) return;
+      const epoch = owner.epoch;
+      const current = () => completionOwner.current.live && completionOwner.current.epoch === epoch;
+      const target = localChores.find(c => c.id === choreId);
       if (target && isPausedProfileChore(target)) return;
+      const focused = focusTarget?.id === choreId ? focusTarget : null;
+      const request = new AbortController();
+      completionRequests.current.add(request);
+      completionBusyRef.current.add(choreId);
+      setCompletionBusyIds(new Set(completionBusyRef.current));
       try {
-        const response = await fetch("/api/chores/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ choreId }),
-        });
-        const data = await response.json();
-        if (!response.ok)
-          throw new Error(data.error || overviewText("completeFailed"));
-
-        const before = localChores.find((c) => c.id === choreId);
-        setLocalChores((prev) =>
-          prev.map((c) =>
-            c.id === choreId
-              ? {
-                  ...c,
-                  status: "completed" as const,
-                  completed_at: new Date().toISOString(),
-                }
-              : c,
-          ),
-        );
-        // Undo over confirm (#269): reopen through POST /api/chores/uncomplete.
+        const result = await requestOwnedJson("/api/chores/complete", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ choreId }), signal: request.signal,
+        }, 32 * 1024);
+        if (!current()) return;
+        if (result.kind !== "reply") throw new Error(overviewText("completeUnconfirmed"));
+        const data = result.body as { success?: unknown; choreId?: unknown; alreadyCompleted?: unknown; error?: unknown } | null;
+        if (!result.response.ok) throw new Error(typeof data?.error === "string" ? data.error : overviewText("completeFailed"));
+        if (data?.success !== true || (data.choreId !== undefined && data.choreId !== choreId)) throw new Error(overviewText("completeUnconfirmed"));
+        if (data.alreadyCompleted === true) {
+          // The existing terminal state may be verified, not merely completed.
+          // Refresh its canonical projection rather than downgrading it locally.
+          if (focusTargetRef.current?.id === choreId) setFocusNeedsRefresh(true);
+          setFocusTarget(value => value?.id === choreId ? { ...value, canComplete: false } : value);
+          router.refresh();
+          return;
+        }
+        setLocalChores(previous => previous.map(c => c.id === choreId
+          ? { ...c, status: "completed" as const, completed_at: new Date().toISOString() } : c));
+        setFocusTarget(value => value?.id === choreId ? { ...value, status: "completed", canComplete: false } : value);
         showUndo({
-          title: before
-            ? overviewText("doneTitle", { title: before.title })
-            : overviewText("choreDone"),
+          title: target || focused ? overviewText("doneTitle", { title: (target ?? focused)!.title }) : overviewText("choreDone"),
           onUndo: async () => {
-            const result = await setChoreDone(choreId, false);
-            if (!result.ok) {
-              addToast({
-                type: "error",
-                title: overviewText("undoFailed"),
-                message: result.message,
-              });
+            if (!current()) return;
+            const undo = await runOwnedForeground<ChoreTickResult>(() => current()
+              ? setChoreDone(choreId, false)
+              : Promise.resolve({ ok: false, message: overviewText("completeUnconfirmed") }));
+            if (!current()) return;
+            if ("kind" in undo) {
+              if (focusTargetRef.current?.id === choreId) setFocusNeedsRefresh(true);
+              setFocusTarget(value => value?.id === choreId ? { ...value, canComplete: false } : value);
+              addToast({ type: "error", title: overviewText("undoFailed"), message: overviewText("completeUnconfirmed") });
               return;
             }
-            setLocalChores((prev) =>
-              prev.map((c) =>
-                c.id === choreId
-                  ? {
-                      ...c,
-                      status: "pending" as const,
-                      completed_at: undefined,
-                    }
-                  : c,
-              ),
-            );
+            if (!undo.ok) {
+              if (focusTargetRef.current?.id === choreId) setFocusNeedsRefresh(true);
+              setFocusTarget(value => value?.id === choreId ? { ...value, canComplete: false } : value);
+              addToast({ type: "error", title: overviewText("undoFailed"), message: undo.message });
+              return;
+            }
+            setLocalChores(previous => previous.map(c => c.id === choreId ? { ...c, status: "pending" as const, completed_at: undefined } : c));
+            setFocusTarget(value => value?.id === choreId ? { ...value, status: "pending", canComplete: true } : value);
           },
         });
       } catch (error) {
-        addToast({
-          type: "error",
-          title: overviewText("completeFailed"),
-          message:
-            error instanceof Error
-              ? error.message
-              : overviewText("retryMessage"),
-        });
+        if (current()) {
+          if (focusTargetRef.current?.id === choreId) {
+            setFocusNeedsRefresh(true);
+            setFocusTarget(value => value?.id === choreId ? { ...value, canComplete: false } : value);
+          }
+          addToast({ type: "error", title: overviewText("completeFailed"), message: error instanceof Error ? error.message : overviewText("retryMessage") });
+        }
+      } finally {
+        completionRequests.current.delete(request);
+        completionBusyRef.current.delete(choreId);
+        if (completionOwner.current.live) setCompletionBusyIds(new Set(completionBusyRef.current));
       }
     },
-    [addToast, showUndo, localChores, overviewText],
+    [addToast, showUndo, localChores, focusTarget, overviewText, currentUserId, familyId, userRole, router],
   );
 
   // A parent checks a chore a child marked done. Status changes go
@@ -584,7 +623,7 @@ export default function ChoresContent({
   // state; a failure puts the row back and says why.
   const submitVerification = React.useCallback(
     async (choreId: string, decision: "approve" | "reject", notes?: string) => {
-      if (verificationBusyRef.current.has(choreId)) return;
+      if (ownedCheck !== undefined || verificationBusyRef.current.has(choreId)) return;
       const before = localChores.find((c) => c.id === choreId);
       if (!before) return;
       if (isPausedProfileChore(before)) return;
@@ -693,7 +732,7 @@ export default function ChoresContent({
         });
       }
     },
-    [addToast, localChores, verificationText],
+    [addToast, localChores, verificationText, ownedCheck],
   );
 
   const closeVerificationDialog = React.useCallback(() => {
@@ -713,6 +752,14 @@ export default function ChoresContent({
         return;
       const chore = localChores.find((c) => c.id === choreId);
       if (!chore || isPausedProfileChore(chore)) return;
+      if (ownedCheck !== undefined) {
+        if (!checkOwnerKey || !checkOwner) {
+          addToast({ type: "error", title: verificationText("reviewOwnerChanged") });
+          return;
+        }
+        setOwnedReview({ choreId, decision, ownerKey: checkOwnerKey });
+        return;
+      }
       if (decision === "reject") {
         verificationDialogRef.current = choreId;
         setVerificationDialog({ choreId, notes: "", error: null });
@@ -720,7 +767,7 @@ export default function ChoresContent({
       }
       void submitVerification(choreId, decision);
     },
-    [localChores, submitVerification],
+    [localChores, submitVerification, ownedCheck, checkOwnerKey, checkOwner, addToast, verificationText],
   );
 
   const handleSnoozeChore = React.useCallback(
@@ -1061,7 +1108,7 @@ export default function ChoresContent({
       <div>
         <CheckboxRow
           checked={false}
-          disabled={profileOnly || profilePaused}
+          disabled={profileOnly || profilePaused || completionBusyIds.has(chore.id)}
           toggleArea="control"
           onChange={() => handleCompleteChore(chore.id)}
           title={chore.title}
@@ -1146,6 +1193,16 @@ export default function ChoresContent({
 
   return (
     <div className="pb-20">
+      {ownedCheck !== undefined && checkOwner && ownedReview?.ownerKey === checkOwnerKey && (
+        <DeferredOwnedChoreReview key={`${ownedReview.ownerKey}:${ownedReview.choreId}`}
+          owner={checkOwner} choreId={ownedReview.choreId} initialDecision={ownedReview.decision}
+          onSaved={state => setLocalChores(rows => rows.map(row => row.id === state.id ? {
+            ...row, status: state.status, photo_verified: state.photo_verified,
+            completed_at: state.completed_at ?? undefined, verified_at: state.verified_at ?? undefined,
+            verified_notes: state.verified_notes ?? undefined,
+          } : row))}
+          onClose={() => { setOwnedReview(null); scheduleVerificationFallback(); router.refresh(); }} />
+      )}
       {routineSchedulesEnabled &&
         userRole === "parent" &&
         view === "routines" && <DeferredRoutineScheduleEntry />}
@@ -1172,6 +1229,8 @@ export default function ChoresContent({
         }
         className="px-4"
       />
+
+      {notificationFocus && <div className="px-4 mb-4"><ChoreNotificationFocus target={focusTarget} canEdit={userRole === "parent" && !focusNeedsRefresh} onRefresh={focusNeedsRefresh ? () => router.refresh() : undefined} completing={!!focusTarget && completionBusyIds.has(focusTarget.id)} onComplete={handleCompleteChore} /></div>}
 
       <div className="px-4 mb-4">
         <ChoreViewControls
@@ -1601,7 +1660,7 @@ export default function ChoresContent({
         </Dialog>
       )}
 
-      {verificationDialog && (
+      {ownedCheck === undefined && verificationDialog && (
         <Dialog
           open
           onClose={

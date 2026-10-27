@@ -1,5 +1,801 @@
 # Route and domain inventory (#148)
 
+### Remaining tracked copy disposition and list cover — 2026-10-24 (#142)
+
+List-detail image alt now uses the actual list name instead of appending English
+“list image”; its read gate/URL/dimensions/layout remain unchanged. One owned
+record is removed. `REMAINING_COPY_DISPOSITION.md` classifies100 retained records/
+103 recorded occurrences:75 legal records,4 source/mapping records,7 licence/
+barcode records,12 numeric/unit/input examples and2 print-CSS records. These are
+retained, with guard configuration unchanged. No new scan, exhaustive translation
+claim or legal content change. Other inline/API/metadata/provider copy and all
+original locale-data/layout/store/runtime criteria remain open, as does #372's
+operator/legal decision. No new copy-only tests; existing cases unrun. No QA/test/
+check/build/browser/API/database/native/provider/permission/release ran.
+
+### Recipe-grocery add result matching — 2026-10-24 (#134)
+
+Add success now requires bounded nonempty receipt/list IDs, safe nonnegative
+counts with a safe sum, valid unique ingredient/matched-item preview IDs and no
+more preview entries than created items. An explicit destination must match the
+server-normalized original list captured before waiting; unspecified destination
+retains canonical default-list selection. Later caller mutation cannot change
+that expected target or the frozen request body. Existing optional expiry and
+idempotent replay/retry/owned recovery remain; malformed/foreign summaries use
+the prior unconfirmed retry classification. This is not owner/source proof or a
+full recipe snapshot/version receipt. Malformed/destination/caller-mutation and
+same-key recovery regression source authored/unrun. No QA/test/check/build/
+browser/API/database/native/provider/permission/release ran. Original replay/
+role/compatibility/concurrency/locale/runtime acceptance remains open.
+
+### Recipe-grocery reply validation/deadline — 2026-10-24 (#134)
+
+Undo's browser helper now validates the exact original request ID and nonnegative
+safe integer removed/kept counts. A malformed/missing/foreign2xx stays retryable
+and unconfirmed; the existing UI keeps its receipt/owned Undo path instead of
+claiming success. Add and Undo share a15s per-attempt fetch/body deadline. Abort
+is best effort; a timed-out server may still commit and a late body cannot
+replace the settled outcome. No timeout-driven fresh request or automatic Undo
+retry is added; Add's existing explicit in-progress retries/body/key remain.
+Server routes/auth/idempotency/expiry and transport string interfaces remain.
+Malformed/foreign replies, ignored-abort header/body stalls and UI same-Undo
+recovery regression source authored/unrun. No QA/test/check/build/browser/API/
+database/native/provider/permission/release ran. Actual replay/authorization/
+concurrency/rollback/transport/locale/native/runtime acceptance remains open.
+
+### Dashboard fallback and landmark copy — 2026-10-24 (#142)
+
+Today/Budget/Activity missing-household presentation, signed-out shell, skip link,
+main accessible name and shared FormSheet fallback instructions use15 scoped
+core EN/ES keys. Small presentation-only client components receive only a static
+page kind; original server session/role/feature/read gates and household fields
+remain on the server. Main stays a server element and references one localized
+screen-reader span by ID. Classes, heading levels, original Today create/join
+links and custom sheet labels/descriptions stay canonical. FormSheet's busy/back/
+inert/scroll/owned-navigation behavior is unchanged. Fourteen owned inventory
+records removed without scanning. Existing shell assertions now follow the
+labelled-by reference; Spanish name/skip-target case authored/unrun. No QA/test/
+check/build/browser/API/database/native/provider/permission/release ran. Static
+route metadata and original hydration/navigation/role/accessibility/layout/runtime
+acceptance remain open.
+
+### Calm-screen, weather and preference status copy — 2026-10-24 (#142)
+
+AmbientCover uses typed Today keys for accessible time, next-event prefix,
+tonight and wake instruction. Its weather summary uses the existing main-board
+locale mapping. Visual weather high/low abbreviations also use Today keys;
+canonical temperatures/units/labels and existing accessible weather descriptions
+remain. DisplayPreferencesStatus and QuietDisplayControl use ten scoped core
+translation keys while keeping the original status precedence, switch gating
+and provider save/refresh callbacks. No focus/wake/dimming/photo lifecycle,
+clock/date formatting, weather request or preference protocol change. Ten owned
+copy inventory records removed without scanning. No new copy-only tests;
+existing cases unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Original shared-device/preferences/recovery/locale/layout/
+runtime acceptance remains open.
+
+### Barcode capture and cooking-preview copy — 2026-10-24 (#142)
+
+BarcodeFoodDialog now uses64 typed scoped EN/ES keys. Controlled local feedback
+stores key/params rather than a sentence captured by an old render; actual
+product names remain literal and display counts use locale formatting. Existing
+camera/visibility/permission lifecycle, metadata requests, ownership, exact intake
+request/key and uncertain-save/recovery behavior remain unchanged. Locale/text
+are not added to existing effect dependencies. Barcode formats, canonical samples
+and Open Food Facts/ODbL/CC BY-SA attributions stay literal and tracked. Recipe
+cooking-preview labels/help use four typed recipe keys, with original numeric
+draft validation, scale helper and reset dependencies retained. Seven owned recipe
+inventory records removed without scanning; barcode technical/licence records
+are retained. A typed-draft/semantic validation/locale/no-extra-action case is
+authored/unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Full camera/stock/privacy/recovery/locale/layout/runtime
+acceptance remains open.
+
+### Getting-started and routine-origin copy — 2026-10-24 (#142)
+
+GetStarted uses13 typed onboarding keys for three step labels/hints, progress,
+Hide/Undo and accessibility copy. The onboarding hook now delegates to shared
+scoped translation with optional params and a stable callback; outside-provider
+English fallback remains. RoutineOriginEntry uses four scoped routine keys,
+preserving actual source labels/day IDs, origin URLs, copiedAt values and date
+formatting. Parent eligibility, household storage key/visibility hydration,
+completion facts, Hide/Undo callbacks and all fetch/effect dependencies remain.
+No request, identity or household adoption is introduced by translation. An
+already emitted Undo toast keeps the existing string contract. Fifteen owned
+copy inventory records removed without scanning. No new copy-only tests;
+existing cases unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Original onboarding/role/recovery/locale/layout/runtime
+acceptance remains open.
+
+### Bulk-reuse and app-guide scoped copy — 2026-10-24 (#142)
+
+BulkCookingPanel's invalid/unprepared/full/unavailable reuse feedback, dismissal
+and food-review link now use six typed bulk keys. AppGuide's header, description,
+search/clear/placeholder and empty copy use six Help keys. Existing ordinary
+EN/ES wording remains; Help's translator now delegates to shared scoped copy
+with a stable callback, including pseudolocalization. Other HelpContent/guide
+consumers only render this copy; no locale-driven read effect is added. Role/
+feature filters, search draft, draft-aware links, prepared-reuse identity/state,
+recovery gates, actual names and date formatting stay canonical. Twenty owned
+inventory records removed without scanning; no new copy-only tests, existing
+cases unrun. No QA/test/check/build/browser/API/database/native/provider/
+permission/release ran. Broader layout/search/role/recovery/locale/runtime
+acceptance remains open.
+
+### Recipe-to-grocery review/result copy — 2026-10-24 (#142)
+
+AddToGroceriesButton now uses typed scoped EN/ES controls, local review errors,
+confirmed add/already-on-list/duplicate summaries and structured Undo results.
+Numbers use the display locale; recipe/list/ingredient names and units stay
+literal. Local review errors retain semantic keys until render. Undo retains its
+server result instead of a preformatted sentence. Summary helpers accept optional
+presentation copy and retain their legacy English default; their copy-type import
+is erased, so no runtime React/translation dependency enters the transport helper.
+Existing review sequence, selected/destination values, exact mutation request/key,
+owned navigation, retry, callbacks and Undo deadlines remain. Transport/server
+error strings are unchanged and may remain English. Thirteen owned copy inventory
+records removed without scanning. Mounted locale/review/confirmed Undo/no-extra-
+request regression source authored/unrun. No QA/test/check/build/browser/API/
+database/native/provider/permission/release ran. Original locale/layout/recovery/
+food and runtime acceptance remains open.
+
+### Calendar source-identity ambiguity refusal — 2026-10-24 (#124)
+
+The parser refuses UIDs above the existing500-character bound rather than
+truncating identity. Duplicate master UIDs and duplicate UID/resolved override
+instants also refuse; supported IDs remain literal at full length. The existing
+fixed invalid-feed path runs before event reconciliation, preserving prior events
+and validators. There is no first/last winner or automatic historical collision
+repair. Timezone resolution/cancellation/no-UID rules remain; broader semantic/
+provider/timezone/concurrency compatibility remains unverified. Boundary,
+duplicate-source and sync-preservation source cases are authored/unrun. No QA/
+tests/check/build/browser/API/database/native/provider/permission/release ran.
+
+### Calendar-import reconciliation batches — 2026-10-24 (#134/#124)
+
+The canonical subscription reconcile now traverses all existing history in
+200-row immutable-ID batches, preserving household/subscription scope. It holds
+only the bounded incoming identity map plus a history batch, updates exact
+matching identities even when their old start was outside the window, preserves
+valid old history and keeps prior invalid-key/in-window stale cleanup. Deletes
+and missing creates are also batched200; no total traversal cap/partial commit.
+The transaction requests RepeatableRead with its original30s timeout. Conflicts
+may abort and remain errors; no automatic retries. This is not an external-feed
+version lock or exact replay/metadata-ordering guarantee. An additive scoped
+history index is authored/unapplied. Multi-batch/query-shape/history/moved-key/
+create/repeat regression source is authored/unrun; fake state does not prove
+PostgreSQL isolation/rollback. Total work, lock/index/query cost, concurrent
+refresh/removal/metadata and original acceptance remain open. No QA/test/check/
+build/browser/API/database/migration/native/provider/permission/release ran.
+
+### Malformed identified calendar-source refusal — 2026-10-24 (#124)
+
+Calendar parsing no longer skips a known series when master/exception creation
+or recurrence expansion throws. Non-cancelled missing starts, incomplete orphan
+overrides and invalid resolved start/occurrence identities also refuse. Multiple
+calendar roots refuse rather than silently accepting the first. Window/cap
+arguments must be finite, ordered and within the existing maximum. The exported
+parser normalizes all library errors to the existing fixed IcsParseError, so the
+sync's existing invalid-feed path preserves event rows and conditional validators.
+Valid cancellations (including orphan cancellations) and no-UID skipping remain.
+Regression source for identified malformed events/series, multiple roots,
+coverage bounds and event/validator preservation is authored/unrun. Broader
+semantic validation, unsupported multi-calendar delivery, historical partial
+recovery and provider/concurrency/native/compatibility acceptance remain open.
+No QA/tests/check/build/browser/API/database/provider/permission/native/release ran.
+
+### Capped calendar-source integrity — 2026-10-24 (#124)
+
+The export route reads2,001 rows and refuses overflow above its existing2,000
+capacity with503, private/no-store and fixed content-minimal JSON. It emits no
+partial ICS. Supported-size results retain token/family/time/window/UID/cache
+behavior. Subscription sync now checks `parsed.truncated` before reconciliation:
+occurrence or iteration caps produce only scoped error/attempt metadata, leaving
+events and the prior complete ETag/Last-Modified unchanged. Complete parses use
+the existing write/reconcile path. Boundary, overflow, content omission and both
+capped-import cases are authored/unrun. Oversized complete export remains
+unavailable; parser-skipped malformed series and previously accepted truncated
+imports require separate work. Actual provider HTTP-error behavior, concurrent
+refresh/deletion, parser/compatibility/rollback/runtime acceptance remain open.
+No QA/tests/check/build/browser/API/database/native/provider/permission/release
+ran; no existing household event or validator was changed by this source edit.
+
+### Fabricated capacity-model definition — 2026-10-24 (#134/#137)
+
+`docs/testing/CAPACITY_MODEL.md` defines ordinary and three skewed datasets,
+weighted household/event/grocery/inventory/task/AI/notification traffic, explicit
+role/shared-device boundaries, bounded local stages, correctness/abort rules and
+content-free evidence. It distinguishes session/household/request units, offered
+and actual rates, closed-loop saturation, cold/warm builds and synthetic provider
+time. No production/provider traffic, scheduler or scale claim. The sequential
+baseline does not implement the mixed model. SLO prose now matches existing
+default-off core-route telemetry wrappers. #134 model definition is complete;
+guarded generator/runner/reconciler, reproducibility, measured bottleneck/capacity,
+recovery and all runtime acceptance remain unfinished. No QA/tests/check/build/
+browser/API/database/provider/telemetry/infrastructure/native/release ran.
+
+### Calendar feed Unicode/source-plan follow-through — 2026-10-24 (#124/#134)
+
+ICS text and RRULE folding now counts UTF-8 bytes and iterates complete code
+points; prior ASCII widths remain conservative. Escaped content normalizes bare
+CR/CRLF/LF. Existing token/family scope, UIDs, timestamps, recurrence rule grammar,
+query window and response/cache contract remain unchanged. Multibyte/emoji,
+newline and ASCII-boundary regression source is authored/unrun. The existing
+2,000-row cap can truncate a dense feed; no complete-feed, deletion/sync or
+provider compatibility claim follows from format correctness. CORE_QUERY_PLAN
+now reflects current bounded chore candidate/policy reads, project task/send and
+Notes pages, retaining legacy unbounded paths and total-work/lock/index limits.
+No QA/test/check/build/browser/API/database/native/provider/permission/release
+ran. Complete large-feed delivery and original #124/#134 acceptance remain open.
+
+### Dormant routine-unlink inventory reader — 2026-10-24 (#557/#480)
+
+`routine-subject-unlink-read.ts` adds transaction-scoped preparation, with no
+caller in production identity commands or routes. It validates bounded scope
+before reads and holds a missing routine column rather than treating it as no
+future work. The raw query selects every non-null household future root,
+ordered by ID, limited to 1,001 and row-locked. No subject/protocol/state filter
+can hide an unsupported definition. Over 1,000 roots holds without rewrites;
+otherwise the pure complete-inventory planner validates every returned row and
+holds any unsupported, foreign, duplicate or ambiguous definition. Storage errors
+propagate to abort the future transaction. No occurrence or earned-credit data
+is read/changed. Caller-owned participant/household locks and renewed association/
+owner proof remain mandatory; row locks do not prevent phantoms independently.
+A ready plan is not a receipt or authority. JSON payload/lock-time/query costs,
+writer/provenance/domain/credit/Undo/erasure and real concurrency acceptance
+remain open. Reader regression source authored/unrun. No QA/tests/check/build/
+browser/API/database/migration/native/provider/permission/release ran.
+
+### Tablet status, subject-picker and action-copy source — 2026-10-24 (#142)
+
+Removed/unavailable screens, account picker title/instructions/accessibility
+label, chore-selection/confirmation and grocery/write feedback now use 14 new
+typed EN/ES device keys plus existing generic errors. Actual names and raw
+server/validation text remain literal. Status wipe effects and route links are
+unchanged. The board action memo no longer depends on translation callbacks or
+the translated paused string; its methods read current translation refs at
+invocation. With other inputs stable, language changes retain the action object,
+its queued-operation ownership set and current picker resolver. Existing account/
+profile protocol/authorization/TTL/idle/payload/key/recovery rules remain.
+ActionResult stays a string interface; an already emitted toast/error does not
+retranslate automatically. No stronger current-subject/provenance or concurrent
+snapshot-identity guarantee is implied. Ten owned inventory records removed
+without a scanner. Regression source for in-progress picker, stable actions and
+queued-operation failure tracking across language changes is authored/unrun.
+No QA/tests/check/build/browser/API/database/permission/provider/native/release
+ran. Original queue/lifecycle/privacy/locale-data/layout/runtime gates remain.
+
+### Pinned Notes paging source — 2026-10-24 (#134)
+
+`note-paging.ts` defines an additive limit1–100 and household-bound versioned
+creation-time-descending/ID-ascending cursor. Duplicate/malformed/foreign cursor
+inputs refuse; the cursor never grants access. GET Notes retains personal-only,
+feature-gated, household-scoped reads and original server permissions. Opted-in
+reads use one lookahead; unpaged older clients keep the full list/response shape.
+An additive composite index is authored in schema/SQL, unapplied.
+The web asks for 24 notes and replaces each page instead of accumulating bodies.
+Previous/older/newest controls, page-only EN/ES counts and separate older-empty
+copy keep partial reads truthful. Failed-page retry preserves the exact cursor
+and navigation trail; changed responses, missing old-server page envelopes,
+oversized pages and cursor loops refuse. Generation/abort guards ignore older
+or unmounted requests; a 15-second deadline includes fetch and body reading.
+Page navigation returns focus to the heading. Save/delete still use canonical
+endpoints and refresh newest notes without replaying a confirmed write.
+Legacy API total memory remains unbounded. Concurrent reads are not a snapshot;
+index plans/build/locking, old/new-client forward/rollback, actual household/
+permission isolation, body-timeout/navigation/draft/rendered acceptance remain
+open. Unit, API and UI regression source authored; existing fixtures adapted,
+all unrun. No QA/test/check/build/browser/API/database/migration/permission/
+provider/native/release ran.
+
+### Command-palette localization and keyboard source — 2026-10-24 (#142)
+
+CommandPalette now uses 11 typed scoped EN/ES keys for dialog/input labels,
+query/search/empty states and keyboard hints. User queries remain literal.
+Arrow keys focus the current role/feature-filtered destination buttons with
+wraparound; Tab/Shift+Tab wrap within the panel, and composing Enter does not
+submit household search. Native button activation, draft-aware routing, existing
+focus-return and Escape handling remain. This does not replace the modal host
+or establish nested-dialog accessibility. Destination targets have a 44px minimum
+height. Device text now delegates to shared scoped translation for pseudo-copy
+while retaining numeric formatting and pure English transport defaults.
+Fourteen owned inventory records removed without scanning. Keyboard cases
+are authored/unrun; existing Spanish input selector adapted. No QA/tests/checks/
+build/browser/API/database/native/permission/provider/release ran. Original
+focus/modal-stack/reflow/locale-data/runtime acceptance remains open.
+
+### Device Today and snapshot feedback copy — 2026-10-24 (#142)
+
+DeviceTodayScreen and its rename/remove dialogs now use typed EN/ES device copy,
+with 16 added keys and reused labels. Semantic parent-ended/renamed/dialog errors
+follow locale; actor/tablet names remain literal. The snapshot hook stores
+DeviceFeedback and still returns `error: string | null`, formatting protocol,
+reconnect, removed and generic messages at render. No text/locale dependency is
+added to existing read/poll/cache/elevation effects or transport memoization.
+Cache snapshots/keys/schema, protocol1/2 gates, freshness/expiry/epoch/purge,
+parent credentials, native lifecycle and API/effect callbacks remain canonical.
+Raw server/validation text remains literal, as before; the elevated settings
+transport retains its English string error contract so language changes cannot
+restart its load. No raw secret/error objects enter feedback state. Seventeen
+owned copy inventory records removed without a scanner; no new copy-only tests.
+Existing cases unrun; no QA/check/build/browser/native/provider/permission/API/
+database/household/release ran. Remaining tablet/transport copy and original
+cache/shared-device/privacy/native/layout/locale-data/runtime acceptance stay open.
+
+### Paired-tablet entry/parent-mode copy source — 2026-10-24 (#142)
+
+PairScreen, ElevationSheet and ElevatedBanner now use the existing typed device
+EN/ES dictionary (56 added keys plus reused labels). Terminal pairing states,
+parent/PIN/password instructions, progress/accessible labels, countdown/status
+and controls follow the app locale. Pair/elevation feedback stores semantic keys,
+params and retry seconds until render; raw errors/secrets are not added to state.
+`genericDeviceFeedback`/`renderDeviceFeedback` adapt existing generic device
+errors while `genericErrorText` preserves its old English default for other
+callers. Actual parent/tablet names, pairing/confirmation/PIN digits, countdowns,
+TTL/idle deadlines, credential clearing, terminal errors, polling/native version
+metadata, focus and API/elevation callbacks remain unchanged. Locale/text are
+not added to any existing effect dependency, so changing language does not
+restart pairing or extend an elevation. Thirty-six owned inventory records
+removed without a scanner. No new copy-only tests; existing cases unrun. No
+QA/check/build/browser/hardware/native permission/provider/API/database/household/
+release ran. Other tablet copy and original shared-device/native/privacy/layout/
+locale-data/runtime acceptance remain open.
+
+### Opt-in project-calendar summary response — 2026-10-24 (#134)
+
+`project-calendar-response.ts` defines summary-v1 with a versioned created/
+no-tasks/all-sent discriminator and coherent safe integer count. Explicit
+`responseMode: summary-v1` makes the full-send transaction retain only that
+count, leaving the legacy event array empty; the response omits event objects.
+Missing mode preserves installed clients' full event-array success shape; an
+unsupported explicit mode refuses before effects. Internal 200-task/matching
+batches and original single transaction/full intent remain unchanged.
+The web button now requests/validates the summary, distinguishes no eligible
+tasks, and treats malformed/old-server 200 bodies, transport failures and 5xx as
+unconfirmed without auto-retry or success. Synchronous pending and project-
+generation guards prevent duplicate taps and late toast/refresh on another
+project/unmount. This is not an exact replay/source snapshot/ownership receipt:
+retries may confirm existing links with zero new events instead of reproducing
+an earlier count. No transport deadline or transaction-duration improvement is
+claimed. Legacy result memory, total work/locks, index application and real
+forward/rollback/concurrency/rendered evidence remain open. Contract, multi-
+batch count-only server and UI recovery cases authored/unrun; existing assertions
+adapted and retained. No QA/test/check/build/browser/API/database/household/
+provider/permission/release action ran.
+
+### Project calendar full-intent internal batches — 2026-10-24 (#134)
+
+`readProjectCalendarTaskBatch` reads at most 200 dated/incomplete tasks in private
+immutable-ID order, with project-household relation scope. Candidate UID and
+legacy-title grouped existence reads return at most one group per supplied key,
+not all historical event rows. Legacy null/empty UID matches retain old title
+semantics; modern UID matches do not block another task sharing its title.
+The endpoint advances after the last candidate, including an all-already-sent
+batch, and continues to true exhaustion inside the original single effect
+transaction. No partial commits, silent prefix cap or source-row snapshot claim.
+Current locked authority/all-day/timezone rules and full event success response
+remain. The response array, full-send total work and existing 30-second lock
+window are still not bounded by this internal batch change. Additive task-ID/
+modern-UID/legacy-title index schema/SQL source is authored/unapplied; query plans,
+index write costs and actual contention/rollback remain unverified. Regression
+source covers full multi-batch/repeat behavior, already-sent prefix continuation,
+exact candidate scope and empty exhaustion. No QA/test/check/build/browser,
+Prisma generation/migration/API/database/household/release action ran.
+
+### Recent changes presentation localization — 2026-10-24 (#142)
+
+`ActivityClient.tsx` now uses 20 route-scoped typed EN/ES keys for history UI,
+recovery/status/empty states, page controls, relative day headings and actor
+fallback/tablet descriptions. Shared `useDisplayLocale` formats dates, times
+and loaded counts; `dayKey` retains local-calendar grouping independently of
+language, and stored timestamps remain canonical. Actual audit summaries and
+actor names are never translated or parsed to infer actions/identity. No locale
+or text callback is added to the existing read-effect dependencies; pending,
+retry cursor, generation, cancellation and deadline state remain unchanged.
+Eleven owned copy inventory records removed without a scanner. No new copy-only
+tests or QA/check/build/browser/API/database/household/release actions ran.
+Existing cases remain unrun. Full localization/layout/locale-data acceptance
+and the read-recovery behavior's original runtime evidence remain open.
+
+### Project calendar send authority renewal — 2026-10-24 (#134)
+
+Send to Calendar now acquires user/household advisory locks, then current User/
+Family row locks, before checking session generation, original household, known
+role and current Projects state. It then locks/re-reads the exact project in
+that household before reading task sources or creating events. The outer lookup
+now selects only IDs needed for the existing household check; locked fresh name
+supplies fallback descriptions. Task projection is narrowed and relation-scoped.
+Current known household roles retain send permission. No new parent/status gate,
+partial-send cap or silent task truncation is introduced. Task UIDs, legacy-title
+skip behavior, date-only/all-day timezone conversion and full success response
+remain unchanged. Refusal status/code is additive and occurs before any effects.
+The original full task/event/result arrays and 30-second transaction remain;
+new lifecycle locks can serialize other household work for that duration. A
+bounded full-intent protocol and contention/query acceptance remain unfinished.
+Fake lifecycle-interleaving/current-name cases are authored/unrun; original
+fixtures explicitly enable Projects. No QA/check/build/browser/API/database/
+permission/household/release action ran. Real PG lock/rollback/revocation and
+original compatibility/role/feature/privacy criteria remain open.
+
+### Project detail task paging source — 2026-10-24 (#134)
+
+`project-task-paging.ts` adds versioned keysets scoped to family/project/completed
+filter, ordered position/created_at/id with exact tie continuation. Opt-in API
+limit1–100 reads limit+1; legacy no-limit response/order remains unpaged and
+unbounded. Task reads include a household project relation after the existing
+scoped project check. The SSR detail checks the project household before child
+hydration, reads 40 tasks plus lookahead and obtains whole-project total/completed
+counts in one grouped aggregate, instead of deriving progress from the page.
+`ProjectTaskPageNav` provides draft-aware More/First tasks and truthful EN/ES
+page coverage/invalid/empty recovery. Public child-write routes and stored tasks
+remain canonical; position/status changes between pages can move rows, so a
+fresh first-page read is the recovery, not a snapshot/absence guarantee.
+The additive Prisma/index SQL source supports the composite read; no migration,
+Prisma generation or index execution occurred. Existing server/task-add fixtures
+are adapted; original assertions retained. Cursor scope/ties and full-progress
+versus bounded rendering cases authored/unrun. No QA/check/build/browser/API/
+database/household/release ran. Full audit, legacy API adoption, query-plan/
+concurrency/isolation/installed-client/rendered criteria remain open.
+
+### Recent changes read recovery source — 2026-10-24 (#134)
+
+`settings/activity/ActivityClient.tsx` now validates canonical 20-entry audit
+pages, nested actor/rendered fields, dates, duplicate IDs and explicit bounded
+cursor metadata. A malformed/missing envelope no longer falls back to a false
+empty history. Empty pages with continuation and repeated/visited cursors refuse.
+Fetch and body parsing share a 15-second deadline/abort; initial/older requests
+use generation checks and offline/unmount/reconnect cancellation. A synchronous
+pending guard blocks overlapping older reads. Older failure retains loaded rows
+and exact retry cursor; late superseded responses cannot replace the new epoch.
+Server parent/device gates, household scope, retention, public response shape,
+summary/actor content and API page size remain unchanged. No new provider,
+permission, API call or data mutation occurred during this source task.
+Regression cases authored/unrun for malformed pages, cursor retry, reconnect
+supersession and stalled body. No QA/test/check/build/browser/release ran.
+The separate hidden-routine helper's production call sites all now pass bounded
+ID scopes in source; that observation does not complete the full query audit.
+Original household/privacy/browser/concurrency/scale acceptance remains open.
+
+### Today chore and compatibility-probe batching — 2026-10-24 (#134/#450)
+
+Today board and personal-summary chore reads now use `readVisibleChoreRows`;
+their profile-compatibility probes also fill a visible result or reach true
+candidate exhaustion with bounded ID-scoped metadata. No full-window hidden-ID
+preload/notIn list remains in those readers. An optional private creation-time
+cursor preserves the existing `(due_date, created_at, id)` order instead of
+substituting the API's two-part public cursor. All three keys participate in
+continuation; database ID collation stays in PostgreSQL. Creation times remain
+internal to the readers and are not added to public DTOs. Date-only windows,
+80/120 visible caps, member/profile eligibility and rollout/refusal behavior,
+parent completed-awaiting-check count and canonical data remain unchanged.
+Each candidate/metadata batch is at most 200; total dense-hidden-range work is
+not claimed constant. Existing synthetic fixtures now distinguish bounded
+probe reads and provide selected creation times; assertions retained. New
+creation-order/three-part-cursor cases authored/unrun. No QA/tests/check/build/
+browser/database/household/release ran. Other callers/counters and original
+PostgreSQL/query-plan/concurrency/isolation/role/device acceptance remain open.
+
+### Chore visibility before caps via bounded reads — 2026-10-24 (#134/#450)
+
+`chore-visible-read.ts` now fills visible caps/lookahead by iterating canonical
+candidate pages and ID-scoped `hiddenRoutineOccurrenceIds` reads. Both chores
+GET (dated/undated; paged/unpaged) and the SSR open/current reader use it. Every
+candidate and metadata batch is at most 200 IDs; visible retained rows remain
+bounded by the existing caps. Hidden rows do not consume the visible cap, and a
+hidden-only batch cannot end the page early. Errors propagate without a partial
+result. Database due-date/ID keysets keep the original public cursor and all
+household/status/assignee/date filters; private cursors only advance candidate
+reads. PostgreSQL retains ID tie collation; local checks reject repeated rows,
+backwards dates, invalid dates and oversized responses. Completed/verified API
+history retains its single bounded read; legacy responses remain latest-visible
+500 rows oldest first without a cursor. No public DTO/capability/write changes.
+Total work/latency can still grow across an all-hidden dense range. Today/other
+window/aggregate readers retain their current scoped helper; no full-query or
+latency acceptance is claimed. New unit source authored/unrun for dense hidden
+pages, ASC/DESC ties/continuation, legacy cap, all-hidden exhaustion, later read
+failure and protocol/bound guards. No QA/check/build/browser/DB/household/release
+ran. Original PostgreSQL query-plan/concurrency/isolation/recurrence criteria stay open.
+
+### Dormant routine unlink batch preflight — 2026-10-24 (#557/#480)
+
+`prepareRoutineSubjectUnlinkBatch` now validates a supplied complete household
+future-root inventory before returning any changes. Foreign/non-root/malformed
+rows, duplicate IDs, incomplete coverage or more than 1,000 roots hold; any
+ambiguous/unsupported/conflicting/exhausted definition holds the entire batch
+without exposing partial rewrite/stack lists. Ready plans retain prior revisions,
+deterministic root order and unique sorted stack IDs without reordering inputs.
+Completeness is internal reader metadata, not authority or a server proof. The
+future locked reader must enumerate all non-null future definitions with no
+subject/protocol filter and limit + 1; above the cap requires a reviewed path,
+never truncation. No reader, transaction, schema, HTTP/UI caller or gate is changed.
+Regression source authored/unrun; no QA/check/build/browser/database/household or
+release action ran. Full unlink/stack/credit/provenance/domain acceptance remains.
+
+### Dormant routine unlink adapter source — 2026-10-24 (#557/#480)
+
+`routine-subject-unlink.ts` implements pure future-definition preflight only.
+Exact account/member aliases and already-profile references receive a stable
+profile subject/new revision; known unrelated/erased definitions stay unchanged.
+Account-only, conflicting, unsupported/malformed and revision-exhausted metadata
+holds. The adapter never changes historical assignments, actors, credits or
+occurrences, and does not infer household/owner authority. Future use requires
+all household future roots and atomic locked proof/stack/domain renewal; unknown
+metadata cannot be declared unrelated by a current-protocol identifier query.
+No existing lifecycle writer, HTTP/UI consumer, schema or gate is changed.
+Regression source authored/unrun. No QA, tests/check/build/browser, database,
+provider/permission, household mutation or release action ran. Full standalone
+unlink/provenance/credit/domain parity remains unfinished; retain #557 open.
+
+### Today-board settings copy source — 2026-10-24 (#142)
+
+`fridge/BoardSettings.tsx` now uses 77 scoped typed EN/ES keys from
+`i18n/board-settings.ts`. Colour/temperature labels, weather consent wording,
+calm-screen idle choices, night-hour controls, person-only photo labels and
+shared-tablet write controls follow translation context. Local status/error
+notices retain semantic keys/parameters until render. Known person-transport
+fallbacks map to those keys; arbitrary server/custom transport diagnostics stay
+literal, preserving caller semantics. `BoardSettingsTransport` remains unchanged.
+Member/place names, palette keys, coordinates, photos, times, idle choices,
+privacy/disclosure wording and request patches remain canonical. Device audience
+still cannot list/pick/upload photos or receive stored coordinates. Existing
+load/save dependencies are unchanged; locale does not trigger reads or writes.
+Forty-two owned copy inventory records removed, without running a scanner.
+No new copy-only tests or QA/build/browser/provider/device/household action ran;
+full shared-device/settings/locale-data acceptance remains open.
+
+### Meals page and recovery-link copy source — 2026-10-24 (#142)
+
+`dashboard/meals/page.tsx` now uses 39 scoped typed EN/ES keys for remaining
+page/form copy, visible meal-type labels, exact restore notices, accessible Add
+labels and empty-state/week controls. Five `food-planning-entry.ts` keys cover
+`MealPlanningReviewLinks`. `meal-week.ts` follows scoped translation rather
+than manual locale selection, so loaded-state copy can be pseudolocalized.
+`mealTitle` accepts an optional translated display fallback while retaining its
+old English default; existing nonblank source titles and all callers' stored
+values remain unchanged. Date boundaries/Intl dates, read effects, session
+errors/server refusals, payloads, household/cook/recipe IDs, quantities and
+restore idempotency bodies/keys remain canonical. No release/QA/scanner ran.
+Thirty-five owned copy inventory records removed. A locale-only review-link
+test stub was removed so existing assertions use default translation context;
+all cases remain unrun. This does not prove complete meal-flow localization.
+
+### Food-plan launcher/AI/sheet copy source — 2026-10-24 (#142)
+
+`FoodPlanningLauncher.tsx`, `FoodAiProposal.tsx` and `FoodPlanningSheet.tsx`
+now use 120 typed EN/ES keys in route-owned `food-planning-entry.ts` and
+`food-planning-sheet.ts`. Existing language is retained; AI held-choice count
+uses scoped interpolation. Recovery/auth/role gating, sheet identity, owned
+navigation, requests, exact retries, confirmation/local-removal acknowledgement,
+quantities and callbacks remain canonical. Timing reads locale for formatting
+exact time choices; fold selection, wall-time resolution, departure interval
+and buffers remain untouched. No locale is added to an effect dependency.
+Thirty-four owned inventory records removed; no scanner or QA/check/build ran.
+Existing expiry/review callback cases remain unrun; no new copy-only tests.
+This source checkpoint does not establish full localization/AI/runtime acceptance.
+
+### Food grocery-selection/save-details copy source — 2026-10-24 (#142)
+
+`FoodGroceryChoices.tsx` and `FoodSaveDetails.tsx` now use scoped typed EN/ES
+`food-planning-inputs.ts` keys. Existing selection and exact-command review
+remain canonical: no ingredient default changes, estimated-shortage arithmetic,
+write/review callbacks, cook inheritance, source names, dates or quantities
+changed. Five-row detail paging retains component identity and state; its copy
+now follows translation context directly. Eighteen owned inventory records
+removed; no scanner/check/test/build/browser ran. This is local source work,
+not rendered, localization, household-write or release acceptance.
+
+### Food-plan picker/allocation copy source — 2026-10-24 (#142)
+
+FoodRecordPicker and FoodAllocationEditor use typed scoped EN/ES keys for recipe/
+account/list/event descriptions, search/selection/retry/coverage, portion/date/
+meal/cook/note fields and allocation actions. Existing translations are preserved;
+caller labels and household names, values, units, IDs and event times remain
+canonical. The picker read effect's dependencies/owner scope and page/search/
+selection bounds are unchanged; locale only changes display. Allocation totals,
+14-row cap, inherited cook, parent draft callbacks and field validation are
+unchanged. Sixty-eight owned migration records removed, no scanner run. No new
+copy-only tests, existing cases unrun; rendered/pseudolocale/selection/recovery/
+privacy and original planning acceptance remain open. No writes or activation.
+
+### Food-plan review presentation source — 2026-10-24 (#142 / #123)
+
+FoodPlanSummary and FoodGroceryOutcomesView use typed scoped presentation keys
+instead of inline language branches/pair picking. Domain hold/reason maps remain
+exhaustive over the canonical contract; saved recipe/stock/meal/list/event names,
+quantities, IDs, dates/instants and result/Undo state remain literal/canonical.
+Existing EN/ES wording is preserved; pseudolocale now follows the translation
+context. Internal detail pagination keeps its component/state identity; timing
+text hooks precede early return. Grocery expiry effects, confirmed/unknown/refused
+semantics, callback payloads and draft-aware list navigation are unchanged.
+Fifty-four owned migration records removed, no scanner run. Three affected test
+mocks use actual default translation context; assertions retained/unrun. No new
+QA/provider/write/permission/store or release action; rendered locale/reflow/
+privacy and original planning/grocery/Undo acceptance remain open.
+
+### Join navigation recovery source — 2026-10-24 (#142)
+
+JoinFamilyPage now retains the selected internal destination when history release
+refuses/throws or synchronous router dispatch throws. A localized explicit
+Continue retries only navigation through the same release controller, with a
+synchronous duplicate-navigation guard and page-generation checks. It never
+replays joining/token acceptance/auth reads. Successful join and pending-auth
+states remain latched while recovery is available; destination state is memory-
+only, not logged/persisted. No history ownership bypass, direct location change
+or server API change. Deferred source cases cover joined-dashboard recovery and
+an expired-invite session's registration continuation without POST. Router commit,
+Back/lifecycle/browser and original household/localization acceptance are unrun.
+
+### Household join copy/preview source — 2026-10-24 (#142)
+
+JoinFamilyPage uses typed scoped EN/ES labels, invitation role/sentence and
+semantic success/errors while keeping family names/emails/code/token values
+literal. Locale changes do not rerun auth or code/token preview effects. Exact
+checked-code identity and generation guards prevent stale lookups restoring a
+previous family's preview; code edits invalidate/abort pending lookups. Bootstrap
+reads and navigation timers clean up; late joined responses cannot apply/redirect
+after unmount. Server auth, session-gated lookup/quota, code normalization, token
+handling, join body/role enforcement, duplicate-submit guard and navigation
+release stay canonical. Sixteen owned copy records removed; no scanner ran.
+Stale-lookup and mounted-locale/no-reread cases authored/unrun. Full household/
+role/token/client/navigation/privacy/rendered acceptance remains open.
+
+### Import reviewed-scope source — 2026-10-24 (#104)
+
+New-web reviewProtocol1 freezes server-derived actor/household IDs into the
+reviewed persistence body. Missing/changed scope refuses before dispatch; IDs
+are a precondition, never access authority or family selection. Legacy response/
+write compatibility remains explicit, and new web refuses old-server metadata
+absence rather than downgrading. No signed/source/target-state receipt or stored
+review. IDs stay outside reconciliation display. Source fixtures adapted/unrun;
+all current/previous client/server/lifecycle/reconciliation acceptance deferred.
+
+### Import writer authority source — 2026-10-24 (#104 / #136)
+
+All three persisted sources now share original-household/current-parent/mapped-
+user renewal at job creation and effects. User advisory locks precede household
+and current ordered User row locks; HTTP session generation is carried internally
+and rechecked after waiting. Stale session ->401; identity conflicts retain409.
+Internal compatibility callers still require current membership/parent/mappings.
+Failure accounting updates only owned family/source/running jobs with fixed
+content-free detail, preserving deleted/completed outcomes and the original
+error. No public body, parser/provenance/schema or scheduler change. Helper/API
+source cases are authored/unrun; exact PG locks, lifecycle, current/old clients,
+reconciliation/replay/rollback and release acceptance remain open. See the import
+review plan and API contract; no import or QA ran.
+
+### Import form review/localization source — 2026-10-24 (#104 / #142)
+
+ImportsClient now uses typed EN/ES copy and semantic known/local failures,
+generation-bound file reads and a current-input preview. Exact reviewed JSON
+and source are frozen for explicit persistence; synchronous duplicate/edit guards
+and consumed local approval prevent accidental second submissions. Validated
+result envelopes gate preview/job display; unknown writes require fresh review.
+No backend authorization/transaction/importer change, live import or source data
+was introduced. Twelve owned copy records removed; four literal labels/examples
+remain. Source cases are authored/unrun. See `docs/plans/import-review-ui.md` for
+server lifecycle/snapshot, real exports/rehearsal/rollback and QA limits.
+
+### Recorded recipe localization source — 2026-10-24 (#142 / #460)
+
+PreparedRecipe history dialog now uses typed EN/ES keys for launch/title/summary,
+close/loading/refusal/retry, missing/unprepared evidence and captured-at copy.
+Captured-at rendering keeps the existing locale clock; stored timestamps and
+recipe snapshots remain unchanged. It still reads only the owned batch record,
+never substitutes today's canonical recipe, and retains generation/ID/schema/
+abort/explicit action boundaries. Eighteen owned migration records were removed;
+no scanner ran. Existing history cases remain unrun; mounted locale/value/
+layout and original history/localization acceptance remain open.
+
+### Shared search/error copy source — 2026-10-24 (#142 / #136)
+
+SearchField default placeholder/clear/accessible name now use typed scoped EN/ES
+keys; caller labels, controlled input values, submission and clear/focus behavior
+remain. ErrorBoundary generic title/message/Retry use the same scoped dictionary
+through a hook-based fallback. Raw caught exception messages are no longer UI
+copy, and componentDidCatch passes only describeError's redacted identity to the
+existing logger. This does not suppress framework/browser diagnostics. Custom
+fallbacks and explicit subtree retry remain. Four owned migration records were
+removed; no scanner ran. Localization/redaction/retry/custom-fallback source
+cases are authored/unrun. No rendered or broad privacy/release proof is claimed.
+
+### Help sync diagnostics source — 2026-10-24 (#142 / #146)
+
+SyncDiagnostics now uses typed EN/ES keys for controls, descriptions, semantic
+clipboard/unavailable feedback and singular/plural count variants. Intl changes
+count display only; the existing content-free QueueDiagnostics JSON stays exact.
+Locale switches do not re-read, copy or send anything. Report/notice envelopes
+match the current owner during render; request generations invalidate delayed
+clipboard feedback after reload, owner change or unmount. No queue write/replay,
+provider, telemetry, permissions or export transport was added. Eleven owned
+migration records were removed by source edits; no scanner ran. Mounted-locale,
+report-byte, singular/memory and owner-change/late-copy source cases are authored
+and unrun. Original runtime/privacy/native/layout acceptance remains open.
+
+### Recipe component localization source — 2026-10-24 (#142)
+
+RecipeDetail, RecipePicker and RecipeReuseLauncher now use typed scoped EN/ES
+presentation keys instead of inline language branches/English-only picker copy.
+Loading/refusal/empty/retry/dismissal/explicit reuse, source/ingredient/method
+headings and accessible labels follow current locale/pseudolocale. Serving counts
+use Intl display; authored recipe text/units/URLs/identity and canonical requests
+are untouched. All28 owned untranslated-copy records were removed; no scanner
+ran. Mounted locale/no-reload/value-preservation and Spanish explicit-reuse
+cases are authored/unrun; human copy/layout/date/native acceptance remains open.
+
+### Wishlist bounded read source — 2026-10-24 (#134)
+
+Canonical GET now supports opt-in limit/cursor and current-user mine filtering
+before the cap, retaining the old complete unpaged response. Web reads24 wishes
+per explicit page, labels partial/unknown coverage, retries the same position
+and refreshes only viewer-loaded depth. Child/teen request only own wishes;
+existing read/write permissions remain. New household-scoped GET/[id] inspects
+write targets so missing rows on a collection page never prove deletion/failure.
+EN/ES continuation, per-read timeout and stale/unmounted read suppression are
+authored. API_CONTRACTS.md records old-server fallback and remaining acceptance;
+source fixtures and original UI GET mock URL adoption are authored/unrun.
+Present canonical page targets avoid a redundant row query; absent targets still
+require their owned row read before recovery can resolve.
+No schema/index/scheduler or new domain store.
+
+### Routine visibility prefilter scope source — 2026-10-24 (#134/#450)
+
+The ordinary recurrence expander also limits its future-occurrence read to the
+required existing window and scopes upcoming/latest rows to the original family.
+A full window still returns no inserts; an underfilled window still reads every
+existing candidate. Once/repeating foreground passes each already cap roots100;
+fair repeating continuation now has default-off source with household-owned
+one-root attempted claims, separate canonical effects and failure isolation.
+The additive cursor migration is unapplied; legacy behavior retains first100
+selection. See `docs/plans/fair-chore-top-up.md`. No history deletion, window-size
+change or scheduler; source cases authored only.
+
+`hiddenRoutineOccurrenceIds` now accepts internal occurrence IDs and inclusive /
+exclusive due-date bounds. Known chore GET, main Today window, personal home
+summary, initial Chores window and dated chore API narrow metadata before visible
+paging/caps; completed/verified history skips the open-occurrence scan. Root
+metadata joins remain independent of the occurrence window and household-scoped.
+No visible/hidden row cap, policy rewrite, schema, grant or write is introduced.
+The dense/unscoped/default helper path and recurrence/roster fanout remain explicit
+CORE_QUERY_PLAN work. Fabricated SQL/query-binding regression source is adapted,
+not run; PostgreSQL/window/role/profile/rollback acceptance remains deferred.
+
+
+### Notifications older-page read source — 2026-10-24 (#134/#141)
+
+Existing GET `/api/notifications` adds opt-in scoped limit/cursor paging while
+retaining its legacy50-row shape. Existing web inbox requests50, loads older
+rows, retains exact retry state and local action state, and uses truthful loaded
+count/empty labels until completion. Missing old-server metadata has explicit
+unsupported/refresh copy. No write route/model/provider/permission is added.
+Canonical personal auth, preferences and snooze/mark/Delete/Undo remain in source.
+Typed EN/ES copy is in supporting-ui. Parser/API/inbox regression source is
+authored, not run; API_CONTRACTS records scope, timeout, recovery and remaining
+role/concurrency/rendered acceptance. No QA/build/CI/deployment action ran.
+
+
+### Projects bounded overview source — 2026-10-24 (#134)
+
+Existing `/dashboard/projects` now reads24 project summaries plus a continuation
+sentinel with deterministic created-at/id order and explicit older/newest page
+links. Canonical source is `project-overview.ts`; no project/task model or writer
+is added. One grouped query counts task completion states for only returned
+project IDs, avoiding materializing completed task IDs or a per-card query.
+Streaming content rechecks current personal household and feature before reads;
+the existing canonical project-route role allowlist and parent-only creation
+remain in source. API read authorization retains its existing policy.
+Invalid/cross-household/filter cursors do not query projects or claim an empty
+household. EN/ES paging/error/empty-page copy is in project-overview dictionary.
+
+`GET /api/projects` opts into the same summary reader with `limit`/`cursor`;
+legacy callers without limit retain the full `{ projects }` response and status
+filter behavior. No legacy collection is silently truncated. That legacy path
+is intentionally still unbounded and remains migration work under #134; source
+paging is not proof the whole query audit is complete. No schema/index migration,
+public capability change, offline write or native activation is introduced.
+Cursor parser/summary regression source is authored, not run. No QA/tests/build/
+lint/typecheck/browser/CI/push/merge/deploy or production data action occurred.
+
+
 ### Restock UI/owned request extension — 2026-10-20
 
 New read-only body-based POST `/api/inventory/restock/review` avoids private draft
@@ -652,3 +1448,1729 @@ lot selection opens the existing amount-used editor and stock/recovery/Undo
 write path. No auto allocation, conversion, separate stock model or atomic
 recipe-consumption ledger. Source tests authored/unrun; acceptance deferred.
 See `../architecture/COOKING_STOCK_REVIEW.md`.
+
+## Grocery review read recovery — 2026-10-24 (source only)
+
+Latest bounded source work adds a 15-second fetch-plus-body deadline to the
+read-only recipe-to-grocery preview (#134). Dismissal, replacement and unmount
+cancel the current read; a generation guard keeps late replies from replacing
+newer review state. Transport bridges ignoring abort still settle locally.
+Failures use the existing localized review error; retry is close/reopen, with
+no automatic replay or write. Canonical schema/recipe matching, household
+endpoint, reviewed payload, add key and Undo path are unchanged. Regression
+source covers header/body stalls, dismissal, pre-cancel and unsuccessful reads;
+it is authored but unrun. Response size is not bounded by this change.
+No QA/test/check/build/browser/API/database/native/provider/release ran.
+Original #134/#460 runtime, role/isolation and device acceptance remain open.
+
+## Recipe picker search and explicit pages — 2026-10-24 (source only)
+
+Latest bounded source work replaces the meal recipe picker's eager traversal
+of up to10,000 recipes with canonical full-library search and explicit24-row
+replacement pages (#460/#134). Search resets continuation; debounce, cancellation,
+fetch/body deadline and generation ownership bound pending reads. Current choice
+is pinned while browsing/searching; free-text meals and inline canonical create
+remain. Response validation rejects malformed/duplicate/oversized rows or invalid
+continuation; retry repeats the same page without replaying a save. EN/ES controls
+are typed. The existing offset API can shift under concurrent edits; this is not
+snapshot/keyset pagination, byte-bounded transport or backend index evidence.
+Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
+CI/API/database/native/provider/push/merge/deploy ran. Full #460/#134 acceptance
+remains open.
+
+## Shared bounded recipe read transport — 2026-10-24 (source only)
+
+Latest bounded source work reuses shared runOwnedForeground and bounded JSON
+decoding for recipe picker, grocery review, saved-recipe reuse and prepared-recipe
+history reads (#460/#134). This replaces two duplicated deadline implementations;
+reuse/history now settle ignored-abort header/body stalls at their existing10s
+limit, picker/review retain15s. One1MiB response limit streams where supported;
+JSON-only bridges are checked after allocation, not pre-allocation protection.
+Canonical endpoint/schema/ID matching, stored history, selection and explicit
+retry remain; no write/provider/reimport or current-recipe history fallback.
+Regression source is authored/adapted but unrun. No QA/test/check/build/browser/
+CI/API/database/native/provider/push/merge/deploy ran. Original runtime/isolation/
+responsive/native and complete recipe acceptance remain open.
+
+## Dormant mixed-capacity engine — 2026-10-24 (source only)
+
+Latest bounded source work adds a dormant seeded capacity workload model and
+mixed-load engine (#137). Fixed stages, eight-domain weights, small-stage skew
+refusal, sentinel exclusion, per-worker serialization, bounded callbacks/scenarios,
+warmup separation, fail-closed adoption and content-free report source are authored.
+No CLI/adapters/dataset are silently substituted: canonical fixture builder,
+all-domain route adapters, provider/process isolation, resource sampler and outcome
+reconciler remain unfinished. Worker counts are not measured active sessions;
+request counts/bytes are adapter reports, not transport proof. Regression source
+is authored but unrun. No QA/test/check/build/browser/CI/API/database/load/provider/
+push/merge/deploy ran. #137 clean-environment reproducibility/capacity/drill and
+all original runtime/production acceptance remain open.
+
+## Partial capacity dataset constructor — 2026-10-24 (source only)
+
+Latest bounded source work adds a partial pure capacity dataset constructor
+(#137) using existing canonical fixture row factories. Supported household/account,
+event, list/item, recipe/ingredient/line and family-meal rows emit in deterministic
+batches<=200, with dedicated fabricated IDs, declared UTC clock,20% tied sort-key
+cases and two sentinels. The versioned manifest explicitly remains incomplete;
+profile/device, stock ledger, routine/prep history and other dimensions are named
+unsupported rather than fabricated. Counts are construction expectations, not
+seeded observations. No writer/seed/reset/CLI or production path is connected.
+Regression source is authored but unrun. No QA/test/check/build/browser/CI/API/
+database/fixture/load/provider/push/merge/deploy ran. #137 complete adoption,
+canonical adapters, reconciliation/resource sampling and all original acceptance
+remain open.
+
+## Dormant unlink definition payload bound — 2026-10-24 (source only)
+
+Latest bounded source work bounds the dormant routine unlink reader's definition
+payload (#557). It locks/sizes all candidate metadata first, then refuses per-root
+JSON above64KiB or aggregate JSON above4MiB before transferring definitions.
+Invalid ownership/size metadata and a missing/replaced/duplicated second inventory
+hold the whole preparation without partial rewrites. Existing1,000-root cap,
+unknown-definition refusal and caller-owned lifecycle/owner-proof requirements
+remain. This bounds serialized transfer, not PostgreSQL scan/serialization,
+object overhead, lock duration or query plans. No unlink writer/endpoint/UI or
+account activation is connected. Regression source authored/adapted but unrun.
+No QA/test/check/build/browser/CI/API/database/native/provider/push/merge/deploy
+ran. Full unlink/provenance/domain/credit/Undo and original acceptance remain open.
+
+## Complete bounded ICS assembly — 2026-10-24 (source only)
+
+Latest bounded source work replaces the2,000-event ICS refusal with complete
+snapshot assembly (#124/#134). Token/household resolution and projected200-row
+(start_time,id) keyset reads share one30-second RepeatableRead transaction.
+Successful output is assembled only after complete traversal; explicit10,000-event
+and16MiB wire limits retain whole-feed503/no-store refusal. Stable UID/timestamps,
+UTF-8 folding, range/recurrence and successful cache behavior remain. Wider legacy
+DB rows still allocate before the wire budget; total DB/JS memory, query plans,
+snapshot/concurrency and provider behavior are unmeasured. Regression source for
+2,400/exact-limit equal-date traversal, count/byte refusal and transaction options
+is authored/adapted but unrun; fake transactions prove no PG isolation. No QA/test/
+check/build/browser/CI/API/database/provider/push/merge/deploy ran. Original calendar/
+role/isolation/native and all release acceptance remain open.
+
+## Stored recurrence feed boundary — 2026-10-24 (source only)
+
+Latest bounded source work adds a stored-recurrence feed guard (#124). Structural
+checks plus the existing lockedical.js parser refuse malformed/ambiguous/unsupported
+rules without expansion or normalization into a different interpretation. Supported
+rule order/values retain existing uppercase/prefix treatment. A bad rule holds the
+whole feed with503/no-store and a content-minimal code; no skipped series, successful
+prefix, one-off replacement, storage rewrite or input-schema change. Parent-facing
+rule repair and exhaustive cross-part/DST/provider semantics remain separate.
+Official parser source was read; no parser was executed. Regression source authored
+but unrun. No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy
+ran. Original calendar/isolation/native and all release acceptance remain open.
+
+## Parent recurrence repair discovery — 2026-10-24 (source only)
+
+Latest bounded source work connects private parent recurrence-repair discovery
+(#124/#499). A lazy Settings EN/ES overlay reads100-event groups through a new
+personal-parent API, with paired-device refusal, current-family scope header,
+family-bound cursors, no-store and minimal affected-event DTOs. No token/raw rule
+leaves the server. The shared foreground/body bounds, generation/cancel ownership,
+exact-cursor retry and stale-household reload preserve current context. Existing
+local editor/source-calendar links retain mutation/read-only authority; no repair,
+provider or token action happens automatically. Group results do not verify the
+full feed/capacity/provider state, and concurrent groups are not a snapshot.
+Regression and device-inventory source authored/adapted but unrun. No QA/test/
+check/build/browser/CI/API/database/provider/push/merge/deploy ran. Canonical repair,
+role/isolation/rendered/native and original acceptance remain open.
+
+## Explicit repeat removal and locked event PATCH — 2026-10-24 (source only)
+
+Latest bounded source work adds explicit parent repeat-rule removal to the
+canonical event editor (#124). Ordinary edits omit recurrence; removal is a
+reviewed draft choice with pre-save cancellation and exact saved-rule precondition.
+Canonical PATCH now uses user/household/event locks and renews current parent,
+session, ownership, source/range and rule before one scoped update. Changed rules
+hold the entire metadata save; the EN/ES form retains its draft. Subscription
+read-only policy remains; optional precondition preserves legacy client bodies.
+No replacement schedule, generated-row deletion, post-save Undo, automatic retry,
+offline action or provider dispatch is introduced. This is not full event-version
+concurrency or an idempotent receipt. Regression source authored but unrun; fake
+transactions prove no PG locks/rollback. No QA/test/check/build/browser/CI/API/
+database/provider/push/merge/deploy ran. Broader repeat editing and original calendar/
+isolation/native/release acceptance remain open.
+
+## Event create/replay lifecycle authority — 2026-10-24 (source only)
+
+Latest bounded source work shares current User/household/session/known-role
+calendar authority across create, completed-create replay and edit (#134/#124).
+Normal creation now renews lifecycle authority before event/activity effects or
+private receipt reads, and normal keyed replay has the same renewal as AI-backed
+recovery. Parent/teen/child create and parent-only edit policy, key/hash/receipt
+semantics and optional beta counting remain. AI first effects retain source/lease
+verification; completed replay renews ownership without requiring fresh source.
+Outer idempotency claim/refusal ledger writes can precede the effect check. No new
+permissions, provider/offline action or activation. Regression/integration source
+authored/adapted but unrun; fake transactions prove no PG concurrency/rollback.
+No QA/test/check/build/browser/CI/API/database/provider/push/merge/deploy ran.
+Original isolation/calendar/native/release acceptance remains open.
+
+## Personal item/capture lifecycle renewal — 2026-10-24 (source only)
+
+Latest bounded source work renews personal grocery item/capture authority
+(#134/#135). Current user/household/role/session/feature and explicit destination
+checks now cover normal/strict-grocery first effects and completed replay. Capture
+checks its receipt before default resolution, retaining parent/teen permission;
+ordinary existing-list adds still permit parent/teen/child. New-default item failure
+throws for transaction rollback. Canonical item/ingredient/section writes, queue
+owner/body/key/hash/expiry and separate device auth remain. No resolver or second
+item is run for completed capture recovery; explicit deleted/type-changed targets
+refuse. List/note container creates already had renewal and were left unchanged.
+Regression/route/integration source authored/adapted but unrun; no PG rollback or
+concurrency result is claimed. No QA/test/check/build/browser/CI/API/database/
+provider/push/merge/deploy ran. Original isolation/offline/device/release acceptance
+remains open.
+
+## Note mutation lifecycle authority — 2026-10-24 (source only)
+
+Latest bounded source work connects note edit/delete to one locked canonical
+mutation (#134/#136). The existing list-container/note base authority is extracted
+and reused, preserving create/replay policy. Notes renew current role/session/
+household and stored feature permission, then lock/re-read the owned note/creator
+before a scoped mutation. Parent-any/teen-child-own edit and parent-only delete,
+body/color normalization, request/success DTOs and device refusal remain. Missing/
+foreign locked targets share404. No new version/Undo/receipt/queue/AI permission
+or activation; this is not complete content-conflict resolution. Regression and
+existing two-household route source authored/adapted but unrun; no PG locking or
+rollback result claimed. No QA/test/check/build/browser/CI/API/database/provider/
+push/merge/deploy ran. Original isolation/offline/device/release acceptance remains
+open.
+
+## Personal item edit/tick authority — 2026-10-24 (source only)
+
+Latest bounded source work renews current personal authority for list-item edit,
+checked-state updates and completed replay (#134/#135). A server-supplied callback
+runs under user/household locks before shared item reads/writes; the base create/
+capture authority is extracted and reused. The shared row lock is household-scoped
+through List. Existing version/conflict, explicit-check/no-op attribution, wire/
+queue/key/body and device-coordinator policies remain; device calls require no
+personal callback. Completed replay remains historical and does not reapply.
+No new atomic update receipt, whole-content conflict/section-trip redesign, queue
+operation or activation is claimed. Regression source authored/adapted but unrun;
+no PG plan/locking/rollback proof. No QA/test/check/build/browser/CI/API/database/
+provider/native/push/merge/deploy ran. Original isolation/offline/device/release
+acceptance remains open.
+
+### Personal item edit/tick atomic response — 2026-10-24 (#135/#134)
+
+`list-item-update.ts` now accepts server-only receipt context from the two
+personal routes. Current authority precedes receipt and item locks. Compatible
+completed JSON returns before stale-version comparison; successful item/no-op and
+exact JSON response commit together. Missing/malformed receipts hold; completion
+failure propagates to roll back. No-key/device call paths remain. Auxiliary trip
+tracking remains post-commit/best effort, and stored replay does not repeat it.
+Existing action/hash/key/queue-owner/version/body policies remain; no schema or
+activation. Regression/guarded PostgreSQL cases authored/unrun; issue acceptance
+and actual rollback/concurrency/lifecycle/browser/device proof remain open.
+
+### Personal list-item deletion lifecycle — 2026-10-24 (#134/#135)
+
+REST/deprecated item delete now delegate to `deletePersonListItem`; existing
+household delete remains the shared data primitive. Current actor/feature/parent
+checks, scoped row lock and deletion share one transaction; final delete predicate
+also includes household. Existing legacy wire/deprecation, missing/foreign404,
+repeat404 and device refusal policies remain. No queue/tombstone/schema/activation.
+Generation/role/family race regression source adapted/authored but unrun. All real
+isolation, lifecycle locking/rollback, native and issue acceptance remain open.
+
+### Personal inbox read ownership — 2026-10-24 (#134/#141)
+
+Notification reads extracted into `notification-read-client.ts`, reusing existing
+owned foreground/decode bounds:15-second fetch/body deadline,512KiB response cap,
+replacement/unmount abort and existing stale-generation/cursor protection. Failed
+HTTP bodies are not decoded; existing localized retry UI remains. JSON-only bridge
+cap is post-allocation. No API/write/Undo/device/provider/scheduler change. Authored
+regression cases unrun; mounted/native/oversize acceptance remains unverified.
+
+### Existing notification destination discovery — 2026-10-24 (#141)
+
+Personal inbox now exposes the existing summary sender's Today destination through
+an exact fixed-path mapper and EN/ES accessible44px Open link. Unsupported stored
+values do not navigate or invalidate the row. No API/sender/write/schema/provider
+change. Object-specific original-household/record/role/deletion resolution remains
+unfinished; source-backed next contract is in NOTIFICATION_SNOOZE.md. Pure/mounted
+cases authored/unrun; actual link/navigation/native acceptance remains open.
+
+### Chores board streak payload — 2026-10-24 (#134/#137)
+
+The SSR board now calls `readChoreStreaks` only for loaded account assignees when
+gamification is enabled. Household/account/status/exact-day-scoped SQL groups day
+markers in200-assignee batches; maximum7 markers/account, no titles/completion-row
+hydration. Existing3-day threshold/7-day maximum/profile exclusion and date-key
+policy remain. Whole-history preload is removed; database scan cost/snapshots are
+not claimed bounded. Index-plan next evidence is recorded in CORE_QUERY_PLAN.md;
+no index/schema/DB activation. Pure/disposable-PG source cases authored/unrun; full
+query/isolation/date/runtime/capacity acceptance stays open.
+
+### Chore profile hydration scope — 2026-10-24 (#134/#480)
+
+List/single-item API hydration extracted into `chore-profile-read.ts`: household+
+selected-ID predicates,200-ID batches, existing projection and strict unexpected/
+duplicate result refusal. Missing references remain null; archived history and
+canonical subject/protocol/action checks remain. No new profile authority, identity
+link, mutation, device DTO, flag or schema. Source cases authored/unrun; actual SQL
+fanout/plans, snapshot/isolation and broad profile/runtime acceptance stay open.
+
+### Dormant capacity inventory rows — 2026-10-24 (#137)
+
+Capacity dataset version2 now emits canonical stock/history types with declared
+profile counts, six finished targets, partial consumption/Undo history and matching
+final snapshots, all synthetic household-local references. Existing bounded row
+batches/no runtime Prisma/no writer or connection remain. Receipt/review/deleted
+inventory targets and other required fixtures remain unsupported; manifest remains
+incomplete. Counts/integrity source authored/unrun, no dataset or load execution.
+Guarded adoption/adapters/reconciliation and actual capacity acceptance remain open.
+
+### Dormant capacity project/task rows — 2026-10-25 (#137)
+
+Dataset version3 adds canonical project/task shapes with model-sized largest
+projects, small/empty/status variations, household-local assignees and tied task
+keys. Parent-before-dependent order and200-row batches remain. Calendar-linked/
+deleted targets and other missing dimensions remain explicit; incomplete manifest
+and no-runtime/no-writer boundaries remain. Integrity source authored/adapted only;
+no dataset/load/DB/API/test/build/browser/native/provider/release execution. Actual
+adoption/adapters/reconciliation/reproducibility and full acceptance remain open.
+
+### Dormant capacity personal history rows — 2026-10-25 (#137)
+
+Dataset version4 adds notes/wishlist/inbox/audit model counts and canonical local
+references, note/wish/read/snooze/tie variations, fixed audit vocabulary and safe
+Today links. Text is fabricated; no external URLs/prices or actual notification
+fanout. Shared activity/delivery and other required dimensions remain unsupported;
+manifest incomplete. No writer/import-time/DB/provider operation. Integrity source
+authored/adapted only; no generator/test/load/build/browser/native/release run.
+Guarded adoption/adapters/observed reconciliation and full capacity stay open.
+
+### Legacy Activity opt-in keysets — 2026-10-25 (#134/#135)
+
+The existing member Activity endpoint gains explicit stable timestamp/ID paging,
+household-bound canonical cursor and bounded lookahead. Legacy timestamp/no-cursor
+response/clamp behavior remains; no web adoption or new permission. Existing
+analytics/private timeline exclusions/masking retained. Pure/route tie/deleted-pivot/
+foreign/legacy source cases authored/unrun. No SQL/schema/index/API/test/build/
+browser/native/provider/release execution; full acceptance and measured plans open.
+
+### Dormant capacity manual prep histories — 2026-10-25 (#137)
+
+Dataset version5 adds declared dated prep sessions, three manual dishes/session,
+existing canonical-meal allocations and live/cancelled/reserve portion histories
+only for prepared sessions. Counts/local refs/keys/date/portion/insertion source
+cases authored/adapted; no execution. Recipe snapshots/review/replay receipts and
+other fixtures/adapters/observed reconciliation remain unsupported; manifest
+incomplete, no runtime/writer/DB/API/provider operation or acceptance claimed.
+
+### Dormant capacity account chore series — 2026-10-25 (#137)
+
+Dataset version6 reuses canonical account fixture rows for model-sized weekly
+roots/copies, local rotations and dated state snapshots. Initial counts/root-day/
+reference/order/state source cases authored only. Read-triggered top-up outcomes,
+profile/scheduled routine definitions, credit/history and broader fixtures/adapters/
+observed reconciliation remain unsupported/incomplete. No generator/writer/DB/API/
+QA/build/browser/provider/native/release run; full capacity/recurrence acceptance open.
+
+### Pinned-note content conflict review — 2026-10-25 (#134/#135/#499)
+
+Canonical note edit now compares optional expected_updated_at after live permission/
+row locking, returns a safe saved-content409 and advances write timestamps
+monotonically. Web editor binds its loaded version and keeps draft/saved comparison
+in the same EN/ES sheet; explicit choice changes local review only, Save rechecks.
+Legacy no-version clients/delete remain compatible. No schema/queue/receipt/merge
+or new permission. Server/schema/mounted source authored/adapted only; no tests/
+DB/API/browser/build/native/provider/release run or full acceptance claimed.
+
+### Mounted note create exact request — 2026-10-25 (#134/#135/#499)
+
+Notes GET supplies personal writeContext; POST paired optional owner expectations
+refuse mismatch before claiming a key. Web mounted creates now reuse canonical
+keyed POST with frozen body/owner, shared15s/256KiB foreground bounds and24h hold.
+Unknown outcomes retain read-only original drafts through sheet Cancel/reopen;
+explicit retry reuses bytes/key and confirmed replies match family/creator. No
+persistent journal/navigation/process-death/removal guarantee or new queue/schema/
+permission. Pure/route/mounted source authored/adapted only, no execution; original
+storage/fault/native/PG and broad acceptance remain open.
+
+### Read-only note-create receipt inspection — 2026-10-25 (#134/#135/#499)
+
+New personal receipt route renews current authority/owner, validates scoped original
+key/action/hash/expiry and returns minimal current presence/removal without effect
+or cached content. Mounted retries inspect before reusing original create bytes;
+present/removed settle without recreation, pending/expired/unknown hold. Paired
+devices refused; inventory/source cases updated, all unrun. Persistent/restore-era
+recovery and full PG/fault/isolation/native/QA acceptance remain open; no execution.
+
+### Final-candidate tracker consolidation — 2026-10-25 (#377, retired #105)
+
+The complete original #105 body and full imported #364 smoke packet were copied
+into [canonical #377](https://github.com/camster91/family-planner/issues/377#issuecomment-6400519982) and read back before #105 duplicate/not-planned
+closure. Every unmet criterion remains open; #139 reusable QA infrastructure is
+separate. No application source, test/check/build/browser/CI/DB/API/provider/native
+or release operation ran. Original issue histories and named backups retained.
+
+### Note owned journal foundation — 2026-10-25 (#135/#499)
+
+Strict one-request note contract/store/browser adapter reuses the owned CAS journal
+and note-specific current-session namespace. New personal context GET and optional
+owner proof on create/inspection enforce pause/continuity without changing legacy
+no-header policy. Flags off/unmodified, adapter not initialized by the sheet.
+Persistence/recovered UI adoption remains next; injected cases authored/unrun, no
+storage/API/DB/test/build/browser/native/provider/release execution or acceptance.
+
+### Note sheet owned recovery adoption — 2026-10-25 (#135/#499)
+
+Server-advertised note recovery now lazily wires the sheet to the existing owner/
+CAS journal: persist-before-create, explicit restored review, receipt settlement,
+confirmed cleanup and exact repair. Non-adopted mounted policy remains; no flags
+activated or adopted-failure fallback. Older proof inspection stays read-only and
+send age remains24h. Known owner loss clears visible draft without journal erasure.
+Injected wiring/client cases authored/unrun; no storage/API/DB/QA/build/browser/
+native/provider/release run. Full persistence/fault/retirement/a11y acceptance open.
+
+### App details public compatibility reads — 2026-10-25 (#473/#146)
+
+Help now requests bounded concurrent native identity/version/capabilities only on
+a tap, adds optional public protocol metadata to the existing report and owns
+read cancellation/generation/latching. Public diagnostics omit credentials; copy
+stays explicit, no account content/report upload. Legacy/unknown results remain
+unknown, no new support window or permission. Source cases authored/adapted only,
+no API/DB/browser/test/build/native/provider/release run. Distinct #473 real-device/
+old-client/forward-rollback acceptance remains open.
+
+### Note edit/delete foreground bounds — 2026-10-25 (#135)
+
+Notes web source moves note edits/deletes onto the shared
+15-second foreground deadline and bounded JSON decoder (#135). PATCH replies cap
+at256KiB and DELETE replies at32KiB. An absent/malformed/oversized reply retains
+the draft or delete confirmation and releases the sheet's pending latch; it does
+not imply rollback or trigger a retry. Edit version/conflict review remains, and
+404 deletion remains an error. JSON-only older bridges retain post-parse limits.
+Source coverage for oversized replies authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered timeout/conflict/
+permission and complete recovery acceptance remain open.
+
+### Notes page decode and revoked-authority bounds — 2026-10-25 (#134/#135)
+
+Notes web source caps Notes page JSON at2MiB within its
+existing 15-second deadline (#134/#135). The shared decoder bounds streamed bytes;
+older JSON-only bridges retain post-parse limits. A401/403 response clears prior
+personal notes/drafts without waiting for an error body. Existing page/cursor/
+generation validation, exact retry and create recovery remain. Oversize/revoked-
+authority source cases authored only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Runtime timeout, rendered privacy recovery,
+old-server compatibility and full acceptance remain open.
+
+### Queue recovery issue reconciliation — 2026-10-25 (#564/#565)
+
+Latest bounded follow-through (2026-10-25) reconciles #564/#565 source status
+against current contracts, storage adapters and compatibility documentation.
+#565's candidate/lane inspection and #564's generation/retirement design criteria
+are now checked with explicit evidence in GitHub. Both issues remain open for
+original fault/concurrency/lifecycle/old-client and rendered acceptance. No second
+retry engine was added; readiness flags are unchanged. Original issue bodies
+were backed up and changed bodies read back. No QA/test/check/build/browser/CI/
+API/DB/native/provider/push/merge/deploy ran.
+
+### Wishlist bounded read decoding — 2026-10-25 (#134)
+
+Wishlist web source caps Wishlist list/target reads at2MiB
+and account-role lookup at32KiB within the existing15-second deadline (#134).
+The shared decoder bounds streaming bytes; JSON-only bridges retain post-parse
+limits.401/403 can enter existing refusal handling without waiting for error
+JSON. Exact-cursor retry, target inspection and mutation behavior remain. Source
+cases for oversize/account refusal authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Rendered recovery, fault/timeout,
+role/privacy, old-server compatibility and full acceptance remain open.
+
+### Wishlist write foreground limits — 2026-10-25 (#135)
+
+Wishlist web source moves all four Wishlist writes onto
+the existing shared15-second foreground deadline and256KiB JSON cap (#135).
+Missing/malformed/oversized replies enter the existing action-specific uncertain
+paths, retaining original mutation keys and drafts/confirmation. Status failures
+still inspect canonical state through bounded reads; no automatic write replay or
+rollback is inferred. Definitive refusal and matched-success validation remain.
+JSON-only bridges retain post-parse bounds. Exact-key oversized-delete source
+coverage authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. Real timeout/retry/concurrency/role and full acceptance open.
+
+### Notification foreground reply bounds — 2026-10-25 (#141)
+
+Notification web source bounds foreground notification mark,
+snooze and delayed-delete requests through the shared15-second deadline/32KiB
+JSON decoder (#141). Success requires an explicit success:true acknowledgment;
+snooze also validates its date. Missing/malformed/oversized replies keep read/
+snooze state or restore the locally hidden delete row without claiming server
+rollback. EN/ES copy calls the outcome unconfirmed. Existing Undo delay and page-
+exit keepalive dispatch remain separate/unchanged; no write replay/delivery or
+scheduler added. Source oversize cases authored only. No QA/test/check/build/
+browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual lifecycle, races,
+role/privacy, timeout/Undo and full acceptance remain open.
+
+### Notification explicit refresh recovery — 2026-10-25 (#141)
+
+Notification web source adds a visible44px EN/ES Refresh
+notifications control (#141), completing the explicit action named by uncertain-
+write copy. It reloads canonical first-page state without replaying a write.
+Manual refresh pauses through reads, mark/snooze, queued Undo deletes and actual
+foreground delete waits; immediate refs also guard pre-render clicks. Undo or
+foreground settlement releases delete busy tracking; page-exit dispatch keeps
+its existing best-effort semantics. Source refresh/Undo cases authored only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Rendered
+focus/reflow, read-write races, lifecycle and original acceptance remain open.
+
+### Notification stale read/action fencing — 2026-10-25 (#141)
+
+Notification web source fences notification page replies
+against intervening local actions (#141). First/older reads capture a write
+epoch; mark/snooze begin+settlement, delete/Undo/settlement and exit dispatch
+advance it. Changed or still-pending actions reject stale page application and
+retain explicit EN/ES refresh/exact-cursor retry. Older reads pause while actions
+are pending; in-flight delete rows cannot be submitted twice. Existing overlapping
+page merge and original Undo/send behavior remain. Concurrent-page source case
+authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Runtime race, focus, native lifecycle and full acceptance remain open.
+
+### Assistant chat and report transport bounds — 2026-10-25 (#464/#144)
+
+Assistant panel source bounds assistant chat/report transport
+(#464/#144). Chat uses the shared foreground deadline at45 seconds, above the
+existing30-second provider timeout, and256KiB JSON cap. Network/unreadable/deadline
+failures keep existing localized retry/draft paths; no automatic provider retry
+or app write occurs. Feedback reads use15seconds/512KiB and validate/project at
+most25 report rows; saves use15seconds/64KiB and retain exact original request IDs/
+bodies on uncertainty. JSON-only bridges retain post-parse bounds. Oversize chat/
+report source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/
+provider/push/merge/deploy ran. Actual timeout, grounding, private identity, action/
+report concurrency and rendered/lifecycle acceptance remain open.
+
+### Opt-in private feedback summary — 2026-10-25 (#464/#136)
+
+Feedback API/panel source adds opt-in feedback summary responses
+(#464/#136). The personal panel requests X-Herewoven-Feedback-View:summary-v1.
+GET selects/projects only id/kind/title/status/created_at for the existing25-row
+own-user/household list; POST projects the same receipt only after unchanged
+ownership/session and exact-request checks. Details, pathname and owner/request
+IDs stay out of opted-in responses. No-header callers retain the original shape;
+older servers may ignore the header and the panel still projects display fields.
+No schema/permission changes or external forwarding. Source projection/legacy
+cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime privacy/compatibility/replay and full acceptance open.
+
+### Retained device actor erasure — 2026-10-25 (#136/#450)
+
+Account-erasure source reconciles retained device account
+references during erasure (#136/#450). Device/pairing actor/creator/elevation
+references now contribute historical households to the existing sorted lock set.
+Erasure clears only the exact account's plain actor slots and complete elevation
+overlay in each locked household, including detached/former contexts. Devices,
+sessions and other parents' references remain; completed pairing creator handover
+is scoped to the current household rather than transferring former requests to
+an unrelated successor. Source discovery/projection/former-household cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/lifecycle and wider erasure acceptance open.
+
+### Former invitation/pairing creator erasure — 2026-10-25 (#136/#450)
+
+Account-erasure source scopes invitation handover to the
+current household (#136/#450). Creator-owned invitations now join historical
+household discovery/ordered locks. Remaining creator-owned invitation/pairing
+requests are explicitly erased per locked household under their existing User
+Cascade policy, after current accepted/completed requests have been handed to
+the local successor. No former request transfers to another household's parent;
+other actors' requests and paired tablet sessions remain. Detached-account
+cleanup uses the same path. Exact-scope/current-versus-former source cases authored
+or adapted only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real transaction/FK/concurrency and broader erasure acceptance open.
+
+### Household-local shared-content successors — 2026-10-25 (#136/#450)
+
+Account erasure/removal source preserves shared-content ownership in
+its original household during account erasure (#136/#450). Canonical creator/
+nullable columns move to one shared module, retaining existing exports. Identifier-
+only discovery adds every referenced household to sorted locks; ListItem/ProjectTask
+use List/Project ownership. Current erasure and ordinary removal scope updates to
+their household. Former/detached shared content chooses an existing local parent,
+then local member, in deterministic order and rechecks that successor before
+updates. Missing successor holds the transaction with NO_SUCCESSOR; personal
+subjects retain their existing cascade policy. No records move between households
+or grant roles. Source ownership/discovery/current/detached/no-successor cases
+authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/
+deploy ran. Real FK/locking/rollback/query plans and wider erasure acceptance open.
+
+### Historical-content erasure hold response — 2026-10-25 (#136/#142)
+
+Account deletion source completes translated recovery for
+historical shared-content ownership holds (#136/#142). The server returns409
+HISTORICAL_SUCCESSOR_REQUIRED only for a missing former-household successor;
+current-household NO_SUCCESSOR remains unchanged. The dialog renders owned EN/ES
+guidance, retains password/confirmation and does not claim deletion or replay it
+when locale changes. No former household name/ID is exposed. Existing older
+clients retain the generic server-text fallback. Locale/draft/no-replay source
+case authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/push/
+merge/deploy ran. Runtime rollback/compatibility/rendered and full acceptance open.
+
+### Core query plan reconciliation — 2026-10-25 (#134)
+
+Latest bounded planning follow-through (2026-10-25) reconciles the core query
+plan (#134). It replaces the stale2,000-event feed entry with actual200-row
+snapshot traversal/10,000-event/16MiB/30s limits, adds shared Activity/feedback/
+historical-erasure contracts and records ten concrete supporting-route gaps.
+The plan distinguishes complete selectors, partial histories, nested medical
+sets, transport bytes and complete lifecycle discovery. Original compatibility,
+privacy and measured query/locking acceptance remain open. No code changed or
+QA/test/check/build/browser/CI/API/DB/EXPLAIN/load/native/provider/push/merge/deploy
+ran. No criterion was checked or issue closed from an unmeasured source inventory.
+
+### Reward collection continuation and exact status inspection — 2026-10-25 (#134/#499)
+
+Rewards API/SSR/web source adds reward collection continuation
+(#134/#499). A shared API/SSR timestamp/ID reader returns24 web rows or up to100
+opt-in API rows with one lookahead, household/status-bound cursor and no pivot
+lookup. No-limit legacy responses remain complete. EN/ES Older/Newest/invalid/
+page-only copy is wired; current identity/family and analytics role are renewed
+before SSR serialization. Recovery inspects one exact owned reward through an
+optional target filter and bounded transport; absent targets never prove an
+outcome. Closed/off-page uncertain claims retain original keys and accessible
+review, still-available reads keep recovery, and page links hold during actions/
+review. Source parser/API/UI cases authored only. No QA/test/check/build/browser/
+CI/API/DB/native/provider/push/merge/deploy ran. Query/index/compatibility/race/
+rendered/navigation and full reward acceptance remain open; no new DDL applied.
+
+Protocol: GET /api/rewards?limit=24[&status=available|claimed|approved|redeemed][&cursor=...] returns rewards plus nullable nextCursor. Duplicate/invalid paging and foreign household/status positions refuse400 REWARDS_INVALID_PAGE. GET ?rewardId=<id> is an exclusive exact-target filter returning the same rewards array shape with zero/one own-household row; it cannot combine with paging/status. Older servers may ignore the filter; clients still match the target and hold on absent/unreadable replies. This is not a write receipt or deletion tombstone. Legacy no-limit/no-target calls retain prior representation and ordering.
+
+Index follow-up is measured planning only: compare existing Reward family/status indexes with proposed family+created_at+id and family+status+created_at+id paths. No index/migration or latency result is implied. Reward history follows canonical erasure/retention; no time-based pruning is introduced.
+
+### Reward-board write deadlines — 2026-10-25 (#135/#134)
+
+Rewards board source completes reward-board foreground
+transport bounds (#135/#134): claim/approval now share15-second whole-request
+waits and256KiB JSON decode caps with existing exact target recovery. Missing/
+malformed/oversized replies retain original keys and review;408/409/425/429/5xx
+also retain keys rather than infer rollback. Parsed matched success still alone
+updates XP/claim/given state; no automatic replay or local point charge added.
+Existing localized error/review surfaces remain. Deadline/oversize exact-retry
+source cases authored only. No QA/test/check/build/browser/CI/API/DB/native/provider/
+push/merge/deploy ran. Actual locking/replay/role/timeout/rendered and native
+lifecycle acceptance remain open; this is not release or durable-queue acceptance.
+
+### Opt-in message history keysets — 2026-10-25 (#134)
+
+Message API source adds opt-in tie-safe message API
+continuation (#134). paging=keyset-v1 uses default50/max100 plus one lookahead,
+household-bound canonical timestamp/ID positions and no pivot lookup. The cursor
+is built before chronological DTO reversal; sender/pickup projection and complete
+current roster remain. Legacy no-mode timestamp reads/shape/order stay unchanged.
+Parser/foreign/tied/deleted-pivot/legacy source cases authored only. The current
+chat has not adopted the new mode: merge/refresh/scroll/exact retry and old-server
+handling remain the next source slice. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Relation/index/client/runtime acceptance
+remain open; no complete roster-size or whole-response bound is claimed.
+
+GET /api/messages?paging=keyset-v1[&limit=1..100][&cursor=...] returns the existing messages/members/userId plus nullable nextCursor. Invalid/duplicate mode/limit/cursor or another household position refuses400 MESSAGES_INVALID_PAGE. Page selection is created_at DESC/id ASC; the response reverses only that selected page for chronological display. Complete current-member roster and canonical sender/pickup masking remain. No mode retains the legacy timestamp-only API, including its tie limitation; no client adoption or read-snapshot guarantee is implied.
+
+Next source integration: latest/earlier client reads must validate explicit continuation, retain the exact failed cursor, preserve all loaded same-time messages during a latest merge, keep unsent text/attachments/unknown send keys, and retain scroll position/focus. Specify unknown/older-server recovery rather than inventing a cursor from timestamps. Later QA owns actual refresh/send/read/history races and query plans. Compare a proposed Message(family_id,created_at DESC,id ASC) index only after plan measurement; no DDL/retention change here.
+
+### Chat history keyset adoption — 2026-10-25 (#134/#135)
+
+Message web source connects chat to message history
+keysets (#134/#135). Latest/earlier reads use15-second/2MiB bounded decoding,
+validated50-row unique pages and explicit opaque continuation. Failed older reads
+retain the exact cursor; loop/unread/unknown pages do not advance it. Latest
+merges preserve loaded timestamp ties and just-sent boundary rows; scroll/focus
+and unsent text/attachments/send intents remain. Modern API readContext binds
+user/household; changed/revoked read context masks the thread/composer and stops
+new reads until explicit reload. Older servers show recent-only EN/ES notice,
+without invented continuation. Source fixtures/cases authored/adapted only. No
+QA/test/check/build/browser/CI/API/DB/native/provider/push/merge/deploy ran. Actual
+tie collation, same-window edits, send/read/history races, large refresh gaps,
+old-client/server, async owner/lifecycle and rendered acceptance remain open.
+
+Modern message responses now also include readContext:{userId,familyId}; it is observed read scope, never a write permission or cached authority. The client validates it before merging latest/history. Unknown old-server responses remain recent-only with no fabricated history cursor. Legacy no-mode API shape remains unchanged. Existing5-second polling/sending/upload/read-ack paths are not new delivery or offline queues; their wider lifecycle/owner mutation requirements remain separate. Read scopes do not prove an in-flight send's outcome or revoke an already dispatched action. Streaming bytes are bounded; JSON-only bridges retain post-parse limits.
+
+### Original-owner chat composition and uploads — 2026-10-25 (#135/#136)
+
+Chat/API source binds chat composition to original
+account/household/session (#135/#136). Modern GET advertises a strict writeContext;
+the client freezes it before uploads and includes it in exact send bytes. New
+/send and /attachments/owned routes require those preconditions while sharing
+canonical legacy handlers/effects. Unsupported old servers cannot silently strip
+fields via a legacy fallback. Unknown support keeps drafts local. Fresh user ->
+household locks renew session/feature before message effect/replay, upload row
+creation and post-file publication check. Lost upload authority uses existing
+exact unclaimed-file compensation. Read acknowledgments now renew the same
+locks before appending non-FK read_by IDs. Upload/send/read waits are bounded;
+unknown sends keep original keys and late retired uploads do not trigger sends.
+Legacy endpoints/body formats remain supported. Source contract/API/UI/paired/
+upload-fault cases authored/adapted only. No QA/test/check/build/browser/CI/API/DB/
+native/provider/push/merge/deploy ran. Actual PG/filesystem/race/rollback/native/
+aging/lifecycle acceptance remains open; no persistent message queue is claimed.
+
+Modern read writeContext is `{protocol:"herewoven.message-owner.v1",userId,familyId,generation}`. This is private context, not a token or authority. Optional legacy message fields expected_user_id/expected_family_id/expected_generation must be all absent or all present and match the authenticated actor. POST `/api/messages/send` requires them and an Idempotency-Key, stream-bounds JSON at64KiB and delegates to the same message.create receipt/effect. POST `/api/messages/attachments/owned` requires X-Herewoven-Message-Owner with exact strict context and delegates to the same bounded multipart/storage/compensation handler. Existing message/attachment endpoints remain legacy-compatible; supplied owner constraints still enforce. Neither strict endpoint falls back to a legacy write URL.
+
+The client captures context before asynchronous photo work and masks the thread on generation/context change. Missing marker keeps composing local with EN/ES explanation. Request deadlines are15seconds, upload/read-ack JSON caps32KiB and send cap256KiB. Network/parse/timeout and408/409/425/429/5xx send uncertainty retains original key/body. This is mounted recovery only: no new persistent queue, receipt-retention extension, original-send age guarantee or automatic retry. Existing unbound-media pruning/file compensation and wider erase/claim/rollback/lifecycle races still require real acceptance.
+
+### Original chat send time — 2026-10-25 (source only, no QA)
+
+The unreleased strict `/api/messages/send` contract now requires canonical UTC
+`issued_at` alongside the original owner triple and idempotency key. The client
+captures it once per logical draft, keeps it in exact serialized request bytes,
+and restores the whole intent/key/time when editing away and back after an
+unknown reply. Modern retries stop before24h; the pure shared window is capped
+at one quarter of canonical receipt retention (currently7days, unchanged), with
+at most5minutes future skew. Device-clock problems hold rather than renew the
+intent. Server time checks run before receipt acquisition, after actor/household
+locks, and after receipt/media reads before message creation. A supplied legacy
+time enforces the same bound; absent legacy fields retain existing behavior.
+
+EN/ES hold copy retains the draft and directs the person to the conversation and
+device clock. An explicit review acknowledgment retires only that held mounted
+intent; it neither sends nor proves the original message absent. A later Send is
+a deliberate new intent. Ordinary uncertain retries never silently renew age or
+key. This extends the local, unreleased owner-v1 candidate together with its web
+consumer; legacy endpoints are unchanged and the strict URLs have no fallback.
+Timestamp validation adds no stored column/migration or queue. Browser relaunch,
+receipt inspection, durable recovery and upload-retry identity are still outside
+this mounted-send slice. Source time-boundary/API/UI fixtures are authored/adapted
+but unrun. QA, real lock/retention/clock/lifecycle behavior, compatibility and all
+release acceptance remain open. No runtime, database or external activation ran.
+
+### Member relationship dispositions — 2026-10-25 (documentation only)
+
+#480's canonical member-relation-inventory.json now records disposition, source
+pointers and remaining work on all80 current User-FK rows. Historical64+3
+foundation coverage is preserved; the plan names13 later additions rather than
+claiming the old67 is the current count. The separate member-subject inventory
+has nine rows. Current source has six partial relationships (Chore and
+ChoreAssignment subjects, Activity/DeviceAuditEvent attribution, and two
+ResponsibilityState consent subjects); presence is not migrated-domain parity.
+The remaining member-subject models lack canonical member relations and remain
+explicitly deferred. Real actor/account retention is intentional. The plan
+corrects DeviceAuditEvent's grouping and adds MealBatch/consent subjects, keeps
+ChoreAssignment's required User FK distinct from gated name-only Chore source,
+and preserves non-FK/rotation/XP/history/link/unlink/privacy/old-client work.
+Only publication of the disposition inventory is reconciled; no checker, QA,
+DB, activation or release ran. #480 and its implementation/acceptance remain open.
+## Dormant routine writeback adapter — 2026-10-25
+
+`rewriteRoutineSubjectsForUnlinkInTx` in
+`src/lib/routine-subject-unlink-write.ts` now composes fresh bounded preparation
+with routine-only writeback. It accepts an internal transaction and exact
+association, never a caller-supplied ready plan. It grants no authority and has
+no production endpoint/UI/link/account caller. The future complete unlink
+command must first hold sorted participant User locks then the household lock,
+renew the association/proof/review/capability, and support all other domains.
+
+Before any effect, it checks every affected stack's storage and locked ID,
+household, version and byte metadata. Missing/foreign/duplicate/inconsistent
+stacks hold; revisions at Int32 exhaustion hold rather than clamp. Stack label
+and config payloads each cap at64KiB and their combined aggregate at4MiB before
+JSON transfer. This stack budget is separate from the root reader's4MiB budget;
+neither is a total memory/SQL/latency claim. Null schedule_config preserves a
+legacy current-occurrence stack. Unsupported non-null definitions or a known
+stack definition that omits a rewritten root hold the entire routine slice.
+
+After all preparation succeeds, only each root's future routine_series_config
+changes, under a scoped root/revision comparison. Its schedule/state/content,
+stable member and canonical row IDs remain as prepared; occurrence assignment,
+completion/credit/actor fields are untouched. Each unique affected stack gets
+one new version and the existing lifecycle-style SHA-256 review fingerprint.
+Stack schedule/label remain unchanged. Failed root or stack update counts throw
+`RoutineSubjectUnlinkWriteConflict`; the future outer transaction MUST propagate
+that error and roll back all domains. Held results occur only before writes.
+Internal applied counts are not an unlink receipt or ownership proof.
+
+Source regression cases cover shared-stack invalidation once, paused definition
+and points preservation, no occurrence/alias/credit writes, incomplete inventory,
+foreign/oversized/exhausted stack metadata before JSON/effects, unknown config,
+and failed root/stack compare refusal. They are authored/unrun. No PostgreSQL
+transaction or rollback, source check, test, API, identity mutation, activation
+or deployment ran. This adapter supplies routine writeback only: former-account
+provenance, credit/Undo and all-domain disposition, owner-proof/snapshot/receipt,
+canonical unlink UI/endpoint and old/new-client acceptance remain unfinished.
+
+
+### Former profile association provenance proposal — 2026-10-25
+
+#557's existing unlink plan now specifies the private history tuple, immutable
+operation/revision provenance, required account/household discovery and all
+unlink/relink/move/erase/rollback transitions. Actual source uses current-member
+composite link/mapping FKs and an archive-only erasure_user_id; neither represents
+an independently active profile's former association. The proposed historical
+User FK must be ID-only to survive membership moves and Restrict until canonical
+erasure dispositions it. A prior association is not authority to erase a current
+independent or subsequently linked profile. Field-origin/privacy, multiple-account
+and credit/Undo decisions remain explicitly required; no schema/history writer,
+permission, retention policy or activation is introduced. Association rows alone
+cannot prove complete erasure. All runtime/client/rollback acceptance is open;
+no tests/checks/scanner/browser/API/DB/provider/native/push/merge/deploy ran.
+
+### Budget server-page authority — 2026-10-25 (source only)
+
+The direct Budget server-page path now owns an explicit authenticated parent
+check before any private budget query instead of relying solely on the outer
+middleware/layout route allowlist. getServerActor supplies the original verified
+cookie generation. The page renews actual User role, family and generation before
+queries and compares the same frozen authority again after all asynchronous
+aggregates/rows, before constructing/serializing BudgetDashboard initialData.
+A missing/revoked account redirects to login; non-parent/changed household
+redirects to Dashboard; a disabled feature returns the existing off state.
+No child/teen/unknown role or newer generation is adopted for these rows. Queries
+stay scoped to the original household; parent management/feature copy does not
+come from a stale session role. Internal generation is not a client DTO field.
+
+This protects the page read/serialization boundary. It does not claim a locked
+or repeatable-read finance snapshot, cancellation of already-started reads, an
+entire SSR authorization audit, or protection after an already-served page has
+been displayed. API boundaries, paired-device refusal, UTC/USD and existing
+budget ownership remain unchanged. Source cases deliberately invoke the page
+without a middleware/layout wrapper and cover non-parent/no-person, initial
+changed authority, authority changes during aggregates and feature disable.
+They are authored/adapted, unrun. No QA/tests/checks/build/browser/CI/API/DB/native/
+provider/push/merge/deploy ran; direct HTTP/role/generation/race/renderer acceptance
+and full #136 remain open.
+Latest bounded source work (2026-10-25) adds a default-off read-only FIN-0
+archive metadata browser (#134/#499): parent-only Budget entry, bounded API and
+EN/ES list/details sheet. Original person/family/generation is frozen and renewed
+under User -> household locks; paired/child/foreign context refuses. Twelve count
+groups and24 metadata rows plus lookahead use household/model-bound keysets;
+raw payload/money is never selected/interpreted. Reads have15second/128KiB client
+bounds, exact-page recovery and owner-change masking. No environment flag was
+enabled. This is partial FIN-0: approved source, checksum/version/mapping/money
+bridge and all acceptance remain open. Source regression cases are authored/
+adapted, UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/
+push/merge/deploy ran.39 issues remain open; #566 planning closure is unchanged.
+
+Full FIN-0 source/remaining contract: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) extends default-off FIN-0 with one-record
+current-copy SHA-256 and recorded source-version details (#134/#499). The private
+reader renews the same parent owner, sizes/locks the exact archive row, transfers
+at most256KiB stored JSON text to Node for hashing, and never returns raw payload.
+Version tracing requires exact scoped source/target mapping and one completed
+non-dry-run same-household/app import job; unknown/ambiguous provenance is explicit.
+The EN/ES sheet loads details on demand with15second/32KiB bounds and exact-record/
+owner masking/retry. The fingerprint is not original-file proof or promotion
+approval; immutable source/money/date/receipt contracts remain open. Source cases
+are authored/adapted UNRUN. No QA/test/check/build/scanner/browser/CI/API/DB/native/
+provider/push/merge/deploy ran.39 issues remain open; no flag/storage was activated.
+
+Full current-copy and provenance limitations: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) renews FIN-0 archive authority on locked
+User and Family rows (#136/#134), after the original User -> household advisory
+locks. Both metadata and exact-record detail readers now hold FOR SHARE rows
+through their existing five-second transaction, covering ordinary role/token/
+feature UPDATEs that bypass advisory locks. Changed owner, missing household or
+disabled Budget refuses before any archive read. Source fixtures/cases are
+adapted/authored UNRUN; actual PostgreSQL wait/deadlock/timeout/rollback/query-plan
+behavior and wider finance/SSR acceptance remain open. No QA/test/check/build/
+scanner/browser/CI/API/DB/native/provider/push/merge/deploy ran.39 issues remain
+open; the archive view is still default-off in source and unverified/unreleased.
+
+Exact archive row-lock boundary/limitations: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) adds pure proposed FIN-0 money/date
+bridge primitives (#134). Minor units are exact bounded strings/BigInt; decimal
+text requires explicit finite currency/scale and refuses rounding/coercion. The
+legacy USD Float bridge returns only review candidates, checks retained cents,
+and holds unknown/transfer/signed/unsafe/conflicting values or CAD relabeling.
+Canonical date-only parsing preserves input days; timestamps/locale dates require
+mapping. No production consumer, schema/import/Float/currency/ledger mutation or
+activation is added. Source cases are authored UNRUN; approved source/mapping,
+whole-record/storage/receipt/client/rollback and all QA acceptance stay open.
+No QA/test/check/build/scanner/browser/CI/API/DB/native/provider/push/merge/deploy
+ran.39 issues remain open; the archive view is still default-off in source.
+
+Exact-value limitations and remaining connection: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) connects the exact decimal parser to
+the existing Budget import adapter (#104/#134) as a cent-precision guard. Known
+numeric cents must be safe integers; mapped transaction/wishlist values must
+survive the existing Float-major conversion exactly. Unsafe/lossy inputs refuse
+before planning or persistence. Daily caps stay exact metadata-only integers;
+valid ordinary/signed/zero legacy behavior and nullable caps remain unchanged.
+No stored history, currency/FX, archive promotion or approval changes. Pure source
+regressions are authored UNRUN; no QA/test/check/build/scanner/browser/CI/API/DB/
+import/native/provider/push/merge/deploy ran.39 issues remain open. Unlink's active
+profile disposition after former-account erasure is awaiting Cameron's pending
+product-choice question; no dependent identity/storage writer is implemented.
+
+Legacy guard scope/compatibility limits: docs/plans/finance-archive-product.md.
+
+Latest bounded source work (2026-10-25) rejects duplicate source IDs across
+all32 declared ChoreChamps/Meal Planner/Budget import collections (#104). A shared
+schema refinement refuses the whole ambiguous export before planners/maps or
+persistence; no first/last-record merge or source/history mutation occurs. Model
+namespaces and equal content with distinct IDs remain supported. Bounded value-
+free diagnostics reach the existing parent Imports alert in EN/ES, clear on input
+replacement and never arm approval. Source schema/form cases are authored UNRUN;
+no QA/test/check/build/scanner/browser/CI/API/DB/import/native/provider/push/merge/
+deploy ran. Approved exports/mappings/count reconciliation and all original import
+acceptance remain open.39 issues remain; the unlink product-choice question is
+still pending and no dependent identity/storage writer is implemented.
+
+Duplicate identity contract/recovery: docs/plans/import-review-ui.md.
+
+Latest bounded source work (2026-10-25) bounds ImportsClient fetch/reply work
+(#104/#135) with15second preview and90second explicit-write deadlines plus a16MiB
+JSON response cap. Unmount abort and existing operation/input guards retire late
+callbacks. Unknown writes stay unconfirmed with consumed approval; failed replies
+never arm preview and no automatic retry is added. Local file/map parsing costs,
+old-bridge allocation, proxy/native/process-death and actual server outcomes stay
+separate/unverified. Source cases are authored/adapted UNRUN; no QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; approved export/mapping/reconciliation and original import
+acceptance remain open. The unlink product-choice question is still pending.
+
+Request/deadline resource limitations: docs/plans/import-review-ui.md.
+
+Latest bounded source work (2026-10-25) binds the Imports form to original
+parent/account/household/session context (#104/#136). A strict owned endpoint
+requires the bounded marker before source-body parsing, reuses canonical legacy
+handlers/effects and renews original authority before private success echo. The
+client freezes context, requires matching owner/review replies, masks retired
+file/report controls and never falls back to a legacy write URL. Old-server
+missing support holds backend actions with EN/ES recovery; legacy contracts stay
+supported. API/UI/paired source cases are authored/adapted UNRUN. No QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; full source/export/client/race/rollback acceptance and the
+pending unlink product-choice question remain unresolved.
+
+Full owned-import/legacy compatibility contract: docs/plans/import-review-ui.md.
+
+Latest bounded source work (2026-10-25) gives local import File.text a15second
+owned read deadline and abort on replacement/unmount/owner retirement (#104/#135).
+Current generation checks prevent late text from reaching parse or reviving old
+file/approval state. The existing10MiB metadata cap is supplemented by decoded
+UTF-8 checks before JSON.parse; failure clears picker value for same-file retry.
+Physical native I/O cancellation, pre-allocation protection and preemptible CPU
+parsing are not claimed. Source cases are authored/adapted UNRUN; no QA/test/check/
+build/scanner/browser/CI/API/DB/import/native/provider/push/merge/deploy ran.
+39 issues remain open; approved exports/reconciliation/native/rendered acceptance
+and the pending unlink product-choice question remain unresolved.
+
+Local file read/recovery limits: docs/plans/import-review-ui.md.
+
+## Raw JSON ambiguity gate — 2026-10-25
+
+A shared iterative scanner now rejects repeated decoded object keys before native
+JSON parsing can silently retain the last value. It covers local export selection,
+identity-map text, server import bodies and supplied original-owner headers. Keys
+are scoped per object; escaped aliases collide, while separate records, case-
+distinct keys and punctuation inside strings remain ordinary JSON data. There is
+no winner selection, deduplication, repair or property-name/source-fragment logging.
+Native JSON.parse remains the final syntax/value authority. A 256-container depth
+limit and 10Mi code-unit limit bound supported input, alongside existing caller
+UTF-8 byte bounds. Duplicate/depth body errors return typed400; text overflow413;
+invalid owner headers retain the generic409 scope refusal. EN/ES local errors
+explain export or mapping review without arming approval or issuing a request.
+
+Pure parser and local-form regression cases are authored UNRUN. This is not
+lossless source-number parsing, original-byte evidence, CPU/allocation preemption,
+a source approval or reconciliation acceptance. Valid nonambiguous requests keep
+the existing owner/preview/write path. No tests/checks/build/browser/CI/DB/import/
+migration/provider/push/merge/deploy ran. #104 remains open.
+
+## Recipe publisher-wait authority renewal — 2026-10-25
+
+#460 source follow-through: discovery and recipe-link preview freeze the initial
+server-authenticated person, family, role and session generation. Both renew the
+same original request after bounded body/rate-limit waits before publisher work,
+and after publisher work before returning results. A changed scope/role/generation
+refuses409 RECIPE_SCOPE_CHANGED; revoked/missing sessions retain authentication
+refusals. Meals is checked again on each renewal. Fixed publisher fan-out, SSRF
+transport, extraction, public source attribution, rate limits, role differences
+(child discovery allowed; preview parent/teen only), and canonical save paths
+are preserved. No client-supplied actor/family field can rebind this read.
+
+These are point-in-time reads, not row locks, cancellation of already-sent public
+queries, native lifecycle/retired-screen proof or permission to transmit household
+content. Existing old-route response shapes remain unchanged for valid callers.
+All responses keep private/no-store via existing wrappers. Source regression
+cases for family/role/generation changes during publisher waits, disabled Meals,
+and pre-dispatch role retirement are authored UNRUN. No QA/tests/checks/browser/
+provider requests/DB/CI/build/import/push/merge/deploy ran. #460/#136 acceptance
+and broader original-owner UI/native lifecycle evidence remain open.
+
+## Canonical recipe write request budget — 2026-10-25
+
+#460/#134 source: POST /api/recipes and PATCH /api/recipes/[id] now use the
+existing shared bounded JSON reader with an explicit1MiB UTF-8 request budget.
+The limit accommodates canonical20,000-character instructions, description and
+100 bounded ingredient lines including JSON escapes; it does not raise schema
+limits. Declared overflow refuses before decoding. Streamed/chunked overflow
+stops before parsing/schema/transaction work even without Content-Length. The
+legacy JSON-only bridge has a post-decode bound, not preallocation protection.
+Existing authentication, role/Meals/review gates stay before body reads. No
+idempotency receipt or recipe/ingredient write is created for rejected bodies.
+
+Oversize returns413 RECIPE_REQUEST_TOO_LARGE, private/no-store. The editor keeps
+all draft fields and shows typed EN/ES shortening guidance for a known refusal.
+A previously uncertain attempt remains uncertain even if a retry receives413;
+the new response does not prove the earlier attempt absent. Ordinary valid
+request/receipt/revision/save contracts remain unchanged. Invalid syntax keeps
+its400 shape. Arbitrary whitespace/unknown-field expansion beyond the transport
+budget is unsupported. No body deadline/CPU preemption is claimed here.
+
+Declared-size and chunked UTF-8 route regression cases are authored UNRUN. No
+QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. Full #460
+save/retry/isolation and #134 resource/load acceptance remain open.
+
+## Current-occurrence writer session fence — 2026-10-25
+
+#450/#136 source: the existing stack POST now carries the original authenticated
+session generation internally into saveParentRoutineStack. After the established
+User/household advisory locks, the transaction holds the actual actor User row
+FOR SHARE, re-reads family/parent role/token_version, and refuses changed supplied
+generation with401 SESSION_CHANGED before receipt lookup/expiry cleanup/create,
+member dictionary access or chore/stack effects. The actual row lock fences
+ordinary password/session/role/membership UPDATEs that bypass advisory locks;
+locks remain held through the atomic receipt/effect transaction. Current family
+or parent-role loss retains its existing403 refusal. No HTTP body supplies this
+check, and an old key cannot authorize replay under a retired HTTP session.
+
+The optional generation field preserves existing internal helper callers; those
+without a generation still receive row-locked live family/role checks but do not
+claim HTTP session continuity. Lower-level direct coordinator authorization and
+full roster/read renewal remain separate. No schema/API request-format/feature
+activation or recurrence/history changes are introduced. A prior unknown write
+is not proved absent by a later401; this patch does not claim new recovery UX.
+
+Route propagation, pre-receipt stale-generation refusal/order and existing role
+refusal cases are authored/adapted UNRUN. No QA/tests/checks/build/browser/API/DB/
+CI/provider/push/merge/deploy ran. Real PostgreSQL lock/revocation/race/idempotency,
+old-client, profile and rendered acceptance remain open in #450/#136.
+
+## Routine editor bounded request recovery — 2026-10-25
+
+#450/#135 source: the current-occurrence editor now wraps candidate/read/paging
+requests in a15second foreground deadline and4MiB response budget; explicit save
+replies have45seconds/64KiB (canonical compact write receipts remain8KiB). Shared
+abort racing and streamed bounded JSON decoding replace direct unbounded fetch/
+response.json. Caller read aborts remain connected; component lifetime abort now
+also covers paging/saves. Unmount retires the caller even if a native bridge
+ignores AbortSignal. Valid status/code parsing and X-Member-Protocol2, same-origin
+credentials and no-store behavior are retained.
+
+Timeout/network/abort/oversize/malformed JSON cannot confirm a write or turn an
+uncertain save into a definitive rejection. The existing unknown-save state
+retains immutable serialized bytes and key, locks draft edits, and offers only
+a deliberate same-packet Retry; no request is retried automatically. A late
+underlying success cannot navigate or refresh after its caller timed out. Initial
+load failure uses existing EN/ES retry copy. A deadline does not prove server
+cancellation/rollback; JSON-only bridges retain only post-decode size checks,
+not preallocation protection. Parsing CPU is not preemptible. Persisted restart/
+process-death journals and cross-scope response ownership remain separate work.
+
+Stalled initial load/late data, stalled save/late success/exact deliberate retry
+and oversized declared reply before decoding source cases are authored UNRUN.
+No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. Existing
+browser/native/role/idempotency/history and original #450/#135 acceptance remain.
+
+## Routine candidate paging ownership and retained draft — 2026-10-25
+
+#450/#135 source: candidate paging has a synchronous in-flight guard and catalog
+load generation. Date, stack, family or explicit reload replacement retires and
+aborts an old page; unmount does likewise. Old finally callbacks cannot release
+a newer catalog's paging state. A response must match the selected occurrence
+and every returned chore date, contain unique IDs without overlaps with accepted
+choices, and give a consistent hasMore/cursor pair. Returning the requested or a
+previously consumed cursor is refused. Invalid pages never partially append,
+replace roster options or consume the cursor. No automatic paging/retry occurs.
+
+Paging errors now appear inline beside the existing44px Load more chores control,
+using existing typed EN/ES load feedback. They preserve the current draft and
+loaded choices; the previous shared loadError path hid the whole editor behind
+initial-load recovery. Retrying requests exactly the failed cursor. Initial
+load/unsupported-editor recovery remains separate. Stale catalog retirement is
+not a complete server-issued actor/session response-binding protocol; that wider
+owner/native acceptance remains open. No permission or recurring-history change.
+
+Wrong-day, duplicate-ID, looping/inconsistent-cursor retained-draft/exact retry
+and late old-day page retirement cases are authored UNRUN. No QA/tests/checks/
+build/browser/CI/API/DB/provider/push/merge/deploy ran. #450/#135 remain open.
+
+## Uncertain routine retry refusal is sticky — 2026-10-25
+
+#450/#135 source: submitPacket captures whether it is retrying an existing unknown
+packet before entering pending. Any failed retry retains unknown state and that
+exact serialized body/key, including401/403, validation errors, explicit identity/
+snapshot conflict, protocol-unavailable and key-reused responses. These describe
+only the later attempt; they cannot establish that an earlier lost response had
+no effect. A different packet cannot replace an unknown packet. Only a valid
+confirmed success takes the normal committed path. No retry is automatic.
+
+First-attempt known refusal semantics are unchanged: a true initial protocol or
+validation refusal remains editable; initial explicit conflict keeps its review
+path. Unknown retries continue using existing EN/ES recovery/locked draft and
+Retry save, rather than minting a new key or exposing Reload as absence evidence.
+Mounted memory remains the existing retention boundary, not a persisted journal,
+receipt-expiry resolution or complete reauthentication/navigation UX.
+
+Six later-refusal paths followed by exact third-attempt success are authored as
+UNRUN source cases. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/
+deploy ran. Full #450/#135 unknown-outcome/native/role acceptance remains open.
+
+## Routine original-issue retry window — 2026-10-25
+
+#450/#135 source: every new mounted save packet freezes a canonical ISO issue
+time alongside its original serialized bytes/key. The client checks it before
+initial/retry dispatch and sends X-Herewoven-Routine-Issued-At unchanged. A24hour
+window (also capped at one quarter of canonical7day receipt retention) and5minute
+future-clock tolerance refuse stale/rolled-back-clock attempts. Expiry never
+refreshes the issue time/key or dispatches a new write. Existing unknown state,
+locked draft and EN/ES review guidance remain; canonical saved-state inspection
+and full recovery/reauthentication UX are still separate work.
+
+The current HTTP route validates supplied issue time before body decoding and
+passes it internally to the canonical writer. After lifecycle/actual User locks
+and current parent/session checks, the writer rechecks real current time before
+any receipt lookup/expiry deletion/create or effects. WINDOW_CLOSED409 is an
+explicit review hold even on the first response; a prior uncertain outcome is
+not disproved. Existing absent-header legacy/internal callers remain compatible,
+and old servers may ignore this additive header; the new mounted client still
+applies its local guard. This is a request-age precondition, not a signed/server-
+issued timestamp, immutable receipt/source proof or arbitrary caller deduplication
+guarantee. No schema, retention, provider, scheduler or feature flag changes.
+
+Pure boundary/canonical-time/future-clock cases, route refusal before decoding,
+writer refusal before receipts and aged mounted draft/no second dispatch cases
+are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/
+deploy ran. Receipt expiry, native restart, old-client, actual clock/lock races and
+full #450/#135 acceptance remain open.
+
+## Read-only original routine receipt inspection — 2026-10-25
+
+#450/#135 source: unknown/aged mounted routine saves now offer a44px Check saved
+status action using existing EN/ES typed recovery. It privately posts the same
+original serialized draft and idempotency key to POST /api/chores/stacks/receipt;
+this route only reads and never submits the mutation, creates/deletes/expires a
+receipt, expands recurrence or recreates chores. Missing/old servers retain
+uncertainty with no save fallback. Response/transport bounds and lifetime abort
+apply; catalog generation/packet ownership prevents a retired inspection from
+refreshing/navigating a replacement editor. Checking itself does not refresh the
+packet time or release the unknown draft.
+
+The server requires a current real parent, chores access, valid original key and
+bounded2MiB body, then normalizes/hashes the same canonical draft/action as the
+writer. Under User/household advisory locks and actual User FOR SHARE it renews
+family/parent/session, reads only that person's scope/key, and requires exact
+family/user/action/hash, unexpired complete200 receipt and shared strict compact
+body validation within8KiB. The5second/max-wait5second transaction performs no
+receipt/domain writes. The response contains only confirmed stack ID or unknown;
+old member names, step content and stored receipt JSON are not disclosed.
+
+A valid original committed receipt can confirm after the24hour send window but
+before receipt expiry; the UI then follows its existing successful refresh/close
+path. Missing/expired/incomplete/malformed/mismatched receipts and request failure
+remain unknown. No absence proof, automatic fresh key, current-stack existence,
+Undo or rollback is inferred. Full original-actor/session UI ownership, erasure/
+restore semantics, persistent restart recovery and manual restart after expired
+receipt remain separate work. No existing retention/schema/flags change.
+
+Reader exact/missing/expired/foreign/hash/incomplete/malformed cases, role/body
+route guards and mounted confirmed/unknown inspection-without-resave cases are
+authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy
+ran. Original #450/#135/#136 acceptance remains open.
+
+## Bounded saved-capture receipt checks — 2026-10-25
+
+#125/#135 source: CaptureBox saved-status checks now use a15second foreground
+abort race and32KiB bounded response decoder, same-origin credentials and
+no-store. A synchronous controller guard prevents duplicate checks before React
+state commits. Availability renewal, access-boundary clearing and unmount retire
+and abort the active check; epoch/controller checks prevent a retired result or
+finally from changing a newer recovery boundary.401/403 are handled before body
+decoding and retain the existing access-refusal/purge policy.
+
+Timeout/network/body/size uncertainty keeps the original recovery row and its
+key/hash, releases the busy control, and uses existing EN/ES could-not-check copy.
+A late committed body cannot retire the row or invoke onSaved. Only a fresh
+explicit check is sent; original terminal receipt-state handling is preserved.
+This is status-read transport/retirement, not provider/media processing, mutation
+retry changes, native physical cancellation or full original session/restore
+proof. JSON-only bridges still allocate before post-decode size validation.
+
+Stalled-body/double-click/late-commit/exact next-check and oversized-header-before-
+decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/
+push/merge/deploy ran. #125/#135 acceptance and provider decisions remain open.
+
+## Bounded explicit capture recovery retries — 2026-10-25
+
+#125/#135 source: saved Capture retry dispatches now have a45second foreground
+abort race, explicit same-origin/no-store and the unchanged original envelope
+body/key. A synchronous retry controller shares exclusion with receipt checks;
+access clearing, availability renewal and unmount retire both lanes. Retired
+callbacks cannot change current recovery state. Replay response bodies are not
+needed: they are cancelled without buffering, and successful status still hands
+off to the existing bounded receipt/current-resource check before reporting a
+present saved item. A failed handoff before a check starts releases busy state.
+
+Timeout/network uncertainty retains the recovery envelope, releases controls and
+uses existing EN/ES could-not-save feedback. Late success cannot trigger a receipt
+check, discard the row or announce a save; no second request is automatic. The
+next deliberate retry preserves exact body/key. Existing retention-boundary
+receipt-first logic and terminal status policies are unchanged. This source does
+not prove server cancellation/rollback, full original session/restore authority,
+physical/native cancellation or bounded initial proposal-write behavior.
+
+Stalled dispatch/double-click/late success/exact deliberate replay plus required
+receipt confirmation source is authored UNRUN. No QA/tests/checks/build/browser/
+CI/API/DB/provider/push/merge/deploy ran. #125/#135 acceptance remains open.
+
+## Bounded initial capture proposal writes — 2026-10-25
+
+#125/#135 source: initial event/grocery/photo-proposal saves now share the owned
+write lane with explicit recovery retries. A45second foreground deadline covers
+async request hashing/preparation, durable-envelope admission, fetch and256KiB
+response decoding. After hashing, the captured epoch/controller/abort predicate
+is checked before storing recovery or dispatching; a timed-out preparation cannot
+later write storage or send the proposal. Same-origin/no-store and original keys/
+bodies remain. Storage/preparation errors keep their typed recovery meanings.
+
+401/403 bypass body reading and retain access-refusal clearing. Other native
+bodies are decoded once inside bounds; callers receive the existing status/json
+interface backed by that bounded decoded value. A stalled/malformed/oversized
+response cannot be treated as successful or retire a saved recovery entry. Late
+success does not clear recovery or invoke the caller's save outcome. Unknown
+initial writes keep draft/operation/envelope for deliberate canonical recovery;
+no automatic retry/provider call or new key. Existing terminal statuses and
+sequential photo partial-result policies are preserved.
+
+Synchronous serialization/storage/canvas CPU is not preempted; JSON-only native
+bridges still allocate before post-decode size validation. This is transport/
+retirement source, not full replayed-resource existence, process-death/restore
+or original server session contract acceptance. Initial direct success retains
+its existing domain-response contract; full receipt/reuse semantics remain open.
+Stalled initial reply/late success/retained exact operation and declared oversize
+before decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #125/#135 remain open.
+
+## Recipe ingredient name resolution memory — 2026-10-25
+
+#134/#460 source: canonical resolveIngredientLines no longer loads and indexes
+the whole household Ingredient catalog for at most100 submitted recipe lines.
+It retains the existing household ingredient-name advisory lock, JavaScript NFC/
+trim/inner-whitespace/lowercase comparison and canonical same-family exact-name
+upsert. Catalog reads now use500-row ID keysets scoped to the original family,
+retaining only requested normalized matches and stopping once all are found.
+Missing names still require exhausting the catalog before creation; data is not
+silently truncated and no approximate SQL collation replaces Unicode matching.
+
+Legacy normalized-name collisions choose the first database-ID-ordered row for
+future name resolution; the previous read had unspecified database order. No
+existing ingredient/recipe identity, catalog row, unit, history or foreign key is
+rewritten/merged. Explicit ingredient IDs keep their existing ownership lookup;
+repeated resolved IDs retain duplicate-line refusal. Canonical source input
+bounds and outer recipe transaction/authority checks remain unchanged.
+
+This bounds per-read/retained application rows, not total scan/SQL/lock duration.
+A large missing-name catalog can still take multiple reads or hit the transaction
+limit. Family/ID index/plan measurement and a normalized-key additive migration
+would need separate duplicate-catalog/compatibility decisions; no index, schema,
+backfill or stored data is changed here. No capacity/read-latency claim is made.
+Cross-page Unicode reuse, early stop, full exhaustion before missing-name upsert,
+foreign-family exclusion and duplicate input cases are authored UNRUN. No QA/
+tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #134/#460 open.
+
+## Canonical recipe read authority renewal — 2026-10-25
+
+#136/#460 source: the public discovery renewal helper is now the shared
+recipe-read-authority.ts boundary. Existing publisher routes retain their prior
+behavior. Private recipe library/detail, collection catalog and recipe curation
+GETs now also freeze original server actor/family/role/session generation and
+renew after database reads before returning data. Scope changes refuse409;
+expired/revoked sessions keep authentication refusals, and Meals is checked again.
+These routes never reinterpret an old read as a request for a new household.
+Detail success is explicitly private/no-store; new refusals and existing curation
+wrappers retain that policy. Valid query/response, permitted read roles and write
+contracts remain unchanged. No new data model, endpoint or permission is added.
+
+This is point-in-time renewal, not locked read snapshots or a complete original-
+owner client echo. Concurrent later changes, native masking, restore/erasure,
+SQL/capacity and current/old-client evidence remain separate acceptance. Source
+review also confirmed existing collection writes cap the catalog at100 and the
+curation UI exposes missing chosen collections for deliberate removal; no new
+paging engine or silent selection drop was introduced there.
+
+Four private-route household-retirement cases are authored UNRUN alongside the
+existing publisher role/generation cases. No QA/tests/checks/build/browser/CI/API/
+DB/provider/push/merge/deploy ran. #136/#460 remain open.
+
+## Paired recipe curation read owner and write intent — 2026-10-25
+
+#460/#136 source: collection catalog and recipe curation GETs now echo a bounded
+X-Herewoven-Recipe-Owner header with protocol, original server actor/family/role/
+session generation after existing authority renewal. Response JSON shapes stay
+unchanged. Supplied expected-owner headers are validated before feature/body/
+mutation work; mismatch/malformed markers refuse409 RECIPE_OWNER_CHANGED. Legacy
+callers without the optional request header retain existing API compatibility.
+Mutation responses renew original access before echoing the context; later refusal
+does not prove a prior write rolled back.
+
+RecipeCuration requires matching owner echoes from both parallel reads before
+showing the catalog/current choices or enabling edits. The first accepted pair
+freezes the mounted sheet's owner; refresh and writes carry that exact header.
+Refresh cannot rebind an uncertain draft to another account/household/role/session.
+Mismatched/missing/old-server echoes or explicit access refusal latch a masked
+EN/ES reload hold. The previous draft stays mounted but hidden; no new write or
+legacy fallback is sent. Reload is explicit and44px, and receives focus only if
+removal left focus on body. Close/reopen does not clear the hold; a new route ID
+or page reload creates a new mount context.401/403 are recognized before body
+reading even for empty native responses. Existing bounded deadlines/CAS recovery
+and user-authored recipe/collection text remain otherwise unchanged.
+
+This is intent binding and paired-response admission, not a credential, signed
+snapshot, proof of absent effects or complete SSR-origin owner boundary. The first
+pair begins with current server authority; an original server-rendered owner,
+full app masking/native/process-death/restore acceptance remain separate. Other
+recipe consumers retain their existing contracts. No schema/provider activation.
+Pure marker, mixed/missing pair, frozen uncertain refresh/write-header and server
+pre-decode refusal cases are authored/adapted UNRUN. No QA/tests/checks/build/
+browser/CI/API/DB/provider/push/merge/deploy ran. #460/#136 remain open.
+
+## Recovered screen source directory — 2026-10-25
+
+#499 now has docs/product/SCREEN_ROUTE_MANIFEST.md and JSON against source
+393a9559:82 physical page files,71 distinct URL patterns,22 feature keys and15
+embedded surfaces. Intercepted forms retain canonical routes; parallel-slot null
+pages are not exposed URLs, and conditional dashboard/onboarding/kid home is kept
+separate from the parent Today redirect. Feature attachment is classification,
+never authority/activation. Existing selected Glance and act remains; original
+mockup assets are unavailable in this recovery checkout and no visual proof is
+invented. Full component/state/role/frame/runtime/native acceptance remains open.
+No QA/tests/checks/scanner/build/browser/CI/API/DB/provider/push/merge/deploy ran.
+
+## Household name authority and conflict recovery — 2026-10-25
+
+#499/#136 source: legacy PATCH /api/family and strict PATCH /api/family/name now
+share family-name-http.ts. Both bound bodies to8KiB, keep existing parent/person/
+family checks and use a5second transaction/max-wait. User then household advisory
+locks precede actual User FOR SHARE and Family FOR UPDATE; fresh parent/family/
+original session-generation checks run before family lookup/write. Ordinary role,
+password/session or membership updates are fenced by the row lock. Responses keep
+only the existing display selection, private/no-store; billing/invite/feed/AI
+secrets remain outside the writable/display contract.
+
+The dedicated name route requires name_protocol1, exact observed baseName and
+requested name. It refuses409 FAMILY_NAME_CHANGED when the locked current value
+matches neither base nor request. A matching requested value confirms current
+state without updating again. Legacy callers retain their old stripped-input/
+last-value semantics, now with fresh authority; unknown billing fields cannot
+change plan state. The new web never falls back to that legacy write when an old
+server lacks the strict route. No new schema, epoch, receipt or migration exists.
+This is compare-value conflict protection, not immutable revisions/ABA detection
+or proof of which request originally set an already-matching value.
+
+Household Settings adopts bounded15second reads/writes (256KiB account-read and
+64KiB save replies), abort/retirement on reload/unmount and synchronous read/save
+exclusion. Unknown replies retain the entry and never claim saved. A known name
+conflict requires explicit Check current name; that read preserves the draft,
+shows the actual saved name and enables a deliberate reviewed save. It never
+silently substitutes a different household. Existing typed EN/ES copy gains short
+review/check feedback; profile/account/board subflows remain canonical/separate.
+Full original client actor/session binding, auth-me read semantics, server body-
+read deadlines, SQL/lock/restore and rendered/native acceptance remain separate.
+
+Legacy behavior, strict conflict/no-write convergence, role/family/generation
+change during decoding, required protocol/body bound, retained draft/review and
+stalled reply/late success source cases are authored/adapted UNRUN. No QA/tests/
+checks/build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#136 remain open.
+
+## Board Settings personal transport bounds and audience retirement — 2026-10-25
+
+#499/#135 source: personBoardSettingsTransport now bounds fetch and response JSON:
+15second reads/search,45second settings writes,90second deliberate photo uploads,
+and2MiB reply limit. Same-origin/no-store is explicit. Body/network/size/deadline
+uncertainty produces typed EN/ES unconfirmed-change feedback for writes; it never
+automatically sends a second setting or photo. Known HTTP diagnostics and custom
+transport message semantics are preserved. JSON-only bridges retain post-decode
+allocation limits; timers do not preempt synchronous serialization/FormData work.
+
+BoardSettings exposes an explicit44px retry after load failure. Each transport/
+retry generation clears the old audience view and retires previous results.
+Load cancellation and generation-guarded save/search/upload outcomes prevent an
+old transport from repainting names/settings or clearing a newer busy state.
+Synchronous lanes reject duplicate operations before React state updates; an old
+upload cannot continue into load/selection after audience retirement. Custom
+paired-tablet transports keep their original interface and error semantics; this
+patch does not add transport-level cancellation/deadlines to arbitrary custom
+promises or change elevation/provider/permission behavior.
+
+Stalled body/late result, single exact unconfirmed write, oversize-before-decode,
+explicit custom-load retry and old-save/new-audience cases are authored UNRUN.
+This is bounded personal transport and local audience retirement, not full server
+owner echo, compare-and-set setting updates, unknown upload reconciliation,
+native physical cancellation or rendered/role acceptance. No QA/tests/checks/
+build/browser/CI/API/DB/provider/push/merge/deploy ran. #499/#135 remain open.
+
+## Remaining issue/receipt reconciliation — 2026-10-25
+
+Fresh39-record GitHub snapshot retained beside checkout; stale remaining=40 and
+40-row local receipt reconciled to39 with a named full backup. All prior progress
+receipts remain. Current directory now records five #146 documentation criteria,
+not three, and explicitly keeps incomplete unlink/profile credit domains, finance
+promotion/FIN-1–7, native/wake delivery and unavailable original visual evidence
+separate from deferred QA. #557 field-ownership answer is still pending; no
+policy follows from silence. No new tracker/closure, runtime or acceptance claim.
+No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy ran.
+
+## Rotation identity preflight and profile namespace boundary — 2026-10-25
+
+#134/#450 source: applyRotationEditInTx now resolves each distinct required
+canonical account/member mapping once, before any template/order/assignee write,
+instead of repeating the same eligibility queries for every future occurrence.
+The existing household lifecycle lock remains held. Targets are visited in
+stable ID order; normal accepted rotation inputs contain at most8 participants.
+Legacy account-only rows still receive account-only assignment updates, while
+canonical rows receive the same resolved account/member pair. Missing/contradictory
+identity rejects before any rotation effect. Existing turn sequence, pending/
+manual-override filtering, history and clearing rules stay unchanged.
+
+The future pending-row read and per-row updates remain unbounded total work;
+this removes repeated identity queries, not all transaction cost or concurrency
+proof. Existing canonical lifecycle locking is relied on, not newly expanded or
+claimed verified. No schema, profile capability or account credit rule changes.
+Three source cases cover24 turns/two identity resolutions, pre-effect refusal and
+legacy-row preservation; all UNRUN. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #134/#450/#480 remain open.
+
+Current rotation_member_ids are User IDs: rotationMembersInHousehold queries the
+User delegate, and profile actions explicitly refuse nonempty legacy rotations.
+They must not be reinterpreted as HouseholdMember IDs because their strings look
+similar. Profile rotation still requires additive/versioned storage and strict
+capability/read/write/rollback handling with explicit active stable-member
+eligibility. It is not delivered by this query optimization. The unanswered
+standalone-unlink retention decision remains independent and unresolved.
+
+## Profile rotation source contract — 2026-10-25
+
+The proposed v2 path is recorded in docs/plans/profile-rotation-v1.md: stable
+HouseholdMember IDs through the existing future-definition pipeline, separate
+from legacy User-ID rotations; atomic eligibility, future-only edits, immutable
+turn coordinates, own-step/shared-safe completion, credit/erasure and strict old-
+client rollback obligations. No new schema/code/flag or acceptance is implied.
+The new profile-points ownership question and existing unlink-retention question
+are unanswered. No QA/tests/checks/build/browser/CI/API/DB/provider/push/merge/deploy.
+
+## Rotation candidate read batches — 2026-10-25
+
+#134/#450 source: rotation edits now enumerate future pending candidates in500-row
+(date,id) keyset batches, with original household/root/status/tomorrow predicates
+on every read. Equal-date boundaries use ID ties; invalid/nonadvancing cursors
+throw before effects. The complete narrow plan is retained before canonical
+identity preflight and writes, so a prefix is never treated as the whole series.
+Turn ordering, manual-override eligibility, history and all-or-nothing outer
+transaction behavior remain. Canonical generation/completion already use the
+household lock retained here; this is not new cross-process proof.
+
+Per-read payload is bounded; total retained candidate/turn arrays, SQL/lock time
+and per-row effects remain proportional to the complete affected series. No
+capacity/fully bounded-memory claim, index/schema or data change. A501-row same-
+date boundary/tail/complete-turn source case is authored UNRUN; existing identity
+preflight/legacy/refusal cases remain. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #134/#450 remain open; profile rotation decisions
+and implementation remain separate.
+
+
+### Clearing rotation avoids candidate planning — 2026-10-25
+
+`applyRotationEditInTx` now exits through an empty-roster branch after household
+locking, membership validation, template lookup and the unchanged-list no-op.
+It updates the root roster and clears household-scoped occurrence indices in the
+caller's transaction without querying pending candidates or resolving assignees.
+This preserves the existing clear semantics: no assignee/history rewrite and no
+profile-ID reinterpretation. The bulk index update can still touch many rows;
+this is not a bounded total transaction or measured performance result.
+An unrun regression source case asserts the two intended writes and absence of
+candidate/identity reads. #134 remains open; all runtime/concurrency/rollback
+acceptance is deferred with QA. No schema, API, flag or scheduler change.
+
+
+### Member-removal rotation identity preflight — 2026-10-25
+
+`dropMemberFromRotationsInTx` retains the complete household-scoped root read,
+then computes the same removal slot, remaining roster and replacement per root.
+It resolves each distinct required canonical replacement once in sorted account
+ID order before its own rotation updates. Existing member-removal and account-
+deletion callers hold the household lifecycle lock and surrounding transaction;
+this is not a new standalone authorization entry point or a claim that no caller
+effects precede this helper. A later failed mapping throws for transaction rollback.
+
+Legacy account-only roots remain account-only. Completed/verified/approved
+canonical roots retain their accepted subject. Empty/single remaining rosters,
+index shifts, row scoping and caller open-chore policies are unchanged. No mixed
+profile/account namespace, profile erasure/credit policy or migration is added.
+Two source cases cover shared mapping reuse with legacy/history preservation and
+late distinct-mapping refusal before helper writes; both are unrun. Full root
+reads/plans, per-root effects, lock duration and PostgreSQL/concurrency acceptance
+remain open under #134/#136. No QA, database operation or release ran.
+
+
+### Barcode product/context foreground bounds — 2026-10-25 (#125/#135)
+
+`BarcodeFoodDialog` now races the complete product metadata read, including body
+decode, against the shared foreground owner with10 seconds and64KiB. Same-origin
+credentials/no-store remain explicit. Non-success replies do not await a body;
+current401/403 still request access review. Close/unmount/suspension abort the
+sheet's controller and suppress late metadata, errors and access callbacks even
+when a bridge ignores cancellation. Timeout/oversize/malformed replies retain
+the barcode/draft and existing EN/ES manual-entry feedback; no automatic lookup,
+provider activation or inventory save is added.
+
+`readInventoryIntakeContext` uses the existing15-second/16KiB request helper,
+so a stalled JSON body cannot hold all its callers forever. Barcode context
+callbacks also reject cancelled/suspended reads. The context effect no longer
+uses an outer cancellation-only timer that could mask its timeout feedback.
+Source cases for stalled bodies, oversized context and a late suspended refusal
+are authored, unrun. JSON-only bridge limits are post-parse, not pre-allocation
+protection. Physical cancellation, full original-owner/session authority, saved
+attempts, provider/privacy and native/role/rendered behavior retain their separate
+acceptance. Existing canonical save/recovery and request keys are unchanged.
+No QA/test/build/browser/CI/database operation or release ran; issues stay open.
+
+
+### Barcode reviewed-save sequence retirement — 2026-10-25 (#125/#135)
+
+The mounted barcode tray now advances a local epoch on suspension/resumption
+and unmount. A save checks that epoch before each canonical send, after every
+awaited outcome and after navigation release. A retired send keeps the original
+row request/body/key marked uncertain, even if a late response says confirmed;
+it cannot advance to the next reviewed row, count completion or call onDone.
+An explicit resumed retry reconciles the same request through the existing intake
+path. A current access refusal also stops the multi-row sequence. This local
+epoch is cancellation intent, not authenticated server identity or rollback.
+
+Unexpected transport rejection becomes unknown, and finally releases the local
+busy lane. A later PRODUCT_CHANGED refusal cannot discard an earlier unknown
+request; exact retry stays locked. The existing matching removed-item receipt
+outcome remains terminal. Normal current confirmations retain their original
+count/removal behavior. Completion waits for successful navigation release.
+Three source cases cover suspension/resume across a delayed result with unchanged
+retry, current access refusal stopping later rows and throw→product-conflict
+uncertainty. All are unrun. Whole batch atomicity is not introduced: earlier
+confirmed rows stay saved, unsent rows stay drafts, the in-flight send may commit.
+Existing optional durable recovery readiness and owner/receipt/device/provider
+acceptance remain separate. No data operation, QA or release ran.
+
+
+### Photo reviewed-save sequence retirement — 2026-10-25 (#125/#135)
+
+`ScanFridgeDialog` now checks its mounted save epoch before each canonical intake,
+after each outcome and after navigation release. Suspension/resumption/unmount
+retires the sequence; the sent row keeps its original immutable body/key marked
+unknown and later rows are not sent. Late outcomes cannot count success or report
+completion. A fresh access refusal also stops subsequent rows. Unexpected send
+throws become unknown, and finally releases the local busy lane. Existing
+matching removed-item outcomes and sticky unknown retry policy remain intact.
+
+Each current confirmation updates the accumulated count immediately, so already
+accepted rows are counted when a later row is interrupted. A resumed explicit
+retry checks the same sent request; existing receipts retain duplicate behavior.
+Only successful navigation release in the current sheet may report completion.
+This is not all-or-nothing batch saving, server identity proof or rollback of an
+already sent request. Optional durable recovery remains separately gated.
+Three source cases cover earlier confirmation plus delayed suspension/resume,
+access refusal stopping later rows and a thrown send retaining exact retry/busy
+recovery. All unrun. Upload/preparation/body bounds and original photo/provider,
+role, native, rendered and PostgreSQL acceptance remain separate. No QA, app/DB
+execution, provider activation or release ran; #125/#135 remain open.
+
+
+### Photo preparation/upload/reply foreground bounds — 2026-10-25 (#125/#135)
+
+The existing60-second photo timeout now races the complete prepare→upload→decode
+job with `runOwnedForeground`, not only fetch cancellation. Image preparation
+must still own the live sheet and an unexpired signal before starting an upload;
+a late bitmap/toBlob continuation cannot initiate a provider request. Uploads
+retain the existing8MiB prepared-file limit, document protocol and explicit
+review-only route. Same-origin/no-store are explicit and replies are256KiB capped.
+Current401/403 return existing access-review/default translated feedback without
+awaiting an error body; other usable error messages keep their prior mapping.
+
+The current sheet renders existing retry UI on timeout, malformed or oversized
+success. Retired work cannot populate suggestions. Four source cases cover stalled
+body/late success, late bitmap preparation/no upload, stalled refusal body and
+oversized declaration; all are unrun. The original local image decode/canvas may
+continue physically and synchronous CPU/allocations are not preempted. JSON-only
+bridge protection is post-parse. No promise of provider cancellation, raw media
+retention proof, stock save, native hardware or full identity acceptance is made.
+No QA, app/database/provider execution or release ran. #125/#135 remain open.
+
+
+### Bounded lazy generic receipt cleanup — 2026-10-25 (#134/#135)
+
+`idempotency.ts` previously issued a whole-backlog expired-row delete on a
+probabilistically selected keyed request. It now reads only500 IDs ordered by
+expires_at/id and deletes only that set with the same strict expires_at < now
+predicate rechecked. A renewed row is not removed solely because it appeared in
+the earlier candidate list. Remaining expired rows wait for later selected
+requests; an empty candidate batch produces no delete. The existing expiry index
+is a source fact, not an accepted deep-backlog/tie/lock query plan.
+
+TTL, probability, full request hash/scope/replay, action-specific expiry and
+single-key expiry handling remain unchanged. This introduces neither scheduler
+nor new retention/deletion policy. Cleanup failure remains best effort and cannot
+refuse the main mutation. The internal DB delegate now also requires findMany;
+Prisma and the existing fake delegate supply it, while custom consumers must
+implement that read. No schema or external API change. The bound covers cleanup
+candidate/output rows and delete target count, not total scanned rows, SQL work,
+FK effects or request duration. Overlapping concurrent passes may select the same
+expired IDs; no claim of exactly500 deletions per pass or backlog completion.
+An unrun501-expired-row source case checks that one pass leaves a remainder and
+a later pass drains it while retaining live receipts. PostgreSQL renewal/races,
+real query plans, full offline/receipt semantics and all QA remain unverified.
+No database/cleanup invocation, test/build/browser/CI or release ran.
+
+
+### Notification lifecycle gap disposition — 2026-10-25 (#141)
+
+Source inspection confirms generic deliverNotification creates rows without an
+upstream-event dedupe identity; special summary day claims are not a general
+transactional outbox. The destination allowlist currently supports only Today.
+The N1–N5 contract in `docs/plans/notification-delivery-v1.md` records actual
+remaining admission/delivery/recovery/destination/producer work, independent of
+QA. It preserves preference/quiet-hours and current summary semantics, requires
+dedupe evidence to survive visible-row deletion, original-event retry windows,
+actual transition identity, fresh authority and honest provider uncertainty. No
+new engine, schema, producer conversion, provider or scheduler is implemented by
+the document. #141 stays open; no runtime/QA/release action ran.
+
+
+### Notification N1 strict event contract foundation — 2026-10-25
+
+Unconnected `notification-event-contract.ts` defines strict versioned internal
+metadata, family/domain/source-generation/transition occurrence coordinates,
+separate recipient in-app delivery coordinates, immutable intent comparison and
+exclusive dispatch deadline checks. It cannot authorize or send a notification,
+create durable source generations, infer transitions from text/receipt keys,
+choose retention, replace existing summary claims or bypass fresh domain checks.
+Four source cases authored/unrun. N1 writer/schema/producers and N2–N5 remain
+unfinished in the canonical notification plan/#141; no QA/data/release action.
+
+
+### Notification N1 dormant admission/portability source — 2026-10-25
+
+Schema plus sorted per-feature SQL add immutable household occurrence metadata,
+scoped unique hash/full-envelope conflict protection and family cascade. Internal
+admission defaults off, rechecks original actor under lifecycle/actual User row
+locks and requires a canonical same-transaction source guard. No producer or
+dispatcher calls it. Parent portability renews original principal/household and
+is not hidden when admission is off; household erasure inventory is explicit.
+No User FK/member-owned slot or text/payload/credential field is introduced.
+Six source cases authored/unrun; DDL repeat/immutability, real transaction/FK/
+concurrency/rollback/export/isolation and new generated types remain unverified.
+N1 transition producer integration and N2–N5 remain open. No QA/DB/release ran.
+
+
+### Notification N1 chore-birth source guard — 2026-10-25
+
+An internal source adapter composes dormant admission with the actual canonical
+new account-assigned chore's DB birth generation/time and fixed birth transition,
+explicit original deadline, current feature and locked source/material/erasure
+checks. It does not change generation semantics, invent profile credentials or
+retroactively adopt old chores. Source cases authored/unrun. No existing producer
+uses it until N2 can atomically admit recipient decisions and replace legacy
+notification sending without a shadow-event double send. All PG/lifecycle/role/
+receipt/producer/dispatch acceptance remains; no QA/data/release action ran.
+
+
+### Notification N2 terminal recipient decisions — 2026-10-25
+
+Additive decision schema/SQL, unconnected primitive, central in-transaction policy
+export, parent portability and household/account erasure source are authored.
+Sorted original actor/recipient/household locks and source-before-event ordering
+retain current authority. Frozen event slots remember created/suppressed outcomes
+when visible notifications disappear; cleared recipient references cannot be
+adopted. User FK inventory source grows from80 to81, retaining old publication
+history and classifying the new slot as account delivery. Seven source cases
+authored/unrun. Producer/roster integration, actual DDL/FK/concurrency/lifecycle/
+rollback, privacy and original #141 acceptance remain; no QA/DB/release ran.
+
+
+### Notification first canonical producer connected — 2026-10-25
+
+Default-off account-chore creation now atomically records its DB birth event,
+original account-recipient slot0, central in-app preference outcome and existing
+compact effect receipt. Strict mode skips legacy post-commit send; default mode
+preserves it. Actual participant User/Family locks precede chore writes, and
+locked source/content/current creator checks bind the notice. Both private gates
+and an explicit reviewed positive dispatch duration are required; none activated.
+Held evidence aborts the command; completed receipt replay invokes no sender.
+Policy plus three guarded DB source cases authored/unrun, not PG/rollback proof.
+Other producers/rosters, recovery UI, provider/native and exact destinations are
+unfinished; #141 remains open. No QA/migration/DB/provider/release action ran.
+
+
+### Notification exact chore context — 2026-10-25
+
+Strict canonical focus links, original-authority/feature/subject/routine-aware
+one-target SSR reader and compact EN/ES read-only Chores context are now source
+connected to gated chore-birth notices. Neutral unavailable fallback and current
+parent edit link reuse existing canonical destinations; no full history read or
+new mutation authority. Directory adds one embedded source context (16 total),
+retaining dated base page/route counts. Source cases unrun. Child action handoff
+when the row is outside loaded board data, other domains, real privacy/layout/
+keyboard/native/compatibility/PG acceptance remain. No QA/data/release action.
+
+
+### Notification-focused chore action handoff — 2026-10-25
+
+Supported account focus now reuses existing completion/Undo with a server
+capability, no page hydration expansion or new mutation authority/store. Shared
+handler adds per-ID synchronous exclusion, owned15s/32KiB replies, mounted owner
+retirement and focused state reconciliation. Already-terminal/unknown outcomes
+need a current read, preserving status and avoiding invented Undo. Existing
+unloaded routine/board ID callers remain permitted. Source/card and four handler
+cases authored/unrun; full original-owner headers, version/convergence, profile,
+PG/role/device/rendered/compatibility acceptance remain. No QA/data/release ran.
+
+
+### Account-check notification transition foundation — 2026-10-25
+
+An unconnected internal adapter uses the newly accepted check Activity ID/time
+and canonical chore generation, locking/rechecking account subject, status, note,
+activity ownership/metadata and actual level-up evidence. Existing responsibility
+epoch does not count status changes and is not used as a transition. Explicit
+event-type matrix preserves verification's reward category; proposed strict-mode
+level-up coalescing honors gamification without changing XP. Shared private policy
+parsing retains separate create/check acknowledgements, none enabled. Canonical
+verify/reject wiring/lock and legacy-sender replacement remain next; profile
+checks and all original runtime/QA/PG/privacy/release acceptance remain open.
+
+
+### Account check notification producers connected — 2026-10-25
+
+Separate default-off check mode records approval/return Activity and in-app
+terminal decision alongside canonical status/unchanged XP. Ordered participants
+and actual principal/Family locks precede writes; original-token or changed-
+assignee holds prevent late identity adoption. Existing default sender and
+profile/removed-subject rules remain; strict accepted notices skip legacy send.
+Five route source cases authored/unrun. Existing conditional-state API still
+needs versioned original-command/CAS across intervening completion cycles before
+rollout; wiring is not full dedupe/old-client/PG/QA acceptance. No data/release ran.
+
+
+### Original chore-check version foundation — 2026-10-25
+
+Unconnected strict schema/shared snapshot and FOR UPDATE CAS predicate bind
+source birth, material and completion epochs plus current completed status.
+Existing preparation epoch counts status/photo/check cycles; timestamp/title
+matching and default/saturated versions are refused. Authenticated owner renewal
+remains a caller requirement; no endpoint/UI/receipt/restore guarantee is implied.
+Four source cases unrun. Shared strict endpoint/capability/original-review wiring
+remains next under #141/#135; no QA/data/release action ran.
+
+
+### Owned chore-check endpoint — 2026-10-25
+
+Legacy/owned routes now select one canonical handler. New path defaults off,
+authenticates a current parent, bounds strict owner/version/decision JSON and
+atomically guards the original completed row under participant/principal locks.
+Later cycles/material changes hold before all effects; owned results private/
+no-store and no legacy fallback. Five route source cases unrun. Actual SQL/
+concurrency/rollback, capability/client/review UI, owned receipt proof, restore
+and old-client acceptance remain; no QA/data/release action ran.

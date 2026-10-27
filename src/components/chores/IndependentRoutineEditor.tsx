@@ -15,6 +15,7 @@ import {
 } from "@/lib/routine-independent-draft-contract";
 import {
   routineViewerDay,
+  routineScheduleAnchorDay,
   firstRoutineOccurrence,
 } from "@/lib/routine-schedule";
 import { parseDateOnly } from "@/lib/dates";
@@ -56,6 +57,10 @@ export function IndependentRoutineEditor({
   onClose: () => void;
   onSave: (review: { at: Date; zone: string }) => void;
 }) {
+  const viewerZone = React.useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    [],
+  );
   const t = useRoutineScheduleText(),
     { locale } = useTranslation(),
     id = React.useId();
@@ -255,15 +260,16 @@ export function IndependentRoutineEditor({
                 onChange={(e) => {
                   const frequency = e.target
                     .value as IndependentEditorDraft["schedule"]["frequency"];
+                  const anchor = routineScheduleAnchorDay(draft.schedule.starts_on, viewerZone);
                   onChange({
                     ...draft,
                     schedule: {
                       ...draft.schedule,
                       frequency,
                       weekly_days:
-                        frequency === "weekly" ? [new Date().getDay()] : [],
+                        frequency === "weekly" ? [anchor.getUTCDay()] : [],
                       monthly_day:
-                        frequency === "monthly" ? new Date().getDate() : null,
+                        frequency === "monthly" ? anchor.getUTCDate() : null,
                     },
                   });
                 }}

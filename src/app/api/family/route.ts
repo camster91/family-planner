@@ -1,7 +1,8 @@
+import { familyNameHttp } from "@/lib/family-name-http";
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest, authenticateWithFamily, attachSessionCookie, requireParent } from '@/lib/api-auth'
-import { createFamilySchema, updateFamilySchema, deleteFamilySchema } from '@/lib/validations'
+import { createFamilySchema, deleteFamilySchema } from '@/lib/validations'
 import { defaultFeatures } from '@/lib/features'
 import { refusePairedDevice } from '@/lib/device-route'
 import { readIdempotencyKey } from '@/lib/idempotency'
@@ -150,44 +151,7 @@ export async function GET(request: NextRequest) {
 
 // PATCH - Update family settings (parents only, must be in that family)
 export async function PATCH(request: NextRequest) {
-  try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
-
-    const parentError = requireParent(auth.user.role)
-    if (parentError) return parentError
-
-    let body: any
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-    }
-    const parsed = updateFamilySchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
-    }
-
-    if (parsed.data.familyId !== auth.user.family_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const updateData: Record<string, unknown> = {}
-    if (parsed.data.name) updateData.name = parsed.data.name
-
-    // Return only display fields: the row also holds the feed token, invite
-    // code and the encrypted AI key, which this response must not echo.
-    const family = await prisma!.family.update({
-      where: { id: parsed.data.familyId },
-      data: updateData,
-      select: { id: true, name: true, subscription_tier: true, created_at: true, features: true },
-    })
-
-    return NextResponse.json({ family })
-  } catch (error) {
-    logRouteError('PATCH /api/family', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  return familyNameHttp(request);
 }
 
 // DELETE - Delete the whole household and every member account in it

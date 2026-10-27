@@ -6,6 +6,9 @@
  * imports: the generator takes whatever Web Crypto the runtime has.
  */
 
+/** Canonical receipt retention, shared without importing server-only code. */
+export const IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 /** Set on a response that was replayed from a stored idempotency record. */
 export const IDEMPOTENCY_REPLAYED_HEADER = 'Idempotency-Replayed'

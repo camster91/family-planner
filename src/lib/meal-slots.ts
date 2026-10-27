@@ -120,9 +120,10 @@ export function buildDayPlans(
 /** Display title of a planned meal: its snapshot name, else the linked recipe title. */
 export function mealTitle(
   meal: Pick<PlannedMeal, "recipe_name" | "recipe">,
+  fallback = "Untitled meal",
 ): string {
   return (
-    meal.recipe_name?.trim() || meal.recipe?.title?.trim() || "Untitled meal"
+    meal.recipe_name?.trim() || meal.recipe?.title?.trim() || fallback
   );
 }
 

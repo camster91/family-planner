@@ -13,7 +13,7 @@
     "references": ["id", "family_id"],
     "onDelete": "NoAction",
     "onUpdate": "NoAction",
-    "decision": "Dormant canonical chore subject. Required legacy User owner retained; fixture reconciliation only. Explicit erasure clears identifying subject and sets a sticky tombstone; archive retains it. No profile-only activation."
+    "decision": "Canonical composite chore subject with gated name-only one-off/recurring source; linked account aliases remain, while profile-only chores may use assigned_to null under the private gates. Explicit erasure clears identifying subject and sets a sticky tombstone; archive retains history. Schema/source is not profile activation, rotation/XP parity or runtime acceptance."
   },
   {
     "relation": "ChoreAssignment.assigneeMember",

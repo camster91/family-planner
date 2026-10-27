@@ -104,3 +104,132 @@ For each release candidate, record in #473 and the existing release issue:
 | Hardware | Device/OS/WebView, orientation, result and reviewer; physical versus host/emulator evidence labeled |
 
 Per-platform camera/HEIC, voice/wake, push, deep links, storage and appliance provisioning remain governed by the existing [cross-device roadmap](../product/CROSS_DEVICE_ROADMAP.md), Android architecture and iOS/native issues. Availability must be measured on the target binary/device, not inferred from this API manifest or a phone-width browser. Signing, store upload, provisioning, providers and production permission/settings changes are not performed here.
+
+## Per-platform capability and fallback contract — 2026-10-24
+
+This restores the planning expansion from the absent earlier checkout using the
+current source, not an assumed recovered commit. Status: **authored contract;
+original #473 acceptance remains open**. A manifest, plugin declaration or web
+viewport result is not a grant of native capability, permission or release support.
+
+| Capability | Web / PWA | Android phone / personal tablet | Android shared fridge | iPhone / iPad | Required fallback / readiness boundary |
+| --- | --- | --- | --- | --- | --- |
+| Build identity | No installed build | App plugin version/build when available | Same binary identity; pairing is separate | App plugin version/build when available | Unknown identity stays unknown; `readNativeBuildIdentity` in `native-app.ts` requests no permission |
+| Camera / barcode | Browser API and detector availability vary | Actual binary, OS permission and detector required | Same checks plus allowlisted shared action and ownership | Actual plugin/browser and OS permission required | Manual entry/file selection; no capability claim from screen size or manifest |
+| HEIC / files | Actual accepted input and conversion path required | Do not assume selected files are JPEG | Same with safe scoped draft and no private gallery exposure | Native image support still needs actual input/conversion evidence | Explain unsupported input and allow another file or text; retain draft without fake conversion |
+| Voice | Deliberate foreground browser input when supported | Gated LocalVoice experiment; plugin presence is not recognizer/model readiness | Same gate; wake phrase is not speaker identity or parent authority | Platform voice route needs implementation/device evidence | Typed draft; denial/cancel/timeout stays non-writing; no background listening claim |
+| Push / reminders | Browser/platform permission and delivery needed | Registration, permission, resume/deep-link behavior need evidence | Quiet/shared content policy plus revoke required | Entitlements, permission and delivery need evidence | In-app inbox/manual refresh; never claim background delivery from a saved preference |
+| Share / deep links | User-triggered share where supported, otherwise copy | Existing Share helper; URL ingress/lifecycle needs device evidence | Only explicit safe sharing actions; pairing never grants personal routes | Share helper only when actual plugin is available | Copy approved link; validate destination and current session before private reads/actions |
+| Storage / queued work | Advertised version-one allowlist only | Actual scoped persistence/process-death evidence needed | Pair/session retirement and namespace recovery required | Same contract; actual storage/upgrade behavior needs evidence | Preserve original bytes/key/body and show recovery; unsupported versions never translate silently |
+| Privacy / lifecycle | Auth/role/household checks on every canonical route | Resume/remount must not revive stale private reads or writes | Revoke/erase/role-change conceals private content and suspends work | Scene/lock/resume privacy needs physical-device evidence | Return to the proper signed-in/pairing surface; profile selection never elevates authority |
+| Appliance / distribution | Browser install is not appliance provisioning | Native distribution has separate signing/support policy | Device-owner/kiosk, boot, display and hardware policy are separate owner inputs | Signing/entitlements/store inputs remain separate | Usable foreground web/manual surface; no device-owner, signing or store action from adopting this document |
+
+### Supported-client window and unknown support
+
+No numeric minimum native build, compulsory update policy or new support window
+is established by this planning update. Before distribution, Cameron chooses
+which actual prior/current binaries to support; Codex records their exact
+identities and server/schema/protocol compatibility in the evidence record.
+Unmeasured or missing clients remain **unverified**, never silently supported or
+silently retired. Native distribution remains pending that decision and evidence.
+
+The compatibility matrix must include current and previous supported client
+against forward and rollback server candidates. Preserve both original online
+requests with unknown outcomes and older persisted operations. A server
+advertising support must not bypass fresh authorization, schema readiness or
+feature adoption. A client that cannot read `/api/capabilities`, receives unknown
+metadata, or lacks a plugin must keep the manual path and explain unavailable
+support. Metadata alone must never authorize replay or erase pending work.
+
+### Forward / rollback delivery sequence
+
+1. Record current/previous binary and loaded web/server identities, manifest,
+   schema/migration state, feature flags and original supported queue formats.
+2. Prepare additive server/schema changes and backwards-readable adapters first.
+   Keep old clients' canonical routes and original request/receipt semantics.
+3. Establish the current/previous-client forward/rollback matrix with older
+   stored operations, response loss, denied permissions and lifecycle changes.
+   Execution is deferred here; an authored matrix has no passing result.
+4. Enable a consumer only after its actual compatibility evidence and separately
+   authorized release decision. Do not advertise member protocol 2 or a new
+   queued action merely because dormant source exists.
+5. For rollback, stop newly unsupported writes, preserve exact stored intent,
+   keep additive data/receipts readable, and offer update/browser recovery.
+   Never drop schema/records or reinterpret profile IDs as account IDs to make
+   an older binary appear compatible. Restore/reconciliation is explicit work.
+6. Record release and rollback observations separately from host builds,
+   emulators, browser fixtures and physical-device results.
+
+Codex owns source contracts, implementation and later isolated compatibility
+verification. Cameron owns hardware targets, the supported-binary decision,
+signing/distribution inputs and separately approved rollout/provisioning.
+No physical-device check, previous-client check, schema change, provider call,
+signing, provisioning or release execution occurred in this no-QA pass.
+
+
+Voice mode definition (2026-10-24, #563): see CROSS_DEVICE_ROADMAP.md's distinct
+web/Android/iOS tap-to-talk, Android system action, Apple App Intents/Shortcuts,
+explicit foreground phrase experiment and future local wake detector contracts.
+The existing Android prefix parser is not passive wake detection. This definition
+does not enable flags/permissions, establish recognizer readiness or satisfy
+physical-device/old-binary acceptance.
+
+## Bounded on-demand support identity/protocol read — 2026-10-25 (#473/#146)
+
+Help App details now reads native client details, public /api/version and public
+/api/capabilities concurrently after the explicit View/Refresh action. The public
+capability reader reuses shared owned foreground/body helpers, defaults to3s and
+32KiB, returns null for old/failed/stalled/malformed manifests and remains read-only.
+Its default same-origin credential policy remains; diagnostics explicitly omits
+credentials for both public requests. Version read is3s/16KiB; native detail work
+has a3.5s outer bound around its existing3s bridge fallback. External cancellation
+settles the owner even if a bridge ignores AbortSignal. JSON-only bridge size
+checks remain post-allocation; streaming support enforces before complete decode.
+
+Report format1 gains optional capabilities metadata; older reports without it are
+still displayable. API protocol labels are EN/ES and the hint distinguishes public
+metadata/plugin presence from permission, household feature or physical readiness.
+Strict manifest parsing prevents raw response objects/unknown fields being copied;
+existing native/server projections still sanitize fields. No report is uploaded or
+persisted, and clipboard copy remains a separate user action. The panel cancels on
+unmount and rejects late generation replies; a request latch prevents repeated taps.
+
+This is diagnostic visibility, not a queue/member protocol adoption gate, native
+minimum-build policy, supported binary window or evidence that current/previous
+clients interoperate. #473 remains its distinct bounded contract/acceptance issue,
+with hardware/signing/distribution and actual forward/rollback still open. Source
+cases cover ignored-abort headers/body, declared oversize/cancel, partial legacy
+reports, protocol display and unmount. All authored/adapted/unrun. No plugin/device/
+permission/API/provider/browser/build/test/CI/release execution occurred.
+
+### Recovery issue status reconciliation — 2026-10-25
+
+Current source inspection completes #565's candidate/lane inspection criterion
+and #564's durable owner/generation/retirement design criterion only. Their
+GitHub statuses now distinguish existing source from pending acceptance. Original
+behavioral, fault, concurrency, native/old-binary/rollback and EN/ES rendered
+criteria remain unchecked. No new retry engine, flag activation or QA occurred.
+
+### Message composition compatibility candidate — 2026-10-25 (#135/#136)
+
+Source-only, unverified. Current clients negotiate private message-owner-v1 context
+on reads, retain exact account/household/generation in send bytes and use dedicated
+`/api/messages/send` and `/api/messages/attachments/owned` endpoints. Legacy clients
+retain old endpoints/body representations. Both route pairs share one canonical
+handler/effect/storage implementation. Owner metadata never grants authorization.
+
+A cached new client talking to an older server must never retry via the old write
+URL: unknown support holds drafts; an unrecognized strict route cannot silently
+strip owner fields through the legacy parser. The source predicts refusal/no
+canonical effect, not a measured old-binary/server result. Modern upload context
+is required before media parsing and checked against canonical user/household/
+session before draft-row creation and after file placement. This does not prove
+physical process-death, filesystem compensation or a safe operator rollback.
+
+Later acceptance must cover old/new client against old/new server, stale positive
+negotiation, unsupported routes, changed household/generation during upload and
+send, exact receipt replay and expired unknown requests, same-account sign-in,
+shared-device refusal, erase/read-ack races, partial file cleanup and explicit
+reload. The new UI pauses sending on a server without the marker; old-client
+behavior is unchanged. No protocol-2/native-window/queue-support claim, provider,
+permission, scheduler, migration or rollout activation is implied.

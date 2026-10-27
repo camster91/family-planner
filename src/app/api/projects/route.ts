@@ -1,3 +1,5 @@
+import { parseProjectPaging } from "@/lib/project-paging"
+import { readProjectOverview } from "@/lib/project-overview"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -20,44 +22,16 @@ export async function GET(request: NextRequest) {
     if (gate) return gate
 
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') as 'active' | 'completed' | 'archived' | null
-
-    const where: Record<string, unknown> = {
-      family_id: auth.user.family_id,
+    const requestedStatus = searchParams.get('status')
+    const status = requestedStatus && ['active', 'completed', 'archived'].includes(requestedStatus)
+      ? requestedStatus : null
+    const scope = { familyId: auth.user.family_id, status }
+    const paging = parseProjectPaging(searchParams, scope)
+    if (!paging.ok || (paging.paged && requestedStatus !== null && status === null)) {
+      return NextResponse.json({ error: paging.ok ? 'Invalid project status filter' : paging.error }, { status: 400 })
     }
-
-    if (status && ['active', 'completed', 'archived'].includes(status)) {
-      where.status = status
-    }
-
-    const projects = await prisma!.project.findMany({
-      where,
-      include: {
-        creator: {
-          select: { id: true, name: true, avatar_url: true },
-        },
-        _count: {
-          select: { tasks: true },
-        },
-        tasks: {
-          where: { completed: true },
-          select: { id: true },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-    })
-
-    // Transform to include computed task counts
-    const result = projects.map((project) => {
-      const { tasks, _count, ...rest } = project
-      return {
-        ...rest,
-        taskCount: _count.tasks,
-        completedTaskCount: tasks.length,
-      }
-    })
-
-    return NextResponse.json({ projects: result })
+    const result = await readProjectOverview(prisma!, scope, paging)
+    return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/projects', error, getRequestId(request))
     return NextResponse.json(

@@ -126,10 +126,11 @@ test.each([404, 500])(
   async (status) => {
     const fetcher = jest.fn().mockResolvedValue(new Response("{}", { status }));
     expect(await readApiCapabilities(fetcher)).toBeNull();
-    expect(fetcher).toHaveBeenCalledWith("/api/capabilities", {
+    expect(fetcher).toHaveBeenCalledWith("/api/capabilities", expect.objectContaining({
       credentials: "same-origin",
       cache: "no-store",
-    });
+      signal: expect.any(AbortSignal),
+    }));
   },
 );
 
@@ -155,4 +156,23 @@ test("network failure, malformed JSON and future manifest are recoverable unknow
         ),
     ),
   ).toBeNull();
+});
+
+// Source only: cancellation is unknown support, never a capability grant.
+test.each(["headers", "body"])("bounded capability %s wait survives ignored AbortSignal", async phase => {
+  jest.useFakeTimers();
+  try {
+    const fetcher = jest.fn(async () => phase === "headers" ? new Promise<Response>(() => undefined)
+      : { ok: true, json: () => new Promise(() => undefined) } as Response);
+    const pending = readApiCapabilities(fetcher, { timeoutMs: 100 });
+    await jest.advanceTimersByTimeAsync(100);
+    expect(await pending).toBeNull(); expect(fetcher).toHaveBeenCalledTimes(1);
+  } finally { jest.useRealTimers(); }
+});
+test("does not decode an oversized capability payload or start already-cancelled reads", async () => {
+  const json = jest.fn();
+  const fetcher = jest.fn(async () => ({ ok: true, headers: new Headers({ "content-length": "65536" }), json }) as unknown as Response);
+  expect(await readApiCapabilities(fetcher)).toBeNull(); expect(json).not.toHaveBeenCalled();
+  fetcher.mockClear(); const controller = new AbortController(); controller.abort();
+  expect(await readApiCapabilities(fetcher, { signal: controller.signal })).toBeNull(); expect(fetcher).not.toHaveBeenCalled();
 });

@@ -6,6 +6,7 @@ import { Check, ChevronRight } from 'lucide-react'
 import { useUndoToast } from '@/components/ui/toast'
 import { BrandIllustration } from '@/components/ui/brand-illustration'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
+import { useOnboardingText } from '@/i18n/onboarding'
 import { cn } from '@/lib/utils'
 import { allStepsDone, type GetStartedSteps } from '@/app/dashboard/today/get-started-data'
 import { getStartedStorageKey, useGetStartedHidden, writeVisibilityHidden } from './get-started-visibility'
@@ -29,6 +30,7 @@ export interface GetStartedProps {
  * applies right after (useSyncExternalStore's server snapshot).
  */
 export default function GetStarted({ viewer, familyId, steps }: GetStartedProps) {
+  const text = useOnboardingText()
   const showUndo = useUndoToast()
   const stored = useGetStartedHidden(familyId)
   // Hidden for this visit even if storage refused the write.
@@ -40,22 +42,22 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
   const rows = [
     {
       key: 'invite',
-      title: 'Invite your family',
-      hint: 'Send a link or share your family code',
+      title: text('setupInviteTitle'),
+      hint: text('setupInviteHint'),
       href: '/dashboard/family/invite',
       done: steps.invited,
     },
     {
       key: 'chore',
-      title: 'Add your first chore',
-      hint: 'Pick a job and who does it',
+      title: text('setupChoreTitle'),
+      hint: text('setupChoreHint'),
       href: '/dashboard/chores/create',
       done: steps.hasChore,
     },
     {
       key: 'event',
-      title: 'Add an event',
-      hint: 'Put something on the family calendar',
+      title: text('setupEventTitle'),
+      hint: text('setupEventHint'),
       href: '/dashboard/calendar/create',
       done: steps.hasEvent,
     },
@@ -66,7 +68,7 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
     setHiddenNow(true)
     writeVisibilityHidden(getStartedStorageKey(familyId), true)
     showUndo({
-      title: 'Get started hidden',
+      title: text('setupHidden'),
       onUndo: () => {
         writeVisibilityHidden(getStartedStorageKey(familyId), false)
         setHiddenNow(false)
@@ -83,23 +85,23 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
         />
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">
-            Get started
+            {text('getStarted')}
           </h2>
           <p className="mt-1 text-subhead text-label-secondary" data-testid="get-started-progress">
-            {doneCount} of 3 done. A few steps to set up your household.
+            {text('setupProgress', { done: doneCount, total: rows.length })}
           </p>
         </div>
         <button
           type="button"
           onClick={hide}
-          aria-label="Hide get started"
+          aria-label={text('setupHideLabel')}
           className="btn-plain -mr-2 -mt-1 min-h-[44px] min-w-[44px] shrink-0"
         >
-          Hide
+          {text('setupHide')}
         </button>
       </div>
 
-      <ol className="mt-3 grid gap-1 md:grid-cols-3 md:gap-3" aria-label="Setup steps">
+      <ol className="mt-3 grid gap-1 md:grid-cols-3 md:gap-3" aria-label={text('setupSteps')}>
         {rows.map((row) => (
           <li key={row.key} data-testid={`get-started-${row.key}`}>
             <Link
@@ -116,14 +118,14 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
                 {row.done && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
               </span>
               <span className="min-w-0 flex-1">
-                {!row.done && <span className="sr-only">To do: </span>}
+                {!row.done && <span className="sr-only">{text('setupTodo')}</span>}
                 <span
                   className={cn('block break-words text-body', row.done ? 'text-label-secondary' : 'text-label-primary')}
                 >
                   {row.title}
                 </span>
                 <span className="block break-words text-footnote text-label-secondary">
-                  {row.done ? 'Done' : row.hint}
+                  {row.done ? text('setupDone') : row.hint}
                 </span>
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-label-tertiary" aria-hidden="true" />

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { requestOwnedJson } from "@/lib/owned-request-http";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useTranslation } from "@/i18n";
-import { rewardCreateMessages } from "@/i18n/reward-create";
+import { rewardCreateMessages, type RewardCreateMessage } from "@/i18n/reward-create";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import {
   forgetLatestRewardCreateDraft,
@@ -14,8 +15,12 @@ import {
   rememberRewardCreateDraft,
   rememberRewardCreateIntent,
   rewardCreateIntent,
+  rewardCreateIntents,
   rewardCreateOwnerKey,
   rewardCreateSignature,
+  rewardCreateWithinRetryWindow,
+  rewardCreateStorageHeld,
+  type RewardCreateIntent,
   type RewardCreateDraft,
   type RewardCreateOwner,
 } from "@/lib/reward-create-intent";
@@ -92,7 +97,7 @@ type CreateRewardFormProps = {
  * hydrated in an effect inside the keyed form below.
  */
 export default function CreateRewardForm(props: CreateRewardFormProps = {}) {
-  return <CreateRewardFormInner key={rewardCreateOwnerKey(props.owner)} {...props} />;
+  return <CreateRewardFormInner key={JSON.stringify([rewardCreateOwnerKey(props.owner), props.canCreate ?? true])} {...props} />;
 }
 
 function CreateRewardFormInner({
@@ -112,11 +117,24 @@ function CreateRewardFormInner({
   );
   const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<RewardCreateMessage | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const submittingRef = useRef(false);
-  const requestKeys = useRef(new Map<string, string>());
+  const requestKeys = useRef(new Map<string, RewardCreateIntent>());
+  const uncertainRequests = useRef(new Set<string>());
+  const recoveryListId = useId();
+  const [pendingSaves, setPendingSaves] = useState<Array<{ signature: string; intent: RewardCreateIntent }>>([]);
+  const [recoveryIntent, setRecoveryIntent] = useState<RewardCreateIntent | null>(null);
+  const [accessHeld, setAccessHeld] = useState(false);
+  const [storageHeld, setStorageHeld] = useState(false);
+  const live = useRef(true);
+  const workEpoch = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; workEpoch.current++; activeRequest.current?.abort(); submittingRef.current = false; };
+  }, []);
   const confirmedRequests = useRef(new Set<string>());
   const ownerUserId = owner?.userId;
   const ownerFamilyId = owner?.familyId;
@@ -134,19 +152,40 @@ function CreateRewardFormInner({
     onBusyChange?.(loading);
   }, [loading, onBusyChange]);
 
+  const refreshPendingSaves = useCallback(() => {
+    const pending = new Map(rewardCreateIntents(scopedOwner).map(entry => [entry.signature, entry.intent]));
+    for (const [signature, intent] of requestKeys.current) {
+      if (!pending.has(signature)) pending.set(signature, intent);
+    }
+    setPendingSaves(Array.from(pending, ([signature, intent]) => ({ signature, intent })));
+  }, [scopedOwner]);
+
   useEffect(() => {
     // This effect is intentionally the first browser read. Rendering always
     // starts from the same defaults as SSR, so a cached private draft cannot
     // change the server/client HTML during hydration.
+    for (const { signature, intent } of rewardCreateIntents(scopedOwner)) {
+      requestKeys.current.set(signature, intent);
+      uncertainRequests.current.add(signature);
+    }
+    refreshPendingSaves();
     const draft = latestRewardCreateDraft(scopedOwner);
     if (draft) {
       setName(draft.name);
       setDescription(draft.description);
       setCost(draft.cost);
       setIcon((draft.icon as (typeof ICON_OPTIONS)[number]) || "🎁");
+      const pending = rewardCreateIntent(scopedOwner, rewardCreateSignature(draft));
+      if (pending) {
+        requestKeys.current.set(rewardCreateSignature(draft), pending);
+        uncertainRequests.current.add(rewardCreateSignature(draft));
+        setRecoveryIntent(pending); setUncertain(true);
+        setError(rewardCreateWithinRetryWindow(pending) ? "recoveryTitle" : "retryAgeHold");
+      }
     }
+    setStorageHeld(rewardCreateStorageHeld(scopedOwner));
     setHydrated(true);
-  }, [scopedOwner]);
+  }, [scopedOwner, refreshPendingSaves]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -155,101 +194,101 @@ function CreateRewardFormInner({
     rememberRewardCreateDraft(scopedOwner, { name, description, cost, icon });
   }, [hydrated, scopedOwner, name, description, cost, icon]);
 
-  const submit = async () => {
-    if (!name.trim() || submittingRef.current) return;
-
-    const draft: RewardCreateDraft = {
-      name: name.trim(),
-      description: description.trim(),
-      cost,
-      icon,
-    };
-    const payload: CreatePayload = {
-      ...draft,
-      description: draft.description || undefined,
-    };
+  const submit = async (retry?: RewardCreateIntent) => {
+    if (!live.current || !canCreate || accessHeld || submittingRef.current) return;
+    if (rewardCreateStorageHeld(scopedOwner)) { setStorageHeld(true); return; }
+    const draft: RewardCreateDraft = retry?.draft ?? { name: name.trim(), description: description.trim(), cost, icon };
+    if (!draft.name.trim()) return;
     const signature = rewardCreateSignature(draft);
     if (confirmedRequests.current.has(signature)) {
-      router.push("/dashboard/rewards");
-      router.refresh();
-      return;
+      router.push("/dashboard/rewards"); router.refresh(); return;
     }
-    const storedIntent = rewardCreateIntent(scopedOwner, signature);
-    const existingKey = requestKeys.current.get(signature) ?? storedIntent?.key;
-    const key = existingKey ?? newIdempotencyKey();
-    const remembered = rememberRewardCreateIntent(scopedOwner, signature, draft, key);
-    if (scopedOwner && !existingKey && !remembered) {
-      setUncertain(false);
-      setError(copy.capacityError);
-      return;
+    const stored = rewardCreateIntent(scopedOwner, signature);
+    const remembered = requestKeys.current.get(signature);
+    let intent = retry ?? remembered ?? stored;
+    if (intent && [remembered, stored].some(candidate => candidate && candidate.key !== intent!.key)) {
+      setRecoveryIntent(intent); setUncertain(true); setError("recoveryHold"); return;
     }
-    requestKeys.current.set(signature, key);
-
+    if (!intent) {
+      try { intent = { key: newIdempotencyKey(), draft: { ...draft }, issuedAt: Date.now() }; }
+      catch { setError("createError"); return; }
+    }
+    if (!rewardCreateWithinRetryWindow(intent)) {
+      setRecoveryIntent(intent); setUncertain(true); setError("retryAgeHold"); return;
+    }
+    const original = intent;
+    const persisted = rememberRewardCreateIntent(scopedOwner, signature, original.draft, original.key, original.issuedAt as number);
+    if (scopedOwner && !persisted) {
+      setRecoveryIntent(original); setUncertain(Boolean(stored || remembered));
+      setError(stored || remembered ? "recoveryHold" : "capacityError"); return;
+    }
+    requestKeys.current.set(signature, original);
+    refreshPendingSaves();
+    const payload: CreatePayload = { name: original.draft.name.trim(), description: original.draft.description.trim() || undefined,
+      cost: original.draft.cost, icon: original.draft.icon };
     submittingRef.current = true;
-    setLoading(true);
-    setError(null);
-    setUncertain(false);
-    setConfirmed(false);
-
+    const epoch = ++workEpoch.current;
+    const current = () => live.current && epoch === workEpoch.current;
+    const controller = new AbortController(); activeRequest.current = controller;
+    const retain = (message: RewardCreateMessage) => {
+      uncertainRequests.current.add(signature); setRecoveryIntent(original); setUncertain(true); setError(message);
+    };
+    setLoading(true); setError(null); setUncertain(false); setConfirmed(false);
     try {
-      const response = await fetch("/api/rewards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: key },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json().catch(() => null);
+      const result = await requestOwnedJson("/api/rewards", {
+        method: "POST", signal: controller.signal,
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: original.key }, body: JSON.stringify(payload),
+      }, 256 * 1024);
+      if (!current()) return;
+      if (result.kind !== "reply") { retain("networkError"); return; }
+      const { response, body: data } = result;
+      const code = data && typeof data === "object" ? (data as { code?: unknown }).code : null;
+      if ([401, 403].includes(response.status) || code === "REWARD_ACCESS_CHANGED" || code === "REWARD_ACCESS_UNCONFIRMED") setAccessHeld(true);
       if (!response.ok) {
-        const ambiguous = response.status >= 500 || response.status === 409;
-        if (ambiguous) setUncertain(true);
-        else {
-          requestKeys.current.delete(signature);
-          forgetRewardCreateIntent(scopedOwner, signature);
-        }
-        throw new CreateRewardFailure(
-          response.status === 403 ? "permissionError" : "createError",
-        );
+        const ambiguous = response.status >= 500 || [401, 403, 408, 409, 425, 429].includes(response.status)
+          || code === "REWARD_ACCESS_CHANGED" || code === "REWARD_ACCESS_UNCONFIRMED"
+          || uncertainRequests.current.has(signature) || Boolean(stored || remembered || retry);
+        if (ambiguous) retain(response.status === 403 ? "permissionError" : "createError");
+        else { requestKeys.current.delete(signature); forgetRewardCreateIntent(scopedOwner, signature); setRecoveryIntent(null); refreshPendingSaves(); }
+        throw new CreateRewardFailure(response.status === 403 ? "permissionError" : "createError");
       }
-      if (!isCreatedReward(data, payload, scopedOwner)) {
-        submittingRef.current = false;
-        setUncertain(true);
-        setError(copy.recoveryTitle);
-        return;
-      }
-      confirmedRequests.current.add(signature);
-      requestKeys.current.delete(signature);
-      forgetRewardCreateIntent(scopedOwner, signature);
-      forgetLatestRewardCreateDraft(scopedOwner, signature);
-
-      if ((await navigation?.releaseBeforeNavigation()) === false) {
-        // A pending-navigation guard can keep the user on this form. Allow a
-        // GET-only return to the rewards shelf after the create is confirmed.
-        submittingRef.current = false;
-        setConfirmed(true);
-        return;
-      }
-      router.push("/dashboard/rewards");
-      router.refresh();
+      if (!isCreatedReward(data, payload, scopedOwner)) { retain("recoveryTitle"); return; }
+      confirmedRequests.current.add(signature); uncertainRequests.current.delete(signature);
+      requestKeys.current.delete(signature); forgetRewardCreateIntent(scopedOwner, signature);
+      forgetLatestRewardCreateDraft(scopedOwner, signature); setRecoveryIntent(null); refreshPendingSaves();
+      const allowed = await navigation?.releaseBeforeNavigation();
+      if (!current()) return;
+      if (allowed === false) { setConfirmed(true); return; }
+      router.push("/dashboard/rewards"); router.refresh();
     } catch (cause) {
-      submittingRef.current = false;
-      const isNetwork = cause instanceof TypeError;
-      if (isNetwork) setUncertain(true);
-      setError(
-        cause instanceof CreateRewardFailure
-          ? copy[cause.messageKey]
-          : isNetwork
-            ? copy.networkError
-            : copy.createError,
-      );
+      if (!current()) return;
+      if (cause instanceof CreateRewardFailure) setError(cause.messageKey);
+      else retain("networkError");
     } finally {
-      setLoading(false);
+      if (current()) { activeRequest.current = null; submittingRef.current = false; setLoading(false); }
     }
+  };
+
+  const checkRewards = async () => {
+    if (!live.current || submittingRef.current) return;
+    const epoch = workEpoch.current;
+    const allowed = await navigation?.releaseBeforeNavigation();
+    if (!live.current || epoch !== workEpoch.current || allowed === false) return;
+    router.push("/dashboard/rewards"); router.refresh();
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await submit();
   };
+
+  if (storageHeld) return <div role="alert" className="card-apple p-5 space-y-3">
+    <p>{copy.storageHold}</p><button type="button" onClick={() => void checkRewards()} className="btn-tinted inline-flex min-h-[44px] items-center">{copy.checkRewards}</button>
+  </div>;
+
+  if (accessHeld) return <div role="alert" className="card-apple p-5 space-y-3">
+    <p>{copy.accessHold}</p><button type="button" onClick={() => void checkRewards()} className="btn-tinted inline-flex min-h-[44px] items-center">{copy.checkRewards}</button>
+  </div>;
 
   if (!canCreate) {
     return (
@@ -323,10 +362,7 @@ function CreateRewardFormInner({
             <button
               type="button"
               className="btn-plain mt-3 min-h-[44px]"
-              onClick={() => {
-                router.push("/dashboard/rewards");
-                router.refresh();
-              }}
+              onClick={() => void checkRewards()}
             >
               {copy.checkRewards}
             </button>
@@ -338,21 +374,37 @@ function CreateRewardFormInner({
             role="alert"
             className="rounded-xl bg-[var(--danger-tint)] border border-[var(--danger-tint)] p-4 text-danger-text text-sm"
           >
-            <p>{error}</p>
+            <p>{copy[error]}</p>
             {uncertain && (
               <>
                 <p className="mt-1">{copy.recoveryDescription}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => void submit()} disabled={loading}>
-                    {copy.tryAgain}
-                  </button>
-                  <button type="button" className="btn-plain min-h-[44px]" onClick={() => { router.push("/dashboard/rewards"); router.refresh(); }} disabled={loading}>
-                    {copy.checkRewards}
-                  </button>
-                </div>
+                {recoveryIntent && <p className="mt-1 [overflow-wrap:anywhere]">{copy.recoveryName.replace("{name}", recoveryIntent.draft.name)}</p>}
               </>
             )}
           </div>
+        )}
+
+        {pendingSaves.length > 0 && (
+          <details open className="rounded-xl border border-separator bg-surface-fill p-4">
+            <summary className="min-h-[44px] cursor-pointer text-subhead font-semibold">
+              {copy.pendingSaves.replace("{count}", String(pendingSaves.length))}
+            </summary>
+            <p className="text-sm text-label-secondary">{copy.pendingSavesDescription}</p>
+            <ul className="mt-3 max-h-72 space-y-3 overflow-y-auto" aria-label={copy.pendingSavesLabel}>
+              {pendingSaves.map(({ signature, intent }, index) => (
+                <li key={signature} className="rounded-lg bg-surface-fill-secondary p-3 space-y-2">
+                  <p id={`${recoveryListId}-${index}`} className="font-medium [overflow-wrap:anywhere]">{intent.draft.icon} {intent.draft.name}</p>
+                  <p className="text-sm text-label-secondary">{intent.draft.cost} {copy.points}</p>
+                  {intent.draft.description && <p className="text-sm [overflow-wrap:anywhere]">{intent.draft.description}</p>}
+                  {!rewardCreateWithinRetryWindow(intent) && <p className="text-sm text-label-secondary">{copy.retryAgeHold}</p>}
+                  <button type="button" className="btn-plain min-h-[44px]" aria-describedby={`${recoveryListId}-${index}`} onClick={() => void submit(intent)} disabled={loading || !rewardCreateWithinRetryWindow(intent)}>
+                    {copy.tryAgain}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="btn-plain mt-2 min-h-[44px]" onClick={() => void checkRewards()} disabled={loading}>{copy.checkRewards}</button>
+          </details>
         )}
 
         <fieldset disabled={loading} aria-busy={loading} className="space-y-5">

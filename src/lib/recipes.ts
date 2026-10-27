@@ -139,19 +139,30 @@ export async function resolveIngredientLines(
       throw new RecipeInputError("Ingredient not found");
   }
 
-  const needsNames = lines.some((l) => l.name);
+  const neededNames = new Set(lines.flatMap(line => line.name ? [normalizeName(line.name)] : []));
   const byName = new Map<string, string>();
-  if (needsNames) {
+  if (neededNames.size) {
     // Take the lock before reading so a concurrent writer's new ingredient is
     // visible here (READ COMMITTED re-reads after the lock is granted).
     await lockFamilyIngredientNames(tx, familyId);
-    const existing = await tx.ingredient.findMany({
-      where: { family_id: familyId },
-      select: { id: true, name: true },
-    });
-    for (const i of existing) {
-      const key = normalizeName(i.name);
-      if (key && !byName.has(key)) byName.set(key, i.id);
+    // Preserve the canonical JavaScript Unicode/whitespace comparison instead
+    // of approximating it with SQL lower/ILIKE. Hold only one catalog batch and
+    // the requested matches; a missing name may still require a complete scan.
+    let afterId: string | undefined;
+    while (neededNames.size) {
+      const batch = await tx.ingredient.findMany({
+        where: { family_id: familyId, ...(afterId ? { id: { gt: afterId } } : {}) },
+        orderBy: { id: "asc" }, take: 500,
+        select: { id: true, name: true },
+      });
+      for (const ingredient of batch) {
+        const key = normalizeName(ingredient.name);
+        if (neededNames.delete(key)) byName.set(key, ingredient.id);
+      }
+      if (!neededNames.size || batch.length < 500) break;
+      const nextId = batch[batch.length - 1].id;
+      if (nextId === afterId) throw new RecipeInputError("Ingredient catalog could not be read");
+      afterId = nextId;
     }
   }
 

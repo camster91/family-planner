@@ -391,23 +391,24 @@ export async function reviewIndependentRoutineStep(
   writesEnabled: boolean,
   now = new Date(),
 ): Promise<EffectResult> {
+  const capturedActor = Object.freeze({ ...actor });
   const entry = independentRecoveryEntry.parse(raw),
     input = routineIndependentCommand.parse(JSON.parse(entry.body));
   try {
     return await db.$transaction(async (tx) => {
-      await routineScheduleAuthority(tx, actor);
+      await routineScheduleAuthority(tx, capturedActor);
       if (
-        input.expected_user_id !== actor.userId ||
-        input.expected_family_id !== actor.familyId
+        input.expected_user_id !== capturedActor.userId ||
+        input.expected_family_id !== capturedActor.familyId
       )
         refuse(403, "AUTH_CONTEXT_CHANGED");
       const record = await tx.idempotencyRecord.findUnique({
-        where: { scope_key: { scope: `user:${actor.userId}`, key: entry.key } },
+        where: { scope_key: { scope: `user:${capturedActor.userId}`, key: entry.key } },
       });
       if (
         record &&
-        (record.user_id !== actor.userId ||
-          record.family_id !== actor.familyId ||
+        (record.user_id !== capturedActor.userId ||
+          record.family_id !== capturedActor.familyId ||
           record.action !== ROUTINE_INDEPENDENT_ACTION ||
           record.request_hash !==
             hashIdempotentRequest(ROUTINE_INDEPENDENT_ACTION, input))
@@ -422,7 +423,7 @@ export async function reviewIndependentRoutineStep(
         }[]
       >`
         SELECT "id", "recurrence_id", "member_subject_erased", "routine_series_config" FROM "Chore"
-        WHERE "id" = ${input.root_id} AND "family_id" = ${actor.familyId}`;
+        WHERE "id" = ${input.root_id} AND "family_id" = ${capturedActor.familyId}`;
       const row = rows[0],
         parsed = routineStepSeriesConfig.safeParse(row?.routine_series_config);
       const current =
@@ -432,10 +433,12 @@ export async function reviewIndependentRoutineStep(
         parsed.data.stack_id === null
           ? parsed.data
           : null;
-      function reply(
+      async function reply(
         state: IndependentRecoveryReview["state"],
         receipt: unknown = null,
-      ): EffectResult {
+      ): Promise<EffectResult> {
+        // Saved packets/proof are private even when this review makes no write.
+        await routineScheduleAuthority(tx, capturedActor);
         return {
           status: 200,
           body: independentRecoveryReview.parse({

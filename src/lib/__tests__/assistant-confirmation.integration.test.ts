@@ -17,7 +17,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { assertFixtureTargetAllowed } from "../fixtures/guard";
 import { defaultFeatures } from "../features";
-import { createPersonEvent } from "../person-event-create";
+import { createPersonEvent, authorizePersonEventCreationReplay } from "../person-event-create";
 import {
   createPersonList,
   createPersonNote,
@@ -143,7 +143,7 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
       start_time: "2026-11-01T12:00:00.000Z",
       event_type: "other" as const,
     };
-    const eventActor = { familyId, userId, name: "Synthetic parent" };
+    const eventActor = { familyId, userId, tokenVersion: 0, name: "Synthetic parent" };
     await expect(
       createPersonEvent(db, input, eventActor, null, old),
     ).rejects.toBeInstanceOf(AssistantSourceRefused);
@@ -162,7 +162,7 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
         input,
         ({ recordId }) =>
           createPersonEvent(db, input, eventActor, recordId, current),
-        { beforeReplay: () => authorizeAssistantSourceReplay(db, current) },
+        { beforeReplay: () => authorizePersonEventCreationReplay(db, eventActor, current) },
       );
     const first = await (await run()).json();
     jest.mocked(Date.now).mockReturnValue(observed.getTime() + 120000);
@@ -426,7 +426,7 @@ suite("canonical assistant confirmation and lost-response recovery", () => {
     ).toBe(0);
     const key = randomUUID();
     const result = await (await run(key, profile.revision + 1)).json();
-    expect(result).toEqual({ choreId: expect.any(String) });
+    expect(result).toEqual({ choreId: expect.any(String), choreGeneration: expect.any(String) });
     const created = await db.chore.findUnique({
       where: { id: result.choreId },
     });

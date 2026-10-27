@@ -1,3 +1,5 @@
+import { PROJECT_TASK_PAGE_SIZE, parseProjectTaskPaging, afterProjectTaskCursor, encodeProjectTaskCursor, projectTaskPageOrder } from "@/lib/project-task-paging";
+import { ProjectTaskPageNav } from "./ProjectTaskPageNav";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getServerUser } from "@/lib/supabase/server";
@@ -25,9 +27,10 @@ export const dynamic = "force-dynamic";
 
 interface ProjectDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-async function ProjectDetailContent({ id }: { id: string }) {
+async function ProjectDetailContent({ id, taskCursors = [] }: { id: string; taskCursors?: string[] }) {
   const sessionUser = await getServerUser();
   if (!sessionUser) return null;
 
@@ -55,19 +58,11 @@ async function ProjectDetailContent({ id }: { id: string }) {
     );
   }
 
-  const project = await prisma!.project.findUnique({
-    where: { id },
+  const project = await prisma!.project.findFirst({
+    where: { id, family_id: familyId },
     include: {
       creator: {
         select: { id: true, name: true, avatar_url: true },
-      },
-      tasks: {
-        include: {
-          assignee: {
-            select: { id: true, name: true, avatar_url: true },
-          },
-        },
-        orderBy: { position: "asc" },
       },
     },
   });
@@ -76,10 +71,30 @@ async function ProjectDetailContent({ id }: { id: string }) {
     notFound();
   }
 
-  const totalTasks = project.tasks.length;
-  const completedTasks = project.tasks.filter((t) => t.completed).length;
-  const progress =
-    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const taskScope = { familyId, projectId: id, completed: null };
+  const taskParams = new URLSearchParams({ limit: String(PROJECT_TASK_PAGE_SIZE) });
+  for (const cursor of taskCursors) taskParams.append("cursor", cursor);
+  const taskPaging = parseProjectTaskPaging(taskParams, taskScope);
+  const [taskRows, counts] = await Promise.all([
+    taskPaging.ok && taskPaging.paged
+      ? prisma!.projectTask.findMany({
+          where: { project_id: id, project: { family_id: familyId },
+            ...(taskPaging.cursor ? afterProjectTaskCursor(taskPaging.cursor) : {}) },
+          include: { assignee: { select: { id: true, name: true, avatar_url: true } } },
+          orderBy: projectTaskPageOrder, take: PROJECT_TASK_PAGE_SIZE + 1,
+        })
+      : Promise.resolve([]),
+    prisma!.projectTask.groupBy({
+      by: ["completed"], where: { project_id: id, project: { family_id: familyId } },
+      _count: { _all: true },
+    }),
+  ]);
+  const tasks = taskRows.slice(0, PROJECT_TASK_PAGE_SIZE);
+  const nextTaskCursor = taskRows.length > PROJECT_TASK_PAGE_SIZE
+    ? encodeProjectTaskCursor(taskScope, tasks[tasks.length - 1]) : null;
+  const totalTasks = counts.reduce((total, row) => total + row._count._all, 0);
+  const completedTasks = counts.filter((row) => row.completed).reduce((total, row) => total + row._count._all, 0);
+  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Get family members for assignment dropdown
   const familyMembers = await prisma!.user.findMany({
@@ -90,7 +105,7 @@ async function ProjectDetailContent({ id }: { id: string }) {
 
   // Plain data only: this is a server component, so nothing it passes to the
   // client components below may be a function.
-  const taskData: ChecklistTask[] = project.tasks.map((t) => ({
+  const taskData: ChecklistTask[] = tasks.map((t) => ({
     id: t.id,
     title: t.title,
     description: t.description,
@@ -152,7 +167,9 @@ async function ProjectDetailContent({ id }: { id: string }) {
         {/* Tasks section */}
         <section>
           <ProjectTasksHeading />
-          {taskData.length === 0 ? (
+          <ProjectTaskPageNav projectId={id} loaded={tasks.length} total={totalTasks}
+            nextCursor={nextTaskCursor} paged={taskCursors.length > 0} invalid={!taskPaging.ok} />
+          {taskData.length === 0 && totalTasks === 0 ? (
             <ProjectTasksEmpty active={project.status === "active"} />
           ) : (
             <ProjectTaskChecklist
@@ -210,19 +227,19 @@ function ProjectDetailSkeleton() {
 
 // --- Page export ---
 
-export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
+export default function ProjectDetailPage({ params, searchParams }: ProjectDetailPageProps) {
   return (
     <Suspense fallback={<ProjectDetailSkeleton />}>
-      <AsyncProjectDetail params={params} />
+      <AsyncProjectDetail params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
 async function AsyncProjectDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return <ProjectDetailContent id={id} />;
+  params, searchParams,
+}: ProjectDetailPageProps) {
+  const [{ id }, query] = await Promise.all([params, searchParams ?? Promise.resolve({})]);
+  const value = (query as Record<string, string | string[] | undefined>).tasksCursor;
+  const taskCursors = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  return <ProjectDetailContent id={id} taskCursors={taskCursors} />;
 }

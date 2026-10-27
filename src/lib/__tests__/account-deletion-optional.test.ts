@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { deleteOptionalHouseholdMetadataInTx } from "../account-deletion-optional";
 
 const cases = [
+  ["choreTopUpCursor", "ChoreTopUpCursor"],
   ["householdProfileLinkChallenge", "HouseholdProfileLinkChallenge"],
   ["aiUsageRequest", "AiUsageRequest"],
   ["aiUsagePolicy", "AiUsagePolicy"],
@@ -19,7 +20,7 @@ it.each(cases)(
     const { tx, query, execute } = fixture(true);
     await deleteOptionalHouseholdMetadataInTx(tx, "family-a", model);
     expect(
-      (query.mock.calls[0] as unknown as [TemplateStringsArray])[0].join("?"),
+      (query.mock.calls[0] as unknown as [TemplateStringsArray])[0].join("?").replace(/\s+/g, " ").trim(),
     ).toBe(`SELECT to_regclass('public."${table}"') IS NOT NULL AS present`);
     const [sql, ...values] = execute.mock.calls[0] as unknown as [
       TemplateStringsArray,

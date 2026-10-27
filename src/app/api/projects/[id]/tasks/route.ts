@@ -1,3 +1,4 @@
+import { parseProjectTaskPaging, afterProjectTaskCursor, encodeProjectTaskCursor, projectTaskPageOrder } from "@/lib/project-task-paging";
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -14,7 +15,9 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-// GET — List tasks for a project (family-scoped via project)
+// GET — Family/project-scoped tasks. Opt-in limit=1..100[&cursor=] uses
+// position/created_at/id keysets and nextCursor bound to family/project/completed.
+// Legacy requests without limit retain the unpaged { tasks } shape/order.
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
@@ -49,7 +52,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { searchParams } = new URL(request.url)
     const filterCompleted = searchParams.get('completed')
 
-    const where: Record<string, unknown> = { project_id: projectId }
+    const scope = { familyId: auth.user.family_id, projectId, completed:
+      filterCompleted === 'true' ? true : filterCompleted === 'false' ? false : null }
+    const paging = parseProjectTaskPaging(searchParams, scope)
+    if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
+    const where: Record<string, unknown> = { project_id: projectId, project: { family_id: auth.user.family_id } }
+    if (paging.paged && paging.cursor) where.AND = [afterProjectTaskCursor(paging.cursor)]
 
     if (filterCompleted === 'true') {
       where.completed = true
@@ -57,17 +65,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
       where.completed = false
     }
 
-    const tasks = await prisma!.projectTask.findMany({
+    const rows = await prisma!.projectTask.findMany({
       where,
       include: {
         assignee: {
           select: { id: true, name: true, avatar_url: true },
         },
       },
-      orderBy: [{ position: 'asc' }, { created_at: 'asc' }],
+      orderBy: paging.paged ? projectTaskPageOrder : [{ position: 'asc' }, { created_at: 'asc' }],
+      ...(paging.paged ? { take: paging.limit + 1 } : {}),
     })
 
-    return NextResponse.json({ tasks })
+    const tasks = paging.paged ? rows.slice(0, paging.limit) : rows
+    return NextResponse.json({ tasks, ...(paging.paged ? {
+      nextCursor: rows.length > paging.limit && tasks.length
+        ? encodeProjectTaskCursor(scope, tasks[tasks.length - 1]) : null,
+    } : {}) }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('GET /api/projects/[id]/tasks', error, getRequestId(request))
     return NextResponse.json(

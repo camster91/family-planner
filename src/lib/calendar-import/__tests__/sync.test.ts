@@ -29,6 +29,8 @@ import {
 } from "@/__tests__/helpers/two-household";
 import {
   refreshStaleSubscriptions,
+  reconcileOccurrences,
+  importWindow,
   removeSubscription,
   syncSubscription,
 } from "../sync";
@@ -230,6 +232,74 @@ describe("syncSubscription", () => {
     });
   });
 
+  // Authored/unrun. Both bounded expansion exits must preserve the last
+  // complete import and validators; no partial create/update/delete is allowed.
+  it.each([
+    { label: "occurrence cap", body: () => ics(...Array.from({ length: 3001 }, (_, i) => [
+      "BEGIN:VEVENT", `UID:synthetic-${i}@fixture.test`,
+      "DTSTART:20260918T090000Z", "DTEND:20260918T100000Z",
+      "SUMMARY:Synthetic capped event", "END:VEVENT",
+    ]).flat()) },
+    { label: "iteration cap", body: () => ics(
+      "BEGIN:VEVENT", "UID:synthetic-fast@fixture.test", "DTSTART:20200101T000000Z",
+      "DTEND:20200101T000001Z", "RRULE:FREQ=SECONDLY;COUNT=30000",
+      "SUMMARY:Synthetic capped series", "END:VEVENT",
+    ) },
+  ])("keeps all events when a feed hits its $label", async ({ body }) => {
+    await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(FEED_V1, { etag: '"complete-feed"', "last-modified": "Tue, 15 Sep 2026 10:00:00 GMT" }),
+      assertUrl: allowAll, now: NOW,
+    });
+    const before = JSON.stringify(db.rows("event"));
+    const eventWrites = writesTo("event").length;
+    const oldSub = { ...db.find("calendarSubscription", "sub-a")! };
+    const result = await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(body(), { etag: '"partial-feed"', "last-modified": "Tue, 15 Sep 2026 11:00:00 GMT" }),
+      assertUrl: allowAll, now: new Date(NOW.getTime() + 60_000),
+    });
+    expect(result).toMatchObject({ status: "error", created: 0, updated: 0, deleted: 0 });
+    expect(result?.error).toContain("Existing events were kept");
+    expect(JSON.stringify(db.rows("event"))).toBe(before);
+    expect(writesTo("event")).toHaveLength(eventWrites);
+    expect(db.find("calendarSubscription", "sub-a")).toMatchObject({
+      last_status: "error", etag: oldSub.etag, last_modified: oldSub.last_modified,
+    });
+    expect(loggedText()).toContain("feed_too_large");
+    expect(loggedText()).not.toContain(SECRET_URL_A);
+    expect(loggedText()).not.toContain("Synthetic capped");
+  });
+
+  // Authored/unrun: a valid prefix plus an unparseable known series must
+  // preserve the last complete snapshot, including other households/local rows.
+  it.each([
+    { label: "missing event start", tail: () => ics("BEGIN:VEVENT", "UID:assembly@school.test", "SUMMARY:SECRETBROKEN", "END:VEVENT") },
+    { label: "broken rule", tail: () => ics("BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260921T153000Z", "RRULE:FREQ=NOTAFREQUENCY", "END:VEVENT") },
+    { label: "second calendar document", tail: () => FEED_V1 + ics() },
+    { label: "overlong source UID", tail: () => ics("BEGIN:VEVENT", `UID:${"x".repeat(501)}`, "DTSTART:20260921T153000Z", "END:VEVENT") },
+    { label: "duplicate master UID", tail: () => ics(
+      "BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260921T153000Z", "SUMMARY:First", "END:VEVENT",
+      "BEGIN:VEVENT", "UID:club@school.test", "DTSTART:20260922T153000Z", "SUMMARY:Second", "END:VEVENT") },
+    { label: "duplicate recurrence identity", tail: () => ics(
+      "BEGIN:VEVENT", "UID:club@school.test", "RECURRENCE-ID:20260921T153000Z", "DTSTART:20260921T160000Z", "END:VEVENT",
+      "BEGIN:VEVENT", "UID:club@school.test", "RECURRENCE-ID:20260921T153000Z", "DTSTART:20260921T170000Z", "END:VEVENT") },
+  ])("preserves imported events after $label", async ({ tail }) => {
+    await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(FEED_V1, { etag: '"complete"' }), assertUrl: allowAll, now: NOW,
+    });
+    const before = JSON.stringify(db.rows("event"));
+    const eventWrites = writesTo("event").length;
+    const result = await syncSubscription("sub-a", FAMILY_A, {
+      fetchImpl: fetchOnce(tail(), { etag: '"broken"' }), assertUrl: allowAll,
+      now: new Date(NOW.getTime() + 60_000),
+    });
+    expect(result).toMatchObject({ status: "error", created: 0, updated: 0, deleted: 0, error: "Feed is not a valid calendar" });
+    expect(JSON.stringify(db.rows("event"))).toBe(before);
+    expect(writesTo("event")).toHaveLength(eventWrites);
+    expect(db.find("calendarSubscription", "sub-a")).toMatchObject({ last_status: "error", etag: '"complete"' });
+    expect(loggedText()).not.toContain("SECRETBROKEN");
+    expect(loggedText()).not.toContain(SECRET_URL_A);
+  });
+
   it("stores an error status for fetch failures (HTTP, SSRF) without the URL", async () => {
     const r1 = await syncSubscription("sub-a", FAMILY_A, {
       fetchImpl: async () => new Response("nope", { status: 403 }),
@@ -387,4 +457,65 @@ describe("refreshStaleSubscriptions", () => {
       }),
     ).toBe(1);
   });
+});
+
+// Authored/unrun. The fake verifies shapes/equivalence only; it does not model
+// PostgreSQL snapshots, locks or rollback after a later failed batch.
+type ExistingEventBatchQuery = {
+  where: {
+    family_id: string;
+    source_subscription_id: string;
+    id?: { gt: string };
+  };
+  orderBy: { id: "asc" };
+  take: number;
+};
+type EventCreateBatchQuery = {
+  data: Array<Record<string, unknown>>;
+  skipDuplicates?: boolean;
+};
+it("reconciles multiple existing/import batches while preserving valid old history and moved identities", async () => {
+  const original = { ...db.find("event", "event-a")! };
+  const sub = { id: "sub-a", family_id: FAMILY_A, created_by: "parent-a" };
+  const past = new Date("2025-01-01T12:00:00Z");
+  const current = new Date("2026-09-18T12:00:00Z");
+  const imported = (id: string, uid: string, start: Date) => ({ ...original,
+    id, family_id: FAMILY_A, source_subscription_id: "sub-a", source_uid: uid,
+    source_occurrence_start: start, start_time: start, end_time: new Date(start.getTime() + 3600000),
+  });
+  for (let i = 0; i < 405; i++) db.rows("event").push(imported(`stale-${String(i).padStart(3, "0")}`, `stale-${i}`, current));
+  db.rows("event").push(imported("history-a", "history", past), imported("moved-a", "moved", past));
+  const occurrences = Array.from({ length: 205 }, (_, i) => ({
+    uid: `new-${i}`, occurrenceStart: current, start: current,
+    end: new Date(current.getTime() + 3600000), allDay: false,
+    title: "Synthetic new event", description: null, location: null,
+  }));
+  occurrences.push({ ...occurrences[0], uid: "moved", occurrenceStart: past, title: "Moved existing" });
+  const read = jest.spyOn(fakePrisma.event, "findMany") as unknown as jest.MockedFunction<
+    (query: ExistingEventBatchQuery) => Promise<unknown[]>
+  >;
+  const create = jest.spyOn(fakePrisma.event, "createMany") as unknown as jest.MockedFunction<
+    (query: EventCreateBatchQuery) => Promise<{ count: number }>
+  >;
+  const transaction = jest.fn((work: (tx: any) => Promise<unknown>, options: unknown) => fakePrisma.$transaction(work, options));
+  try {
+    const counts = await reconcileOccurrences({ $transaction: transaction }, sub, occurrences, importWindow(NOW));
+    expect(counts).toEqual({ created: 205, updated: 1, deleted: 405 });
+    expect(db.find("event", "history-a")).toBeDefined();
+    expect(db.find("event", "moved-a")).toMatchObject({ title: "Moved existing", source_occurrence_start: past, start_time: current });
+    expect(db.find("event", "event-a")).toEqual(original);
+    expect(db.find("event", "event-imported-b")).toBeDefined();
+    expect(read.mock.calls.length).toBeGreaterThanOrEqual(3);
+    for (const [query] of read.mock.calls) {
+      expect(query).toMatchObject({ where: { family_id: FAMILY_A, source_subscription_id: "sub-a" }, orderBy: { id: "asc" }, take: 200 });
+    }
+    const continuation = read.mock.calls[1]?.[0];
+    expect(continuation?.where.id?.gt).toBeDefined();
+    expect(create.mock.calls.map(([query]) => query.data.length)).toEqual([200, 5]);
+    for (const write of writesTo("event").filter(w => w.op === "deleteMany")) {
+      expect(write.args.where.id.in.length).toBeLessThanOrEqual(200);
+    }
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 30_000, isolationLevel: "RepeatableRead" });
+    expect(await reconcileOccurrences(fakePrisma, sub, occurrences, importWindow(NOW))).toEqual({ created: 0, updated: 0, deleted: 0 });
+  } finally { read.mockRestore(); create.mockRestore(); }
 });

@@ -2,7 +2,7 @@
 import * as React from "react";
 import { foodAiLeaseCurrent } from "@/lib/food-planning/ai-evaluation";
 import type { FoodAiSuggestion } from "@/lib/food-planning/ai-contract";
-import { useTranslation } from "@/i18n";
+import { useFoodPlanningEntryText } from "@/i18n/food-planning-entry";
 import { FoodPlanSummary } from "./FoodPlanSummary";
 /** Read suggestions stay separate from editable choices and signed save review. */
 export function FoodAiProposal({
@@ -16,9 +16,7 @@ export function FoodAiProposal({
   onUse: () => void;
   onDismiss: () => void;
 }) {
-  const { locale } = useTranslation(),
-    es = locale === "es";
-  const copy = (en: string, spanish: string) => (es ? spanish : en);
+  const text = useFoodPlanningEntryText();
   const [leaseEnded, setLeaseEnded] = React.useState(false);
   React.useEffect(() => {
     setLeaseEnded(false);
@@ -33,34 +31,22 @@ export function FoodAiProposal({
   return (
     <section
       className="space-y-3"
-      aria-label={copy("AI meal choices", "Opciones de comidas con IA")}
+      aria-label={text("aiChoices")}
     >
       <h3 className="font-semibold">
-        {copy("AI choices to review", "Opciones de IA para revisar")}
+        {text("aiReview")}
       </h3>
       <p className="text-footnote text-label-secondary">
-        {copy(
-          "Chosen from your saved household recipes. These are suggestions, not dietary or food-safety advice. Check your preferences and ingredient details. Nothing has been saved.",
-          "Elegidas de las recetas guardadas de tu hogar. Son sugerencias, no consejos dietéticos ni de seguridad alimentaria. Revisa tus preferencias e ingredientes. Aún no se ha guardado nada.",
-        )}
+        {text("aiBoundary")}
       </p>
       <p role="status">
         {suggestion.evaluation.heldSlots
-          ? copy(
-              `${suggestion.evaluation.heldSlots} choices need attention before saving.`,
-              `${suggestion.evaluation.heldSlots} opciones necesitan revisión antes de guardar.`,
-            )
-          : copy(
-              "Recorded checks found no holds. Review the details before saving.",
-              "Las comprobaciones registradas no encontraron impedimentos. Revisa los detalles antes de guardar.",
-            )}
+          ? text("heldChoices", { count: suggestion.evaluation.heldSlots })
+          : text("noHolds")}
       </p>
       {expired && (
         <p role="status">
-          {copy(
-            "These choices expired. Ask AI again or use Find suggestions. Your draft is kept.",
-            "Estas opciones han caducado. Vuelve a preguntar a la IA o usa Buscar sugerencias. Se conserva el borrador.",
-          )}
+          {text("expired")}
         </p>
       )}
       <FoodPlanSummary
@@ -70,17 +56,11 @@ export function FoodAiProposal({
         busy={busy}
       />
       <p className="text-footnote text-label-secondary">
-        {copy(
-          "Use copies the recipes into your draft and refreshes the household checks. Grocery selections for changed recipes are cleared. Save still needs your separate review and confirmation. Suggestions expire after one minute.",
-          "Usar copia las recetas al borrador y actualiza las comprobaciones del hogar. Se quitan las selecciones de compra de las recetas cambiadas. Guardar requiere revisión y confirmación aparte. Las sugerencias caducan al minuto.",
-        )}
+        {text("useBoundary")}
       </p>
       {suggestion.feedbackTicket && (
         <p className="text-footnote text-label-secondary">
-          {copy(
-            "Your household has usage counts on. Use/Keep shares one choice count without recipe details or your preference. You can turn counts off in Settings.",
-            "Tu hogar tiene los recuentos de uso activados. Usar/Conservar comparte un recuento sin detalles de recetas ni tu preferencia. Puedes desactivarlos en Ajustes.",
-          )}
+          {text("usageCounts")}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -90,7 +70,7 @@ export function FoodAiProposal({
           disabled={busy || expired}
           onClick={onUse}
         >
-          {copy("Use these choices", "Usar estas opciones")}
+          {text("useChoices")}
         </button>
         <button
           type="button"
@@ -98,7 +78,7 @@ export function FoodAiProposal({
           disabled={busy}
           onClick={onDismiss}
         >
-          {copy("Keep my choices", "Conservar mis opciones")}
+          {text("keepChoices")}
         </button>
       </div>
     </section>

@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
+import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
 import { usePreparationText } from "@/i18n/event-preparation";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { formatScheduleInstant } from "@/lib/calendar-planning/schedule-form";
@@ -46,6 +47,7 @@ export default function PreparationSheet({
 }) {
   const copy = usePreparationText(),
     locale = useDisplayLocale(),
+    router = useDraftAwareRouter(),
     heading = React.useRef<HTMLHeadingElement>(null),
     id = React.useId();
   const initial = React.useMemo(
@@ -215,6 +217,29 @@ export default function PreparationSheet({
     return dayKeyFor({ kind: "tz", timeZone: current.timeZone })(
       new Date(current.event.start),
     );
+  }
+  function routineHref(stackId: string, occurrenceDay: string) {
+    return `/dashboard/chores/routines?${new URLSearchParams({
+      stack_id: stackId,
+      occurrence_date: occurrenceDay,
+    })}`;
+  }
+  function navigateAway(
+    href: string,
+    event: React.MouseEvent<HTMLAnchorElement>,
+  ) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    void router.push(href).then((navigated) => {
+      if (navigated) session.stop();
+    });
   }
   function newStep() {
     if (!view || !session.context || blocked || steps.length >= 99) return;
@@ -759,7 +784,12 @@ export default function PreparationSheet({
                           <Link
                             className={prepPlain}
                             href={`/dashboard/chores/edit?id=${encodeURIComponent(step.choreId)}`}
-                            onClick={session.stop}
+                            onClick={(event) =>
+                              navigateAway(
+                                `/dashboard/chores/edit?id=${encodeURIComponent(step.choreId)}`,
+                                event,
+                              )
+                            }
                           >
                             {copy.viewTask}
                           </Link>
@@ -837,9 +867,18 @@ export default function PreparationSheet({
                   step.kind === "existing" ? [step.choreId] : [],
                 )}
               />
-              {screen === "routine" && routineId && (
+              {screen === "routine" && routineId && routineDay && (
                 <div className="space-y-3">
                   <p className="font-semibold">{routineLabel}</p>
+                  <Link
+                    className={prepPlain}
+                    href={routineHref(routineId, routineDay)}
+                    onClick={(event) =>
+                      navigateAway(routineHref(routineId, routineDay), event)
+                    }
+                  >
+                    {copy.viewRoutine}
+                  </Link>
                   <label htmlFor={`${id}-routine-day`}>
                     {copy.routineDay}
                     <input
@@ -886,6 +925,18 @@ export default function PreparationSheet({
         {screen === "routine-steps" && routine && view && (
           <>
             <p>{copy.selectSteps}</p>
+            <Link
+              className={prepPlain}
+              href={routineHref(routine.stackId, routine.occurrenceDay)}
+              onClick={(event) =>
+                navigateAway(
+                  routineHref(routine.stackId, routine.occurrenceDay),
+                  event,
+                )
+              }
+            >
+              {copy.viewRoutine}
+            </Link>
             <button
               type="button"
               className={prepPlain}
@@ -1045,6 +1096,20 @@ export default function PreparationSheet({
                             : copy.after}{" "}
                           · {step.cue.minutes} {copy.minutes}
                         </p>
+                      )}
+                      {step.kind === "existing" && task?.available && (
+                        <Link
+                          className={prepPlain}
+                          href={`/dashboard/chores/edit?id=${encodeURIComponent(step.choreId)}`}
+                          onClick={(event) =>
+                            navigateAway(
+                              `/dashboard/chores/edit?id=${encodeURIComponent(step.choreId)}`,
+                              event,
+                            )
+                          }
+                        >
+                          {copy.viewTask}
+                        </Link>
                       )}
                     </li>
                   );

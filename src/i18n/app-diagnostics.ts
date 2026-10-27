@@ -7,6 +7,8 @@ export const appDiagnosticsEnglish = {
   loading: "Checking app details…",
   client: "Installed app",
   server: "Website",
+  api: "API compatibility",
+  protocols: "Member protocols: {members}; queue format: {queue}",
   web: "Web browser",
   unavailable: "Unavailable",
   report: "Report for support",
@@ -15,7 +17,7 @@ export const appDiagnosticsEnglish = {
   copyFailed: "Could not copy. Select the report below and copy it yourself.",
   failed: "App details could not be checked. Try again.",
   capabilityHint:
-    "Plugin presence does not mean permission has been granted or that the feature is ready.",
+    "Protocol support and plugin presence do not confirm permissions or device readiness.",
 };
 export const appDiagnosticsSpanish: typeof appDiagnosticsEnglish = {
   title: "Detalles de la aplicación",
@@ -26,6 +28,8 @@ export const appDiagnosticsSpanish: typeof appDiagnosticsEnglish = {
   loading: "Consultando detalles…",
   client: "Aplicación instalada",
   server: "Sitio web",
+  api: "Compatibilidad de API",
+  protocols: "Protocolos de miembros: {members}; formato de cola: {queue}",
   web: "Navegador web",
   unavailable: "No disponible",
   report: "Informe para soporte",
@@ -34,5 +38,5 @@ export const appDiagnosticsSpanish: typeof appDiagnosticsEnglish = {
   copyFailed: "No se pudo copiar. Selecciona el informe y cópialo manualmente.",
   failed: "No se pudieron consultar los detalles. Inténtalo de nuevo.",
   capabilityHint:
-    "La presencia de un complemento no significa que tenga permiso o que la función esté lista.",
+    "La compatibilidad de protocolos y la presencia de complementos no confirman permisos ni preparación del dispositivo.",
 };

@@ -107,23 +107,24 @@ export async function reviewRoutineSchedule(
   writesEnabled: boolean,
   now = new Date(),
 ): Promise<EffectResult> {
+  const capturedActor = Object.freeze({ ...actor });
   const entry = routineRecoveryEntry.parse(raw),
     input = routineScheduleCommand.parse(JSON.parse(entry.body));
   try {
     return await db.$transaction(async (tx) => {
-      await routineScheduleAuthority(tx, actor);
+      await routineScheduleAuthority(tx, capturedActor);
       if (
-        input.expected_user_id !== actor.userId ||
-        input.expected_family_id !== actor.familyId
+        input.expected_user_id !== capturedActor.userId ||
+        input.expected_family_id !== capturedActor.familyId
       )
         throw new BoundaryRefusal(error(403, "AUTH_CONTEXT_CHANGED"));
       const record = await tx.idempotencyRecord.findUnique({
-        where: { scope_key: { scope: `user:${actor.userId}`, key: entry.key } },
+        where: { scope_key: { scope: `user:${capturedActor.userId}`, key: entry.key } },
       });
       if (
         record &&
-        (record.family_id !== actor.familyId ||
-          record.user_id !== actor.userId ||
+        (record.family_id !== capturedActor.familyId ||
+          record.user_id !== capturedActor.userId ||
           record.action !== ROUTINE_SCHEDULE_ACTION ||
           record.request_hash !==
             hashIdempotentRequest(ROUTINE_SCHEDULE_ACTION, input))
@@ -132,14 +133,16 @@ export async function reviewRoutineSchedule(
       const stackId = input.action === "create" ? null : input.stack_id;
       const current = stackId
         ? await tx.routineStack.findFirst({
-            where: { id: stackId, family_id: actor.familyId },
+            where: { id: stackId, family_id: capturedActor.familyId },
             select: { version: true },
           })
         : null;
-      function reply(
+      async function reply(
         state: RoutineRecoveryReviewState,
         receipt: unknown = null,
-      ): EffectResult {
+      ): Promise<EffectResult> {
+        // Saved packets/proof are private even when this review makes no write.
+        await routineScheduleAuthority(tx, capturedActor);
         return {
           status: 200,
           body: routineRecoveryReview.parse({
@@ -167,11 +170,11 @@ export async function reviewRoutineSchedule(
         )
           return reply("unavailable");
         const present = await tx.routineStack.findFirst({
-          where: { id: proof.data.stackId, family_id: actor.familyId },
+          where: { id: proof.data.stackId, family_id: capturedActor.familyId },
           select: { id: true },
         });
         const roots = await tx.chore.count({
-          where: { id: { in: proof.data.roots }, family_id: actor.familyId },
+          where: { id: { in: proof.data.roots }, family_id: capturedActor.familyId },
         });
         return reply(
           present && roots === proof.data.roots.length
@@ -196,7 +199,7 @@ export async function reviewRoutineSchedule(
           return reply("conflict");
         const definitions = await tx.$queryRaw<
           { schedule_config: unknown }[]
-        >`SELECT "schedule_config" FROM "RoutineStack" WHERE "id" = ${stackId} AND "family_id" = ${actor.familyId}`;
+        >`SELECT "schedule_config" FROM "RoutineStack" WHERE "id" = ${stackId} AND "family_id" = ${capturedActor.familyId}`;
         const parsed = routineScheduleConfig.safeParse(
           definitions[0]?.schedule_config,
         );

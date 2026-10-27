@@ -1,5 +1,31 @@
 # Reviewed food capture (#125)
 
+## Source reconciliation — 2026-10-25 (no QA)
+
+A current source read confirms that the barcode format/camera/manual-review
+foundation is already authored. `food-barcode.ts` includes UPC-A, EAN-13,
+GTIN-14, explicitly selected EAN-8/UPC-E, check digits, leading-zero identity and
+restricted-code review. `use-food-barcode-camera.ts` and `BarcodeFoodDialog.tsx`
+already provide tap-started local scanning, typed entry, review selection,
+deliberate extra-package/separate-lot controls and unknown-save holds. Do not
+recreate a detector, scanner-owned stock store or second product adapter.
+
+The existing `food-product-provider.ts`/products API supply a gated fixed-host
+read/apply path; configuration requires enabled lookup, approved data reuse and
+a valid contact. This source read does not establish licence approval, actual
+provider availability, coverage or activation. `inventory-intake.ts` writes the
+reviewed barcode/product/date/location snapshot to canonical stock; photo and
+receipt suggestions stay in `ScanFridgeDialog.tsx`, `food-photo-contract.ts` and
+the existing scan/intake paths. The source matrix below remains the canonical
+scope map, including stock lifecycle, recipe/prep and restock reuse.
+
+All original #125 behavioral/permission/isolation/provider/cost/device/locale
+acceptance stays open. No checkbox is completed from file presence, and the
+recipe workflow's newer owner/receipt source does not establish food-capture
+acceptance. No QA/tests/checks/build/browser/CI/DB/migration/generation,
+provider call/approval, permissions, activation, push/merge/deploy or live data
+change ran in this reconciliation. #125/#460/#135/#473/#567 remain distinct.
+
 ## Current source candidate — 2026-10-19
 
 The full approved target remains barcode/photo identification → editable review →
@@ -339,3 +365,76 @@ not executed. No QA/typecheck/lint/build/browser/native, schema/provider/account
 push, merge or deployment action occurred. This is matching transparency, not
 calibrated AI/OCR accuracy, quantity sufficiency or native acceptance. Next:
 bounded refresh and durable offline/native capability reconciliation.
+
+## Bounded saved-capture receipt checks — 2026-10-25
+
+#125/#135 source: CaptureBox saved-status checks now use a15second foreground
+abort race and32KiB bounded response decoder, same-origin credentials and
+no-store. A synchronous controller guard prevents duplicate checks before React
+state commits. Availability renewal, access-boundary clearing and unmount retire
+and abort the active check; epoch/controller checks prevent a retired result or
+finally from changing a newer recovery boundary.401/403 are handled before body
+decoding and retain the existing access-refusal/purge policy.
+
+Timeout/network/body/size uncertainty keeps the original recovery row and its
+key/hash, releases the busy control, and uses existing EN/ES could-not-check copy.
+A late committed body cannot retire the row or invoke onSaved. Only a fresh
+explicit check is sent; original terminal receipt-state handling is preserved.
+This is status-read transport/retirement, not provider/media processing, mutation
+retry changes, native physical cancellation or full original session/restore
+proof. JSON-only bridges still allocate before post-decode size validation.
+
+Stalled-body/double-click/late-commit/exact next-check and oversized-header-before-
+decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/provider/
+push/merge/deploy ran. #125/#135 acceptance and provider decisions remain open.
+
+## Bounded explicit capture recovery retries — 2026-10-25
+
+#125/#135 source: saved Capture retry dispatches now have a45second foreground
+abort race, explicit same-origin/no-store and the unchanged original envelope
+body/key. A synchronous retry controller shares exclusion with receipt checks;
+access clearing, availability renewal and unmount retire both lanes. Retired
+callbacks cannot change current recovery state. Replay response bodies are not
+needed: they are cancelled without buffering, and successful status still hands
+off to the existing bounded receipt/current-resource check before reporting a
+present saved item. A failed handoff before a check starts releases busy state.
+
+Timeout/network uncertainty retains the recovery envelope, releases controls and
+uses existing EN/ES could-not-save feedback. Late success cannot trigger a receipt
+check, discard the row or announce a save; no second request is automatic. The
+next deliberate retry preserves exact body/key. Existing retention-boundary
+receipt-first logic and terminal status policies are unchanged. This source does
+not prove server cancellation/rollback, full original session/restore authority,
+physical/native cancellation or bounded initial proposal-write behavior.
+
+Stalled dispatch/double-click/late success/exact deliberate replay plus required
+receipt confirmation source is authored UNRUN. No QA/tests/checks/build/browser/
+CI/API/DB/provider/push/merge/deploy ran. #125/#135 acceptance remains open.
+
+## Bounded initial capture proposal writes — 2026-10-25
+
+#125/#135 source: initial event/grocery/photo-proposal saves now share the owned
+write lane with explicit recovery retries. A45second foreground deadline covers
+async request hashing/preparation, durable-envelope admission, fetch and256KiB
+response decoding. After hashing, the captured epoch/controller/abort predicate
+is checked before storing recovery or dispatching; a timed-out preparation cannot
+later write storage or send the proposal. Same-origin/no-store and original keys/
+bodies remain. Storage/preparation errors keep their typed recovery meanings.
+
+401/403 bypass body reading and retain access-refusal clearing. Other native
+bodies are decoded once inside bounds; callers receive the existing status/json
+interface backed by that bounded decoded value. A stalled/malformed/oversized
+response cannot be treated as successful or retire a saved recovery entry. Late
+success does not clear recovery or invoke the caller's save outcome. Unknown
+initial writes keep draft/operation/envelope for deliberate canonical recovery;
+no automatic retry/provider call or new key. Existing terminal statuses and
+sequential photo partial-result policies are preserved.
+
+Synchronous serialization/storage/canvas CPU is not preempted; JSON-only native
+bridges still allocate before post-decode size validation. This is transport/
+retirement source, not full replayed-resource existence, process-death/restore
+or original server session contract acceptance. Initial direct success retains
+its existing domain-response contract; full receipt/reuse semantics remain open.
+Stalled initial reply/late success/retained exact operation and declared oversize
+before decode cases are authored UNRUN. No QA/tests/checks/build/browser/CI/API/DB/
+provider/push/merge/deploy ran. #125/#135 remain open.

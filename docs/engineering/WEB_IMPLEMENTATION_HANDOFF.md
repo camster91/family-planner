@@ -1,3 +1,37 @@
+# Current handoff boundary — 2026-10-26
+
+The active instruction is source/planning issue follow-through with **all QA,
+tests/checks/builds/browser/CI and release activity deferred**. The earlier frozen
+candidate and82-issue statements below belong to the historical candidates and
+dates they name. They do not establish source completion, readiness or acceptance
+for the recovered checkout. The latest GitHub read has37 open issues; use
+[CURRENT_STATE](../CURRENT_STATE.md), the
+[issue completion ledger](ISSUE_COMPLETION_LEDGER.md) and canonical
+[programme #128](https://github.com/camster91/family-planner/issues/128) for current
+source checkpoints, disposition and next actions.
+
+The current local work is unpushed, unverified and unreleased. Earlier passing
+or failed runs remain evidence for their exact original candidates only; none
+was rerun or promoted here. There is no current source-freeze declaration and
+no instruction here to start QA, merge, deploy, activate providers or apply
+migrations. Authored fixtures and source schemas do not prove that any native,
+database, household, restore or installed-client path works.
+
+Original accepted feature/role/device/privacy/compatibility requirements remain
+in their canonical issues. Some source work is still unfinished; do not relabel
+all remaining work as QA or waiting, and do not close an issue because its UI or
+plan exists. Actual external inputs—provider eligibility/configuration, signing,
+hardware, approved exports, operator decisions and independent household beta
+observations—stay distinct from work Codex can author locally. The two #110
+research/definition criteria recently reconciled do not adopt billing or supply
+customer evidence.
+
+The material below is retained in full for provenance. Its earlier commands,
+counts, proposed sequencing and completeness statements cannot override the
+latest user instruction or current canonical disposition.
+
+---
+
 ## Integrated source repair batch frozen for consolidated QA — 2026-10-23
 
 The implementation review of this repair batch is complete. It follows the
@@ -522,3 +556,101 @@ the active scoped dictionary immediately afterward. Roles, panel lazy loading,
 provider behavior and permissions are unchanged. An existing-suite SSR-English/
 late-client-Spanish regression checks zero recoverable/console errors and final
 Spanish labels. Runtime acceptance still requires the repaired browser journey.
+
+
+### Barcode product/context foreground bounds — 2026-10-25 (#125/#135)
+
+`BarcodeFoodDialog` now races the complete product metadata read, including body
+decode, against the shared foreground owner with10 seconds and64KiB. Same-origin
+credentials/no-store remain explicit. Non-success replies do not await a body;
+current401/403 still request access review. Close/unmount/suspension abort the
+sheet's controller and suppress late metadata, errors and access callbacks even
+when a bridge ignores cancellation. Timeout/oversize/malformed replies retain
+the barcode/draft and existing EN/ES manual-entry feedback; no automatic lookup,
+provider activation or inventory save is added.
+
+`readInventoryIntakeContext` uses the existing15-second/16KiB request helper,
+so a stalled JSON body cannot hold all its callers forever. Barcode context
+callbacks also reject cancelled/suspended reads. The context effect no longer
+uses an outer cancellation-only timer that could mask its timeout feedback.
+Source cases for stalled bodies, oversized context and a late suspended refusal
+are authored, unrun. JSON-only bridge limits are post-parse, not pre-allocation
+protection. Physical cancellation, full original-owner/session authority, saved
+attempts, provider/privacy and native/role/rendered behavior retain their separate
+acceptance. Existing canonical save/recovery and request keys are unchanged.
+No QA/test/build/browser/CI/database operation or release ran; issues stay open.
+
+
+### Barcode reviewed-save sequence retirement — 2026-10-25 (#125/#135)
+
+The mounted barcode tray now advances a local epoch on suspension/resumption
+and unmount. A save checks that epoch before each canonical send, after every
+awaited outcome and after navigation release. A retired send keeps the original
+row request/body/key marked uncertain, even if a late response says confirmed;
+it cannot advance to the next reviewed row, count completion or call onDone.
+An explicit resumed retry reconciles the same request through the existing intake
+path. A current access refusal also stops the multi-row sequence. This local
+epoch is cancellation intent, not authenticated server identity or rollback.
+
+Unexpected transport rejection becomes unknown, and finally releases the local
+busy lane. A later PRODUCT_CHANGED refusal cannot discard an earlier unknown
+request; exact retry stays locked. The existing matching removed-item receipt
+outcome remains terminal. Normal current confirmations retain their original
+count/removal behavior. Completion waits for successful navigation release.
+Three source cases cover suspension/resume across a delayed result with unchanged
+retry, current access refusal stopping later rows and throw→product-conflict
+uncertainty. All are unrun. Whole batch atomicity is not introduced: earlier
+confirmed rows stay saved, unsent rows stay drafts, the in-flight send may commit.
+Existing optional durable recovery readiness and owner/receipt/device/provider
+acceptance remain separate. No data operation, QA or release ran.
+
+
+### Photo reviewed-save sequence retirement — 2026-10-25 (#125/#135)
+
+`ScanFridgeDialog` now checks its mounted save epoch before each canonical intake,
+after each outcome and after navigation release. Suspension/resumption/unmount
+retires the sequence; the sent row keeps its original immutable body/key marked
+unknown and later rows are not sent. Late outcomes cannot count success or report
+completion. A fresh access refusal also stops subsequent rows. Unexpected send
+throws become unknown, and finally releases the local busy lane. Existing
+matching removed-item outcomes and sticky unknown retry policy remain intact.
+
+Each current confirmation updates the accumulated count immediately, so already
+accepted rows are counted when a later row is interrupted. A resumed explicit
+retry checks the same sent request; existing receipts retain duplicate behavior.
+Only successful navigation release in the current sheet may report completion.
+This is not all-or-nothing batch saving, server identity proof or rollback of an
+already sent request. Optional durable recovery remains separately gated.
+Three source cases cover earlier confirmation plus delayed suspension/resume,
+access refusal stopping later rows and a thrown send retaining exact retry/busy
+recovery. All unrun. Upload/preparation/body bounds and original photo/provider,
+role, native, rendered and PostgreSQL acceptance remain separate. No QA, app/DB
+execution, provider activation or release ran; #125/#135 remain open.
+
+
+### Photo preparation/upload/reply foreground bounds — 2026-10-25 (#125/#135)
+
+The existing60-second photo timeout now races the complete prepare→upload→decode
+job with `runOwnedForeground`, not only fetch cancellation. Image preparation
+must still own the live sheet and an unexpired signal before starting an upload;
+a late bitmap/toBlob continuation cannot initiate a provider request. Uploads
+retain the existing8MiB prepared-file limit, document protocol and explicit
+review-only route. Same-origin/no-store are explicit and replies are256KiB capped.
+Current401/403 return existing access-review/default translated feedback without
+awaiting an error body; other usable error messages keep their prior mapping.
+
+The current sheet renders existing retry UI on timeout, malformed or oversized
+success. Retired work cannot populate suggestions. Four source cases cover stalled
+body/late success, late bitmap preparation/no upload, stalled refusal body and
+oversized declaration; all are unrun. The original local image decode/canvas may
+continue physically and synchronous CPU/allocations are not preempted. JSON-only
+bridge protection is post-parse. No promise of provider cancellation, raw media
+retention proof, stock save, native hardware or full identity acceptance is made.
+No QA, app/database/provider execution or release ran. #125/#135 remain open.
+
+
+### 2026-10-25 — recipe insertion identity fixture and migration precondition
+
+New recipe creates now require the existing food-source-versions migration/trigger before effects. The migration is **unapplied and unverified** in this no-QA candidate; do not treat a fixture opt-in as schema readiness or silently activate a provider to satisfy it. Later migration/restore/old-reader and PostgreSQL acceptance must establish the original birth identity before ordinary creates are released. Legacy ID-only create receipts remain held/unknown rather than being assigned a current row identity.
+
+The existing shared route fixture now defaults food-source readiness off. Recipe positive cases explicitly opt in; only the narrow recipe insertion/lookup queries are simulated, and unknown raw queries still return no rows. Opt-in fixture inserts receive independent generations and scoped lookup checks household/creator/generation. One negative case describes unavailable storage refusing before new ingredients/recipes. These are authored/unrun fixture sources, not an SQL engine, row-lock model or immutable-trigger/rollback proof. No tests/checks/build/browser/CI/DB/migrations/generation/push/merge/deploy/activation ran; #460/#135/#136 remain open.

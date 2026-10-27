@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import { BoardRoutineIcon } from './BoardRoutineIcon'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
 import { formatMinutes } from '@/lib/meal-slots'
+import { mealDayHref } from '@/lib/meal-navigation'
 import type { ShoppingSnapshot, ShoppingSnapshotItem } from '@/lib/shopping-snapshot'
 import type { BoardChore, BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
@@ -311,18 +312,22 @@ export function missingIngredientsLine(
 
 export function DinnerRegion({
   compactLandscape = false,
+  day,
   dinner,
   mealsEnabled,
   mealsHref,
   featuresHref,
 }: {
   compactLandscape?: boolean
+  /** Viewer calendar day, also available when no dinner is planned. */
+  day?: string
   dinner: BoardDinner | null
   mealsEnabled: boolean
   mealsHref: string | null
   featuresHref: string | null
 }) {
   const text = useTodayBoardText()
+  const dinnerHref = mealDayHref(mealsHref, day ?? dinner?.day)
   let body: React.ReactNode
   let action: React.ReactNode = undefined
   // Dinner is already tinted in app mode. Both normal and pressed actions
@@ -341,7 +346,7 @@ export function DinnerRegion({
     body = <p className={emptyTextClass}>{text('dinnerEmpty')}</p>
     if (mealsHref) {
       action = (
-        <Link href={mealsHref} className={dinnerActionClass}>
+        <Link href={dinnerHref!} className={dinnerActionClass}>
           {text('planDinner')}
         </Link>
       )
@@ -373,7 +378,7 @@ export function DinnerRegion({
       title={text('dinnerTonight')}
       icon={UtensilsCrossed}
       glyph="meals"
-      href={mealsEnabled ? mealsHref : null}
+      href={mealsEnabled ? dinnerHref : null}
       hrefLabel={text('openMeals')}
       action={action}
     >
@@ -412,12 +417,12 @@ export function GroceriesRegion({
       className="lg:landscape:min-h-0 lg:landscape:flex lg:landscape:flex-col lg:landscape:overflow-hidden lg:landscape:[&>ul]:min-h-0 lg:landscape:[&>ul]:flex-1 lg:landscape:[&>ul]:overflow-y-auto"
       action={action}
     >
-      {shopping.items.length === 0 ? (
+      {shopping.total === 0 ? (
         <p className={emptyTextClass}>{text('groceryEmpty')}</p>
       ) : (
         <>
           <p className={cn(metaTextClass, 'mb-2')}>{text('toBuy', { count: shopping.total })}</p>
-          <ul
+          {shopping.items.length > 0 && <ul
             className="divide-y divide-[var(--surface-separator)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
             tabIndex={0}
             aria-label={text('groceries')}
@@ -454,7 +459,7 @@ export function GroceriesRegion({
                 </li>
               )
             })}
-          </ul>
+          </ul>}
         </>
       )}
       {more > 0 &&

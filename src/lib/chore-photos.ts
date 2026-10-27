@@ -1,3 +1,5 @@
+import { CHORE_PHOTO_FILENAME_RE, CHORE_PHOTO_PATH_PREFIX } from "@/lib/chore-photo-contract";
+export { CHORE_PHOTO_FILENAME_RE, CHORE_PHOTO_PATH_PREFIX } from "@/lib/chore-photo-contract";
 import type { PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
@@ -16,11 +18,6 @@ import { prisma } from '@/lib/prisma'
 // table existed have no row and are still served through the chore or chore
 // assignment of the caller's family that references them. See
 // docs/security/API_ISOLATION_AUDIT.md (D3) for the contract step that removes it.
-
-/** Stored filename shape: 16 hex chars of a sha256 plus a served image extension. */
-export const CHORE_PHOTO_FILENAME_RE = /^[a-f0-9]{16}\.(jpg|jpeg|png|webp|heic)$/i
-
-export const CHORE_PHOTO_PATH_PREFIX = '/api/files/chores/'
 
 export function chorePhotoPath(filename: string): string {
   return `${CHORE_PHOTO_PATH_PREFIX}${filename}`

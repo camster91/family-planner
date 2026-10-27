@@ -1,4 +1,5 @@
 "use client";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 
 // Per-member notification switches (#286, PR101 D-5). Used by the Settings
 // "Notifications" section (parents and teens, O-37) and by the user-menu
@@ -120,7 +121,8 @@ export default function NotificationPreferences({
 }: {
   className?: string;
 }) {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
+  const locale = useDisplayLocale();
   const msg = (
     key: NotificationPreferencesMessage,
     params?: Record<string, string | number>,

@@ -33,6 +33,16 @@ import {
   choice,
 } from "@/lib/calendar-planning/__tests__/schedule-fixture";
 import type { ScheduleRecoveryEntry } from "@/lib/calendar-planning/schedule-recovery";
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  forward: jest.fn(),
+  refresh: jest.fn(),
+};
+jest.mock("next/navigation", () => ({
+  useRouter: () => mockRouter,
+}));
 jest.mock("@/components/ui/use-display-locale", () => ({
   useDisplayLocale: () => "en-CA",
 }));

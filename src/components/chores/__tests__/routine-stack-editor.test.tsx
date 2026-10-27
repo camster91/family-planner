@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import * as React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { ROUTINE_NAME_MAX } from "@/lib/routine-icons";
@@ -945,4 +945,210 @@ it("keeps sheet content below the dialog title heading", async () => {
   expect(
     within(dialog).queryByRole("heading", { name: "Steps", level: 2 }),
   ).toBeNull();
+});
+
+// Bounded request recovery source cases authored UNRUN.
+describe('routine editor bounded transport', () => {
+  afterEach(() => jest.useRealTimers());
+  it('releases stalled initial loading and ignores a late retired response', async () => {
+    let late!: (value: unknown) => void;
+    fetchMock.mockImplementation(() => new Promise(resolve => { late = resolve; }));
+    jest.useFakeTimers();
+    renderEditor();
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(15001); });
+    expect(screen.getByText("We couldn't load the routine choices. Try again.")).toBeTruthy();
+    await act(async () => { late(await response(candidates)); });
+    expect(screen.queryByText('Pack lunches')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('releases a stalled save into unknown recovery, ignores late success and retries exact bytes/key', async () => {
+    let late!: (value: unknown) => void;
+    const posts: RequestInit[] = [];
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/candidates')) return response(candidates);
+      posts.push(init!);
+      return posts.length === 1 ? new Promise(resolve => { late = resolve; }) : response(saveResponse);
+    });
+    const user = userEvent.setup();
+    renderEditor();
+    await screen.findByText('Pack lunches');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    jest.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'Save routine' }));
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(45001); });
+    expect(screen.getByText(/could not confirm whether/i)).toBeTruthy();
+    expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+    expect(posts).toHaveLength(1);
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => { late(await response(saveResponse)); });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    jest.useRealTimers();
+    await user.click(screen.getByRole('button', { name: 'Retry save' }));
+    await waitFor(() => expect(posts).toHaveLength(2));
+    expect(posts[1].body).toBe(posts[0].body);
+    expect(posts[1].headers).toEqual(posts[0].headers);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+  it('refuses an oversized declared save response before decoding and keeps unknown recovery', async () => {
+    const decode = jest.fn(async () => saveResponse);
+    fetchMock.mockImplementation((input: RequestInfo | URL) => String(input).includes('/candidates') ? response(candidates) : Promise.resolve({ ok: true, status: 200, headers: new Headers({ 'content-length': String(64 * 1024 + 1) }), json: decode }));
+    const user = userEvent.setup();
+    renderEditor();
+    await screen.findByText('Pack lunches');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(screen.getByRole('button', { name: 'Save routine' }));
+    expect(await screen.findByText(/could not confirm whether/i)).toBeTruthy();
+    expect(decode).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBeTruthy();
+  });
+});
+
+// Catalog ownership/recovery source cases authored UNRUN.
+it.each(['wrong-day', 'duplicate-id', 'cursor-loop', 'inconsistent-cursor'])('keeps the draft/loaded choices and retries the exact page after %s', async failure => {
+  const requested: string[] = [];
+  const second = { ...candidates.candidates[0], id: 'chore-second', title: 'Vacuum rug' };
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const cursor = new URL(String(input), 'https://family.test').searchParams.get('cursor');
+    if (!cursor) return response({ ...candidates, hasMore: true, nextCursor: 'page-two' });
+    requested.push(cursor);
+    if (requested.length > 1) return response({ ...candidates, candidates: [second] });
+    const invalid = { ...candidates, candidates: [second],
+      ...(failure === 'wrong-day' ? { occurrence_date: '2026-10-12' } : {}),
+      ...(failure === 'duplicate-id' ? { candidates: candidates.candidates } : {}),
+      ...(failure === 'cursor-loop' ? { hasMore: true, nextCursor: 'page-two' } : {}),
+      ...(failure === 'inconsistent-cursor' ? { hasMore: false, nextCursor: 'page-three' } : {}),
+    };
+    return response(invalid);
+  });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.clear(screen.getByLabelText('Routine name'));
+  await user.type(screen.getByLabelText('Routine name'), 'My draft stack');
+  await user.click(screen.getByRole('button', { name: 'Load more chores' }));
+  await screen.findByText("We couldn't load the routine choices. Try again.");
+  expect((screen.getByLabelText('Routine name') as HTMLInputElement).value).toBe('My draft stack');
+  expect(screen.getAllByText('Pack lunches')).toHaveLength(1);
+  expect(screen.queryByText('Vacuum rug')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'Load more chores' }));
+  await screen.findByText('Vacuum rug');
+  expect(requested).toEqual(['page-two', 'page-two']);
+  expect(screen.queryByRole('button', { name: 'Load more chores' })).toBeNull();
+});
+it('retires a pending catalog page on a selected-day change without appending late rows', async () => {
+  let late!: (value: unknown) => void;
+  let oldSignal: AbortSignal | undefined;
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), 'https://family.test');
+    if (url.searchParams.get('occurrence_date') === '2026-10-12')
+      return response({ ...candidates, occurrence_date: '2026-10-12', candidates: [{ ...candidates.candidates[0], id: 'next-day', title: 'Next-day choice', due_date: '2026-10-12T00:00:00.000Z' }] });
+    if (url.searchParams.has('cursor')) {
+      oldSignal = init?.signal ?? undefined;
+      return new Promise(resolve => { late = resolve; });
+    }
+    return response({ ...candidates, hasMore: true, nextCursor: 'old-page' });
+  });
+  const user = userEvent.setup();
+  const view = render(<I18nProvider><RoutineStackEditor familyId='family-a' mode='page' /></I18nProvider>);
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Load more chores' }));
+  searchParams = new URLSearchParams('occurrence_date=2026-10-12');
+  view.rerender(<I18nProvider><RoutineStackEditor familyId='family-a' mode='page' /></I18nProvider>);
+  await screen.findByText('Next-day choice');
+  expect(oldSignal?.aborted).toBe(true);
+  await act(async () => { late(await response({ ...candidates, candidates: [{ ...candidates.candidates[0], id: 'late-old', title: 'Late old-day choice' }] })); });
+  expect(screen.queryByText('Late old-day choice')).toBeNull();
+  expect(screen.getByText('Next-day choice')).toBeTruthy();
+});
+
+// Authored UNRUN: subsequent rejection is not evidence about an earlier attempt.
+it.each([
+  [401, 'SESSION_CHANGED'], [403, 'FORBIDDEN'], [400, 'INVALID_JSON'],
+  [409, 'IDENTITY_CONFLICT'], [409, 'MEMBER_PROTOCOL_UNAVAILABLE'],
+  [422, 'IDEMPOTENCY_KEY_REUSED'],
+])('keeps the original uncertain packet after retry refusal %s/%s', async (status, code) => {
+  const posts: RequestInit[] = [];
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/candidates')) return response(candidates);
+    posts.push(init!);
+    if (posts.length === 1) return response({ stack_id: 'incomplete-response' });
+    if (posts.length === 2) return response({ error: { code } }, Number(status));
+    return response(saveResponse);
+  });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  await user.click(screen.getByRole('button', { name: 'Save routine' }));
+  await screen.findByText(/could not confirm whether/i);
+  await user.click(screen.getByRole('button', { name: 'Retry save' }));
+  await waitFor(() => expect(posts).toHaveLength(2));
+  await screen.findByRole('button', { name: 'Retry save' });
+  expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+  expect(screen.queryByRole('button', { name: 'Reload latest routine' })).toBeNull();
+  expect(refresh).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Retry save' }));
+  await waitFor(() => expect(posts).toHaveLength(3));
+  expect(posts[1].body).toBe(posts[0].body);
+  expect(posts[2].body).toBe(posts[0].body);
+  expect(posts[1].headers).toEqual(posts[0].headers);
+  expect(posts[2].headers).toEqual(posts[0].headers);
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+});
+
+// Authored UNRUN: mounted drafts cannot renew their issue time after uncertainty.
+it('holds an aged uncertain save locally without dispatching or minting a new packet', async () => {
+  const posts: RequestInit[] = [];
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/candidates')) return response(candidates);
+    posts.push(init!);
+    return response({ stack_id: 'incomplete-response' });
+  });
+  const user = userEvent.setup();
+  renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  await user.click(screen.getByRole('button', { name: 'Save routine' }));
+  await screen.findByText(/could not confirm whether/i);
+  const originalTime = (posts[0].headers as Record<string, string>)['X-Herewoven-Routine-Issued-At'];
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.parse(originalTime) + 25 * 60 * 60 * 1000);
+  try {
+    await user.click(screen.getByRole('button', { name: 'Retry save' }));
+    expect(await screen.findByText(/This save is too old to retry safely/)).toBeTruthy();
+    expect(posts).toHaveLength(1);
+    expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+    expect(refresh).not.toHaveBeenCalled();
+  } finally { clock.mockRestore(); }
+});
+
+// Inspection is a separate read-only request, never another save dispatch.
+it.each(['confirmed', 'unknown'])('checks original uncertain status as %s without resubmitting the save', async state => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input); calls.push({ url, init });
+    if (url.includes('/candidates')) return response(candidates);
+    if (url.endsWith('/receipt')) return response(state === 'confirmed' ? { state, stackId: 'stack-new' } : { state });
+    return response({ stack_id: 'incomplete-response' });
+  });
+  const user = userEvent.setup(); renderEditor();
+  await screen.findByText('Pack lunches');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  await user.click(screen.getByRole('button', { name: 'Save routine' }));
+  await screen.findByText(/could not confirm whether/i);
+  await user.click(screen.getByRole('button', { name: 'Check saved status' }));
+  if (state === 'confirmed') await waitFor(() => expect(refresh).toHaveBeenCalled());
+  else {
+    await screen.findByText(/The original save is still unconfirmed/);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Routine name')).toHaveProperty('disabled', true);
+  }
+  const saves = calls.filter(call => call.url === '/api/chores/stacks');
+  const inspections = calls.filter(call => call.url.endsWith('/receipt'));
+  expect(saves).toHaveLength(1); expect(inspections).toHaveLength(1);
+  expect(inspections[0].init?.body).toBe(saves[0].init?.body);
+  expect((inspections[0].init?.headers as Record<string, string>)['Idempotency-Key']).toBe((saves[0].init?.headers as Record<string, string>)['Idempotency-Key']);
 });

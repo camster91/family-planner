@@ -8,6 +8,7 @@
  * `409 IDEMPOTENCY_IN_PROGRESS` retried with the same key replays the first
  * result instead of adding twice. Not offline-queued (O-10).
  */
+import type { RecipeGroceriesText } from "@/i18n/recipe-groceries";
 import { IDEMPOTENCY_HEADER } from "@/lib/idempotency-key";
 
 export interface AddFromRecipeRequest {
@@ -75,24 +76,61 @@ function errorCode(body: unknown): string | null {
     : null;
 }
 
-function validAddResult(body: unknown): body is AddFromRecipeResult {
-  if (!body || typeof body !== "object") return false;
+const resultId = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0 && value.length <= 128;
+
+function validAddResult(body: unknown, expectedListId: string | undefined): body is AddFromRecipeResult {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   const value = body as Partial<AddFromRecipeResult>;
-  return (
-    typeof value.requestId === "string" &&
-    value.requestId.length > 0 &&
-    typeof value.listId === "string" &&
-    typeof value.listName === "string" &&
-    Number.isInteger(value.createdCount) &&
-    value.createdCount! >= 0 &&
-    Number.isInteger(value.alreadyOnListCount) &&
-    value.alreadyOnListCount! >= 0 &&
-    Array.isArray(value.possibleDuplicates) &&
-    typeof value.possibleDuplicatesTruncated === "boolean" &&
-    (!("undoExpiresAt" in value) ||
-      (typeof value.undoExpiresAt === "string" &&
-        Number.isFinite(Date.parse(value.undoExpiresAt))))
-  );
+  if (!resultId(value.requestId) || !resultId(value.listId) ||
+    typeof value.listName !== "string" ||
+    !Number.isSafeInteger(value.createdCount) || value.createdCount! < 0 ||
+    !Number.isSafeInteger(value.alreadyOnListCount) || value.alreadyOnListCount! < 0 ||
+    !Number.isSafeInteger(value.createdCount! + value.alreadyOnListCount!) ||
+    !Array.isArray(value.possibleDuplicates) ||
+    typeof value.possibleDuplicatesTruncated !== "boolean") return false;
+  // The server normalizes ID whitespace but never substitutes another list
+  // for an explicit destination. Missing listId still permits its default list.
+  if (expectedListId !== undefined && value.listId !== expectedListId) return false;
+  const duplicates = value.possibleDuplicates;
+  if (duplicates.length > value.createdCount! || !duplicates.every(item =>
+    item !== null && typeof item === "object" && !Array.isArray(item) &&
+    resultId(item.ingredientId) && resultId(item.matchedItemId)) ||
+    new Set(duplicates.map(item => item.ingredientId)).size !== duplicates.length) return false;
+  return !("undoExpiresAt" in value) ||
+    (typeof value.undoExpiresAt === "string" && Number.isFinite(Date.parse(value.undoExpiresAt)));
+}
+
+function validUndoResult(body: unknown, requestId: string): body is UndoAddResult {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const value = body as Partial<UndoAddResult>;
+  return value.requestId === requestId &&
+    Number.isSafeInteger(value.removedCount) && value.removedCount! >= 0 &&
+    Number.isSafeInteger(value.keptCheckedCount) && value.keptCheckedCount! >= 0;
+}
+
+class GroceryReplyTimeout extends Error {}
+/** Abort is best effort; a native bridge may ignore it or the server may commit. */
+async function postJsonWithinDeadline(url: string, init: RequestInit, fetchImpl: FetchLike) {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      (async () => {
+        const res = await fetchImpl(url, { ...init, signal: controller.signal });
+        const body: unknown = await res.json().catch(() => null);
+        return { res, body };
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new GroceryReplyTimeout());
+          controller.abort();
+        }, 15_000);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,29 +142,31 @@ export async function postAddFromRecipe(
   sleep: (ms: number) => Promise<unknown> = wait,
 ): Promise<AddOutcome> {
   const frozenBody = JSON.stringify(request);
+  const expectedListId = request.listId?.trim();
   for (let attempt = 0; ; attempt++) {
     let res: Response;
+    let body: unknown;
     try {
-      res = await fetchImpl("/api/lists/items/from-recipe", {
+      ({ res, body } = await postJsonWithinDeadline("/api/lists/items/from-recipe", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           [IDEMPOTENCY_HEADER]: key,
         },
         body: frozenBody,
-      });
-    } catch {
+      }, fetchImpl));
+    } catch (error) {
       return {
         kind: "retry",
-        message:
-          "Could not reach the server. Check the connection and try again.",
+        message: error instanceof GroceryReplyTimeout
+          ? "Could not confirm the saved result. Try again to check the same request."
+          : "Could not reach the server. Check the connection and try again.",
       };
     }
-    const body = await res.json().catch(() => null);
     if (res.ok) {
       // A committed write with a lost/truncated response is not a refusal.
       // Keep the original key so the next attempt can recover its replay.
-      if (!validAddResult(body))
+      if (!validAddResult(body, expectedListId))
         return {
           kind: "retry",
           message:
@@ -164,21 +204,28 @@ export async function postUndoAdd(
   fetchImpl: FetchLike = (input, init) => fetch(input, init),
 ): Promise<UndoOutcome> {
   let res: Response;
+  let body: unknown;
   try {
-    res = await fetchImpl("/api/lists/items/undo-add", {
+    ({ res, body } = await postJsonWithinDeadline("/api/lists/items/undo-add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestId }),
-    });
-  } catch {
+    }, fetchImpl));
+  } catch (error) {
     return {
       ok: false,
-      message: "Could not reach the server. Try again.",
+      message: error instanceof GroceryReplyTimeout
+        ? "Could not confirm Undo. Try again to check the same request."
+        : "Could not reach the server. Try again.",
       retryable: true,
     };
   }
-  const body = await res.json().catch(() => null);
-  if (res.ok && body) return { ok: true, result: body as UndoAddResult };
+  if (res.ok) {
+    if (validUndoResult(body, requestId)) return { ok: true, result: body };
+    // A malformed successful reply cannot establish whether Undo committed.
+    return { ok: false, retryable: true,
+      message: "Could not confirm Undo. Try again to check the same request." };
+  }
   const retryable =
     res.status >= 500 ||
     (res.status === 409 && errorCode(body) === "UNDO_IN_PROGRESS");
@@ -209,11 +256,22 @@ export function undoRemainingMs(
 const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
 
 /** Toast copy: what was added, what was already there, what may be a duplicate. */
-export function summarizeAdd(result: AddFromRecipeResult): {
+type SummaryCopy = { text: RecipeGroceriesText; number: (value: number) => string };
+export function summarizeAdd(result: AddFromRecipeResult, copy?: SummaryCopy): {
   title: string;
   details: string[];
 } {
   const { createdCount, alreadyOnListCount, listName } = result;
+  if (copy) {
+    const { text, number } = copy;
+    const countItems = (count: number) => text(count === 1 ? "itemOne" : "itemMany", { count: number(count) });
+    const title = createdCount > 0 ? text(createdCount === 1 ? "addedOne" : "addedMany", { items: countItems(createdCount), list: listName }) : text("alreadyAll", { list: listName });
+    const details: string[] = [];
+    if (createdCount > 0 && alreadyOnListCount > 0) details.push(text("already", { items: countItems(alreadyOnListCount) }));
+    const count = result.possibleDuplicates.length;
+    if (count > 0) details.push(text(result.possibleDuplicatesTruncated ? "duplicateMore" : count === 1 ? "duplicateOne" : "duplicateMany", { count: number(count) }));
+    return { title, details };
+  }
   const title =
     createdCount > 0
       ? `Added ${items(createdCount)} to ${listName}`
@@ -234,7 +292,15 @@ export function summarizeAdd(result: AddFromRecipeResult): {
   return { title, details };
 }
 
-export function summarizeUndo(result: UndoAddResult): string {
+export function summarizeUndo(result: UndoAddResult, copy?: SummaryCopy): string {
+  if (copy) {
+    const { text, number } = copy;
+    const countItems = (count: number) => text(count === 1 ? "itemOne" : "itemMany", { count: number(count) });
+    return text("undone", {
+      removed: result.removedCount === 0 ? text("removedNone") : text(result.removedCount === 1 ? "removedOne" : "removedMany", { items: countItems(result.removedCount) }),
+      kept: result.keptCheckedCount > 0 ? text("kept", { items: countItems(result.keptCheckedCount) }) : "",
+    });
+  }
   const removed =
     result.removedCount === 0
       ? "Nothing left to remove"

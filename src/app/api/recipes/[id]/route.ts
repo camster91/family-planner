@@ -1,3 +1,6 @@
+import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
+import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -12,6 +15,7 @@ import {
 } from "@/lib/recipes";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { RECIPE_OWNER_PROTOCOL, sameRecipeOwner } from "@/lib/recipe-owner-contract";
 import { recipeWriteAuthority, readCreatedRecipe } from "@/lib/recipe-write";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +40,10 @@ export async function GET(request: NextRequest, context: Context) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+    if (ownerRefusal) return ownerRefusal;
 
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
@@ -45,8 +53,13 @@ export async function GET(request: NextRequest, context: Context) {
       where: { id, family_id: auth.user.family_id },
       select: RECIPE_DETAIL_SELECT,
     });
+    const renewal = await renewRecipeReadAuthority(request, original);
+    if (renewal) {
+      renewal.headers.set("Cache-Control", "private, no-store");
+      return renewal;
+    }
     if (!recipe) return notFound();
-    return NextResponse.json({ recipe });
+    return NextResponse.json({ recipe }, { headers: recipeReadOwnerHeaders(original) });
   } catch (err) {
     logRouteError("GET /api/recipes/[id]", err, getRequestId(request));
     return NextResponse.json(
@@ -63,6 +76,11 @@ export async function PATCH(request: NextRequest, context: Context) {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 
+    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
+      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
+    if (ownerRefusal) return ownerRefusal;
+
     const gate = await featureGate(auth.user.family_id, "meals");
     if (gate) return gate;
 
@@ -75,8 +93,13 @@ export async function PATCH(request: NextRequest, context: Context) {
 
     let body: unknown;
     try {
-      body = await request.json();
-    } catch {
+      body = await readBoundedJson(request, RECIPE_WRITE_MAX_BYTES);
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError)
+        return NextResponse.json(
+          { error: { code: "RECIPE_REQUEST_TOO_LARGE" } },
+          { status: 413, headers: { "Cache-Control": "private, no-store" } },
+        );
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
     const parsed = updateRecipeSchema.safeParse(body);
@@ -86,8 +109,13 @@ export async function PATCH(request: NextRequest, context: Context) {
         { status: 400 },
       );
     }
-    const { ingredients, base_revision, base_updated_at, ...fields } =
+    const { ingredients, base_revision, base_updated_at, edit_protocol: _editProtocol, edit_owner, ...fields } =
       parsed.data;
+    void _editProtocol; // Validated command metadata is never a Recipe column.
+    if (edit_owner && !sameRecipeOwner(edit_owner, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
+      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, {
+        status: 409, headers: { "Cache-Control": "private, no-store" },
+      });
     const familyId = auth.user.family_id;
     const { id } = await context.params;
 
@@ -96,6 +124,7 @@ export async function PATCH(request: NextRequest, context: Context) {
         userId: auth.user.id,
         familyId,
         tokenVersion: auth.payload.tv ?? 0,
+        originalRole: original.role,
       });
       if (refused) return { refused };
       await tx.$queryRaw`SELECT "id" FROM "Recipe" WHERE "id" = ${id} AND "family_id" = ${familyId} FOR UPDATE`;
@@ -148,12 +177,12 @@ export async function PATCH(request: NextRequest, context: Context) {
       );
     const detail = await readCreatedRecipe(
       prisma!,
-      { userId: auth.user.id, familyId, tokenVersion: auth.payload.tv ?? 0 },
+      { userId: auth.user.id, familyId, tokenVersion: auth.payload.tv ?? 0, originalRole: original.role },
       id,
     );
     return NextResponse.json(detail.body, {
       status: detail.status,
-      headers: { "Cache-Control": "private, no-store" },
+      headers: detail.status === 200 ? recipeReadOwnerHeaders(original) : { "Cache-Control": "private, no-store" },
     });
   } catch (err) {
     if (err instanceof RecipeInputError) {

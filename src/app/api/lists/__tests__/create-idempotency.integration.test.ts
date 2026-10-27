@@ -166,7 +166,7 @@ describeDb('personal list create against Postgres', () => {
       },
     }))) }
     await expect(idem.withIdempotency(prisma, KEY, ctx, BODY,
-      ({ recordId }) => effect(failingDb, BODY, { familyId: FAM, addedBy: A }, recordId))).rejects.toThrow('completion unavailable')
+      ({ recordId }) => effect(failingDb, BODY, { familyId: FAM, addedBy: A, role: 'parent', generation: 0 }, recordId))).rejects.toThrow('completion unavailable')
     expect(await prisma.listItem.count({ where: { list_id: LIST } })).toBe(0)
     expect(await prisma.idempotencyRecord.count({ where: { scope: ctx.scope, key: KEY } })).toBe(0)
     expect((await POST(request(A))).status).toBe(200)
@@ -183,7 +183,7 @@ describeDb('personal list create against Postgres', () => {
       },
     })
     const first = await idem.withIdempotency(failingOuter, KEY, ctx, BODY,
-      ({ recordId }) => effect(prisma, BODY, { familyId: FAM, addedBy: A }, recordId))
+      ({ recordId }) => effect(prisma, BODY, { familyId: FAM, addedBy: A, role: 'parent', generation: 0 }, recordId))
     expect(first.status).toBe(200)
     const replay = await POST(request(A))
     expect(replay.headers.get('Idempotency-Replayed')).toBe('true')

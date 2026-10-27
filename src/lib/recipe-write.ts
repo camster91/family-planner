@@ -1,3 +1,6 @@
+import { recipeCreateCommandTimeRefusal } from "@/lib/recipe-create-command-window";
+import { foodSourceStorageAvailable } from "@/lib/food-planning/source-versions";
+import { readRecipeCreateReceiptIdentity } from "@/lib/recipe-create-receipt-identity";
 import { recordTimelineFactInTx } from "@/lib/review-inbox/timeline-fact";
 /** Recipe creation and a compact durable receipt commit together (#460). */
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -19,7 +22,7 @@ import {
 } from "@/lib/recipe-curation-contract";
 
 type Db = Pick<PrismaClient, "$transaction">;
-type Actor = { userId: string; familyId: string; tokenVersion: number };
+type Actor = { userId: string; familyId: string; tokenVersion: number; originalRole?: string };
 type Input = z.infer<typeof createRecipeSchema>;
 export const RECIPE_CREATE_ACTION = "recipe.create";
 const failure = (status: number, code: string): EffectResult => ({
@@ -33,12 +36,20 @@ export async function recipeWriteAuthority(
 ): Promise<EffectResult | null> {
   await lockUser(tx, actor.userId);
   await lockHousehold(tx, actor.familyId);
+  if (actor.originalRole !== undefined) {
+    // Fence ordinary role/session/feature updates through effects and replay
+    // projection, including writers which do not take the advisory locks.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${actor.userId} FOR SHARE`;
+    await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${actor.familyId} FOR SHARE`;
+  }
   const user = await tx.user.findUnique({
     where: { id: actor.userId },
     select: { family_id: true, role: true, token_version: true },
   });
   if (!user || user.token_version !== actor.tokenVersion)
     return failure(401, "UNAUTHORIZED");
+  if (actor.originalRole !== undefined && user.role !== actor.originalRole)
+    return failure(403, "RECIPE_OWNER_CHANGED");
   if (user.family_id !== actor.familyId || !canEditRecipe(user.role))
     return failure(403, "FORBIDDEN");
   const family = await tx.family.findUnique({
@@ -60,8 +71,15 @@ export async function createRecipeWithReceipt(
   retainSourceRefusal = false,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const refused = await recipeWriteAuthority(tx, actor);
+    const commandOwner = input.creation_owner;
+    if (commandOwner && (commandOwner.actorId !== actor.userId || commandOwner.familyId !== actor.familyId ||
+        commandOwner.generation !== actor.tokenVersion || (actor.originalRole !== undefined && commandOwner.role !== actor.originalRole)))
+      return failure(409, "RECIPE_OWNER_CHANGED");
+    const boundActor = commandOwner ? { ...actor, originalRole: commandOwner.role } : actor;
+    const refused = await recipeWriteAuthority(tx, boundActor);
     if (refused) return refused;
+    const timeRefusal = recipeCreateCommandTimeRefusal(input);
+    if (timeRefusal) return timeRefusal;
     if (recordId) {
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
       const receipt = await tx.idempotencyRecord.findFirst({
@@ -76,6 +94,8 @@ export async function createRecipeWithReceipt(
         select: { response_status: true, response_body: true },
       });
       if (!receipt) return failure(409, "IDEMPOTENCY_IN_PROGRESS");
+      const afterReceiptWait = recipeCreateCommandTimeRefusal(input);
+      if (afterReceiptWait) return afterReceiptWait;
       if (receipt.response_status !== null)
         return { status: receipt.response_status, body: receipt.response_body };
     }
@@ -83,6 +103,8 @@ export async function createRecipeWithReceipt(
     const sourceKey = source ? recipeSourceKey(source) : null;
     if (source && !input.source_copy) {
       const duplicate = await findRecipeSource(tx, actor.familyId, source);
+      const afterSourceWait = recipeCreateCommandTimeRefusal(input);
+      if (afterSourceWait) return afterSourceWait;
       if (duplicate) {
         const code =
           duplicate === "incomplete"
@@ -95,8 +117,9 @@ export async function createRecipeWithReceipt(
         if (retainSourceRefusal && recordId)
           await tx.idempotencyRecord.update({
             where: { id: recordId },
-            data: { response_status: 409, response_body: { error: { code } } },
+            data: { response_status: 409, response_body: { error: { code }, ...(commandOwner ? { creationOwner: commandOwner } : {}) } },
           });
+        if (recipeCreateCommandTimeRefusal(input)) throw new Error("Recipe command window expired");
         return {
           status: 409,
           body: {
@@ -108,6 +131,11 @@ export async function createRecipeWithReceipt(
         };
       }
     }
+    // Require the existing DB insertion-identity trigger before any new effect.
+    // A missing migration is a hold, never permission to fabricate a birth.
+    if (!(await foodSourceStorageAvailable(tx))) return failure(503, "RECIPE_IDENTITY_UNAVAILABLE");
+    const beforeEffects = recipeCreateCommandTimeRefusal(input);
+    if (beforeEffects) return beforeEffects;
     const lines = await resolveIngredientLines(
       tx,
       actor.familyId,
@@ -128,6 +156,11 @@ export async function createRecipeWithReceipt(
       },
       select: { id: true },
     });
+    const births = await tx.$queryRaw<Array<{ recipeId: string; recipeGeneration: string }>>`
+      SELECT "id" AS "recipeId", "food_generation" AS "recipeGeneration" FROM "Recipe"
+      WHERE "id" = ${recipe.id} AND "family_id" = ${actor.familyId} AND "created_by" = ${actor.userId} FOR SHARE`;
+    const identity = births.length === 1 ? readRecipeCreateReceiptIdentity(births[0]) : null;
+    if (!identity || identity.recipeId !== recipe.id) throw new Error("Recipe insertion identity unavailable");
     if (lines.length)
       await tx.recipeIngredient.createMany({
         data: lines.map((line) => ({ ...line, recipe_id: recipe.id })),
@@ -138,12 +171,15 @@ export async function createRecipeWithReceipt(
       kind: "recipe",
       id: recipe.id,
     });
-    const body = { recipeId: recipe.id };
+    const body = { ...identity, ...(commandOwner ? { creationOwner: commandOwner } : {}) };
     if (recordId)
       await tx.idempotencyRecord.update({
         where: { id: recordId },
         data: { response_status: 201, response_body: body },
       });
+    // Effects/receipt may already be written: throw so the whole transaction
+    // rolls back if a later wait exhausted the original command window.
+    if (recipeCreateCommandTimeRefusal(input)) throw new Error("Recipe command window expired");
     return { status: 201, body };
   });
 }
@@ -151,6 +187,7 @@ export async function readCreatedRecipe(
   db: Db,
   actor: Actor,
   recipeId: string,
+  recipeGeneration?: string,
 ): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
     const refused = await recipeWriteAuthority(tx, actor);
@@ -159,7 +196,14 @@ export async function readCreatedRecipe(
     // contract; nested Prisma relation reads can start parallel tx queries.
     // Existing PATCH takes the recipe row before replacing ingredients.
     // Hold it through projection so those separate reads represent one version.
-    await tx.$queryRaw`SELECT "id" FROM "Recipe" WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} FOR SHARE`;
+    if (recipeGeneration !== undefined) {
+      if (!readRecipeCreateReceiptIdentity({ recipeId, recipeGeneration })) return failure(409, "RECIPE_CONFIRMATION_UNAVAILABLE");
+      if (!(await foodSourceStorageAvailable(tx))) return failure(503, "RECIPE_IDENTITY_UNAVAILABLE");
+      const matches = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Recipe"
+        WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} AND "created_by" = ${actor.userId}
+        AND "food_generation" = ${recipeGeneration} FOR SHARE`;
+      if (matches.length !== 1 || matches[0].id !== recipeId) return failure(409, "RECIPE_NO_LONGER_AVAILABLE");
+    } else await tx.$queryRaw`SELECT "id" FROM "Recipe" WHERE "id" = ${recipeId} AND "family_id" = ${actor.familyId} FOR SHARE`;
     const recipe = await tx.recipe.findFirst({
       where: { id: recipeId, family_id: actor.familyId },
       select: { ...RECIPE_SUMMARY_SELECT, instructions: true },

@@ -3,6 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
+import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { useScheduleReviewText } from "@/i18n/schedule-review";
 import {
   planScheduleReview,
@@ -41,6 +42,7 @@ export default function ScheduleReviewSheet({
   const copy = useScheduleReviewText(),
     locale = useDisplayLocale(),
     session = useScheduleReviewSession(initialScope),
+    router = useRouter(),
     formId = React.useId();
   const [step, setStep] = React.useState<
       "review" | "settings" | "options" | "confirm"
@@ -112,6 +114,23 @@ export default function ScheduleReviewSheet({
     ]
       .filter(Boolean)
       .join(" ");
+  }
+  function navigateAway(
+    event: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    void router.push(href).then((allowed) => {
+      if (allowed) session.stop();
+    });
   }
   const overview = React.useMemo(() => {
     if (!snapshot || !target || !session.reply) return null;
@@ -825,7 +844,7 @@ export default function ScheduleReviewSheet({
             <Link
               className={`${reviewPlain} inline-flex items-center`}
               href="/dashboard/calendar"
-              onClick={() => session.stop()}
+              onClick={(event) => navigateAway(event, "/dashboard/calendar")}
             >
               {copy.calendar}
             </Link>

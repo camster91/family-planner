@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 jest.mock("@/lib/review-document-browser", () =>
   require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
@@ -166,6 +167,12 @@ it("localizes the pending save state", async () => {
           name: "Guardar receta",
         }) as HTMLButtonElement
       ).disabled,
-    ).toBe(false),
+    ).toBe(true),
   );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Receta guardada. Ábrela o cierra este editor para continuar.",
+  );
+  expect(
+    screen.getByRole("link", { name: "Abrir receta guardada" }),
+  ).toHaveAttribute("href", "/dashboard/meals/recipes/created-es");
 });

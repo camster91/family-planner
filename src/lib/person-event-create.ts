@@ -1,5 +1,5 @@
 import type { AssistantSourceGuard } from "./assistant-source-proof";
-import { lockUser, lockHousehold } from "./household-lock";
+import { authorizePersonEventInTx, type PersonEventActor } from "./person-event-authority";
 /** Event creation and its replay receipt commit together (#472). */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { z } from "zod";
@@ -7,20 +7,33 @@ import type { createEventSchema } from "@/lib/validations";
 import type { EffectResult } from "@/lib/idempotency";
 import { recordBetaMetric } from "@/lib/beta-metrics";
 
+/** Renew current authority before returning any completed private receipt. */
+export async function authorizePersonEventCreationReplay(
+  db: Pick<PrismaClient, "$transaction">,
+  actor: PersonEventActor,
+  sourceGuard?: AssistantSourceGuard,
+): Promise<EffectResult | null> {
+  return db.$transaction(async tx => {
+    const refused = await authorizePersonEventInTx(tx, actor, "create");
+    if (refused) return refused;
+    // Completed replay needs current ownership, not a fresh/unchanged AI source.
+    await sourceGuard?.authorize(tx);
+    return null;
+  });
+}
+
 export async function createPersonEvent(
   db: Pick<PrismaClient, "$transaction" | "$executeRaw">,
   input: z.infer<typeof createEventSchema>,
-  actor: { familyId: string; userId: string; name: string },
+  actor: PersonEventActor & { name: string },
   recordId: string | null,
   sourceGuard?: AssistantSourceGuard,
 ): Promise<EffectResult> {
   let created = false;
   const result = await db.$transaction(async (tx) => {
-    if (sourceGuard) {
-      await lockUser(tx, actor.userId);
-      await lockHousehold(tx, actor.familyId);
-      await sourceGuard.authorize(tx);
-    }
+    const refused = await authorizePersonEventInTx(tx, actor, "create");
+    if (refused) return refused;
+    await sourceGuard?.authorize(tx);
     if (recordId) {
       await tx.$queryRaw`SELECT "id" FROM "IdempotencyRecord" WHERE "id" = ${recordId} FOR UPDATE`;
       const receipt = await tx.idempotencyRecord.findFirst({

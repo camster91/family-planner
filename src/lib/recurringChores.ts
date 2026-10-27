@@ -1,3 +1,5 @@
+import { isFairChoreTopUpEnabled } from "@/lib/chore-top-up-gates"
+import { topUpFairHouseholdSeries } from "@/lib/chore-top-up-cursor"
 import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
 import { topUpScheduledOnceSteps } from '@/lib/routine-once-top-up'
 import { nextDueDate, startOfDay } from '@/lib/chore-recurrence-dates'
@@ -122,9 +124,13 @@ export async function expandSeriesInTx(
     horizon = next
   }
 
+  // Once the window is full, more future rows cannot change the decision.
+  // If fewer exist, this reads all of them, retaining the exact collision set.
   const upcoming = await tx.chore.findMany({
-    where: { recurrence_id: seriesId, due_date: { gte: today } },
+    where: { family_id: familyId, recurrence_id: seriesId, due_date: { gte: today } },
     select: { due_date: true },
+    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
+    take: windowSize,
   })
   const needed = windowSize - upcoming.length
   if (needed <= 0) return 0
@@ -132,8 +138,8 @@ export async function expandSeriesInTx(
   // Latest date already in the series. Falling back to the template's own due
   // date means a brand-new series starts one interval after its first row.
   const latest = await tx.chore.findFirst({
-    where: { recurrence_id: seriesId },
-    orderBy: { due_date: 'desc' },
+    where: { family_id: familyId, recurrence_id: seriesId },
+    orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
     select: { due_date: true, rotation_index: true },
   })
   const anchorDate = latest?.due_date ?? original.due_date
@@ -280,7 +286,10 @@ export async function expandAllRecurringChores(familyId: string, now: Date = new
 export const MAX_SERIES_PER_TOP_UP = 100
 
 /**
- * Keep every recurring series of a household topped up, on read.
+ * Attempt a bounded foreground top-up for a household, on read.
+ * The default legacy path starts at the first100 IDs. The separately gated
+ * fair path resumes a household-owned attempted position across visits.
+ * Neither a bounded visit nor an inserted count proves every series is full.
  *
  * There is no scheduler (AGENTS.md: no cron without approval), so a series is
  * otherwise only extended when it is created, when one of its chores is
@@ -298,6 +307,9 @@ export async function topUpHouseholdSeries(familyId: string, now: Date = new Dat
   // Explicit once-only routine recovery has its own bounded pass. It neither
   // changes legacy once semantics nor consumes the repeating-template budget.
   const onceInserted = await topUpScheduledOnceSteps(prisma!, familyId, now, expandSeriesInTx)
+  if (isFairChoreTopUpEnabled()) {
+    return onceInserted + await topUpFairHouseholdSeries(prisma!, familyId, now, expandSeriesInTx)
+  }
   try {
     const templates = await prisma!.chore.findMany({
       where: { family_id: familyId, is_template: true, frequency: { not: 'once' } },

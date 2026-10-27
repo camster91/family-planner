@@ -1,6 +1,5 @@
 import {
   assistantSourceGuard,
-  authorizeAssistantSourceReplay,
   AssistantSourceRefused,
 } from "@/lib/assistant-source-proof";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { featureGate } from "@/lib/feature-gate-server";
 import { authenticateWithFamily, requireFamilyMatch } from "@/lib/api-auth";
 import { createListItemSchema } from "@/lib/validations";
-import { createPersonListItem } from "@/lib/person-list-item-create";
+import { createPersonListItem, authorizePersonListItemReplay } from "@/lib/person-list-item-create";
 import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
@@ -59,6 +58,7 @@ export async function POST(request: NextRequest) {
     const familyError = requireFamilyMatch(list.family_id, auth.user.family_id);
     if (familyError) return familyError;
 
+    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 };
     const sourceGuard = assistantSourceGuard(
       request,
       {
@@ -83,13 +83,13 @@ export async function POST(request: NextRequest) {
         createPersonListItem(
           prisma!,
           parsed.data,
-          { familyId: auth.user.family_id, addedBy: auth.user.id },
+          actor,
           recordId,
           { sourceGuard, groceryOnly: Boolean(sourceGuard) },
         ),
       {
         beforeReplay: () =>
-          authorizeAssistantSourceReplay(prisma!, sourceGuard),
+          authorizePersonListItemReplay(prisma!, actor, parsed.data.listId, { sourceGuard, groceryOnly: Boolean(sourceGuard) }),
       },
     );
   } catch (error) {

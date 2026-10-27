@@ -1,3 +1,4 @@
+import { CHORE_PHOTO_MAX_BYTES } from '@/lib/chore-photo-contract'
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir, rename, unlink } from 'fs/promises'
 import { existsSync } from 'fs'
@@ -25,7 +26,7 @@ import {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_FILE_SIZE = CHORE_PHOTO_MAX_BYTES // Existing 5MB limit, shared with the chooser.
 // One photo plus generous room for multipart framing and other fields.
 const MAX_REQUEST_BYTES = MAX_FILE_SIZE + 1024 * 1024
 // GIF is deliberately absent: /api/files/chores only serves jpg/png/webp/heic.

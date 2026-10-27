@@ -20,6 +20,16 @@ import {
 import { browserWeeklyResetRecovery } from "@/lib/weekly-reset-browser";
 import { WEEKLY_RESET_PROTOCOL } from "@/lib/weekly-reset";
 import type { WeeklyResetRecoveryEntry } from "@/lib/weekly-reset-recovery";
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  forward: jest.fn(),
+  refresh: jest.fn(),
+};
+jest.mock("next/navigation", () => ({
+  useRouter: () => mockRouter,
+}));
 jest.mock("@/components/ui/use-display-locale", () => ({
   useDisplayLocale: () => "en-CA",
 }));

@@ -38,6 +38,7 @@ export const accountDeletionEnglish = {
   stillWorking: "Still working on it. Wait a moment, then try again.",
   sessionEnded: "Your session has ended. Sign in again to continue.",
   nothingDeleted: "Something went wrong. Nothing was deleted.",
+  historicalOwnerNeeded: "Your account was not deleted. Shared content in a former household needs a local owner. Ask support to review this before trying again.",
 } as const;
 export type AccountDeletionMessage = keyof typeof accountDeletionEnglish;
 export const accountDeletionSpanish: Record<AccountDeletionMessage, string> = {
@@ -78,6 +79,7 @@ export const accountDeletionSpanish: Record<AccountDeletionMessage, string> = {
   sessionEnded:
     "Tu sesión ha terminado. Inicia sesión de nuevo para continuar.",
   nothingDeleted: "Algo salió mal. No se eliminó nada.",
+  historicalOwnerNeeded: "Tu cuenta no se eliminó. El contenido compartido de un hogar anterior necesita un responsable de ese hogar. Pide a soporte que lo revise antes de volver a intentarlo.",
 };
 export const accountDeletionMessages = {
   en: accountDeletionEnglish,

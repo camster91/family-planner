@@ -44,7 +44,7 @@ beforeEach(() => {
     ({ ok: true, status: 200, json: async () => ({}) }) as Response
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -188,7 +188,7 @@ it('changing status: a failure shows a localized toast that clears after a valid
   } as Response
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -268,7 +268,7 @@ it('denying: restores focus to the triggering status select after a retry succee
   let current = { ...ITEM, denied_reason: null as string | null }
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -346,7 +346,7 @@ it('status changes lock one item while pending and ignore a second selection', a
   let statusCalls = 0
   let current = ITEM
   global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
+    const url = new URL(String(input), 'https://fixture.invalid').pathname
     const method = (init?.method ?? 'GET').toUpperCase()
     if (url === '/api/auth/me') {
       return Promise.resolve({
@@ -401,7 +401,7 @@ it('reconciles a malformed status response before allowing a retry', async () =>
   let current = ITEM
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -447,7 +447,7 @@ it('reconciles a network-uncertain status write before showing an error', async 
   let current = ITEM
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -488,7 +488,7 @@ it('reconciles a 5xx status response before allowing a retry', async () => {
   let wishlistGets = 0
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -538,7 +538,7 @@ it('keeps the confirmed PATCH status and offers a GET-only retry when refresh fa
   const statusKeys: string[] = []
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -604,7 +604,7 @@ it('keeps a malformed status payload unresolved when reconciliation also fails',
   let wishlistGets = 0
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -657,7 +657,7 @@ it('does not let an older status refresh overwrite a newer item refresh', async 
   const refreshes: Array<(items: unknown[]) => void> = []
   let wishlistGets = 0
   global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
+    const url = new URL(String(input), 'https://fixture.invalid').pathname
     const method = (init?.method ?? 'GET').toUpperCase()
     if (url === '/api/auth/me') {
       return Promise.resolve({
@@ -741,7 +741,7 @@ it('keeps a confirmed add visible when refresh fails and retries only the GET', 
   }
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -798,7 +798,7 @@ it('reuses the same mutation key when an add is retried with the same draft', as
   const created = { ...ITEM, id: 'w-retried', title: 'Helmet' }
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -854,7 +854,7 @@ it('keeps an add intent across retryable 409, 429, 408, and 425 responses', asyn
   const created = { ...ITEM, id: 'w-retryable', title: 'Skates' }
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -955,7 +955,7 @@ it('rejects a successful edit response with the wrong identity or edited fields'
   const keys: string[] = []
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -1033,7 +1033,7 @@ it('shows a child only their own ideas and keeps parent status controls private'
   }
   const familyWish = { ...ITEM, id: 'w-parent', title: 'Parent camera' }
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
-    const url = String(input)
+    const url = new URL(String(input), 'https://fixture.invalid').pathname
     if (url === '/api/auth/me') {
       return {
         ok: true,
@@ -1053,6 +1053,10 @@ it('shows a child only their own ideas and keeps parent status controls private'
 
   renderPage()
   await screen.findByText('Child bike')
+  expect((global.fetch as jest.Mock).mock.calls.some(([input]) => {
+    const url = new URL(String(input), 'https://fixture.invalid')
+    return url.pathname === '/api/wishlist' && url.searchParams.get('mine') === 'true'
+  })).toBe(true)
   expect(screen.queryByText('Parent camera')).toBeNull()
   expect(screen.queryByRole('combobox')).toBeNull()
   expect(screen.getByRole('button', { name: 'wishlist.editItem' })).toBeTruthy()
@@ -1077,7 +1081,7 @@ it('groups parent ideas by requester id even when names are identical', async ()
     requester: { id: 'u-second', name: 'Alex' },
   }
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
-    const url = String(input)
+    const url = new URL(String(input), 'https://fixture.invalid').pathname
     if (url === '/api/auth/me') {
       return {
         ok: true,
@@ -1106,7 +1110,7 @@ it('groups parent ideas by requester id even when names are identical', async ()
 
 it('uses the personal ideas heading for teen members', async () => {
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
-    const url = String(input)
+    const url = new URL(String(input), 'https://fixture.invalid').pathname
     if (url === '/api/auth/me') {
       return {
         ok: true,
@@ -1153,7 +1157,7 @@ it('editing: sends the existing wishlist fields through the short sheet', async 
   let patchBody: Record<string, unknown> | null = null
   global.fetch = jest.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input)
+      const url = new URL(String(input), 'https://fixture.invalid').pathname
       const method = (init?.method ?? 'GET').toUpperCase()
       if (url === '/api/auth/me') {
         return {
@@ -1219,4 +1223,154 @@ it('editing: sends the existing wishlist fields through the short sheet', async 
     description: 'A safe commuter helmet',
     approx_price: '42.5',
   })
+})
+
+// Paging/recovery fixtures authored 2026-10-24, not executed in the no-QA pass.
+it('loads more only on request and labels loaded-only totals until the final page', async () => {
+  const reads: string[] = []
+  const later = { ...ITEM, id: 'w-later', title: 'Tent' }
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), 'https://fixture.invalid')
+    if (url.pathname === '/api/auth/me') return {
+      ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+    } as Response
+    if (url.pathname === '/api/wishlist') {
+      reads.push(url.search)
+      return { ok: true, status: 200, json: async () => url.searchParams.has('cursor')
+        ? { items: [later], nextCursor: null }
+        : { items: [ITEM], nextCursor: 'fixture-next' },
+      } as Response
+    }
+    throw new Error('Unexpected fixture read')
+  }) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  expect(reads).toHaveLength(1)
+  expect(new URLSearchParams(reads[0]).get('limit')).toBe('24')
+  expect(new URLSearchParams(reads[0]).get('mine')).toBe('false')
+  expect(screen.getByText('loaded')).toBeTruthy()
+  expect(screen.queryByText('Tent')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'more' }))
+  await screen.findByText('Tent')
+  expect(reads).toHaveLength(2)
+  expect(new URLSearchParams(reads[1]).get('cursor')).toBe('fixture-next')
+  expect(screen.getByText('complete')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'more' })).toBeNull()
+})
+
+it('retries the same continuation after a failed page without losing existing wishes', async () => {
+  const positions: Array<string | null> = []
+  let failed = false
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), 'https://fixture.invalid')
+    if (url.pathname === '/api/auth/me') return {
+      ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+    } as Response
+    if (url.pathname === '/api/wishlist') {
+      const cursor = url.searchParams.get('cursor')
+      positions.push(cursor)
+      if (cursor && !failed) { failed = true; throw new TypeError('Fabricated outage') }
+      return { ok: true, status: 200, json: async () => cursor
+        ? { items: [], nextCursor: null }
+        : { items: [ITEM], nextCursor: 'fixture-next' },
+      } as Response
+    }
+    throw new Error('Unexpected fixture read')
+  }) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  await user.click(screen.getByRole('button', { name: 'more' }))
+  await screen.findByText('failed')
+  expect(screen.getByText('Bike')).toBeTruthy()
+  await user.click(screen.getByRole('button', { name: 'more' }))
+  await screen.findByText('complete')
+  expect(positions).toEqual([null, 'fixture-next', 'fixture-next'])
+})
+
+it('does not treat a deleted target missing from a loaded page as proof of deletion', async () => {
+  let deletes = 0
+  let targetReads = 0
+  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), 'https://fixture.invalid')
+    const method = init?.method ?? 'GET'
+    if (url.pathname === '/api/auth/me') return {
+      ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }),
+    } as Response
+    if (url.pathname === '/api/wishlist') return {
+      ok: true, status: 200, json: async () => ({ items: deletes ? [] : [ITEM], nextCursor: null }),
+    } as Response
+    if (url.pathname === '/api/wishlist/w1' && method === 'DELETE') {
+      deletes++
+      return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    }
+    if (url.pathname === '/api/wishlist/w1' && method === 'GET') {
+      targetReads++
+      // Contradict the page absence with the canonical row, then confirm on
+      // explicit refresh. Neither read issues another DELETE.
+      return targetReads === 1
+        ? { ok: true, status: 200, json: async () => ({ item: ITEM }) } as Response
+        : { ok: false, status: 404, json: async () => ({ error: 'Not found' }) } as Response
+    }
+    throw new Error('Unexpected fixture read')
+  }) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  await user.click(screen.getByRole('button', { name: 'wishlist.deleteItem' }))
+  const dialog = screen.getByRole('alertdialog')
+  await user.click(within(dialog).getByRole('button', { name: 'wishlist.delete' }))
+  await screen.findByText('wishlist.deletedRefreshFailed')
+  expect(targetReads).toBe(1)
+  await user.click(screen.getByRole('button', { name: 'wishlist.retry' }))
+  await waitFor(() => expect(screen.queryByText('wishlist.deletedRefreshFailed')).toBeNull())
+  expect(deletes).toBe(1)
+  expect(targetReads).toBe(2)
+})
+
+// Authored source coverage; no test execution in the current no-QA pass.
+it('refuses an oversized collection before decoding instead of exposing a partial wishlist', async () => {
+  const decode = jest.fn(async () => ({ items: [ITEM], nextCursor: null }))
+  global.fetch = jest.fn(async input => String(input) === '/api/auth/me'
+    ? ({ ok: true, status: 200, json: async () => ({ user: { id: 'u1', role: 'parent' } }) })
+    : ({ ok: true, status: 200, headers: new Headers({ 'content-length': '3145728' }), json: decode })) as unknown as typeof fetch
+  renderPage()
+  await screen.findByText('wishlist.errorLoad')
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.queryByText('Bike')).toBeNull()
+})
+
+it.each([401, 403])('rejects the %s account lookup without decoding an unresponsive body', async status => {
+  const decode = jest.fn(() => new Promise(() => {}))
+  global.fetch = jest.fn(async () => ({ ok: false, status, json: decode })) as unknown as typeof fetch
+  renderPage()
+  await screen.findByText('wishlist.errorLoad')
+  expect(decode).not.toHaveBeenCalled()
+  expect(global.fetch).toHaveBeenCalledTimes(1)
+  expect(screen.queryByText('Bike')).toBeNull()
+})
+
+it('keeps an oversized delete outcome uncertain and reuses the same key on explicit retry', async () => {
+  const decode = jest.fn(async () => ({ success: true }))
+  mutationReply = async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': '1048576' }), json: decode }) as unknown as Response
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Bike')
+  await user.click(screen.getByRole('button', { name: 'wishlist.deleteItem' }))
+  const dialog = screen.getByRole('alertdialog')
+  const confirm = within(dialog).getByRole('button', { name: 'wishlist.delete' })
+  await user.click(confirm)
+  await within(dialog).findByText('wishlist.writeUncertain')
+  expect((confirm as HTMLButtonElement).disabled).toBe(false)
+  await user.click(confirm)
+  await waitFor(() => expect((confirm as HTMLButtonElement).disabled).toBe(false))
+  const writes = (global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'DELETE')
+  expect(writes).toHaveLength(2)
+  const firstKey = new Headers(writes[0][1].headers).get('Idempotency-Key')
+  expect(firstKey).toBeTruthy()
+  expect(new Headers(writes[1][1].headers).get('Idempotency-Key')).toBe(firstKey)
+  expect(decode).not.toHaveBeenCalled()
+  expect(screen.getAllByText('Bike').length).toBeGreaterThan(0)
+  expect(screen.getByRole('alertdialog')).toBeTruthy()
 })

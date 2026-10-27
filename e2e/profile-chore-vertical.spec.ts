@@ -13,7 +13,13 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
-import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
+import type {
+  Browser,
+  BrowserContext,
+  Page,
+  Route,
+  TestInfo,
+} from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import pg from "pg";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -345,6 +351,62 @@ async function createProfileChore(
   });
 }
 
+type CapturedPostResponse = {
+  status: number;
+  text: string;
+};
+
+/**
+ * Observe one real mutation without asking Chromium for a body after the
+ * mutation navigates the page. The route is a passthrough: the canonical
+ * request is sent with route.fetch, its body is read before fulfillment, and
+ * the exact response is then handed back to the app.
+ */
+async function captureOnePostBeforeNavigation(
+  page: Page,
+  pathname: string,
+  submit: () => Promise<void>,
+): Promise<CapturedPostResponse> {
+  let postHandled = false;
+  let resolveCapture!: (response: CapturedPostResponse) => void;
+  let rejectCapture!: (error: unknown) => void;
+  const captured = new Promise<CapturedPostResponse>((resolve, reject) => {
+    resolveCapture = resolve;
+    rejectCapture = reject;
+  });
+  const matcher = (url: URL) =>
+    url.pathname === pathname && url.search.length === 0;
+  const handler = async (route: Route) => {
+    const request = route.request();
+    if (request.method() !== "POST" || postHandled) {
+      await route.continue();
+      return;
+    }
+    postHandled = true;
+    try {
+      const response = await route.fetch({ maxRedirects: 0, maxRetries: 0 });
+      const body = await response.body();
+      const capturedResponse = {
+        status: response.status(),
+        text: body.toString("utf8"),
+      };
+      await route.fulfill({ response });
+      resolveCapture(capturedResponse);
+    } catch (error) {
+      rejectCapture(error);
+      throw error;
+    }
+  };
+
+  await page.route(matcher, handler);
+  try {
+    await submit();
+    return await captured;
+  } finally {
+    await page.unroute(matcher, handler);
+  }
+}
+
 async function createProfileWeeklyChore(
   page: Page,
   x: OwnedNames,
@@ -368,14 +430,14 @@ async function createProfileWeeklyChore(
   await expect(page.getByTestId("weekly-schedule-summary")).toContainText(
     "Monday, Wednesday",
   );
-  const response = page.waitForResponse(
-    (r) =>
-      r.url().endsWith("/api/chores/create") && r.request().method() === "POST",
+  const result = await captureOnePostBeforeNavigation(
+    page,
+    "/api/chores/create",
+    () =>
+      page.getByRole("button", { name: "Create Chore", exact: true }).click(),
   );
-  await page.getByRole("button", { name: "Create Chore", exact: true }).click();
-  const result = await response;
-  const resultText = await result.text();
-  expect(result.status(), resultText).toBe(200);
+  const resultText = result.text;
+  expect(result.status, resultText).toBe(200);
   const body = JSON.parse(resultText) as {
     chore?: {
       id?: string;
@@ -439,14 +501,13 @@ async function createProfileRoutineChore(
     await page.locator("#chore-routine").fill(input.routine);
     await page.locator("#chore-routine-order").fill(String(input.order ?? 1));
   }
-  const response = page.waitForResponse(
-    (r) =>
-      r.url().endsWith("/api/chores/create") && r.request().method() === "POST",
+  const result = await captureOnePostBeforeNavigation(
+    page,
+    "/api/chores/create",
+    () => page.getByRole("button", { name: "Create Chore" }).click(),
   );
-  await page.getByRole("button", { name: "Create Chore" }).click();
-  const result = await response;
-  const resultText = await result.text();
-  expect(result.status(), resultText).toBe(200);
+  const resultText = result.text;
+  expect(result.status, resultText).toBe(200);
   const body = JSON.parse(resultText) as {
     chore?: {
       id?: string;
@@ -845,8 +906,20 @@ test.describe.serial("email-free profile chore vertical", () => {
       await expect(tablet.page.getByTestId("undo-toast")).toBeVisible();
 
       await page.goto("/dashboard/chores");
-      await expect(page.getByText(x.chore, { exact: true })).toBeVisible();
-      const verify = page.getByRole("button", {
+      // Scope the parent review to the canonical "To check" section. The
+      // responsive dashboard can retain a second text node outside this
+      // section while the page settles, but only this section owns the
+      // verification action for the completed chore.
+      const toCheck = page
+        .locator("#main-content")
+        .getByText("To check", { exact: true });
+      await expect(toCheck).toHaveCount(1);
+      const checkSection = toCheck.locator("xpath=ancestor::section[1]");
+      await expect(checkSection).toHaveCount(1);
+      await expect(
+        checkSection.getByText(x.chore, { exact: true }),
+      ).toBeVisible();
+      const verify = checkSection.getByRole("button", {
         name: `Verify “${x.chore}”`,
         exact: true,
       });
@@ -859,7 +932,10 @@ test.describe.serial("email-free profile chore vertical", () => {
       await verify.click();
       expect((await verified).status()).toBe(200);
       await expect(
-        page.getByRole("button", { name: `Verify “${x.chore}”`, exact: true }),
+        checkSection.getByRole("button", {
+          name: `Verify “${x.chore}”`,
+          exact: true,
+        }),
       ).toHaveCount(0);
       await expectNoHorizontalOverflow(page, "parent chores verification");
 
@@ -1330,17 +1406,16 @@ test.describe.serial("email-free profile chore vertical", () => {
         page.locator("select[id^='routine-assignee-']").first(),
       ).toContainText(chores[0].profileName);
 
-      const saveResponse = page.waitForResponse(
-        (response) =>
-          response.url().endsWith("/api/chores/stacks") &&
-          response.request().method() === "POST",
+      const saved = await captureOnePostBeforeNavigation(
+        page,
+        "/api/chores/stacks",
+        () =>
+          page
+            .getByRole("button", { name: "Save routine", exact: true })
+            .click(),
       );
-      await page
-        .getByRole("button", { name: "Save routine", exact: true })
-        .click();
-      const saved = await saveResponse;
-      const savedText = await saved.text();
-      expect(saved.status(), savedText).toBe(200);
+      const savedText = saved.text;
+      expect(saved.status, savedText).toBe(200);
       const savedBody = JSON.parse(savedText) as { stack_id?: string };
       expect(savedBody.stack_id).toMatch(/^[a-z0-9-]+$/);
       const stackId = savedBody.stack_id!;

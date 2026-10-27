@@ -5,8 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { canCreateList } from '@/lib/role-capabilities'
-import { resolveDefaultGroceryListInTx } from '@/lib/grocery-from-recipe'
-import { createPersonListItemInTx } from '@/lib/person-list-item-create'
+import { createCapturedGrocery, authorizePersonListItemReplay } from '@/lib/person-list-item-create'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -47,22 +46,14 @@ export async function POST(request: NextRequest) {
     const parsed = captureGrocerySchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
 
+    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 };
     const response = await withIdempotency(
       prisma!,
       key,
       { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'capture.grocery.add' },
       parsed.data,
-      ({ recordId }) =>
-        prisma!.$transaction(async (tx) => {
-          const list = await resolveDefaultGroceryListInTx(tx, auth.user.family_id, auth.user.id)
-          return createPersonListItemInTx(
-            tx,
-            { listId: list.id, content: parsed.data.content, quantity: parsed.data.quantity },
-            { familyId: auth.user.family_id, addedBy: auth.user.id },
-            recordId,
-            { groceryOnly: true },
-          )
-        }),
+      ({ recordId }) => createCapturedGrocery(prisma!, parsed.data, actor, recordId),
+      { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null, { requireListCreation: true, groceryOnly: true }) },
     )
     response.headers.set('Cache-Control', 'private, no-store')
     return response

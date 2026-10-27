@@ -1,4 +1,5 @@
 /** @jest-environment jsdom */
+import { calendarReadOwnerHeaders } from "@/__tests__/helpers/calendar-read-owner";
 import * as React from "react";
 import "@testing-library/jest-dom";
 import { render, screen, fireEvent, act } from "@testing-library/react";
@@ -32,7 +33,7 @@ const event = {
   start_time: "2026-01-05T09:00:45.123Z",
   end_time: "2026-01-05T11:00:55.456Z",
   event_type: "other",
-  source: { name: "Fixture {source}", color: null },
+  source: { subscription_id: "fixture-source", name: "Fixture {source}", color: null },
   source_subscription_id: "fixture-source",
 };
 beforeEach(() => {
@@ -43,7 +44,7 @@ beforeEach(() => {
     removeEventListener: jest.fn(),
   });
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? {
@@ -58,7 +59,7 @@ it('offers direct setup shortcuts to parents without starting a provider request
   localized(<CalendarPlanner initialDate="2026-01-05" initialView="agenda" canEditEvents calendarSyncAvailable />, 'en');
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
   const count = (fetch as jest.Mock).mock.calls.length;
-  fireEvent.click(screen.getByText('Add connection'));
+  fireEvent.click(screen.getByText('Calendars & connections'));
   expect(screen.getByRole('link', { name: 'Connect Google or Outlook' })).toHaveAttribute('href', '/dashboard/settings#calendar-sync');
   expect(screen.getByRole('link', { name: 'Subscribe to a read-only calendar link' })).toHaveAttribute('href', '/dashboard/settings#calendar-subscriptions');
   expect(screen.getByText('Connect a supported calendar for two-way sync, or subscribe to a read-only calendar link.')).toBeVisible();
@@ -68,7 +69,7 @@ it('offers direct setup shortcuts to parents without starting a provider request
 it('explains unavailable provider sync while keeping the read-only subscription shortcut', async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" canEditEvents />, 'en');
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
-  fireEvent.click(screen.getByText('Add connection'));
+  fireEvent.click(screen.getByText('Calendars & connections'));
   expect(screen.queryByText('Connect Google or Outlook')).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Google or Outlook sync setup' })).not.toBeInTheDocument();
   expect(document.querySelector('a[href="/dashboard/settings#calendar-sync"]')).toBeNull();
@@ -78,13 +79,13 @@ it('explains unavailable provider sync while keeping the read-only subscription 
 it('keeps connections management hidden for a non-parent even if sync is configured', async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" calendarSyncAvailable />, 'en');
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
-  expect(screen.queryByText('Add connection')).not.toBeInTheDocument();
+  expect(screen.queryByText('Calendars & connections')).not.toBeInTheDocument();
   expect(screen.queryByText('Subscribe by calendar link')).not.toBeInTheDocument();
 });
 it('localizes the connections menu while preserving canonical setup URLs', async () => {
   localized(<CalendarPlanner initialDate="2026-01-05" canEditEvents calendarSyncAvailable />);
   await screen.findByRole('button', { name: /Fixture \{title\}/ });
-  fireEvent.click(screen.getByText('Añadir conexión'));
+  fireEvent.click(screen.getByText('Calendarios y conexiones'));
   expect(screen.getByRole('link', { name: 'Conectar Google u Outlook' })).toHaveAttribute('href', '/dashboard/settings#calendar-sync');
   expect(screen.getByRole('link', { name: 'Suscribirse a un enlace de calendario de solo lectura' })).toHaveAttribute('href', '/dashboard/settings#calendar-subscriptions');
   expect(screen.getByText(/Los enlaces pueden venir de Google Calendar, Apple iCloud/)).toBeVisible();
@@ -197,7 +198,7 @@ const suggestion = {
 };
 function suggestionResponse() {
   return {
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     status: 200,
     json: async () => ({
       suggestions: [suggestion],
@@ -275,7 +276,7 @@ it("a lost commit response and locale switch reuse the exact reviewed batch and 
   });
   await act(async () =>
     resolve({
-      ok: true,
+      ok: true, headers: calendarReadOwnerHeaders(),
       status: 201,
       json: async () => ({
         count: 1,
@@ -385,7 +386,7 @@ it("shared offline notices switch language without changing age or duplicating t
 });
 it("the parent-only local detail edit action is translated without exposing it on imported events", async () => {
   global.fetch = jest.fn(async (url) => ({
-    ok: true,
+    ok: true, headers: calendarReadOwnerHeaders(),
     json: async () =>
       String(url).includes("subscriptions")
         ? { subscriptions: [] }

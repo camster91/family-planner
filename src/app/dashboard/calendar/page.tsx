@@ -1,5 +1,7 @@
+import { CALENDAR_OWNER_PROTOCOL, calendarOwnerSchema } from "@/lib/calendar-read-owner";
 import { after } from "next/server";
-import { getServerUser } from "@/lib/supabase/server";
+import { readEventNotificationFocus } from "@/lib/event-notification-focus";
+import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { isCalendarSyncEnabled } from "@/lib/calendar-sync/config";
 import { refreshStaleConnections } from "@/lib/calendar-sync/sync";
@@ -10,6 +12,7 @@ import CalendarPageClient from "./CalendarPageClient";
 
 interface CalendarPageProps {
   searchParams: Promise<{
+    focus?: string | string[];
     month?: string;
     year?: string;
     date?: string;
@@ -21,7 +24,7 @@ export default async function CalendarPage({
   searchParams,
 }: CalendarPageProps) {
   const params = await searchParams;
-  const sessionUser = await getServerUser();
+  const sessionUser = await getServerActor();
 
   if (!sessionUser) {
     return null;
@@ -29,11 +32,17 @@ export default async function CalendarPage({
 
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
-    select: { family_id: true, role: true },
+    select: { family_id: true, role: true, token_version: true },
   });
 
   if (user?.role !== "parent" && user?.role !== "teen") return null;
-  const familyId = user?.family_id || undefined;
+  const familyId = user.family_id;
+  if (!familyId || user.family_id !== sessionUser.family_id || user.role !== sessionUser.role ||
+    user.token_version !== sessionUser.tokenVersion) return null;
+  const parsedOwner = calendarOwnerSchema.safeParse({ protocol: CALENDAR_OWNER_PROTOCOL,
+    actorId: sessionUser.id, familyId, role: user.role, generation: sessionUser.tokenVersion });
+  if (!parsedOwner.success) return null;
+  const owner = parsedOwner.data;
 
   // Two-way Google/Microsoft sync (#264): opportunistic, after the response is
   // sent, at most once per connection per 5 minutes (DB-backed lease). No
@@ -72,9 +81,30 @@ export default async function CalendarPage({
       ? params.view
       : undefined;
 
+  let notificationFocus: { target: Awaited<ReturnType<typeof readEventNotificationFocus>> } | undefined;
+  if (params.focus !== undefined) {
+    let target: Awaited<ReturnType<typeof readEventNotificationFocus>> = null;
+    try {
+      target = await readEventNotificationFocus(prisma!, {
+        userId: owner.actorId, familyId: owner.familyId, role: owner.role, tokenVersion: owner.generation,
+      }, params.focus);
+    } catch { /* All unsupported/failed targets retain the neutral fallback. */ }
+    notificationFocus = { target };
+  }
+
+  // Do not serialize the focused private record after a membership/role or
+  // revocation change while its read was waiting. Browser reads retain this
+  // exact original owner instead of adopting a newer server refresh.
+  const current = await prisma!.user.findUnique({ where: { id: owner.actorId },
+    select: { family_id: true, role: true, token_version: true } });
+  if (!current || current.family_id !== owner.familyId || current.role !== owner.role ||
+    current.token_version !== owner.generation) return null;
+
   return (
     <CalendarPageClient
       events={[]}
+      initialOwner={owner}
+      notificationFocus={notificationFocus}
       initialDate={initialDate}
       initialView={initialView}
       currentMonth={month}

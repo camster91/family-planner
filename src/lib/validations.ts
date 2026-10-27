@@ -157,6 +157,7 @@ export const createEmailInviteSchema = z.object({
 
 // Messages
 export const sendMessageSchema = z.object({
+  issued_at: z.string().datetime().optional(),
   content: z.string().trim().min(1).max(5000),
   type: z.enum(['text', 'image', 'voice', 'announcement']).default('text'),
   // Optional family pickup context. The route resolves this to a safe
@@ -165,7 +166,11 @@ export const sendMessageSchema = z.object({
   // Attachments are uploaded through /api/messages/attachments first. The
   // message write claims these household-owned draft ids atomically.
   attachment_ids: z.array(z.string().trim().min(1).max(100)).max(8).default([]),
-})
+  expected_user_id: z.string().min(1).max(128).optional(),
+  expected_family_id: z.string().min(1).max(128).optional(),
+  expected_generation: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+}).refine(value => [value.expected_user_id, value.expected_family_id, value.expected_generation].every(field => field === undefined) ||
+  [value.expected_user_id, value.expected_family_id, value.expected_generation].every(field => field !== undefined), { message: 'Message owner context must be complete' })
 
 // Rewards
 export const createRewardSchema = z.object({
@@ -283,6 +288,11 @@ export const updateEventSchema = z.object({
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).optional(),
   recurrence: recurrenceSchema,
+  // Optional review precondition. It never supplies authority or replaces a rule.
+  expected_recurrence: z.string().max(8192).optional(),
+}).superRefine((value, ctx) => {
+  if (value.expected_recurrence !== undefined && value.recurrence !== null)
+    ctx.addIssue({ code: 'custom', path: ['expected_recurrence'], message: 'Repeat review only supports removing a rule' })
 })
 
 export const deleteEventSchema = z.object({
@@ -754,10 +764,17 @@ const noteTitle = z
   .max(200, 'Title must be 200 characters or fewer')
 const noteBody = optionalText('body', 10000)
 
-export const createNoteSchema = z.object({ title: noteTitle, body: noteBody, color: z.unknown().optional() }, bodyObject)
+export const createNoteSchema = z.object({
+  title: noteTitle, body: noteBody, color: z.unknown().optional(),
+  expected_user_id: z.string().min(1).max(128).optional(),
+  expected_family_id: z.string().min(1).max(128).optional(),
+}, bodyObject).refine(value => (value.expected_user_id === undefined) === (value.expected_family_id === undefined), {
+  message: 'Both note owner fields are required together',
+})
 
 export const updateNoteSchema = z.object(
   {
+    expected_updated_at: z.string().datetime({ offset: true }).optional(),
     id: z
       .string({ error: 'Note ID is required' })
       .min(1, 'Note ID is required'),

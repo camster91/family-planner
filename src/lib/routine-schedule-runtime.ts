@@ -660,20 +660,22 @@ export async function readRoutineSchedule(
   actor: RoutineScheduleActor,
   stackId: string,
 ): Promise<EffectResult> {
+  const capturedActor = Object.freeze({ ...actor });
   try {
     return await db.$transaction(async (tx) => {
-      const capabilities = await routineScheduleAuthority(tx, actor);
-      const stack = await stackInTx(tx, actor.familyId, stackId),
-        roots = await rootsInTx(tx, actor, stackId, stack.config);
+      await routineScheduleAuthority(tx, capturedActor);
+      const stack = await stackInTx(tx, capturedActor.familyId, stackId),
+        roots = await rootsInTx(tx, capturedActor, stackId, stack.config);
       const byId = new Map(
         roots.map((root) => [root.row.id, root.definition.content]),
       );
+      const capabilities = await routineScheduleAuthority(tx, capturedActor);
       return {
         status: 200,
         body: {
           protocol: stack.config.protocol,
-          userId: actor.userId,
-          familyId: actor.familyId,
+          userId: capturedActor.userId,
+          familyId: capturedActor.familyId,
           stackId,
           version: stack.row.version,
           label: stack.row.label,

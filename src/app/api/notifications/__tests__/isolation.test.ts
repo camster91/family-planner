@@ -57,3 +57,24 @@ describe("notifications — two households", () => {
     expect(writesTo("notification")[0].args.data).toMatchObject({ user_id: "child-a" });
   });
 });
+
+// Source cases for deferred QA; no execution claimed.
+it.each(['PATCH', 'DELETE'] as const)('%s includes the personal owner in the actual single-row write', async method => {
+  db.reset();
+  const response = await notifications[method](req({ as: 'parentA', body: { notificationId: 'notif-a' } }));
+  expect(response.status).toBe(200);
+  const writes = writesTo('notification');
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).toMatchObject({ op: method === 'PATCH' ? 'updateMany' : 'deleteMany', args: { where: { id: 'notif-a', user_id: 'parent-a' } } });
+});
+
+it.each(['POST', 'PATCH', 'DELETE'] as const)('%s rejects an oversized streamed body before any write', async method => {
+  db.reset();
+  const request = req({ as: 'parentA' });
+  // No Content-Length: enforce the stream bound rather than trusting a header.
+  request.body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(17 * 1024)); controller.close(); },
+  });
+  expect((await notifications[method](request)).status).toBe(413);
+  expect(writesTo('notification')).toHaveLength(0);
+});

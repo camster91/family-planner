@@ -15,7 +15,7 @@ import {
   type MealPrepSummary,
 } from "@/lib/meal-batches";
 import { useBulkCookingText } from "@/i18n/bulk-cooking";
-import { toDateOnlyUTC } from "@/lib/dates";
+import { addUTCDays, parseDateOnly, toDateOnlyUTC } from "@/lib/dates";
 import { useMealPrepMutation } from "./use-meal-prep-mutation";
 import {
   MealAllocationEditor,
@@ -38,6 +38,20 @@ const emptyDish = (): DishDraft => ({
   storage: "freezer",
   meals: [],
 });
+function repeatPrepInterval(seed?: MealPrepSummary): number | null {
+  if (!seed?.next_prep_on) return null;
+  const from = parseDateOnly(toDateOnlyUTC(seed.prepared_on));
+  const next = parseDateOnly(toDateOnlyUTC(seed.next_prep_on));
+  if (!from || !next) return null;
+  const days = (next.getTime() - from.getTime()) / 86400000;
+  return Number.isSafeInteger(days) && days > 0 ? days : null;
+}
+function suggestedNextPrep(day: string, interval: number | null): string {
+  const parsed = parseDateOnly(day);
+  if (!parsed || interval === null) return "";
+  const value = toDateOnlyUTC(addUTCDays(parsed, interval));
+  return parseDateOnly(value) ? value : "";
+}
 export function MealPrepEditor({
   defaultDay,
   seed,
@@ -61,8 +75,12 @@ export function MealPrepEditor({
 }) {
   const tBulk = useBulkCookingText();
   const origin = React.useRef(context);
+  const [interval] = React.useState(() => repeatPrepInterval(seed));
+  const [suggestNext, setSuggestNext] = React.useState(!restoredDraft && interval !== null);
   const [day, setDay] = React.useState(restoredDraft?.day ?? defaultDay);
-  const [nextDay, setNextDay] = React.useState(restoredDraft?.nextDay ?? "");
+  const [nextDay, setNextDay] = React.useState(
+    restoredDraft?.nextDay ?? suggestedNextPrep(defaultDay, interval),
+  );
   const [dishes, setDishes] = React.useState<DishDraft[]>(() =>
     restoredDraft
       ? restoredDraft.dishes
@@ -165,6 +183,43 @@ export function MealPrepEditor({
         i === selectedDish ? { ...dish, ...change } : dish,
       ),
     );
+    setValidation(false);
+    mutation.clearError();
+  };
+  const duplicateDish = () => {
+    if (mutation.locked || dishes.length >= 8) return;
+    const source = dishes[selectedDish];
+    if (!source) return;
+    const nextIndex = dishes.length;
+    setDishes((prev) => [
+      ...prev,
+      {
+        name: source.name,
+        portions: source.portions,
+        recipe: source.recipe ? { ...source.recipe } : null,
+        cookId: source.cookId,
+        storage: source.storage,
+        // Allocations are intentionally not copied: the duplicate is a new
+        // dish draft and must not double-schedule the original meals.
+        meals: [],
+      },
+    ]);
+    setSelectedDish(nextIndex);
+    setValidation(false);
+    mutation.clearError();
+  };
+  const moveDish = (direction: -1 | 1) => {
+    if (mutation.locked) return;
+    const nextIndex = selectedDish + direction;
+    if (nextIndex < 0 || nextIndex >= dishes.length) return;
+    setDishes((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(selectedDish, 1);
+      if (!moved) return prev;
+      next.splice(nextIndex, 0, moved);
+      return next;
+    });
+    setSelectedDish(nextIndex);
     setValidation(false);
     mutation.clearError();
   };
@@ -280,7 +335,10 @@ export function MealPrepEditor({
                   required
                   value={day}
                   disabled={mutation.locked}
-                  onChange={(e) => setDay(e.target.value)}
+                  onChange={(e) => {
+                    setDay(e.target.value);
+                    if (suggestNext) setNextDay(suggestedNextPrep(e.target.value, interval));
+                  }}
                 />
               </label>
               <label htmlFor={`${prefix}-next`} className="block text-subhead">
@@ -292,8 +350,13 @@ export function MealPrepEditor({
                   min={day}
                   value={nextDay}
                   disabled={mutation.locked}
-                  onChange={(e) => setNextDay(e.target.value)}
+                  onChange={(e) => { setSuggestNext(false); setNextDay(e.target.value); }}
                 />
+                {suggestNext && nextDay && interval !== null && (
+                  <span className="mt-2 block text-footnote text-label-secondary">
+                    {tBulk("repeatInterval", { days: interval })}
+                  </span>
+                )}
               </label>
             </>
           )}
@@ -321,6 +384,42 @@ export function MealPrepEditor({
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={mutation.locked || dishes.length >= 8}
+                onClick={duplicateDish}
+              >
+                {tBulk("duplicateDish")}
+              </button>
+              {dishes.length > 1 && (
+                <div
+                  className="flex flex-wrap gap-2"
+                  role="group"
+                  aria-label={tBulk("reorderDishes")}
+                >
+                  <button
+                    type="button"
+                    className="btn-tinted min-h-[44px]"
+                    disabled={mutation.locked || selectedDish === 0}
+                    aria-label={tBulk("moveDishUp")}
+                    onClick={() => moveDish(-1)}
+                  >
+                    ↑ {tBulk("moveDishUp")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-tinted min-h-[44px]"
+                    disabled={
+                      mutation.locked || selectedDish === dishes.length - 1
+                    }
+                    aria-label={tBulk("moveDishDown")}
+                    onClick={() => moveDish(1)}
+                  >
+                    ↓ {tBulk("moveDishDown")}
+                  </button>
+                </div>
+              )}
               {step === 1 ? (
                 <>
                   <RecipePicker
