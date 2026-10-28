@@ -5,7 +5,7 @@ import { normalizeFeatures, isFeatureEnabled } from '@/lib/feature-flags'
 import { MEMBER_ID_PATTERN } from '@/lib/member-identity-schema'
 import { getD1Database, type D1Store, type SqlValue } from './database'
 
-type Row = Omit<Event, 'start_time' | 'end_time' | 'created_at' | 'updated_at' | 'source_occurrence_start' | 'is_task'> & {
+export type D1CalendarEventRow = Omit<Event, 'start_time' | 'end_time' | 'created_at' | 'updated_at' | 'source_occurrence_start' | 'is_task'> & {
   start_time: number; end_time: number; created_at: number; updated_at: number;
   source_occurrence_start: number | null; is_task: number;
   creator_id: string | null; creator_name: string | null; source_name: string | null; source_color: string | null;
@@ -13,7 +13,7 @@ type Row = Omit<Event, 'start_time' | 'end_time' | 'created_at' | 'updated_at' |
 const AUTH = `EXISTS (SELECT 1 FROM "User" a JOIN "Family" f ON f.id=a.family_id
   WHERE a.id=?1 AND a.family_id=?2 AND a.role=?3 AND a.token_version=?4)`
 const args = (owner: CalendarReadOwner): SqlValue[] => [owner.actorId, owner.familyId, owner.role, owner.generation]
-function eventDto(row: Row) {
+export function d1CalendarEventDto(row: D1CalendarEventRow) {
   const { creator_id, creator_name, source_name, source_color, ...event } = row
   return { ...event, start_time: new Date(row.start_time), end_time: new Date(row.end_time),
     created_at: new Date(row.created_at), updated_at: new Date(row.updated_at),
@@ -43,8 +43,8 @@ export async function readD1CalendarEvents(owner: CalendarReadOwner, query: { id
     FROM "Event" e LEFT JOIN "User" c ON c.id=e.created_by AND c.family_id=e.family_id
     LEFT JOIN "CalendarSubscription" s ON s.id=e.source_subscription_id AND s.family_id=e.family_id
     WHERE e.family_id=?2 AND ${AUTH} ${filter} ORDER BY e.start_time,e.id LIMIT ${bind(limit)}`)
-    .bind(...values).all<Row>()
-  return rows.results.map(eventDto)
+    .bind(...values).all<D1CalendarEventRow>()
+  return rows.results.map(d1CalendarEventDto)
 }
 export async function readD1CalendarViewer(userId: string, generation: number, database?: D1Store) {
   return (database ?? await getD1Database()).withSession('first-primary')

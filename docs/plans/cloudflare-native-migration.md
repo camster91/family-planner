@@ -922,6 +922,64 @@ load D1 records now, but their writes remain unconverted. OAuth, remaining
 feature/account/device domains, private R2 and full release/cutover remain open.
 No production deployment, paid plan, data wipe, DNS or VPS change occurred.
 
+## Atomic online Event editing — 2026-10-28
+
+The canonical updatePersonEvent entry point now selects a native D1 writer in
+D1 deployments, so the existing PATCH API and edit form keep their input/error
+contracts. PostgreSQL keeps its current transaction. Four statements in one
+primary native batch read authority/current event, apply the guarded absolute
+update, then read its response. Current account generation, parent role, original
+household and existing Family are required inside the batch; unauthorized event
+rows are not projected. Decisions and effects cannot interleave with a concurrent
+writer. No preflight plan/CAS loop or interactive transaction shim is necessary:
+the SQL date/repeat/source predicates evaluate the same locked batch state that
+produces the response, rather than relying on an earlier snapshot.
+
+Only explicitly supplied fields change. A changed date bound is checked against
+the current other bound; the existing zero-duration contract is retained. An
+invalid date or changed reviewed repeat rule holds the entire patch. Ordinary
+title/time edits leave even unsupported stored recurrence untouched. Imported
+subscription events remain read-only. Material schedule epochs advance through
+migration0009 in the same update; absolute retries do not duplicate that advance.
+The response shares the existing date/boolean formatter and includes current
+same-household creator names only, consistent with canonical Event reads; a
+creator who moved households gets a null projection instead of a foreign name.
+PATCH does not acquire creation/deletion receipts or add side effects that the
+PostgreSQL PATCH never had.
+
+Evidence:
+- Actual workerd/D1 fixture passes three concurrent partial writes, current-bound
+  validation, invalid dates, exact reviewed removal/mismatch, null metadata clears,
+  zero-duration compatibility, imported409, foreign404 and teen403. It checks
+  schedule identity/material epochs, absolute retry, forced trigger rollback of
+  fields and epoch, response shape/dates/creator privacy, revoked/demoted/moved
+  writers, and revocation/import-source/repeat-rule changes immediately before
+  the native batch. Prior repository fixtures still pass.
+- Typecheck, scoped ESLint, complete OpenNext build and74 focused Jest tests pass
+  across the existing Event update authority/repeat rules, API isolation, imported
+  safeguards and range contracts. No schema change is needed in this slice.
+- Built Worker HTTP passes concurrent partial saves, unsupported recurrence
+  preservation, imported409, foreign404, teen/child403, current-bound400,
+  repeat-review409, reviewed removal200, no-store and revoked-cookie401.
+- Playwright390x844 and1366x768 saves a title and45/90-minute duration in the
+  existing form, navigates back, reloads and confirms persisted fields through
+  the form and canonical GET. Unsupported recurrence remains unchanged. Imported
+  event editing is read-only; no failed requests, page errors or horizontal
+  overflow in the final tested flows. Phone screenshot inspected.
+- Evidence prefix `/tmp/herewoven-d1-event-update-`: build, typecheck, lint,
+  tests, smoke, runtime, HTTP and browser logs; HTTP/rendered JSON and screenshots.
+  The first harness used the wrong Save Changes capitalization. A later preview
+  reload stopped when read-client generation briefly replaced a watched Wasm
+  file; generation completed and the owned preview was restarted, then both
+  browser journeys passed. Do not regenerate the read client during a watched
+  application preview. No application workaround or failed-request suppression
+  was used.
+
+Next: Event create and delete, including atomic receipts/replay, activity,
+beta-metric and assistant source/delete-target proof semantics. OAuth, remaining
+feature/account/device domains, private R2, full-household checks and production
+cutover remain open. No production, paid-plan, DNS, data-wipe or VPS change.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
