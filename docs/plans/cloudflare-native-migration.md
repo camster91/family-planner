@@ -1229,6 +1229,69 @@ change. Evidence prefix: `/tmp/herewoven-d1-recurrence-` (native smoke, focused
 unit tests, typecheck, lint and build). No rendered or full-household acceptance
 claim is made for the still-unconverted Chore surfaces.
 
+## Chore read APIs and role-specific screens — 2026-10-28
+
+The canonical Chore list/detail API and parent board now use a narrow read scope.
+D1 scalar arrays are validated before the PG-compatible read projection is used.
+Public assignee/creator and profile relations are explicitly hydrated in bounded,
+household-scoped queries. Native verification found that larger nested composite
+relations make Prisma start an implicit transaction; no read-facade guard was
+removed. Scalar reads plus explicit relation hydration avoid that transaction and
+SQLite parameter overflow, including 61 profile relations on one page.
+
+Native routine policy queries join the scoped root independently of the selected
+occurrence dates. Keyset batches and bound JSON ID sets preserve hidden/inactive
+filtering before visible caps, evidence-bearing history and scheduled-once action
+policy. Profile history hydration retains archive/identity checks; streak queries
+return only bounded seven-day markers. Owned notification focus validates current
+role/family/generation, subject, feature and routine reads in a native batch.
+Current account authority is renewed before private API/SSR responses. Chore JSON
+now consistently sends private/no-store headers, including detail responses.
+Assignee/creator names for people now in another household are removed.
+
+Rendered verification exposed a distinct existing role path: teens are redirected
+from the parent Chore board to their own `/dashboard` home. That home still had PG
+reads. It now uses D1 for bounded own chores/catch-up work, shared event summaries,
+optional rewards and minimal assigned-chore preparation cues. Paused routine work
+is hidden, canonical native foreground top-up is available, future definitions
+are stripped and disabled gamification remains omitted. The internal session
+version is carried through final authority renewal and never serialized. Existing
+child/teen route restrictions remain intact; no parent route is opened to them.
+
+Evidence:
+- Actual workerd/D1 fixtures pass visibility after 240 hidden occurrences,
+  evidence retention, independent/date/household routine scope, 61-profile and
+  composite-relation hydration, scheduled-once policy, streak markers, parent/teen
+  focus, hidden/foreign refusal and authority change immediately before the focus
+  validation batch. Own kid-home windows/catch-up/events/reward gating and exact
+  assigned preparation cues pass. Existing native domains remain green.
+- 102 focused API/paging/isolation/visibility/streak/board/kid-home tests,
+  standalone TypeScript, scoped ESLint and a complete OpenNext build pass. Tests
+  also pin private future-definition stripping from child-home props. This is not
+  a PG integration run or acceptance of still-unconverted mutation controls.
+- Built HTTP verifies a 64-row page containing 61 profile assignments, cursor
+  continuation, exact profile detail, omitted points/private future metadata,
+  foreign404, malformed query400, incompatible profile client409, teen reads,
+  revoked401 and removal of foreign relation names. The final built readback
+  confirms both list and detail are private/no-store.
+- Playwright 390x844 and 1366x768 renders the parent board and owned notification
+  focus, and the teen's distinct own-work home after its normal role redirect.
+  No failed requests, page errors or horizontal overflow in the final runs. All
+  four screenshots were inspected. Initial browser attempts exposed the separate
+  kid-home PG path; that actual failure was fixed rather than relaxing the route
+  gate. The fabricated fixture's duplicate series/date rows were also corrected
+  before the passing native run.
+
+**Remaining:** Chore creation/edit/delete/complete/undo/verification and routine
+command adapters, other feature domains/SSR, complete AI/capture, private R2,
+household/device flows, deployed-plan budgets and cutover/VPS retirement. Parent
+preparation orchestration and other routine-editor reads still require their own
+conversion. No UI redesign/schema, paid subscription, production deployment,
+resource/DNS/live data or VPS change. Evidence prefix:
+`/tmp/herewoven-d1-chore-reads-` (smoke, focused tests, lint, typecheck, build,
+runtime, HTTP/readback, rendered JSON and screenshots). All data is fabricated;
+owned preview bindings and key files are removed after stopping the preview.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

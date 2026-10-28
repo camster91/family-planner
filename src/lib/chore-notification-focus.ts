@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 /** Exact notification focus is a fresh role-aware read, never an action grant. */
 import type { PrismaClient } from "@prisma/client";
 import { MEMBER_ID_PATTERN } from "@/lib/member-identity-schema";
@@ -17,6 +18,10 @@ export async function readChoreNotificationFocus(
   owner: { userId: string; familyId: string; role: string; tokenVersion: number },
   target: unknown,
 ): Promise<ChoreNotificationFocus | null> {
+  if (storageBackend() === "d1") {
+    const { readD1ChoreNotificationFocus } = await import("@/lib/cloudflare/chore-read-owner");
+    return readD1ChoreNotificationFocus({ ...owner, generation: owner.tokenVersion }, target);
+  }
   const id = parseChoreFocusId(target);
   if (!id || !["parent", "teen", "child"].includes(owner.role)) return null;
   return db.$transaction(async tx => {

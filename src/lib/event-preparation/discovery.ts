@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 /** Personal parent relationship projection only. Never add this map to the
  * shared/persisted board DTO. IDs are restricted to already-visible Chores;
  * the preparation read still renews all current Event/task authority on open. */
@@ -60,6 +61,10 @@ export async function readOwnPreparationContext(
   const ids = [...new Set(input.choreIds)]
     .filter((id) => memberIdentityIdSchema.safeParse(id).success)
     .slice(0, 150);
+  if (storageBackend() === "d1") {
+    const { readD1OwnPreparationContext } = await import("@/lib/cloudflare/chore-read-policy");
+    return readD1OwnPreparationContext({ ...input, choreIds: ids });
+  }
   if (!ids.length || !(await eventPreparationStorageAvailable(db))) return {};
   const rows = await db.$queryRaw<
     Array<{ chore_id: string; event_title: string; features: unknown }>

@@ -98,7 +98,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const recurrence = await fetch(`http://127.0.0.1:${port}/recurring-chores`)
   const recurrenceResult = await recurrence.json()
   assert.equal(recurrence.status, 200, JSON.stringify(recurrenceResult))
-  console.log(JSON.stringify({ recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const choreReads = await fetch(`http://127.0.0.1:${port}/chore-reads`)
+  const choreReadResult = await choreReads.json()
+  assert.equal(choreReads.status, 200, JSON.stringify(choreReadResult))
+  console.log(JSON.stringify({ choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

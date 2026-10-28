@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 /** Current original parent scope, used before effects and after private reads.
  * An owner object is an authenticated caller's precondition, not a credential.
  */
@@ -16,6 +17,10 @@ export async function choreCheckOwnerAvailableInTx(tx: Prisma.TransactionClient,
     SELECT "features" FROM "Family" WHERE "id" = ${owner.familyId} FOR SHARE`;
   return families.length === 1 && isFeatureEnabled(normalizeFeatures(families[0].features), "chores");
 }
-export function renewChoreCheckOwner(db: Pick<PrismaClient, "$transaction">, owner: ChoreCheckOwner) {
+export async function renewChoreCheckOwner(db: Pick<PrismaClient, "$transaction">, owner: ChoreCheckOwner) {
+  if (storageBackend() === "d1") {
+    const { renewD1ChoreReadOwner } = await import("@/lib/cloudflare/chore-read-owner");
+    return owner.role === "parent" && renewD1ChoreReadOwner(owner);
+  }
   return db.$transaction(tx => choreCheckOwnerAvailableInTx(tx, owner), { timeout: 5000, maxWait: 5000 });
 }

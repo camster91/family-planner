@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { withChoreReads, type ChoreReadDb } from "@/lib/chore-read-scope";
 import { readCanonicalChoreDetail } from "@/lib/chore-detail-read";
 import { hydrateChoreProfileMembers, type ProfileHydrated } from "@/lib/chore-profile-read";
 import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-source-proof'
@@ -52,10 +54,20 @@ export const dynamic = 'force-dynamic'
 export const GET = withRouteTelemetry('/api/chores', handleGET)
 
 async function handleGET(request: NextRequest) {
+  return withChoreReads(db => handleReadGET(request, db));
+}
+async function handleReadGET(request: NextRequest, db: ChoreReadDb) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
+    const respond = async (body: unknown, init?: ResponseInit) => {
+      if (storageBackend() === 'd1') {
+        const { renewD1ChoreReadOwner } = await import('@/lib/cloudflare/chore-read-owner')
+        if (!await renewD1ChoreReadOwner({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 })) return choreJson({ error: 'Unauthorized' }, { status: 401, headers: { 'Cache-Control': 'private, no-store' } })
+      }
+      return choreJson(body, { ...init, headers: { 'Cache-Control': 'private, no-store', ...init?.headers } })
+    }
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (id !== null) return readCanonicalChoreDetail(id, auth.user.family_id, request)
@@ -80,20 +92,20 @@ async function handleGET(request: NextRequest) {
 
     const include = {
       assignee: { select: { id: true, name: true, avatar_url: true, family_id: true } },
-      creator: { select: { id: true, name: true } },
+      creator: { select: { id: true, name: true, family_id: true } },
     }
     const order = paging.paged ? paging.order : 'desc'
     const take = paging.paged ? paging.limit + 1 : CHORE_UNPAGED_MAX
     // History bypasses the open-occurrence policy. Other reads fill the visible
     // cap through bounded candidate+metadata batches, including undated ranges.
     const candidates = status === 'completed' || status === 'verified'
-      ? await prisma!.chore.findMany({
+      ? await db.chore.findMany({
           where, include, orderBy: choreOrderBy(order), take,
         })
       : await readVisibleChoreRows({
           take,
           order,
-          read: (after, batchSize) => prisma!.chore.findMany({
+          read: (after, batchSize) => db.chore.findMany({
             where: after ? { AND: [where, afterChoreCursor(after, order)] } : where,
             include,
             orderBy: choreOrderBy(order),
@@ -115,16 +127,20 @@ async function handleGET(request: NextRequest) {
     const rowsWithProfileMembers: ProfileHydrated<(typeof chores)[number]>[] = chores.some((row) => row.assigned_member_id != null)
       ? await hydrateChoreProfileMembers(prisma!, auth.user.family_id, chores)
       : chores.map((row) => ({ ...row, assigneeMember: undefined }))
-    if (hasProfileRows && profileRead) return choreJson(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
+    if (hasProfileRows && profileRead) return respond(profileRead.body, { status: profileRead.status, headers: { 'Cache-Control': 'private, no-store' } })
     if (hasProfileRows && rowsWithProfileMembers.some((row) => row.assigned_to === null && row.assigned_member_id != null && !readChoreSubject(row, auth.user.family_id))) {
-      return choreJson(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+      return respond(profileChoreLegacyWriteRefusal(), { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
     }
     const scheduledOnceIds = await scheduledOnceRoutineOccurrenceIds(
       prisma!, auth.user.family_id,
       rowsWithProfileMembers.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id),
     )
     const exposedChores = rowsWithProfileMembers.map((row) => {
-      const { assigneeMember: _member, ...safe } = row
+      const { assigneeMember: _member, ...stored } = row
+      const safe = { ...stored,
+        assignee: row.assignee?.family_id === auth.user.family_id ? row.assignee : null,
+        creator: row.creator?.family_id === auth.user.family_id ? { id: row.creator.id, name: row.creator.name } : null,
+      }
       if (row.assigned_to === null && row.assigned_member_id != null) {
         const subject = readChoreSubject(row, auth.user.family_id)
         if (!subject) return safe
@@ -137,10 +153,10 @@ async function handleGET(request: NextRequest) {
     // Points & streaks off for this family (#248): the chore's points value is
     // not sent. It is still stored, and verify still awards XP from it.
     if (!(await isGamificationOn(auth.user.family_id))) {
-      return choreJson({ chores: exposedChores.map(omitChorePoints), ...page })
+      return respond({ chores: exposedChores.map(omitChorePoints), ...page })
     }
 
-    return choreJson({ chores: exposedChores, ...page })
+    return respond({ chores: exposedChores, ...page })
   } catch (error) {
     logRouteError('GET /api/chores', error, getRequestId(request))
     return choreJson({ error: 'Internal server error' }, { status: 500 })

@@ -58,9 +58,15 @@ Recurring-series expansion and foreground top-up now use native D1 batches,
 including rotations, profile-owned work, authored routines, once-only recovery
 and the gated fair cursor. The default AI Today context can materialize through
 D1; confirmation reloads stay read-only. This preserves bounded visits rather
-than promising every series is full. Chore API/SSR and other-domain confirmation
-writers, canonical mutation orchestration and complete AI chat parity remain
-unconverted; deployed-plan query/CPU limits still need edge verification.
+than promising every series is full. Chore list/detail reads, the parent board,
+routine visibility/profile hydration/streak reads and owned notification focus
+now use D1. Child/teen home reads also use D1 with bounded own work, shared event
+summaries and minimal owned preparation cues; the existing role-route gate is
+preserved. Future-definition metadata and disabled points stay out of public
+chore snapshots, and chore JSON is private/no-store. Creation/edit/completion/undo,
+routine command writers, other-domain confirmation, canonical mutation
+orchestration and complete AI chat parity remain unfinished; deployed-plan
+query/CPU limits still need edge verification.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).
