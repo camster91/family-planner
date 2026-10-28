@@ -569,14 +569,7 @@ function InventoryContent({
                   ? copy('emptyWriter')
                   : copy('emptyReader')
               }
-              action={
-                canWrite ? (
-                  <button type="button" className="btn-tinted min-h-[44px]" onClick={openAdd}>
-                    <Plus className="w-4 h-4" aria-hidden="true" />
-                    <span>{copy('addItem')}</span>
-                  </button>
-                ) : undefined
-              }
+
             />
           ) : (
             <>

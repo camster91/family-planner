@@ -157,7 +157,7 @@ function AnalyticsPageContent() {
             {gamification ? (
               <section className="card-apple p-5 sm:p-6" aria-labelledby="family-progress-title">
                 <h2 id="family-progress-title" className="text-title-3 text-label-primary">{analyticsText('progressByPerson')}</h2>
-                <p className="mt-1 text-subhead text-label-secondary">{analyticsText('progressByPersonDescription')}</p>
+                <p className="mt-1 text-subhead text-label-secondary">{analyticsText('progressByPersonDescription', { days: ANALYTICS_WINDOW_DAYS })}</p>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <div className="rounded-[var(--radius-sm)] bg-surface-fill p-3">
                     <div className="text-title-3 font-semibold text-label-primary" data-testid="family-points">{familyPoints}</div>

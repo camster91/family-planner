@@ -883,14 +883,7 @@ function EmergencyPageInner() {
             <p className="text-subhead text-label-secondary mt-1">
               {t("emergency.emptySubtitle")}
             </p>
-            {isParent && (
-              <button
-                onClick={() => setShowAdd(true)}
-                className="mt-4 min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
-              >
-                {t("emergency.addCard")}
-              </button>
-            )}
+
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

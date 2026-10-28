@@ -994,17 +994,7 @@ function HandoffPageInner() {
             glyphColor="family"
             title={t('handoff.empty')}
             description={t('handoff.emptySubtitle')}
-            action={
-              isParent ? (
-                <button
-                  onClick={() => setShowAdd(true)}
-                  className="btn-filled px-4 py-2 rounded-lg text-subhead font-semibold inline-flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  {t('handoff.createHandoff')}
-                </button>
-              ) : undefined
-            }
+
           />
         )}
 

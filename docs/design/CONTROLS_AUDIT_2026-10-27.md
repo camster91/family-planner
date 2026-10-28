@@ -88,3 +88,15 @@ The capture run changed only the disposable `fx_family_a` feature switches to op
 ### Remaining audit limits
 
 This is a broad visual/source audit of every feature area with an inventory of control declarations, not full interaction coverage of every control/state. Child/teen menus, all detail/edit dialogs, populated secondary-feature records, dark native dropdowns, keyboard/Back and shared-device mode still need targeted follow-up. The inventory is the checklist for that work. The 132 screenshots establish initial viewport/layout findings only; don't close release/QA issues on this evidence.
+
+## Bounded repairs — 2026-10-27
+
+Following Cameron's “Fix other issues” instruction:
+
+- Progress-by-person copy now passes the canonical90-day window to translation, removing the literal placeholder. Existing analytics case checks against an unresolved placeholder.
+- Account dropdown is capped to available viewport height with vertical scrolling and contained overscroll; its width is bounded on narrow screens.
+- Projects, Emergency, Handoff, Budget and Inventory empty states no longer repeat their primary create action. The existing header/summary action stays available in empty and populated states, preserving a stable dialog focus-return target. This deliberately uses the simpler alternative to the original empty-state-specific action recommendation.
+
+Observed verification:91 affected Jest cases passed across9 suites; affected-file ESLint returned zero errors with4 existing hook warnings. Production build passed. Local Playwright passed3 fixture sign-ins and2 phone/desktop journey cases: exactly one creation entry on each affected screen, four create dialogs open/Escape/restore focus, analytics shows90days, and a390×480 account menu can scroll Sign Out into view and restore focus after Escape. Screenshots in `/tmp/controls-fixes/`; inspected phone menu, analytics and Handoff captures. No real data/provider writes or production release. Temporary capture spec retained at `/tmp/controls-fixes-check.spec.ts` rather than added to the permanent test suite.
+
+The broader Today/Calendar/Meals redesign, remaining menu consolidation and the observed chore-profile read failure remain separate unresolved findings; this patch does not mark the entire audit closed.

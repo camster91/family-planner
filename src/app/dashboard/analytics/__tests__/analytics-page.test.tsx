@@ -72,6 +72,7 @@ describe('Analytics page', () => {
     render(<AnalyticsPage />)
     expect((await screen.findByTestId('member-points')).textContent).toBe('120 points')
     expect(screen.getByText('Level 3')).toBeInTheDocument()
+    expect(screen.queryByText(/\{days\}/)).not.toBeInTheDocument()
     expect(screen.getByText('Family points')).toBeInTheDocument()
     expect(screen.getByText('Best streak')).toBeInTheDocument()
     expect(screen.getByText('3 day streak')).toBeInTheDocument()
