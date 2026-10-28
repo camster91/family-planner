@@ -130,3 +130,21 @@ visually inspected. Local report: `/tmp/family-design-fixed-report/index.html`.
 
 No production settings, permissions, migrations or provider calls changed. These
 are local browser results, not native-device or deployed acceptance.
+
+## Returning-session homepage routing
+
+User report: opening the app root showed marketing despite an existing sign-in.
+Source cause: middleware validated/redirected login and register, but excluded `/`.
+Root now uses the same current-session resolution and routes valid sessions to
+`/dashboard`, preserving canonical parent Today, child/teen home and no-family
+onboarding. Anonymous, malformed and revoked cookies remain on marketing; database
+failure does not grant access or create a redirect loop. Existing paired-device
+entry precedence is unchanged. Root responses are private/no-store, including
+anonymous and device redirects. No new login/session lifetime is introduced.
+
+Observed:51 focused auth/device/teen middleware tests passed. Final production
+build, affected ESLint and whitespace check passed (an initial test-fixture union
+typing error was fixed before the final build).9 browser cases passed:3 sign-ins
+plus parent, child and anonymous root journeys on phone/desktop, including bookmark
+query strings and reload. Report: `/tmp/root-session-report/index.html`. No live
+user cookies were inspected, and no merge or deployment is claimed.

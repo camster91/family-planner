@@ -136,6 +136,9 @@ export async function middleware(request: NextRequest) {
   // Accept a well-formed inbound id, otherwise generate one (src/lib/request-id.ts).
   const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
   const response = await handle(request, requestId)
+  // The root varies by person/device session, including anonymous responses.
+  // Never cache a redirect or marketing response for another visitor/session.
+  if (request.nextUrl.pathname === '/') response.headers.set('Cache-Control', 'private, no-store')
   return withRequestId(response, requestId)
 }
 
@@ -202,6 +205,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // it). The page itself handles both signed-in and signed-out visitors, and
   // POST /api/family/join refuses anyone already in a household.
   const isAuthRoute = ['/login', '/register'].includes(request.nextUrl.pathname)
+  const isHomeRoute = request.nextUrl.pathname === '/'
 
   // A JWT stays cryptographically valid for its full 7 days, so signature and
   // expiry alone cannot express "this session was revoked" — `token_version` is
@@ -209,7 +213,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // still walked straight through the /dashboard gate.
   //
   // Two things bound the added cost. The lookup is skipped entirely when no
-  // cookie is present, and it runs only for /dashboard and the auth routes
+  // cookie is present, and it runs only for /dashboard, / and the auth routes
   // (route handlers enforce the same check for /api/*). And both gates below
   // read this ONE value, so they cannot disagree and bounce a user between
   // /login and /dashboard.
@@ -223,7 +227,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   let isAuthenticated = false
   let currentRole: string | undefined = payload?.role
   if (payload) {
-    if (isProtectedRoute || isAuthRoute) {
+    if (isProtectedRoute || isAuthRoute || isHomeRoute) {
       try {
         const resolved = await resolveSession(payload)
         isAuthenticated = resolved !== null
@@ -264,8 +268,8 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   // from the built middleware.
   void KID_ALLOWED_PREFIXES
 
-  // Auth routes (login/register) - redirect to dashboard if already logged in
-  if (isAuthRoute && isAuthenticated) {
+  // Returning visitors enter the canonical role/onboarding-aware dashboard.
+  if ((isAuthRoute || isHomeRoute) && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
