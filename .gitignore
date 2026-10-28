@@ -49,3 +49,8 @@ next-env.d.ts
 
 # Recovery rehearsal output (#288, scripts/recovery-rehearsal.sh)
 /recovery-rehearsal-report/
+
+# Cloudflare local build/runtime and secrets (#604)
+/.open-next/
+/.wrangler/
+.dev.vars*
