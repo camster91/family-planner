@@ -678,6 +678,53 @@ provider calls, calendar subscription writers or AI-usage accounting. The full
 feature/storage migration and release acceptance remain open. No production
 resources, data, subscriptions, DNS or VPS services changed.
 
+## Notification preferences and exact retry receipts — 2026-10-28
+
+Own notification categories, quiet hours and morning-summary settings now select
+D1 in `/api/users/preferences`. The existing request schemas, any-person-role
+policy, paired-device refusal, no-store responses and optional idempotency header
+remain. Pure projection/patch helpers are shared with PostgreSQL. Quiet-hours
+zone omission means UTC; morning-summary zone omission preserves its saved zone.
+The last-sent summary day is never reset. No delivery scheduler/provider is added.
+
+D1 uses current cookie generation/membership plus preference-snapshot assertions
+in a native batch. Explicit changes and their exact completed receipt commit
+together. Concurrent partial updates re-read without losing unrelated toggles.
+A replay returns its historical result without reapplying the old preference.
+Recent unfinished legacy receipts return retryable 409; abandoned ones can be
+reclaimed, expired keys reused and cross-body/action/household key reuse refused.
+No-household accounts keep the existing explicit-update/key-ignored behavior.
+Bounded event-driven pruning retains the existing 5% sample/500-row cleanup rule;
+it creates no timer or cron and housekeeping failure cannot fail the command.
+Shared timeout/prune constants remain available through the legacy exports.
+
+Evidence:
+
+- Actual-source workerd/D1 checks pass independent concurrent toggles, eight
+  same-key requests (one effect/seven replays), receipt-write rollback, exact
+  replay without reapplying, legacy claim/reuse, quiet/morning zone behavior,
+  last-sent-day preservation, child/foreign/unattached scope, revoked writer
+  refusal and bounded expired-receipt cleanup with live receipts preserved.
+- Built app Worker HTTP verifies strict other-member/quiet-time/zone rejection,
+  replay/key reuse, own teen/child updates, isolation, no-household behavior,
+  last-sent preservation and revoked cookies.
+- At 390x844 and 1366x768, parent and teen browsers toggle Chores and rewards,
+  reload Settings and observe the saved value. Screenshots inspected. The tested
+  personal Settings flows have no overflow, page exceptions or failed requests.
+  This fixes the prior `/api/users/preferences` 500. It does not establish full
+  Family Settings acceptance: calendar subscription management is still pending.
+- OpenNext build/TypeScript, scoped ESLint and 105 affected Jest tests pass. The
+  notification-policy source scanner now excludes only the generated D1 client
+  directory, whose type documentation contains Prisma write examples; actual
+  application-source write checks remain enforced. The generated client remains
+  read-only through the separately tested runtime facade.
+- Evidence: `/tmp/herewoven-d1-notification-prefs-{build,smoke,http,tests,lint,typecheck}.log`,
+  HTTP-results/rendered JSON and phone/desktop screenshots.
+
+Notification creation/delivery/provider adoption and calendar subscription
+reads/writes/refresh remain separate unfinished domains. No production resource,
+data, subscription, deployment or VPS change occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
