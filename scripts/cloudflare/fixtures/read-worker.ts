@@ -1,3 +1,4 @@
+import { testNotificationInbox } from './notification-inbox'
 import { testChoreState } from './chore-state'
 import { testChoreReads } from './chore-reads'
 import { testRecurringChores } from './recurring-chores'
@@ -26,6 +27,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/notification-inbox') return Response.json(await testNotificationInbox(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/chore-state') return Response.json(await testChoreState(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/chore-reads') return Response.json(await testChoreReads(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/recurring-chores') return Response.json(await testRecurringChores(env.DB as unknown as D1Store))

@@ -1348,6 +1348,56 @@ production binding, deploy, paid plan, wipe, DNS or VPS change. Evidence prefix:
 HTTP/readback, rendered results and screenshots). Preview keys/configuration are
 removed after stopping the owned preview. All data is fabricated.
 
+## Native notification delivery and private inbox — 2026-10-28
+
+Parent verification depends on the existing shared notification boundary. That
+boundary now dispatches to native D1 delivery, with storage-independent category,
+explicit opt-in and quiet-hour policy shared with the PostgreSQL implementation.
+The native batch witnesses current recipient membership/session context where
+required, manual parent sender membership/session evidence and preferences before
+inserting the inbox row. Quiet hours retain the row and report quiet; they do not
+send an interruption. Legacy account notices without a household retain their
+account scope. No new scheduler, delivery channel or producer flag is enabled.
+
+The existing notifications GET/POST/PATCH/DELETE and snooze endpoints now use D1.
+List reads retain keyset ordering, snooze/unread filters, own-account scope and
+the existing maximum limit of 100 (101-row lookahead). Mark/read-all, delete/clear
+and snooze/unsnooze witness the account session generation in their atomic batch.
+Empty legacy mark/delete bodies remain successful no-ops.
+
+Migration `0011_notification_evidence_guards.sql` ports occurrence key/immutability
+and terminal recipient slot/status guards. Deleting an inbox row may clear its
+retained decision link, but cannot refill or redirect that link. Native testing
+found that D1 result `meta.changes` includes this FK effect; write outcomes now
+measure SQLite `changes()` inside the batch, so a successful owned deletion still
+returns 200 instead of a false 404. The source/admission/recipient producer
+adapters and portability/export paths remain unconverted.
+
+Actual local schema checks pass eleven migrations and all canonical model counts.
+Native fixtures cover all four category types, always-send/explicit opt-in,
+recipient quiet hours, current summary context, account-only notices, foreign and
+stale participants, 73-row keyset ties, the 100-row request limit, own inbox
+mutations, live family/role/mute changes, revoked bulk writes/reads, forced insert
+rollback, evidence shape/immutability and deletion of a linked notification.
+100 focused policy/delivery/paging/snooze/isolation tests pass; scoped lint,
+TypeScript and full OpenNext build pass. Built HTTP verifies parent delivery,
+quiet response, parent/household restrictions, opt-in type refusal, pagination,
+100-row compatibility, mark/snooze/unsnooze, exact deletion with FK clearing,
+scoped clear-all, legacy empty-body compatibility and revoked-session refusal.
+Playwright parent/teen journeys at 390px and 1366px use the real mark-read,
+snooze and Show now controls and confirm unread/unsnoozed D1 state through the
+API. No failed requests, page errors or horizontal overflow; parent phone and
+teen desktop screenshots inspected. The harness was corrected to wait for the
+rendered result and use the notification's accessible Options label, because
+its title includes a screen-reader unread prefix.
+
+Remaining: parent verification/XP and chore writers, native notification producer
+admission/export, opt-in mail, other domains/SSR, complete AI, private R2,
+household/device flows, deployed-plan budgets and cutover/VPS retirement.
+Evidence prefix `/tmp/herewoven-d1-notifications-`; all household data is
+fabricated. No production resources, deploy, paid-plan activation, DNS/live data
+or VPS changes. Owned preview keys/configuration are removed after shutdown.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

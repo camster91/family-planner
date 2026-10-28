@@ -1,3 +1,7 @@
+import type { Prisma, Notification } from '@prisma/client'
+import { storageBackend } from '@/lib/storage-backend'
+import { withD1ReadClient } from '@/lib/cloudflare/read-client'
+import { readD1NotificationInbox, mutateD1NotificationInbox } from '@/lib/cloudflare/notification-inbox'
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body"
 import { parseNotificationPaging, afterNotificationCursor, encodeNotificationCursor } from "@/lib/notification-paging"
 import { prisma } from '@/lib/prisma'
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
     const paging = parseNotificationPaging(searchParams, scope)
     if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
 
-    const where: Record<string, unknown> = { user_id: userId }
+    const where: Prisma.NotificationWhereInput = { user_id: userId }
     if (!includeSnoozed) {
       where.OR = [{ snoozed_until: null }, { snoozed_until: { lte: new Date() } }]
     }
@@ -34,7 +38,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (paging.paged && paging.cursor) where.AND = [afterNotificationCursor(paging.cursor)]
-    const rows = await prisma!.notification.findMany({
+    const native = storageBackend() === 'd1'
+      ? await readD1NotificationInbox({ userId, generation: payload.tv ?? 0 }, where, paging.paged ? paging.limit + 1 : 50)
+      : null
+    if (native && native.status !== 200) return NextResponse.json(native.body, { status: native.status, headers: { 'Cache-Control': 'private, no-store' } })
+    const rows = native ? native.body as Notification[] : await prisma!.notification.findMany({
       where,
       orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
       take: paging.paged ? paging.limit + 1 : 50,
@@ -80,10 +88,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the caller and target user are in the same family
-    const [caller, target] = await Promise.all([
-      prisma!.user.findUnique({ where: { id: auth.user.id }, select: { family_id: true } }),
-      prisma!.user.findUnique({ where: { id: userId }, select: { family_id: true } }),
+    const readParticipants = (db: Pick<NonNullable<typeof prisma>, 'user'>) => Promise.all([
+      db.user.findUnique({ where: { id: auth.user.id }, select: { family_id: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { family_id: true } }),
     ])
+    const [caller, target] = storageBackend() === 'd1'
+      ? await withD1ReadClient(db => readParticipants(db as unknown as Pick<NonNullable<typeof prisma>, 'user'>))
+      : await readParticipants(prisma!)
 
     if (!caller || !target || caller.family_id !== target.family_id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -93,7 +104,7 @@ export async function POST(request: NextRequest) {
     // creates nothing and answers `delivered: false`. `system` is always sent.
     // A delivered notification adds `quiet` (#141, O-32): true when it was
     // stored during the recipient's quiet hours and must not interrupt them.
-    const result = await deliverNotification({ userId, title, message, type, familyId: auth.user.family_id, senderId: auth.user.id })
+    const result = await deliverNotification({ userId, title, message, type, familyId: auth.user.family_id, senderId: auth.user.id, ...(storageBackend() === 'd1' ? { senderContext: { role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 } } : {}) })
 
     if (!result.delivered) {
       return NextResponse.json({ success: true, delivered: false, notification: null })
@@ -129,6 +140,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { notificationId, markAll } = parsed.data
+
+    if (storageBackend() === 'd1' && (markAll || notificationId)) {
+      const result = await mutateD1NotificationInbox({ userId, generation: payload.tv ?? 0 }, markAll ? { kind: 'read-all' } : { kind: 'read', id: notificationId! })
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     if (markAll) {
       await prisma!.notification.updateMany({
@@ -172,6 +188,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { notificationId, clearAll } = parsed.data
+
+    if (storageBackend() === 'd1' && (clearAll || notificationId)) {
+      const result = await mutateD1NotificationInbox({ userId, generation: payload.tv ?? 0 }, clearAll ? { kind: 'delete-all' } : { kind: 'delete', id: notificationId! })
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     if (clearAll) {
       await prisma!.notification.deleteMany({

@@ -101,10 +101,13 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const choreReads = await fetch(`http://127.0.0.1:${port}/chore-reads`)
   const choreReadResult = await choreReads.json()
   assert.equal(choreReads.status, 200, JSON.stringify(choreReadResult))
+  const inbox = await fetch(`http://127.0.0.1:${port}/notification-inbox`)
+  const inboxResult = await inbox.json()
+  assert.equal(inbox.status, 200, JSON.stringify(inboxResult))
   const choreState = await fetch(`http://127.0.0.1:${port}/chore-state`)
   const choreStateResult = await choreState.json()
   assert.equal(choreState.status, 200, JSON.stringify(choreStateResult))
-  console.log(JSON.stringify({ choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  console.log(JSON.stringify({ notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

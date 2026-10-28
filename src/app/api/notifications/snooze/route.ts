@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { mutateD1NotificationInbox } from '@/lib/cloudflare/notification-inbox'
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -30,6 +32,10 @@ export async function PATCH(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: 'Invalid snooze request' }, { status: 400 })
     const { notificationId, minutes } = parsed.data
     const snoozed_until = minutes === null ? null : new Date(Date.now() + minutes * 60_000)
+    if (storageBackend() === 'd1') {
+      const result = await mutateD1NotificationInbox({ userId: payload.userId, generation: payload.tv ?? 0 }, { kind: 'snooze', id: notificationId, until: snoozed_until })
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
     const result = await prisma!.notification.updateMany({
       where: { id: notificationId, user_id: payload.userId },
       data: { snoozed_until, read: false },

@@ -10,7 +10,7 @@ login, invited-child admission, atomic family creation and persistent rate limit
 have focused runtime evidence. Password recovery/change, safe profile reads/edits
 and paired-device person refusal also pass selected local Worker flows. Four
 D1 identity/device migrations apply locally, including audit erasure guards.
-Ten migrations now define all 84 model tables, with 963 scalar columns, 153
+Eleven migrations now define all 84 model tables, with 963 scalar columns, 153
 canonical unique keys and 208 relationships checked in local D1. This is schema
 foundation: remaining PostgreSQL-specific checks/triggers and feature writers
 are not yet converted. Profile family/erasure/chore/routine guards and
@@ -67,6 +67,11 @@ chore snapshots, and chore JSON is private/no-store. Account-session completion
 and Undo now use native atomic D1 batches, including recurrence effects, activity,
 photo ownership checks and monotonic completion epochs. Concurrent HTTP requests
 and parent/teen phone/desktop tick/Undo flows pass with stored-state readback.
+The shared in-app notification delivery boundary and private inbox now use D1;
+category/opt-in/quiet policy is shared with PostgreSQL. Sender/recipient membership,
+manual sender session evidence and recipient preferences commit with delivery.
+Inbox reads, paging, read/clear/delete and snooze renew the account generation.
+Retained occurrence/recipient evidence now has immutable/terminal D1 guards.
 Verification/XP, creation/edit/delete and device/profile/routine command writers,
 other-domain confirmation, canonical mutation
 orchestration and complete AI chat parity remain unfinished; deployed-plan
