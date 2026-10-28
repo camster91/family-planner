@@ -10,10 +10,15 @@ login, invited-child admission, atomic family creation and persistent rate limit
 have focused runtime evidence. Password recovery/change, safe profile reads/edits
 and paired-device person refusal also pass selected local Worker flows. Four
 D1 identity/device migrations apply locally, including audit erasure guards.
-Six migrations now define all 84 model tables, with 963 scalar columns, 153
+Eight migrations now define all 84 model tables, with 963 scalar columns, 153
 canonical unique keys and 208 relationships checked in local D1. This is schema
 foundation: remaining PostgreSQL-specific checks/triggers and feature writers
-are not yet converted. Profile family/erasure guards are ported and tested.
+are not yet converted. Profile family/erasure/chore/routine guards and
+responsibility lifecycle invalidation are ported with focused evidence. Name-only
+profile list/create/edit/archive now use one atomic D1 batch for the effect,
+routine revisions and retry receipt. The Family page can create a profile in
+phone/desktop local Workers; `/api/auth/me` now reads D1 safely as well. Account
+linking remains gated/unconverted.
 Membership joins, scoped family/member reads and
 invitation/code controls also pass selected local Worker checks. A request-scoped,
 read-only Prisma/D1 client now supports the dashboard shell and no-family

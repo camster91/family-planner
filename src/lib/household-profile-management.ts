@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { lockHousehold, lockUser } from "@/lib/household-lock";
-import { hashIdempotentRequest, IDEMPOTENCY_TTL_MS } from "@/lib/idempotency";
+import { hashIdempotentRequest } from "@/lib/idempotency-hash";
+import { IDEMPOTENCY_TTL_MS } from "@/lib/idempotency-key";
 import { isValidIdempotencyKey } from "@/lib/idempotency-key";
 
 const name = z.string().trim().min(1).max(100);
@@ -64,7 +65,7 @@ const display = {
   archived_at: true,
   revision: true,
 } as const;
-const publicProfile = z
+export const publicProfile = z
   .object({
     id: z.string(),
     family_id: z.string(),

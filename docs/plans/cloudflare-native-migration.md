@@ -569,6 +569,74 @@ by `scripts/migrate.js`. Structural parity does not prove these invariants or
 feature-flow parity. Data/API/SSR conversion, private R2 and deployment remain
 unfinished; production has not changed.
 
+## Atomic email-free profiles and routine lifecycle — 2026-10-28
+
+The existing profile routes now select D1 for list/create/edit/archive, retaining
+parent/person-only authentication, the setup gate, strict body/role/age rules,
+required idempotency keys, stable deterministic create IDs, response projections,
+revision conflicts, replay headers and seven-day receipts. No account, email,
+invitation or new authority is created by a presentation profile. Account-link
+commands and the wider chore/routine writers remain separate and unfinished.
+
+The profile command computes a plan from primary reads, then checks current
+person authority, receipt state, profile revision/ownership and exact future
+root/stack snapshots inside one native D1 batch. The profile update, supported
+future-subject invalidation, stack version/fingerprint changes and completed
+receipt commit together. A concurrent routine edit aborts the stale plan and is
+preserved when it is re-read. Bulk SQL keeps the statement count independent of
+how many future roots are affected. Current occurrence ownership/title/dates are
+preserved, as in the canonical PostgreSQL command.
+
+`_D1WriteCheck` is an internal empty assertion table: successful predicates insert
+no rows; a false/NULL predicate violates a named CHECK and D1 rolls the whole
+batch back. This is explicit SQL precondition checking, not an interactive
+Prisma transaction shim or application-level compensation. The actual Worker
+fixture proves rollback of an earlier write and that no check rows persist.
+See [Cloudflare's native batch guarantee](https://developers.cloudflare.com/d1/worker-api/d1-database/).
+
+`0007_profile_routine_guards.sql` ports the latest profile-only chore expansion,
+account/profile reconciliation, sticky erasure, active role/age and routine
+protocol/duration guards. `0008_responsibility_lifecycle.sql` ports target epoch
+advancement and participation retirement on account/profile/mapping/link identity
+changes. Generation changes are rejected; material target changes advance epochs,
+and profile archive/account role change retire old responsibility metadata.
+Remaining responsibility metadata-shape checks and feature APIs are not accepted
+by this milestone. The idempotency fingerprint implementation was extracted into
+a pure Node leaf, preserving its canonical hash/re-export while avoiding Next HTTP
+imports in repository-only Workers.
+
+Evidence:
+
+- Actual-source local workerd/D1 smoke passes eight simultaneous creates with one
+  effect/seven replays, no account creation, key reuse/expiry, role/household scope,
+  profile edit/archive and stale revision handling. Receipt failure rolls back
+  profile, future root and stack; concurrent future edits survive retry. Sticky
+  erasure, routine protocol/duration guards and native assertion rollback pass.
+- Archive invalidates the primary/metadata/future-routine epochs and removes
+  responsibility participation. Account role change similarly retires metadata
+  and advances the canonical target epoch. Wider retirement/linking acceptance
+  remains with those still-unconverted feature flows.
+- Rebuilt app Worker HTTP passes create/replay, no mailbox/account, required-key
+  400, key-reuse 422, child 403, foreign profile 404, edit/stale-revision 409,
+  role-age 400, archive replay, demoted-parent 403 and revoked-session 401.
+- The browser exposed an unconverted `/api/auth/me` read blocking Family. It now
+  uses a scoped D1 read client with the verified cookie generation and retains
+  the exact own-profile/family projection and gamification stripping. The browser
+  checks confirm no password/reset-token/disabled XP fields in its response.
+- At 390x844 and 1366x768, the actual Family dialog creates a three-year-old
+  name-only profile and confirms success. Screenshots inspected; no horizontal
+  overflow or page exceptions. `/api/family/profile-links` returns its expected
+  gated 409 in both views; account linking is not claimed working.
+- OpenNext build, TypeScript, scoped ESLint, 48 affected Jest tests and the native
+  identity/schema smokes pass. Evidence:
+  `/tmp/herewoven-d1-profiles-{build,smoke,http,tests,typecheck,lint,schema,identity}.log`,
+  HTTP-results/rendered JSON and phone/desktop PNGs.
+
+Setup was enabled only in the disposable local fixture. No production flag,
+provider subscription, resource, data or VPS service changed. Remaining database
+checks/triggers, profile linking, member removal/deletion, other feature data/SSR,
+R2 and full household/deployment acceptance remain open.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

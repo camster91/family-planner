@@ -34,7 +34,8 @@
  * share of keyed requests deletes them); there is no cron (AGENTS.md).
  */
 import crypto from 'crypto'
-import { canonicalRequestJson } from '@/lib/idempotency-request-json'
+import { hashIdempotentRequest } from '@/lib/idempotency-hash'
+export { hashIdempotentRequest } from '@/lib/idempotency-hash'
 import { NextResponse } from 'next/server'
 import { logRouteError } from '@/lib/api-error'
 import type { PrismaClient } from '@prisma/client'
@@ -108,10 +109,6 @@ export function readIdempotencyKey(request: { headers: Headers }): { key: string
   const value = raw.trim()
   if (!isValidIdempotencyKey(value)) return { key: null, error: idempotencyError('IDEMPOTENCY_KEY_INVALID') }
   return { key: value, error: null }
-}
-
-export function hashIdempotentRequest(action: string, body: unknown): string {
-  return crypto.createHash('sha256').update(`${action}\n${canonicalRequestJson(body)}`).digest('hex')
 }
 
 function isUniqueViolation(error: unknown): boolean {

@@ -81,7 +81,7 @@ try {
   await assert.rejects(insertReceipt(), /UNIQUE/)
   const receipt = await db.prepare('SELECT created_at FROM "IdempotencyRecord"').first()
   assert.ok(Number.isSafeInteger(receipt.created_at) && receipt.created_at > 1_000_000_000_000, 'new-table default dates use milliseconds')
-  await db.prepare(`INSERT INTO "Chore" (id,family_id,title,due_date,created_by) VALUES ('schema-chore','schema-a','Fabricated chore',1,'schema-user')`).run()
+  await db.prepare(`INSERT INTO "Chore" (id,family_id,title,due_date,created_by,assigned_to) VALUES ('schema-chore','schema-a','Fabricated chore',1,'schema-user','schema-user')`).run()
   const chore = await db.prepare(`SELECT responsibility_generation,rotation_member_ids,weekly_days FROM "Chore" WHERE id='schema-chore'`).first()
   assert.match(chore.responsibility_generation, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   assert.equal(chore.rotation_member_ids, '[]')

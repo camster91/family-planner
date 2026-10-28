@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { withD1ReadClient } from '@/lib/cloudflare/read-client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
@@ -20,27 +22,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ user: null, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma!.user.findUnique({
-      where: { id: payload.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        age: true,
-        family_id: true,
-        avatar_url: true,
-        created_at: true,
-        xp: true,
-        level: true,
-        streak: true,
-        best_streak: true,
-        last_chore_date: true,
-        family: {
-          select: { id: true, name: true, subscription_tier: true },
-        },
+    const select = {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      age: true,
+      family_id: true,
+      avatar_url: true,
+      created_at: true,
+      xp: true,
+      level: true,
+      streak: true,
+      best_streak: true,
+      last_chore_date: true,
+      family: {
+        select: { id: true, name: true, subscription_tier: true },
       },
-    })
+      } as const
+    const user = storageBackend() === 'd1'
+      ? await withD1ReadClient(db => db.user.findFirst({ where: { id: payload.userId, token_version: payload.tv ?? 0 }, select }))
+      : await prisma!.user.findUnique({ where: { id: payload.userId }, select })
 
     if (!user) {
       return NextResponse.json({ user: null, error: 'Unauthorized' }, { status: 401 })

@@ -62,7 +62,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const settings = await fetch(`http://127.0.0.1:${port}/family-settings`)
   const settingsResult = await settings.json()
   assert.equal(settings.status, 200, JSON.stringify(settingsResult))
-  console.log(JSON.stringify({ ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult }))
+  const profiles = await fetch(`http://127.0.0.1:${port}/profiles`)
+  const profileResult = await profiles.json()
+  assert.equal(profiles.status, 200, JSON.stringify(profileResult))
+  console.log(JSON.stringify({ ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }
