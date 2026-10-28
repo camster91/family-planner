@@ -422,7 +422,8 @@ not provide a fallback or silently route existing writers through Prisma/D1.
 The canonical schema generates all 84 read delegates, while the reviewed SQL
 migrations still define only the currently ported tables. Array fields are JSON
 in the read schema; PostgreSQL array predicates still need explicit conversion.
-The generated schema/client are ignored build outputs and never migration input.
+The generated schema/client are ignored build outputs and are not applied or
+db-pushed at deployment. Explicit reviewed SQL is the D1 migration authority.
 
 Prisma/D1 7.10.1 does not enforce interactive transactions. A runtime read-only
 facade therefore exposes only model read methods, before callbacks can run;
@@ -521,6 +522,52 @@ Evidence:
 Member/profile management, other settings, wider feature data/SSR, R2, full
 household acceptance and production cutover remain unfinished. No production
 resources, subscriptions, data or VPS services changed.
+
+## Complete model-table foundation — 2026-10-28
+
+`0005_domain_tables.sql` adds the remaining 73 canonical model tables and missing
+canonical indexes, preserving the existing 11 tables and their stronger guards.
+The canonical Prisma model/relationship definitions were used for a one-time
+SQLite DDL candidate, then reviewed and corrected as explicit SQL. The source
+schema SHA-256 is recorded in the SQL. Dates become integer milliseconds,
+booleans 0/1 and JSON/arrays JSON TEXT. Empty-array defaults are quoted JSON;
+database-generated identities use valid UUID-v4 strings. The explicit SQL files
+remain authoritative; there is no automatic schema push or generated migration
+application in production.
+
+`0006_profile_subject_guards.sql` ports profile household immutability and
+archived same-household erasure ownership/one-way transfer guards. The composite
+user FK on profile mappings/links is deferred, matching the canonical lifecycle:
+family deletion clears user membership and cascades profiles/links together.
+No profile editing/linking/routine writer is activated by this schema work.
+
+Evidence:
+
+- `npm run cloudflare:test:schema`: actual local D1 applies all six migrations;
+  all 84 models, 963 scalar columns/types/nullability, 153 primary/unique keys
+  and 208 canonical relationships match. Foreign-key checks pass. Actual inserts
+  prove same-household account-link refusal, shared receipt-key uniqueness,
+  millisecond/UUID/array defaults and JSON/boolean/date guards.
+- Profile moves, foreign/unarchived erasure assignment and erasure-owner clearing
+  are refused. Valid linked family deletion succeeds without a foreign-key error.
+  workerd reports deferred-FK commit refusal with an opaque internal error;
+  the check verifies no row committed and subsequent valid operations still work.
+- Existing identity smoke and actual-source read/preferences/settings Worker
+  smoke pass against the expanded schema. The latter also applies it through
+  local Wrangler migrations. Scoped script ESLint passes. No application-code
+  build was repeated for these SQL/script-only changes.
+- Evidence: `/tmp/herewoven-d1-schema-{smoke,identity,reads,lint}.log`.
+
+Still required before feature writers/cutover: port the remaining custom SQL
+checks/triggers from `database/migration-*.sql`, including chore subject guards,
+routine protocols, preparation/responsibility epochs and retirement, food source
+versions, reward notification identity and terminal recipient decisions. Native
+PostgreSQL length/decimal/range constraints also need explicit domain review;
+Wishlist decimal precision/rounding is not yet accepted. The ignored food source
+columns remain absent until their triggers can be installed together, as required
+by `scripts/migrate.js`. Structural parity does not prove these invariants or
+feature-flow parity. Data/API/SSR conversion, private R2 and deployment remain
+unfinished; production has not changed.
 
 ## Cutover and rollback
 

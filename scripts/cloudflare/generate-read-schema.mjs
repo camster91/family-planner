@@ -21,5 +21,5 @@ schema = schema.replace(/dbgenerated\(("(?:\\.|[^"\\])*")\)/g, (_, literal) => {
   if (!JSON.parse(literal).includes('gen_random_uuid()')) throw new Error('Review unknown database default before generating D1 reads')
   return 'dbgenerated("(lower(hex(randomblob(16))))")'
 })
-fs.writeFileSync(path.join(root, 'prisma/cloudflare-read.prisma'), '// Generated read-only projection of schema.prisma; do not use for D1 migrations.\n'+schema)
+fs.writeFileSync(path.join(root, 'prisma/cloudflare-read.prisma'), '// Generated read-only projection of schema.prisma; never db-push. D1 uses reviewed SQL migrations.\n'+schema)
 console.log('Generated SQLite read schema; native D1 migrations are unchanged.')

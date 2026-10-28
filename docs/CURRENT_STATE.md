@@ -9,8 +9,12 @@ Local Workers public login, D1 session authority, registration, verification,
 login, invited-child admission, atomic family creation and persistent rate limits
 have focused runtime evidence. Password recovery/change, safe profile reads/edits
 and paired-device person refusal also pass selected local Worker flows. Four
-D1 migrations (11 tables) apply locally, including credential/device foundations
-and audit erasure guards. Membership joins, scoped family/member reads and
+D1 identity/device migrations apply locally, including audit erasure guards.
+Six migrations now define all 84 model tables, with 963 scalar columns, 153
+canonical unique keys and 208 relationships checked in local D1. This is schema
+foundation: remaining PostgreSQL-specific checks/triggers and feature writers
+are not yet converted. Profile family/erasure guards are ported and tested.
+Membership joins, scoped family/member reads and
 invitation/code controls also pass selected local Worker checks. A request-scoped,
 read-only Prisma/D1 client now supports the dashboard shell and no-family
 onboarding in the built Worker; its runtime facade rejects writes, raw SQL and
@@ -20,8 +24,7 @@ Revision races, defaults inheritance, current authority and rollback have local
 Worker evidence; the prior onboarding preference-request failure is fixed.
 Household rename, concurrent feature switches, beta-metrics controls and Recent
 changes now use D1, with atomic audit/retention and phone/desktop browser evidence.
-Other settings,
-removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
+Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).
 Earlier state sections below are historical and do not supersede this migration.

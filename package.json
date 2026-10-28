@@ -31,6 +31,7 @@
     "backfill:meals-groceries": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/backfill-meals-groceries.mjs",
     "beta:scorecard": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/beta-scorecard.mjs",
     "cloudflare:inventory": "node scripts/cloudflare/inventory.mjs",
+    "cloudflare:test:schema": "node scripts/cloudflare/schema-smoke.mjs",
     "cloudflare:test:identity": "node scripts/cloudflare/identity-smoke.mjs",
     "cloudflare:test:reads": "npm run cloudflare:generate:reads && node scripts/cloudflare/read-smoke.mjs",
     "cloudflare:generate:reads": "node scripts/cloudflare/generate-read-schema.mjs && prisma generate --config prisma/cloudflare-read.config.ts",
