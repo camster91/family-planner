@@ -452,6 +452,35 @@ Evidence from this source candidate:
 
 No production resource, subscription, data or VPS change occurred.
 
+## Display preferences follow-through — 2026-10-28
+
+`GET/PATCH /api/users/display-preferences` and
+`GET/PATCH /api/family/display-defaults` now select the D1 repository on D1.
+The existing strict body/schema, paired-device refusal, error shape and no-store
+headers remain. A single joined query reads a consistent own-account/defaults
+snapshot and validates current generation/membership/role before serialization.
+Personal and parent-default writes use conditional revision/session/role/household
+updates plus a committed snapshot read in one atomic D1 batch. No interactive
+transaction emulation or provider scheduler is introduced.
+
+- The actual-source local workerd smoke passes eight simultaneous personal saves
+  and eight defaults saves (one winner in each), inheritance/reset, child-safe
+  favorites, no-household onboarding preferences, unsupported-version refusal,
+  foreign-household refusal and authority changes between preflight and write.
+  Injected storage failure rolls the preference update back.
+- The rebuilt app Worker HTTP checks pass no-household read/save, stale-revision
+  409, strict-body 400, parent defaults, child inheritance, unaffected second
+  household, child favorites, demoted-parent 403 and revoked-session 401.
+- Phone 390x844 and desktop 1366x768 onboarding render HTTP 200 without overflow,
+  page exceptions or failed requests. Screenshots were inspected. This fixes the
+  preference-request 500 observed at the preceding read-client milestone.
+- OpenNext build, TypeScript and scoped ESLint pass. Evidence is under
+  `/tmp/herewoven-d1-preferences-{build,smoke,http,typecheck,lint}.log`,
+  `/tmp/herewoven-d1-preferences-http-results.json`, rendered JSON and PNGs.
+
+Other settings and feature domains, complete household flows, production mail,
+private R2 and cutover remain incomplete. Production is unchanged.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

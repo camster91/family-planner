@@ -1,3 +1,9 @@
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  readD1DisplayPreferences,
+  updateD1DisplayPreferences,
+  updateD1DisplayDefaults,
+} from "@/lib/cloudflare/display-preferences";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithUser } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
@@ -40,9 +46,14 @@ export async function displayPreferencesRequest(
       tokenVersion: auth.payload.tv ?? 0,
     };
     if (!write)
-      return NextResponse.json(await readDisplayPreferences(prisma!, actor), {
-        headers,
-      });
+      return NextResponse.json(
+        storageBackend() === "d1"
+          ? await readD1DisplayPreferences(actor)
+          : await readDisplayPreferences(prisma!, actor),
+        {
+          headers,
+        },
+      );
     const raw = await request.text();
     if (raw.length > 12_000)
       return fail(413, "BODY_TOO_LARGE", "Preference update is too large.");
@@ -57,7 +68,9 @@ export async function displayPreferencesRequest(
       if (!parsed.success)
         return fail(400, "VALIDATION_ERROR", "Invalid display preferences.");
       return NextResponse.json(
-        await updateDisplayPreferences(prisma!, actor, parsed.data),
+        storageBackend() === "d1"
+          ? await updateD1DisplayPreferences(actor, parsed.data)
+          : await updateDisplayPreferences(prisma!, actor, parsed.data),
         { headers },
       );
     }
@@ -65,12 +78,18 @@ export async function displayPreferencesRequest(
     if (!parsed.success)
       return fail(400, "VALIDATION_ERROR", "Invalid household defaults.");
     return NextResponse.json(
-      await updateDisplayDefaults(
-        prisma!,
-        actor,
-        parsed.data.expectedRevision,
-        parsed.data.today,
-      ),
+      storageBackend() === "d1"
+        ? await updateD1DisplayDefaults(
+            actor,
+            parsed.data.expectedRevision,
+            parsed.data.today,
+          )
+        : await updateDisplayDefaults(
+            prisma!,
+            actor,
+            parsed.data.expectedRevision,
+            parsed.data.today,
+          ),
       { headers },
     );
   } catch (error) {

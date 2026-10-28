@@ -15,7 +15,9 @@ invitation/code controls also pass selected local Worker checks. A request-scope
 read-only Prisma/D1 client now supports the dashboard shell and no-family
 onboarding in the built Worker; its runtime facade rejects writes, raw SQL and
 transactions. Phone/desktop onboarding renders without overflow or page errors,
-but its display-preferences request still returns 500 and requires conversion. Rename/settings,
+and its personal/household display-preferences APIs now use atomic D1 writes.
+Revision races, defaults inheritance, current authority and rollback have local
+Worker evidence; the prior onboarding preference-request failure is fixed. Other settings,
 removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

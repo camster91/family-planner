@@ -1,3 +1,5 @@
+import { testDisplayPreferences } from './display-preferences'
+import type { D1Store } from '../../../src/lib/cloudflare/database'
 import { withD1ReadClient } from '../../../src/lib/cloudflare/read-client'
 
 type NativeD1 = NonNullable<Parameters<typeof withD1ReadClient>[1]>
@@ -7,8 +9,9 @@ function check(condition: unknown, message: string): asserts condition {
 
 /** Disposable local Worker only; never included in the application entrypoint. */
 const worker = {
-  async fetch(_request: Request, env: { DB: NativeD1 }) {
+  async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/preferences') return Response.json(await testDisplayPreferences(env.DB as unknown as D1Store))
       const result = await withD1ReadClient(async db => {
         const member = await db.user.findUnique({
           where: { id: 'read-a' },
