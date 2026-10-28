@@ -1,3 +1,4 @@
+import { deleteD1Chore, D1ChoreDeleteReceiptError } from '@/lib/cloudflare/chore-delete'
 import { storageBackend } from "@/lib/storage-backend";
 import { withChoreReads, type ChoreReadDb } from "@/lib/chore-read-scope";
 import { readCanonicalChoreDetail } from "@/lib/chore-detail-read";
@@ -5,7 +6,7 @@ import { hydrateChoreProfileMembers, type ProfileHydrated } from "@/lib/chore-pr
 import { assistantSourceGuard, AssistantSourceRefused } from '@/lib/assistant-source-proof'
 import { assistantDeleteTargetGuard } from '@/lib/assistant-delete-target'
 import { deletePersonRecord, authorizePersonDeleteReplay } from '@/lib/person-record-delete'
-import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import {
   hiddenRoutineOccurrenceIds,
   scheduledOnceRoutineOccurrenceIds,
@@ -417,6 +418,10 @@ export async function DELETE(request: NextRequest) {
       parsed.data.choreId,
       Boolean(sourceGuard),
     );
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1Chore(actor, parsed.data.choreId, key, { sourceGuard, targetGuard })
+      return choreJson(result.body, { status: result.status, headers: result.replayed ? { 'Idempotency-Replayed': 'true' } : undefined })
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -440,6 +445,7 @@ export async function DELETE(request: NextRequest) {
       { beforeReplay: () => authorizePersonDeleteReplay(prisma!, actor, kind) },
     );
   } catch (error) {
+    if (error instanceof D1ChoreDeleteReceiptError) return idempotencyError(error.code);
     if (error instanceof AssistantSourceRefused) return error.response();
     if (error instanceof RoutineScheduleLegacyWriteError)
       return choreJson(

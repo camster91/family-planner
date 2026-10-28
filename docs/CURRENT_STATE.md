@@ -79,7 +79,13 @@ notification cohort commits its occurrence/terminal recipient/inbox effects in
 that same batch; deadlines and stale review epochs remain enforced. Default
 notices stay best-effort after a real transition. Parent/teen phone/desktop
 review/send-back/readback journeys pass; no cohort is enabled in production.
-Creation/edit/delete and device/profile/routine command writers,
+Account occurrence deletion and exact retry receipts now use D1, including
+series-anchor/history guards, parent/assignee authority, scoped dependent cascades
+and AI exact-target review/confirmation. Eight-way manual/confirmed races and
+phone/desktop cancel/confirm/readback flows pass. Profile-only deletion retains
+its separate protocol refusal. Preparation step deletion intentionally leaves the
+parent plan revision unchanged, matching the canonical PostgreSQL rule.
+Creation/edit and dedicated device/profile/routine command writers,
 other-domain confirmation, canonical mutation
 orchestration and complete AI chat parity remain unfinished; deployed-plan
 query/CPU limits still need edge verification.

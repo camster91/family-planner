@@ -1464,6 +1464,72 @@ cutover/VPS retirement. No production resource, deployment, paid plan, live data
 DNS or VPS change. Evidence prefix `/tmp/herewoven-d1-chore-check-`. Owned preview
 keys/configuration are removed after shutdown; the full migration remains active.
 
+## Native account chore deletion and exact target review — 2026-10-28
+
+`DELETE /api/chores` now dispatches to one native atomic deletion/receipt adapter.
+Current session generation, role, household/feature, chore, routine metadata,
+anchor child presence and prior key record are read through the enforced read
+scope and witnessed before the effect. Parents or the current account assignee
+may delete one occurrence. Profile-only work retains its separate protocol
+refusal. Active repeating anchors require stop; stopped anchors with copies
+retain history. Authored/unsupported routine definitions retain their editor
+boundary. No stop/edit/profile command is inferred from a delete request.
+
+A keyed success and dependent cascades commit with their minimal exact receipt.
+Concurrent same-key requests re-enter current-authority replay; replay never
+re-deletes a recreated ID. Live/abandoned/expired reservations preserve canonical
+key/hash/household checks and retry behavior. Invalid outcomes leave no new
+receipt; reclaimable older records are removed with the guarded outcome.
+Bounded sampled expired-receipt housekeeping reuses the existing native helper.
+
+AI-proof-bearing chore deletion now uses the native target review endpoint too.
+The shared Event target helper retains its compatibility wrappers and now also
+captures the full Chore and scoped ChoreAssignment/EventPreparationStep/
+ResponsibilityState sets, explicit foreign-assignment refusal, 500-child and
+1MiB bounds, ISO dates and content-free keyed proof. Source/target witnesses and
+lease checks share the delete/cascade/receipt batch. A same-key winner committing
+between receipt lookup and proof reads permits only exact completed-receipt
+recovery; other stale/missing proofs still refuse. Event target/mutation native
+regressions pass in the same complete smoke run.
+
+No new migration was needed. Canonical PostgreSQL deliberately does not bump a
+preparation revision for step DELETE; exact membership is in the fingerprint.
+The native cascade retains that rule and the surviving preparation/event.
+Preparation lifecycle/identity/step INSERT/UPDATE triggers remain separate work.
+
+**Verification:** actual workerd fixtures pass eight manual deletes/one effect,
+recreated-ID replay, key reuse/in-progress/reclaim, parent/own-assignee and
+foreign refusal, profile refusal, active/history anchor guards, unsupported
+routine boundary, actor/assignment changes at commit and feature renewal before
+completed replay. Forced receipt failure restores the chore and all three
+registered dependent types. Successful cascade preserves the parent preparation
+revision. AI review verifies canonical title/ISO due date and content-free proof;
+eight confirmed requests converge, changed full targets and a newly inserted
+child at commit refuse, teen own review works, 501 children refuse, expired
+review refuses and completed recovery works with confirmation withdrawn.
+50 focused lifecycle/isolation/target unit tests, standalone TypeScript, scoped
+lint and OpenNext build pass. Built HTTP passes eight-way manual and confirmed
+races/seven exact replays, canonical preview/no-store, own/foreign scope,
+invalid400/missing404, missing/stale proof409 without a receipt, protected anchor
+and revoked401. Playwright390/1366 uses the real row menu and delete dialog:
+Cancel preserves the row, Confirm removes it, authenticated readback returns404,
+and no page errors/failed requests/overflow occur. Phone confirmation and desktop
+empty-state screenshots inspected. The fixture's series/assignment dates were
+corrected to obey real uniqueness constraints; those guards were retained.
+
+The local dependency directory and browser executable became unavailable during
+validation; lockfile dependencies, generated clients and the required headless
+browser were restored before the final passing runs. Replaceable package caches
+were cleared to recover build space; no source/recovery data was removed.
+Evidence prefix `/tmp/herewoven-d1-chore-delete-`. Owned local preview keys and
+configuration are removed after shutdown. All test data is fabricated.
+
+Remaining: chore creation/edit/stop, dedicated profile/device/routine commands,
+other data domains/SSR, complete AI/non-HTTP orchestration, private R2,
+household/device/mail flows, deployed-plan budgets and cutover/VPS retirement.
+No production resource/deployment, paid plan, live data, DNS or VPS change; the
+full migration remains active.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
