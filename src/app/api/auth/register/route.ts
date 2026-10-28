@@ -1,3 +1,7 @@
+import { getD1Database } from '@/lib/cloudflare/database'
+import { createD1Registration, findD1Account, findD1RegistrationInvite } from '@/lib/cloudflare/accounts'
+import { randomUUID } from 'node:crypto'
+import { storageBackend } from '@/lib/storage-backend'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -54,7 +58,9 @@ export async function POST(request: NextRequest) {
 
     let invite: { id: string; family_id: string; role: string; email: string; family: { name: string } } | null = null
     if (inviteToken) {
-      const found = await prisma!.familyInvite.findUnique({
+      const found = storageBackend() === 'd1'
+        ? await findD1RegistrationInvite(await getD1Database(), hashInviteToken(inviteToken))
+        : await prisma!.familyInvite.findUnique({
         where: { token_hash: hashInviteToken(inviteToken) },
         select: {
           id: true,
@@ -78,7 +84,9 @@ export async function POST(request: NextRequest) {
       invite = found
     }
 
-    const existing = await prisma!.user.findUnique({ where: { email } })
+    const existing = storageBackend() === 'd1'
+      ? await findD1Account(await getD1Database(), email)
+      : await prisma!.user.findUnique({ where: { email } })
     if (existing) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
     }
@@ -95,7 +103,27 @@ export async function POST(request: NextRequest) {
       createData.family_id = invite.family_id
     }
     let user
-    if (invite) {
+    if (storageBackend() === 'd1') {
+      try {
+        user = await createD1Registration(await getD1Database(), {
+          userId: randomUUID(), email, passwordHash: hashed, name, now: Date.now(),
+          inviteTokenHash: inviteToken ? hashInviteToken(inviteToken) : undefined,
+          auditId: randomUUID(),
+          auditSummaries: {
+            parent: auditSummary.memberJoined(name, 'parent'),
+            teen: auditSummary.memberJoined(name, 'teen'),
+            child: auditSummary.memberJoined(name, 'child'),
+          },
+        })
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('UNIQUE constraint failed: User.email')) {
+          return NextResponse.json({ error: 'Email already registered' }, { status: 409 })
+        }
+        throw error
+      }
+      if (!user) return NextResponse.json({ error: 'Invite not found or expired' }, { status: 400 })
+      if (invite && user.family_id) await recordBetaMetric(prisma!, user.family_id, 'member_joined')
+    } else if (invite) {
       // Invite path: create the member and consume the invite in one
       // transaction under the household membership lock, so the account can
       // never be created into a household that a concurrent deletion is

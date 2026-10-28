@@ -1,3 +1,6 @@
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1LoginUser } from '@/lib/cloudflare/accounts'
+import { storageBackend } from '@/lib/storage-backend'
 import { withRouteTelemetry } from '@/lib/route-telemetry'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -97,9 +100,12 @@ async function handlePOST(request: NextRequest) {
     // form first; fall back to the address as typed for any older account
     // stored with capitals.
     const lowered = email.toLowerCase()
-    let user = await prisma!.user.findUnique({ where: { email: lowered }, select: userSelect })
+    const lookupUser = async (address: string) => storageBackend() === 'd1'
+      ? findD1LoginUser(await getD1Database(), address)
+      : prisma!.user.findUnique({ where: { email: address }, select: userSelect })
+    let user = await lookupUser(lowered)
     if (!user && lowered !== email) {
-      user = await prisma!.user.findUnique({ where: { email }, select: userSelect })
+      user = await lookupUser(email)
     }
 
     // Always run bcrypt to prevent timing-based email enumeration

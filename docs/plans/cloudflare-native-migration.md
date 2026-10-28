@@ -241,6 +241,58 @@ Next: convert registration/invite consumption, verification/login/password
 writes, shared-device authority and the remaining membership/account APIs. Full
 onboarding and dashboard rendering remain incomplete in the D1 candidate.
 
+### Registration, email verification and login on D1
+
+The existing registration/login HTTP endpoints now select direct D1 account
+repositories when D1 is enabled. Normal registrations remain unverified and
+receive no session. Invited registration rechecks the live invite's email,
+expiry, role and household inside the same batch that creates the account,
+claims the invite and writes the household audit. A failed audit rolls back
+both account and claim; duplicate-email races return the existing 409 contract.
+Account projections exclude ignored continuity metadata, and login selects only
+its existing allowed fields plus server-side password/session generation.
+
+Verification tokens are still random plaintext in mail links and SHA-256 hashes
+in storage. D1 issuance, atomic expiry-checked consume, and already-used lookup
+are wired through the existing token helpers. Password reset and resend-recovery
+paths are **not yet converted**. Login retains bcrypt, failure counters, the
+verification gate, secure cookie flags and conditional gamification visibility.
+
+`0002_identity_followthrough.sql` adds the verification lookup index and
+`BetaMetricDaily`. The canonical post-commit beta recorder now has a D1 path
+that rechecks household opt-in and updates/prunes counts in one batch. Strict
+transactional feedback and the other metrics/settings paths remain to port;
+no scheduler or provider was activated.
+
+Observed validation:
+
+- Local D1 smoke executes the actual account repositories: normal registration,
+  duplicate-email rejection, typed dates/booleans, private login projection,
+  one verification winner under eight simultaneous claims, expiry/replay,
+  wrong-address invite rejection, eight competing invite registrations with one
+  winner, audit failure rollback, and current stored role after an invite change.
+- Existing affected auth/device-guard/verification/token/beta tests: 66 passed.
+  TypeScript, scoped ESLint, diff checks and the OpenNext build passed.
+- Both migrations applied through Wrangler locally. Actual Worker HTTP checks
+  passed normal registration (no session/private fields), refusal before email
+  verification, rejection of a submitted stored hash, single-use verification,
+  wrong-password rejection, mixed-case verified login, authenticated family
+  creation, invited-child registration, audit and opt-in usage count.
+- Email delivery was deliberately unconfigured. The HTTP test replaced the
+  local verification hash with a known fabricated token to exercise the
+  confirmation endpoint; this is **not evidence of delivered mail** or a real
+  email-link journey. No real household or production credential was used.
+- Evidence: `/tmp/herewoven-d1-accounts-smoke.log`,
+  `/tmp/herewoven-d1-accounts-tests.log`, `/tmp/herewoven-d1-accounts-build.log`,
+  `/tmp/herewoven-d1-accounts-migrations.log`,
+  `/tmp/herewoven-d1-account-http-results.json`.
+- Local Worker stopped, temporary secrets/config removed; no deployment or
+  production change. Full dashboard rendering and complete household journeys
+  remain unfinished.
+
+Next: password recovery/resend verification, account/profile reads, current
+shared-device authority and the remaining membership APIs; then domain storage.
+
 ## Execution order
 
 1. Complete worker artifact and runtime compatibility (middleware/auth, Node
@@ -274,7 +326,9 @@ before new writes may restore that route. After the Cloudflare database accepts
 new household writes, reverting to an older database can lose data: freeze
 writes and restore/reconcile the correct state instead.
 
-Current status: inventory and runtime scaffold authored; migration incomplete.
+Current status: local Workers account/session/invitation reads and selected
+registration, verification, login, household-create and rate-limit writes verified;
+the full data/storage migration and production cutover remain incomplete.
 No D1/R2 production resources created, no Cloudflare application deployed, no
 subscription changed, no data deletion, no VPS removal.
 

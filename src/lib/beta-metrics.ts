@@ -24,6 +24,7 @@
  * This file is the only writer of the table (source-scan test in
  * src/lib/__tests__/beta-metrics.test.ts).
  */
+import { storageBackend } from '@/lib/storage-backend'
 import type { Prisma, PrismaClient } from '@prisma/client'
 
 export const BETA_METRICS = [
@@ -97,6 +98,21 @@ export async function recordBetaMetric(
       return
     }
     if (typeof familyId !== 'string' || familyId.length === 0) return
+    if (storageBackend() === 'd1') {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      const store = await getD1Database()
+      const now = options.now ?? new Date()
+      await store.batch([
+        store.prepare(`INSERT INTO "BetaMetricDaily" (family_id,day,metric,count)
+          SELECT id,?1,?2,1 FROM "Family" WHERE id=?3 AND beta_metrics_enabled=1
+          ON CONFLICT (family_id,day,metric) DO UPDATE SET count="BetaMetricDaily".count+1`)
+          .bind(utcDay(now), metric, familyId),
+        store.prepare(`DELETE FROM "BetaMetricDaily" WHERE family_id=?1 AND day<?2
+          AND EXISTS (SELECT 1 FROM "Family" WHERE id=?1 AND beta_metrics_enabled=1)`)
+          .bind(familyId, retentionCutoffDay(now)),
+      ])
+      return
+    }
     await appendBetaMetric(db, familyId, metric, options.now ?? new Date())
   } catch (error) {
     logFailure(error)

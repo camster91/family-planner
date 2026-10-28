@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import ts from 'typescript'
 
@@ -17,6 +18,7 @@ async function loadRepository(name) {
   })
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
 }
+const { createD1Registration, findD1Account, findD1LoginUser, findD1RegistrationInvite, storeD1VerificationToken, consumeD1VerificationToken, isD1VerificationTokenUsed } = await loadRepository('accounts.ts')
 const { createD1Family } = await loadRepository('family-create.ts')
 const { checkD1RateLimit, isD1RateLimited } = await loadRepository('rate-limit.ts')
 const mf = new Miniflare(convertV4MiniflareOptions({
@@ -26,13 +28,15 @@ const mf = new Miniflare(convertV4MiniflareOptions({
 }))
 try {
   const db = await mf.getD1Database('DB')
-  const schema = await fs.readFile(path.join(root, 'database/cloudflare/0001_identity.sql'), 'utf8')
-  // This initial migration contains table/index statements only (no triggers).
-  for (const statement of schema.replace(/^--.*$/gm, '').split(';').filter(sql => sql.trim())) {
-    await db.prepare(statement).run()
+  for (const file of (await fs.readdir(path.join(root, 'database/cloudflare'))).filter(file => file.endsWith('.sql')).sort()) {
+    const schema = await fs.readFile(path.join(root, 'database/cloudflare', file), 'utf8')
+    // Initial migrations contain table/index statements only (no triggers).
+    for (const statement of schema.replace(/^--.*$/gm, '').split(';').filter(sql => sql.trim())) {
+      await db.prepare(statement).run()
+    }
   }
   const prisma = await fs.readFile(path.join(root, 'prisma/schema.prisma'), 'utf8')
-  for (const name of ['Family', 'User', 'FamilyInvite', 'RateLimitEntry', 'AuditLog']) {
+  for (const name of ['Family', 'User', 'FamilyInvite', 'RateLimitEntry', 'AuditLog', 'BetaMetricDaily']) {
     const body = prisma.match(new RegExp(`model ${name} \\{\\n([\\s\\S]*?)\\n\\}`))[1]
     const columns = (await db.prepare(`PRAGMA table_info("${name}")`).all()).results.map(row => row.name)
     const expected = body.split('\n').filter(line => !line.includes('@ignore'))
@@ -77,6 +81,55 @@ try {
   assert.equal(await familyCount(), 2)
   assert.notEqual((await db.prepare('SELECT family_id FROM "User" WHERE id=?1').bind('owner-b').first()).family_id, owner.family_id)
 
+  const registration = (userId, email, inviteTokenHash) => ({
+    userId, email, inviteTokenHash, passwordHash: 'fabricated-password-hash',
+    name: 'Fabricated member', now: 1000, auditId: `audit-${userId}`,
+    auditSummaries: { parent: 'Member joined as parent', teen: 'Member joined as teen', child: 'Member joined as child' },
+  })
+  const registered = await createD1Registration(db, registration('new-account', 'new@example.test'))
+  assert.equal(registered.email_verified, false)
+  assert.ok(registered.created_at instanceof Date)
+  assert.equal(registered.family_id, null)
+  await assert.rejects(createD1Registration(db, registration('duplicate-account', 'new@example.test')))
+  assert.equal((await findD1Account(db, 'new@example.test')).id, 'new-account')
+  const login = await findD1LoginUser(db, 'new@example.test')
+  assert.equal(login.email_verified, false)
+  assert.equal('verify_token' in login, false)
+  assert.equal('reset_token' in login, false)
+  const hash = createHash('sha256').update('fabricated-verify-token').digest('hex')
+  await storeD1VerificationToken(db, 'new-account', hash, 5000)
+  assert.equal(await consumeD1VerificationToken(db, 'fabricated-verify-token', 1000), false)
+  const claims = await Promise.all(Array.from({ length: 8 }, () => consumeD1VerificationToken(db, hash, 1000)))
+  assert.equal(claims.filter(Boolean).length, 1)
+  assert.equal(await isD1VerificationTokenUsed(db, hash), true)
+  assert.equal((await findD1LoginUser(db, 'new@example.test')).email_verified, true)
+  await storeD1VerificationToken(db, 'new-account', hash, 999)
+  assert.equal(await consumeD1VerificationToken(db, hash, 1000), false)
+
+  const addInvite = (id, email, token, expires = 5000) => db.prepare(`INSERT INTO "FamilyInvite"
+    (id,family_id,email,role,token_hash,expires_at,created_by) VALUES (?1,?2,?3,'child',?4,?5,'owner-a')`)
+    .bind(id, owner.family_id, email, token, expires).run()
+  await addInvite('invite-a', 'invited@example.test', 'invite-hash')
+  assert.equal((await findD1RegistrationInvite(db, 'invite-hash')).family_id, owner.family_id)
+  assert.equal(await createD1Registration(db, registration('wrong-email', 'wrong@example.test', 'invite-hash')), null)
+  const invited = await Promise.all(Array.from({ length: 8 }, (_, i) => createD1Registration(db, registration(`invited-${i}`, 'invited@example.test', 'invite-hash'))))
+  assert.equal(invited.filter(Boolean).length, 1)
+  assert.equal(invited.find(Boolean).role, 'child')
+  assert.equal(invited.find(Boolean).family_id, owner.family_id)
+  assert.equal(invited.find(Boolean).email_verified, true)
+  assert.equal((await db.prepare(`SELECT count(*) AS n FROM "AuditLog" WHERE action='member.joined'`).first()).n, 1)
+  await addInvite('invite-expired', 'expired@example.test', 'expired-hash', 999)
+  assert.equal(await createD1Registration(db, registration('expired-account', 'expired@example.test', 'expired-hash')), null)
+
+  await addInvite('invite-rollback', 'rollback@example.test', 'rollback-hash')
+  await db.exec(`CREATE TRIGGER fail_join_audit BEFORE INSERT ON "AuditLog" WHEN NEW.target_id='rollback-invite-user' BEGIN SELECT RAISE(ABORT, 'fixture audit failure'); END;`)
+  await assert.rejects(createD1Registration(db, registration('rollback-invite-user', 'rollback@example.test', 'rollback-hash')))
+  assert.equal(await findD1Account(db, 'rollback@example.test'), null)
+  assert.equal((await findD1RegistrationInvite(db, 'rollback-hash')).accepted_at, null)
+  await db.exec('DROP TRIGGER fail_join_audit;')
+  await db.prepare(`UPDATE "FamilyInvite" SET role='teen' WHERE id='invite-rollback'`).run()
+  assert.equal((await createD1Registration(db, registration('rollback-invite-user', 'rollback@example.test', 'rollback-hash'))).role, 'teen')
+
   for (const now of [1000, 2000]) {
     const limits = await Promise.all(Array.from({ length: 24 }, () => checkD1RateLimit(db, 'fixture-login', 5, 1000, now)))
     assert.equal(limits.filter(result => result.allowed).length, 5, 'concurrent limit and expired-window reset')
@@ -88,7 +141,7 @@ try {
   assert.equal((await isD1RateLimited(db, 'missing-key', 5, 2000)).remaining, 5)
   await db.prepare('DELETE FROM "RateLimitEntry" WHERE key = ?1').bind('fixture-login').run()
   assert.equal((await isD1RateLimited(db, 'fixture-login', 5, 2000)).allowed, true)
-  console.log('PASS local D1 identity: schema parity, concurrent household creation, revocation/deletion rejection, batch rollback, code collision, household separation, atomic rate limits/reset.')
+  console.log('PASS local D1 identity: registration, invite races/audit rollback, verification claims/expiry, private projections, schema parity, concurrent household creation, revocation/deletion rejection, batch rollback, code collision, household separation, atomic rate limits/reset.')
 } finally {
   await mf.dispose()
 }

@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import crypto from 'crypto'
 import { prisma } from './prisma'
 import { writeDeviceAudit } from './device-audit'
@@ -130,13 +131,19 @@ export async function createVerificationToken(userId: string): Promise<string> {
   const token = generateToken()
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
-  await prisma!.user.update({
-    where: { id: userId },
-    data: {
-      verify_token: hashToken(token),
-      verify_token_expires: expires,
-    },
-  })
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { storeD1VerificationToken } = await import('@/lib/cloudflare/accounts')
+    await storeD1VerificationToken(await getD1Database(), userId, hashToken(token), expires.getTime())
+  } else {
+    await prisma!.user.update({
+      where: { id: userId },
+      data: {
+        verify_token: hashToken(token),
+        verify_token_expires: expires,
+      },
+    })
+  }
 
   return token
 }
@@ -152,6 +159,11 @@ export async function createVerificationToken(userId: string): Promise<string> {
  * claim requires an unexpired row, and a used row has no expiry.
  */
 export async function consumeEmailVerificationToken(token: string): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { consumeD1VerificationToken } = await import('@/lib/cloudflare/accounts')
+    return consumeD1VerificationToken(await getD1Database(), tokenMatch(token), Date.now())
+  }
   const { count } = await prisma!.user.updateMany({
     where: {
       verify_token: tokenMatch(token),
@@ -171,6 +183,11 @@ export async function consumeEmailVerificationToken(token: string): Promise<bool
  * account that is now verified. Read-only.
  */
 export async function isVerificationTokenAlreadyUsed(token: string): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { isD1VerificationTokenUsed } = await import('@/lib/cloudflare/accounts')
+    return isD1VerificationTokenUsed(await getD1Database(), tokenMatch(token))
+  }
   const row = await prisma!.user.findFirst({
     where: {
       verify_token: tokenMatch(token),
