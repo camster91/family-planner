@@ -191,7 +191,7 @@ describe('source scan', () => {
   function files(dir: string): string[] {
     return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
       const full = path.join(dir, e.name)
-      if (e.isDirectory()) return e.name === '__tests__' ? [] : files(full)
+      if (e.isDirectory()) return e.name === '__tests__' || full === path.join(SRC, 'generated', 'cloudflare-read') ? [] : files(full)
       return /\.(ts|tsx)$/.test(e.name) ? [full] : []
     })
   }
@@ -211,11 +211,15 @@ describe('source scan', () => {
       .sort()
     expect(callers).toEqual([
       'src/app/api/auth/register/route.ts',
+      'src/app/api/chores/complete/route.ts',
+      'src/app/api/events/route.ts',
       'src/app/api/family/join/route.ts',
       'src/app/api/meals/create/route.ts',
       'src/app/api/meals/route.ts',
       'src/lib/chore-check-http.ts',
       'src/lib/chore-complete.ts',
+      'src/lib/cloudflare/chore-create-http.ts',
+      'src/lib/cloudflare/membership-http.ts',
       'src/lib/person-chore-create.ts',
       'src/lib/person-event-create.ts',
       'src/lib/reward-claim-http.ts',

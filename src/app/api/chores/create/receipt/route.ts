@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ChoreCreateReceipt } from "@/lib/cloudflare/chore-create";
 import { readChoreCreateReceiptIdentity } from "@/lib/chore-create-receipt-identity";
 import type { Prisma } from "@prisma/client";
 import type { EffectResult } from "@/lib/idempotency";
@@ -52,6 +54,11 @@ export async function GET(request: NextRequest) {
     if (action === "chore.profile.create" && !isProfileChoreEnabled())
       return reply({ error: "MEMBER_PROTOCOL_UNAVAILABLE" }, 409);
     const actor: ReceiptActor = { userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 };
+    if (storageBackend() === 'd1') {
+      const result = await readD1ChoreCreateReceipt({ userId: actor.userId, familyId: actor.familyId, generation: actor.tokenVersion }, key, hash, action);
+      if (action === 'chore.profile.create' && !isProfileChoreEnabled()) return reply({ error: 'MEMBER_PROTOCOL_UNAVAILABLE' }, 409);
+      return reply(result.body, result.status);
+    }
     const result = await prisma!.$transaction(async (tx) => {
       const denied = await receiptAuthority(tx, actor);
       if (denied) return denied;

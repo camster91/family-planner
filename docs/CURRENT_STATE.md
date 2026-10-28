@@ -85,7 +85,17 @@ and AI exact-target review/confirmation. Eight-way manual/confirmed races and
 phone/desktop cancel/confirm/readback flows pass. Profile-only deletion retains
 its separate protocol refusal. Preparation step deletion intentionally leaves the
 parent plan revision unchanged, matching the canonical PostgreSQL rule.
-Creation/edit and dedicated device/profile/routine command writers,
+Account and gated email-free profile chore creation now use a native D1 batch
+for the root, repeat copies, activity and exact retry receipt. Rotations, selected
+weekdays and monthly anchors reuse the bounded expansion planner. The optional
+birth-notification cohort commits its occurrence/recipient/inbox state atomically;
+default notices and consent-aware beta counts follow only a real effect. Compact
+responses retain only the birth pointer; normal replies hydrate current scoped
+data, and receipt lookup discloses only current presence. Native races, rollback,
+profile revision and signed Today proofs pass; built HTTP creation and receipt
+flows and phone/desktop account/profile forms pass with fabricated households.
+No production flag is enabled.
+Editing/stop and dedicated device/profile/routine command writers,
 other-domain confirmation, canonical mutation
 orchestration and complete AI chat parity remain unfinished; deployed-plan
 query/CPU limits still need edge verification.

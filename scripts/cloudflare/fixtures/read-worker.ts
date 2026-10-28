@@ -1,3 +1,4 @@
+import { testChoreCreate } from './chore-create'
 import { testChoreDelete } from './chore-delete'
 import { testChoreCheck } from './chore-check'
 import { testNotificationInbox } from './notification-inbox'
@@ -29,6 +30,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/chore-create') return Response.json(await testChoreCreate(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/chore-delete') return Response.json(await testChoreDelete(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/chore-check') return Response.json(await testChoreCheck(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/notification-inbox') return Response.json(await testNotificationInbox(env.DB as unknown as D1Store))

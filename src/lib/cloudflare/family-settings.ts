@@ -1,3 +1,4 @@
+import { prepareD1BetaMetricConsentErasure } from '@/lib/beta-metrics'
 import { randomUUID } from 'node:crypto'
 import { getD1Database, type D1Store } from './database'
 import { normalizeFeatures, defaultFeatures, type FeatureKey } from '@/lib/feature-flags'
@@ -81,8 +82,7 @@ export async function updateD1BetaMetrics(actor: Actor, enabled: boolean, databa
       .bind(actor.userId, actor.familyId, actor.generation, randomUUID(), enabled ? 'beta_metrics.turned_on' : 'beta_metrics.turned_off', auditSummary.betaMetrics(enabled), Date.now(), Number(enabled)),
     db.prepare(`UPDATE "Family" SET beta_metrics_enabled=?4 WHERE id=?2 AND ${PARENT}`)
       .bind(actor.userId, actor.familyId, actor.generation, Number(enabled)),
-    db.prepare(`DELETE FROM "BetaMetricDaily" WHERE family_id=?2 AND ?4=0 AND ${PARENT}`)
-      .bind(actor.userId, actor.familyId, actor.generation, Number(enabled)),
+    prepareD1BetaMetricConsentErasure(db, actor, enabled),
     db.prepare(SELECT).bind(actor.familyId, actor.userId),
   ])
   const row = authorized(result.at(-1)!.results[0] ?? null, actor)

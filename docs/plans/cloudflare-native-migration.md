@@ -1530,6 +1530,54 @@ household/device/mail flows, deployed-plan budgets and cutover/VPS retirement.
 No production resource/deployment, paid plan, live data, DNS or VPS change; the
 full migration remains active.
 
+## Native chore creation and retry receipts — 2026-10-28
+
+Account and separately gated email-free profile creation now use native D1.
+The existing HTTP form contract is preserved. Fresh parent/session/household,
+assignee or unlinked profile identity, photo ownership and optional signed Today
+source evidence are checked inside the same native batch as the root, generated
+copies, activity and retry receipt. The expansion planner accepts an explicit
+new root state without a pretend transaction or read-client writes. Repeating
+roots retain the canonical initial material epoch, selected weekly days, monthly
+anchor and per-occurrence rotation. Profile creation never synthesizes a User.
+
+Current projections are read separately with household/birth identity checks;
+compact review submissions disclose only the birth pointer, including replay of
+older profile DTO receipts. Receipt reads are private, content-free and read-only.
+Feature withdrawal and actor renewal are retained. The optional default-off birth
+cohort writes its occurrence, terminal recipient and policy-admitted notification
+in the creation batch with a dispatch deadline. Legacy notices and beta counts
+remain best-effort after a real account effect. Native beta first-chore timing
+uses the existing consent and vocabulary; consent erasure is centralized without
+changing its settings transaction. No flags were enabled in production.
+
+**Verification:** all existing native Worker regression fixtures and the new
+creation fixture pass. Eight-way account and signed Today races converge on one
+root/fact/receipt. Rotation copies, selected weekdays, monthly anchors, receipt
+rollback, actor/photo races, recreated IDs, profile recurrence withdrawal,
+profile revision conflicts, birth suppression/quiet policy, recipient rollback
+and expired dispatch refusal pass. The profile revision fixture changes revision
+explicitly, matching the canonical writer rather than inventing a D1 trigger.
+55 focused tests in six suites, standalone TypeScript, scoped ESLint and the
+OpenNext Cloudflare build pass. Built HTTP verifies eight creates/one root/seven
+replays, seven daily occurrences, key reuse422, teen403, foreign assignee400,
+revoked401, private/no-store and disabled points, content-free receipt presence,
+profile daily copies/no synthetic account, compact pointer and stale revision409.
+Playwright390/1366 submits the existing account/profile creation form, returns
+to the canonical board and finds the created chore, with no page errors, failed
+requests or horizontal overflow. The local profile picker required its separate
+setup flag and a preview restart; no production flags changed. Screenshots were
+captured after finite row animations settled. Temporary harness expectations
+were corrected to the existing key-reuse422 and committed/current receipt
+contract. All data is fabricated and local.
+
+Evidence prefix `/tmp/herewoven-d1-chore-create-`. No new migration, production
+resource, deployment, paid plan, live-data mutation, DNS or VPS change.
+Remaining: chore editing/stop, dedicated profile/device/routine commands, other
+data domains/SSR, complete AI/non-HTTP orchestration, private R2, household/device/
+mail flows, deployed-plan budgets and cutover/VPS retirement. The full migration
+remains active.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

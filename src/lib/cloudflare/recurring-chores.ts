@@ -114,13 +114,56 @@ async function profile(
     repeating,
   );
 }
+/** Explicit post-insert state for a new legacy series. Never a fake read client:
+ * creation owns inserting this exact row in the same native batch. */
+export type NewRecurringChore = {
+  id: string;
+  family_id: string;
+  created_by: string;
+  assigned_to: string | null;
+  assigned_member_id: string | null;
+  member_subject_erased: false;
+  title: string;
+  description: string | null;
+  points: number;
+  difficulty: string;
+  due_date: Date;
+  frequency: string;
+  weekly_days: number[];
+  recurrence_id: string | null;
+  is_template: boolean;
+  rotation_member_ids: string[];
+  rotation_index: number | null;
+  icon: string | null;
+  routine: string | null;
+  routine_order: number | null;
+  routine_series_config: null;
+};
 async function planSeries(
   db: D1ReadClient,
   templateId: string,
   familyId: string,
   now: Date,
+  staged?: NewRecurringChore,
 ): Promise<Plan> {
-  const root = await db.chore.findUnique({ where: { id: templateId } });
+  if (
+    staged &&
+    (staged.id !== templateId ||
+      staged.family_id !== familyId ||
+      staged.recurrence_id !== staged.id ||
+      staged.routine_series_config !== null)
+  )
+    throw new Error("Invalid new series plan");
+  if (
+    staged &&
+    (await db.chore.findFirst({
+      where: { OR: [{ id: templateId }, { recurrence_id: templateId }] },
+      select: { id: true },
+    }))
+  )
+    throw new Error("New series identity is already occupied");
+  const root =
+    staged ?? (await db.chore.findUnique({ where: { id: templateId } }));
   if (!root || root.family_id !== familyId || !(await available(db, familyId)))
     return empty();
   const base = {
@@ -257,12 +300,17 @@ async function planSeries(
     orderBy: [{ due_date: "asc" }, { id: "asc" }],
     take: size,
   });
+  if (staged && root.due_date >= startOfDay(now))
+    upcoming.push({ due_date: root.due_date });
   if (upcoming.length >= size) return empty();
-  const latest = await db.chore.findFirst({
+  const storedLatest = await db.chore.findFirst({
     where: { family_id: familyId, recurrence_id: root.id },
     select: { due_date: true, rotation_index: true },
     orderBy: [{ due_date: "desc" }, { id: "desc" }],
   });
+  const latest = staged
+    ? { due_date: root.due_date, rotation_index: root.rotation_index }
+    : storedLatest;
   const days = choreExpansionDays(
     { ...root, weekly_days: weeklyDays },
     upcoming,
@@ -329,9 +377,10 @@ export async function prepareD1RecurringSeries(
   familyId: string,
   now: Date,
   store: D1Store,
+  staged?: NewRecurringChore,
 ) {
   const captured = await captureD1Reads(
-    (db) => planSeries(db, templateId, familyId, now),
+    (db) => planSeries(db, templateId, familyId, now, staged),
     store as unknown as NativeD1,
   );
   const plan = captured.value;

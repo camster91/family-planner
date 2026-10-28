@@ -113,7 +113,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const choreDelete = await fetch(`http://127.0.0.1:${port}/chore-delete`)
   const choreDeleteResult = await choreDelete.json()
   assert.equal(choreDelete.status, 200, JSON.stringify(choreDeleteResult))
-  console.log(JSON.stringify({ choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const choreCreate = await fetch(`http://127.0.0.1:${port}/chore-create`)
+  const choreCreateResult = await choreCreate.json()
+  assert.equal(choreCreate.status, 200, JSON.stringify(choreCreateResult))
+  console.log(JSON.stringify({ choreCreate: choreCreateResult, choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }
