@@ -1578,6 +1578,61 @@ data domains/SSR, complete AI/non-HTTP orchestration, private R2, household/devi
 mail flows, deployed-plan budgets and cutover/VPS retirement. The full migration
 remains active.
 
+## Native chore editing and series controls — 2026-10-28
+
+Account PATCH now uses a captured native D1 plan. Current session/role/family,
+scoped target and root, photo ownership, canonical reassignment and complete
+paged occurrence membership are checked before material edits, pending-future
+removal, retained-row retiming, expansion and rotation effects commit together.
+Partial concurrent edits retain each other's unrelated fields. Parent-only XP,
+assignment, difficulty and schedule controls remain protected; a non-parent can
+edit their own occurrence's ordinary fields. Profile-only chores retain their
+separate command refusal. Authored/paused/malformed routine definitions retain
+the schedule-editor boundary; no future definition enters an edit response.
+
+The shared expansion planner accepts an explicit post-edit legacy snapshot and
+allocates stable copy identities so a combined frequency/rotation request can
+replan the copies created by that same batch. It does not grant a read facade
+writes or pretend to run an interactive transaction. The caller owns the exact
+source witnesses. Generated-copy 'once' saves leave the series unchanged unless
+apply-to-series is explicit. Stop retains today/history and completed work;
+weekday changes preserve retained identities and avoid occupied dates. Rotation
+changes retain hand-picked people, clear old positions and restart untouched
+future turns in order. No-op rotation submissions do not reshuffle work.
+
+Routine schedule handoff navigation now reads D1 scalar identities with scoped
+witnesses, preserving independent/stack editor destinations and malformed-record
+fallback. This removes the edit SSR PostgreSQL dependency when the private
+rollback-ready gate admits that navigation; it does not implement schedule writes.
+
+**Verification:** complete native Worker regression smoke passes, including new
+three-way partial merge, own-assignee/parent-only/foreign refusals, date-only
+normalization, once-to-daily, safe generated-copy save, selected weekdays,
+completed-history retention, stop, manual rotation picks, replan/clear, combined
+weekly/rotation start, profile refusal, photo ownership, authored/malformed
+routine refusal, scoped handoff, forced whole-edit rollback and commit revocation.
+135 focused tests in eight suites, standalone TypeScript, scoped ESLint and the
+Cloudflare OpenNext build pass. Built HTTP verifies partial merge/private
+projection, own-assignee edit, teen403/foreign403/foreign-assignee400/revoked401,
+eight concurrent stops leaving one root, and selected-weekday restart.
+Playwright390/1366 loads the existing edit SSR page with schedule handoff reads
+admitted, changes selected weekdays to Tuesday/Thursday, saves/reopens the
+canonical record, then stops repeating and confirms frequency/is-template by
+authenticated readback. No page errors, failed requests or horizontal overflow;
+phone weekday form and desktop stopped-board screenshots inspected after finite
+animations settled. Owned preview is stopped and local keys/config removed.
+The fixture uses its own account namespace and valid picture key; malformed
+routine tests preserve the actual database protocol constraint. Source edits
+were kept out of the final regression run to avoid dev-worker request replay.
+
+Evidence prefix `/tmp/herewoven-d1-chore-update-`. All data is fabricated/local.
+The existing witness bounds and deployed-plan query/CPU limits still need edge
+validation for large household/rotation plans. No migration or production flag
+was added. Remaining: dedicated profile/device/routine command writers, other
+data domains/SSR, complete AI/non-HTTP orchestration, private R2, household/device/
+mail flows, deployed-plan budgets and full cutover/VPS retirement. Production,
+live data, DNS, paid plans and VPS resources remain unchanged.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

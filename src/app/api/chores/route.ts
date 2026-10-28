@@ -187,6 +187,12 @@ export async function PATCH(request: NextRequest) {
       return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
+    if (storageBackend() === 'd1') {
+      const { updateD1Chore } = await import('@/lib/cloudflare/chore-update')
+      const result = await updateD1Chore({userId:auth.user.id,familyId:auth.user.family_id,role:auth.user.role,generation:auth.payload.tv??0},parsed.data)
+      return choreJson(result.body,{status:result.status})
+    }
+
     const { choreId, ...updates } = parsed.data
 
     // due_date is a date-only value (UTC midnight). Accept `YYYY-MM-DD` or a

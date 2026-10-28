@@ -1,4 +1,5 @@
 /** Exact owned identity only. Never promote a legacy routine by matching its label. */
+import { storageBackend } from "@/lib/storage-backend";
 import type { PrismaClient } from "@prisma/client";
 import { routineStepSeriesConfig } from "@/lib/routine-schedule";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
@@ -10,6 +11,10 @@ export async function readRoutineScheduleHandoff(
 ): Promise<string | null> {
   if (process.env[ROUTINE_SCHEDULE_READY_ENV] !== "1" || !id || id.length > 128)
     return null;
+  if (storageBackend() === "d1") {
+    const { readD1RoutineScheduleHandoff } = await import("@/lib/cloudflare/routine-schedule-handoff");
+    return readD1RoutineScheduleHandoff(familyId, kind, id);
+  }
   if (kind === "stack") {
     const rows = await db.$queryRaw<
       { id: string; schedule_config: unknown }[]

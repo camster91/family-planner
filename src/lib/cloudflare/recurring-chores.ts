@@ -139,12 +139,25 @@ export type NewRecurringChore = {
   routine_order: number | null;
   routine_series_config: null;
 };
+/** Explicit post-edit legacy state. Its owner captures every source occurrence
+ * and commits those witnesses before edits/deletes and these generated copies. */
+export type EditedRecurringChore = {
+  root: Omit<NewRecurringChore, "member_subject_erased"> & {
+    member_subject_erased: boolean;
+  };
+  occurrences: Array<{
+    id: string;
+    due_date: Date;
+    rotation_index: number | null;
+  }>;
+};
 async function planSeries(
   db: D1ReadClient,
   templateId: string,
   familyId: string,
   now: Date,
   staged?: NewRecurringChore,
+  edited?: EditedRecurringChore,
 ): Promise<Plan> {
   if (
     staged &&
@@ -162,8 +175,19 @@ async function planSeries(
     }))
   )
     throw new Error("New series identity is already occupied");
+  if (
+    edited &&
+    (staged ||
+      edited.root.id !== templateId ||
+      edited.root.family_id !== familyId ||
+      edited.root.recurrence_id !== templateId ||
+      edited.root.routine_series_config !== null)
+  )
+    throw new Error("Invalid edited legacy series plan");
   const root =
-    staged ?? (await db.chore.findUnique({ where: { id: templateId } }));
+    edited?.root ??
+    staged ??
+    (await db.chore.findUnique({ where: { id: templateId } }));
   if (!root || root.family_id !== familyId || !(await available(db, familyId)))
     return empty();
   const base = {
@@ -290,24 +314,34 @@ async function planSeries(
     profileSubject = await profile(db, familyId, root.assigned_member_id);
     if (!profileSubject) return empty();
   }
-  const upcoming = await db.chore.findMany({
-    where: {
-      family_id: familyId,
-      recurrence_id: root.id,
-      due_date: { gte: startOfDay(now) },
-    },
-    select: { due_date: true },
-    orderBy: [{ due_date: "asc" }, { id: "asc" }],
-    take: size,
-  });
+  const upcoming = edited
+    ? edited.occurrences
+        .filter((row) => row.due_date >= startOfDay(now))
+        .slice(0, size)
+    : await db.chore.findMany({
+        where: {
+          family_id: familyId,
+          recurrence_id: root.id,
+          due_date: { gte: startOfDay(now) },
+        },
+        select: { due_date: true },
+        orderBy: [{ due_date: "asc" }, { id: "asc" }],
+        take: size,
+      });
   if (staged && root.due_date >= startOfDay(now))
     upcoming.push({ due_date: root.due_date });
   if (upcoming.length >= size) return empty();
-  const storedLatest = await db.chore.findFirst({
-    where: { family_id: familyId, recurrence_id: root.id },
-    select: { due_date: true, rotation_index: true },
-    orderBy: [{ due_date: "desc" }, { id: "desc" }],
-  });
+  const storedLatest = edited
+    ? ([...edited.occurrences].sort(
+        (a, b) =>
+          b.due_date.getTime() - a.due_date.getTime() ||
+          b.id.localeCompare(a.id),
+      )[0] ?? null)
+    : await db.chore.findFirst({
+        where: { family_id: familyId, recurrence_id: root.id },
+        select: { due_date: true, rotation_index: true },
+        orderBy: [{ due_date: "desc" }, { id: "desc" }],
+      });
   const latest = staged
     ? { due_date: root.due_date, rotation_index: root.rotation_index }
     : storedLatest;
@@ -378,13 +412,16 @@ export async function prepareD1RecurringSeries(
   now: Date,
   store: D1Store,
   staged?: NewRecurringChore,
+  edited?: EditedRecurringChore,
 ) {
   const captured = await captureD1Reads(
-    (db) => planSeries(db, templateId, familyId, now, staged),
+    (db) => planSeries(db, templateId, familyId, now, staged, edited),
     store as unknown as NativeD1,
   );
   const plan = captured.value;
+  const copies = plan.copies.map((copy) => ({ ...copy, id: randomUUID() }));
   return {
+    previewCopies: copies,
     checks(session: Pick<D1Store, "prepare">) {
       if (!gateCurrent(plan))
         throw new Error("Recurring capability changed during the operation");
@@ -394,10 +431,10 @@ export async function prepareD1RecurringSeries(
       const statements: ReturnType<D1Store["prepare"]>[] = [],
         insertIndexes: number[] = [];
       const created = Date.now();
-      for (const copy of plan.copies) {
+      for (const copy of copies) {
         insertIndexes.push(statements.length);
         const values: SqlValue[] = [
-          randomUUID(),
+          copy.id,
           copy.family_id,
           copy.created_by,
           copy.title,

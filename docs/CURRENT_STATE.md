@@ -95,7 +95,13 @@ data, and receipt lookup discloses only current presence. Native races, rollback
 profile revision and signed Today proofs pass; built HTTP creation and receipt
 flows and phone/desktop account/profile forms pass with fabricated households.
 No production flag is enabled.
-Editing/stop and dedicated device/profile/routine command writers,
+Account chore editing and legacy-series start/stop/retiming/rotation now have
+native D1 source and local Worker evidence. The edit planner witnesses all scoped
+occurrences before one atomic effect batch, preserves completed/today rows and
+manual rotation picks, and retains profile/authored-routine protocol refusals.
+Routine schedule editor handoff reads now use D1 with exact scoped identity.
+Built HTTP concurrency and phone/desktop weekday-save/reopen/stop flows pass.
+Dedicated device/profile/routine command writers,
 other-domain confirmation, canonical mutation
 orchestration and complete AI chat parity remain unfinished; deployed-plan
 query/CPU limits still need edge verification.
