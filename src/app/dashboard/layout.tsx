@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { withD1ReadClient } from "@/lib/cloudflare/read-client";
 import { FoodPlanningAccess } from "@/components/meals/planning/FoodPlanningAccess";
 import { foodPlanningEnabled } from "@/lib/food-planning/server";
 import { isProfileChoreEnabled } from "@/lib/profile-chore-gates";
@@ -53,16 +55,11 @@ export default async function DashboardLayout({
   // never email, age, family id, XP, level or streak. These props are
   // serialised into every dashboard page, including
   // /dashboard/today?mode=fridge on a tablet signed in as a person.
-  const profile = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      avatar_url: true,
-      family_id: true,
-    },
-  });
+  const profileSelect = { id: true, name: true, role: true, avatar_url: true, family_id: true } as const;
+  const profile = storageBackend() === "d1"
+    ? await withD1ReadClient(db => db.user.findUnique({ where: { id: sessionUser.id }, select: profileSelect }))
+    : await prisma!.user.findUnique({ where: { id: sessionUser.id }, select: profileSelect });
+  if (storageBackend() === "d1" && !profile) return <SignedOutDashboard />;
   const role = profile?.role || sessionUser.role || "parent";
 
   // Server-side role gate, second line of defence behind the middleware
@@ -99,10 +96,12 @@ export default async function DashboardLayout({
 
   // Get user's family features so the client can hydrate without a roundtrip
   const familyFeatures = sessionUser?.family_id
-    ? await prisma!.family.findUnique({
-        where: { id: sessionUser.family_id },
-        select: { features: true },
-      })
+    ? storageBackend() === "d1"
+      ? await withD1ReadClient(db => db.family.findFirst({
+          where: { id: sessionUser.family_id!, members: { some: { id: sessionUser.id } } },
+          select: { features: true },
+        }))
+      : await prisma!.family.findUnique({ where: { id: sessionUser.family_id }, select: { features: true } })
     : null;
   const initialFeatures = familyFeatures?.features
     ? normalizeFeatures(familyFeatures.features)

@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { withD1ReadClient } from "@/lib/cloudflare/read-client";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { getServerUser } from "@/lib/supabase/server";
@@ -46,19 +48,13 @@ export default async function DashboardPage() {
     return null;
   }
 
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      family_id: true,
-      avatar_url: true,
-      xp: true,
-      level: true,
-      family: { select: { features: true } },
-    },
-  });
+  const userSelect = {
+    id: true, name: true, role: true, family_id: true, avatar_url: true,
+    xp: true, level: true, family: { select: { features: true } },
+  } as const;
+  const user = storageBackend() === "d1"
+    ? await withD1ReadClient(db => db.user.findUnique({ where: { id: sessionUser.id }, select: userSelect }))
+    : await prisma!.user.findUnique({ where: { id: sessionUser.id }, select: userSelect });
 
   // Show onboarding if user has no family
   if (!user?.family_id) {

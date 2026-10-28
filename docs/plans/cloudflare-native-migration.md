@@ -413,6 +413,45 @@ replace the required explicit transaction/raw-SQL conversions.
    remove only verified Herewoven application/database/upload resources. Keep
    other VPS services intact. Record backup retention/disposal explicitly.
 
+## Read client and signed-in shell — 2026-10-28
+
+A separate generated SQLite client now provides ordinary typed D1 reads. It is
+request-scoped, starts with a primary D1 session and disconnects in `finally`.
+The PostgreSQL client remains unavailable when `HEREWOVEN_STORAGE=d1`; this does
+not provide a fallback or silently route existing writers through Prisma/D1.
+The canonical schema generates all 84 read delegates, while the reviewed SQL
+migrations still define only the currently ported tables. Array fields are JSON
+in the read schema; PostgreSQL array predicates still need explicit conversion.
+The generated schema/client are ignored build outputs and never migration input.
+
+Prisma/D1 7.10.1 does not enforce interactive transactions. A runtime read-only
+facade therefore exposes only model read methods, before callbacks can run;
+query-extension and adapter guards add further protection. All writes continue
+to require explicit atomic D1 SQL. Integer-millisecond date parameters are
+preserved instead of the adapter's default ISO-text binding. Next's narrow Wasm
+external uses an ESM import of the native binary so OpenNext/Wrangler can bundle
+it statically; CommonJS and absolute `?module` imports failed actual Worker
+probes and were corrected in source. No generated bundle was patched.
+
+Evidence from this source candidate:
+
+- `npm run cloudflare:test:reads` passes actual workerd/D1 reads using the actual
+  factory: integer dates/ranges, booleans, JSON arrays, nested relations/counts,
+  scoped household predicates, grouping, all 11 mutation/raw/transaction refusals,
+  unchanged fixture rows and 12 concurrent requests. Disposable local state only.
+- OpenNext build, TypeScript and scoped ESLint pass; 17 affected shell/navigation/
+  middleware Jest tests pass. Dry-run Worker upload is 43,896.81 KiB uncompressed
+  (10,559.16 KiB gzip). This is a local bundle check, not provider deployment.
+- The built Worker renders signed-in `/dashboard` onboarding from D1 at 390x844
+  and 1366x768: HTTP 200, no horizontal overflow or page exceptions. Screenshots
+  were inspected. `/api/users/display-preferences` returns 500 in both views;
+  this remaining backend path must be converted. Household Today/child domain
+  queries, wider APIs and complete household acceptance are still unfinished.
+- Local evidence: `/tmp/herewoven-d1-read-{build,smoke,tests,lint,typecheck,dryrun}.log`,
+  `/tmp/herewoven-d1-read-rendered.json` and corresponding phone/desktop PNGs.
+
+No production resource, subscription, data or VPS change occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

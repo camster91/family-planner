@@ -8,11 +8,11 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build --webpack",
+    "dev": "npm run cloudflare:generate:reads && next dev",
+    "build": "npm run cloudflare:generate:reads && next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run cloudflare:generate:reads && tsc --noEmit",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
     "test:ai:contracts": "jest --runInBand src/lib/ai-evaluation/__tests__",
@@ -32,6 +32,8 @@
     "beta:scorecard": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/beta-scorecard.mjs",
     "cloudflare:inventory": "node scripts/cloudflare/inventory.mjs",
     "cloudflare:test:identity": "node scripts/cloudflare/identity-smoke.mjs",
+    "cloudflare:test:reads": "npm run cloudflare:generate:reads && node scripts/cloudflare/read-smoke.mjs",
+    "cloudflare:generate:reads": "node scripts/cloudflare/generate-read-schema.mjs && prisma generate --config prisma/cloudflare-read.config.ts",
     "cloudflare:build": "opennextjs-cloudflare build"
   },
   "dependencies": {
@@ -41,6 +43,7 @@
     "@capacitor/ios": "^8.5.3",
     "@capacitor/network": "^8.0.1",
     "@capacitor/share": "^8.0.3",
+    "@prisma/adapter-d1": "7.10.1",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.3",

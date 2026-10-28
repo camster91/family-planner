@@ -11,7 +11,11 @@ have focused runtime evidence. Password recovery/change, safe profile reads/edit
 and paired-device person refusal also pass selected local Worker flows. Four
 D1 migrations (11 tables) apply locally, including credential/device foundations
 and audit erasure guards. Membership joins, scoped family/member reads and
-invitation/code controls also pass selected local Worker checks. Rename/settings,
+invitation/code controls also pass selected local Worker checks. A request-scoped,
+read-only Prisma/D1 client now supports the dashboard shell and no-family
+onboarding in the built Worker; its runtime facade rejects writes, raw SQL and
+transactions. Phone/desktop onboarding renders without overflow or page errors,
+but its display-preferences request still returns 500 and requires conversion. Rename/settings,
 removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

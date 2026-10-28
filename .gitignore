@@ -54,3 +54,7 @@ next-env.d.ts
 /.open-next/
 /.wrangler/
 .dev.vars*
+
+# Generated Workers read client; SQL migrations remain canonical
+/prisma/cloudflare-read.prisma
+/src/generated/cloudflare-read/
