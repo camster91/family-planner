@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     const perFamily = await checkRateLimit(`device-pair-create-fam:${familyId}`, 10, 60 * 60 * 1000)
     if (!perFamily.allowed) return rateLimited(perFamily)
 
-    const result = await createPairing(prisma!, { familyId, userId, label, now: deviceClock.now(), replacesDeviceId })
+    const result = await createPairing(prisma!, { familyId, userId, label, now: deviceClock.now(), replacesDeviceId, generation: manager.generation })
     if (!result.ok) {
       // Foreign and missing tablets are the same 404.
       if (result.code === 'REPLACE_NOT_FOUND') return deviceError(404, 'NOT_FOUND')

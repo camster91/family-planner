@@ -107,7 +107,13 @@ revocation of all generations and elevation clearing. Current temporary-parent
 access checks/issuance primitives use device/session/family/parent-generation
 witnesses, with idle/max timeout and exact-hash clearing. `/api/device/me` reads
 only its admitted household's safe name-only identity. Native races/rollback,
-built HTTP and browser-cookie rotation/private access checks pass. Pairing,
+built HTTP and browser-cookie rotation/private access checks pass. Pairing code creation/claim/confirmation/cancellation/polling/issuance and the
+parent device list now use D1, with renewed manager generation, capacity
+reservation, scoped foreground retention and atomic replacement/session/audit.
+Eight-way claim/confirm/issue and cross-code capacity races pass. Built HTTP and
+phone/desktop parent UI plus tablet claim UI pass; issuance uses the same browser
+cookie jar, with admitted device identity readback. Tablet board acceptance was
+explicitly excluded from that evidence. Management mutations/activity,
 credential-entry/elevated mutation routes and full device boards remain separate
 unfinished paths. No shared-device production flag has been enabled.
 Dedicated device/profile/routine command writers,

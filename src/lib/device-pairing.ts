@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { D1DeviceManagerRefused } from '@/lib/cloudflare/device-manager'
 /**
  * Parent-initiated, confirmed pairing (SHARED_DEVICE.md §5, O-6, O-9).
  *
@@ -95,8 +97,13 @@ export type CreatePairingResult =
  */
 export async function createPairing(
   db: Db,
-  args: { familyId: string; userId: string; label: string; now: Date; replacesDeviceId?: string | null }
+  args: { familyId: string; userId: string; label: string; now: Date; replacesDeviceId?: string | null; generation?: number }
 ): Promise<CreatePairingResult> {
+  if (storageBackend() === 'd1') {
+    if (args.generation === undefined) throw new D1DeviceManagerRefused(401,'UNAUTHORIZED')
+    const { createD1Pairing } = await import('@/lib/cloudflare/device-pairing')
+    return createD1Pairing({userId:args.userId,familyId:args.familyId,generation:args.generation}, args)
+  }
   const { familyId, userId, label, now } = args
   const replacesDeviceId = args.replacesDeviceId ?? null
   const expiresAt = new Date(now.getTime() + PAIRING_TTL_MS)
@@ -199,6 +206,10 @@ export async function claimPairing(
   db: Db,
   args: { code: unknown; platform: 'android' | 'web'; appVersion: string | null; now: Date }
 ): Promise<ClaimResult> {
+  if (storageBackend() === 'd1') {
+    const { claimD1Pairing } = await import('@/lib/cloudflare/device-pairing')
+    return claimD1Pairing(args)
+  }
   const normalised = normalisePairingCode(args.code)
   if (!normalised) return { ok: false }
   const claimToken = generateDeviceToken('p')
@@ -276,8 +287,13 @@ export type ConfirmResult =
 
 export async function confirmPairing(
   db: Db,
-  args: { pairingId: string; familyId: string; userId: string; digits: string; now: Date }
+  args: { pairingId: string; familyId: string; userId: string; digits: string; now: Date; generation?: number }
 ): Promise<ConfirmResult> {
+  if (storageBackend() === 'd1') {
+    if (args.generation === undefined) throw new D1DeviceManagerRefused(401,'UNAUTHORIZED')
+    const { confirmD1Pairing } = await import('@/lib/cloudflare/device-pairing')
+    return confirmD1Pairing({userId:args.userId,familyId:args.familyId,generation:args.generation},args)
+  }
   const { pairingId, familyId, userId, digits, now } = args
   const row = await db.devicePairing.findFirst({
     where: { id: pairingId, family_id: familyId },
@@ -322,8 +338,13 @@ export async function confirmPairing(
 
 export async function cancelPairing(
   db: Db,
-  args: { pairingId: string; familyId: string; now: Date }
+  args: { pairingId: string; familyId: string; now: Date; userId?:string; generation?:number }
 ): Promise<{ found: boolean; cancelledNow: boolean }> {
+  if (storageBackend() === 'd1') {
+    if (args.generation === undefined || !args.userId) throw new D1DeviceManagerRefused(401,'UNAUTHORIZED')
+    const { cancelD1Pairing } = await import('@/lib/cloudflare/device-pairing')
+    return cancelD1Pairing({userId:args.userId,familyId:args.familyId,generation:args.generation},args.pairingId,args.now)
+  }
   const row = await db.devicePairing.findFirst({
     where: { id: args.pairingId, family_id: args.familyId },
     select: { id: true },
@@ -355,6 +376,10 @@ export const TABLET_PAIRING_SELECT = {
 } as const
 
 export async function findPairingByClaimToken(db: Db, claimToken: unknown) {
+  if (storageBackend() === 'd1') {
+    const { findD1PairingByClaimToken } = await import('@/lib/cloudflare/device-pairing')
+    return findD1PairingByClaimToken(claimToken)
+  }
   if (typeof claimToken !== 'string' || !claimToken.startsWith('fpd1_p_') || claimToken.length > 100) return null
   return db.devicePairing.findUnique({
     where: { claim_token_hash: hashToken(claimToken) },
@@ -386,7 +411,11 @@ export type IssueResult =
  * transaction, before the capacity check, so the household never holds more
  * than 5 active tablets and never loses the old one without gaining the new.
  */
-export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date): Promise<IssueResult> {
+export async function issuePairedDevice(db: Db, row: TabletPairingRow, now: Date, claimToken?:unknown): Promise<IssueResult> {
+  if (storageBackend() === 'd1') {
+    const { issueD1PairedDevice } = await import('@/lib/cloudflare/device-pairing')
+    return issueD1PairedDevice(claimToken,now)
+  }
   if (row.device_id) return { kind: 'expired' }
   if (row.cancelled_at) return { kind: 'cancelled' }
   if (row.expires_at.getTime() <= now.getTime()) return { kind: 'expired' }

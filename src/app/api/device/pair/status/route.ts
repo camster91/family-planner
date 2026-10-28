@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const limit = await checkRateLimit(`device-pair-status:${row.id}`, 300, 10 * 60 * 1000)
     if (!limit.allowed) return rateLimited(limit)
 
-    const result = await issuePairedDevice(prisma!, row, deviceClock.now())
+    const result = await issuePairedDevice(prisma!, row, deviceClock.now(), body?.claimToken)
     switch (result.kind) {
       case 'pending':
         return deviceJson({ status: 'pending' })

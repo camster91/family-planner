@@ -29,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       pairingId: id,
       familyId: manager.familyId,
       userId: manager.userId,
+      generation: manager.generation,
       digits,
       now: deviceClock.now(),
     })

@@ -56,7 +56,7 @@ export async function requireElevation(
   return { ok: false, response: deviceError(result.status, result.code) }
 }
 
-export type DeviceManager = { ok: true; userId: string; familyId: string }
+export type DeviceManager = { ok: true; userId: string; familyId: string; generation: number }
 
 /** Person session, parent role and a household, all from the database (D6). */
 export async function requireDeviceManager(request: NextRequest): Promise<DeviceManager | Fail> {
@@ -73,5 +73,5 @@ export async function requireDeviceManager(request: NextRequest): Promise<Device
   }
   if (!isParentRole(payload.role)) return { ok: false, response: deviceError(403, 'PARENT_REQUIRED') }
   if (!payload.family_id) return { ok: false, response: deviceError(403, 'FAMILY_REQUIRED') }
-  return { ok: true, userId: payload.userId, familyId: payload.family_id }
+  return { ok: true, userId: payload.userId, familyId: payload.family_id, generation: payload.tv ?? 0 }
 }

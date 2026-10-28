@@ -1,3 +1,4 @@
+import { D1DeviceManagerRefused } from '@/lib/cloudflare/device-manager'
 /**
  * HTTP plumbing shared by the shared-device routes (#157 contract, #240).
  *
@@ -179,6 +180,7 @@ export async function readJson(request: { json: () => Promise<unknown> }): Promi
  * name and machine code; never its message or stack.
  */
 export function deviceInternalError(where: string, error: unknown, requestId?: string): NextResponse {
+  if (error instanceof D1DeviceManagerRefused) return deviceError(error.status,error.code)
   logRouteError(where, error, requestId)
   return deviceError(500, 'INTERNAL_ERROR')
 }

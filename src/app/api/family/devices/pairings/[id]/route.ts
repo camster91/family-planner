@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -32,6 +33,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const limit = await checkRateLimit(`device-pair-poll:${manager.userId}`, 300, 10 * 60 * 1000)
     if (!limit.allowed) return rateLimited(limit)
+
+    if (storageBackend() === 'd1') {
+      const { readD1ParentPairing } = await import('@/lib/cloudflare/device-pairing')
+      const result = await readD1ParentPairing(manager,id,deviceClock.now())
+      return result ? deviceJson(result) : deviceError(404,'NOT_FOUND')
+    }
 
     const row = await prisma!.devicePairing.findFirst({
       where: { id, family_id: manager.familyId },
@@ -69,7 +76,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!manager.ok) return manager.response
     const { id } = await params
 
-    const result = await cancelPairing(prisma!, { pairingId: id, familyId: manager.familyId, now: deviceClock.now() })
+    const result = await cancelPairing(prisma!, { pairingId: id, familyId: manager.familyId, userId: manager.userId, generation: manager.generation, now: deviceClock.now() })
     if (!result.found) return deviceError(404, 'NOT_FOUND')
     if (result.cancelledNow) {
       await writeDeviceAudit(prisma!, {

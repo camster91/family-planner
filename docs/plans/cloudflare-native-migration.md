@@ -1689,6 +1689,67 @@ device/profile/routine command paths and boards, other domains/SSR, complete AI
 orchestration, private R2/mail, deployed-plan budgets and verified cutover/VPS
 retirement. Full migration remains active.
 
+## Native pairing and parent device list — 2026-10-28
+
+Pairing now uses native D1 for parent creation/confirmation/cancellation/polling,
+public code claim and claim-token polling/issuance. Parent manager authority is
+renewed with the exact session generation in each effect/read batch; stale
+manager decisions return the existing private401/403 envelope. Claim state,
+confirmation attempts and cancellation are witnessed with their mutations.
+The third mismatch cancels atomically. Uniform unknown/expired/used/cancelled
+claim refusals, one-time hashed code/claim/digits storage, 10-minute expiry,
+three unclaimed-code superseding and five-device reservation rules remain.
+
+Issuance re-reads claim-token authority instead of adopting an earlier polling
+snapshot. Current household/creator membership and parent confirmation authority
+are admitted with capacity. Replacement revocation/elevation clearing, new
+device, first session, pairing ownership and canonical household audit entries
+commit in one batch. Household audit failure restores the old tablet/session and
+pending pairing. The central audit vocabulary/clipping builder supplies native
+effects; security audit events remain best effort after the real action.
+
+The parent device list now reads D1 with exact authority and explicit safe DTOs,
+refreshable-session status and foreground household-scoped pairing/security-audit
+retention. Renaming/removal/activity and elevated write routes are still separate
+work. No person token is issued: successful pairing sets HTTP-only device cookies
+and clears only this browser's person cookie without revoking the parent's other
+sessions. The shared-device kill switch remains off in production.
+
+**Verification:** complete native Worker regression smoke passes, including
+8-way claim/confirm/issue, one device/session/household fact, private poll/list,
+wrong/foreign/teen/expired/cancelled refusals, three-attempt cancellation,
+superseding, capacity, replacement/old-token revocation, forced audit rollback,
+cancel and parent-role changes before issue, manager generation change before
+confirm and scoped retention. An additional cross-code race starts from eight
+retained confirmed reservations: exactly five issues succeed, three reservations
+cancel at capacity and parallel further creates refuse. No capacity guard was
+removed to admit that deliberately over-reserved legacy fixture.
+80 focused tests in two suites, standalone TypeScript, scoped/fixture ESLint and
+the Cloudflare OpenNext build pass. Built HTTP verifies create201/private-no-store,
+uniform claim400, pending-before-confirm, safe parent poll, foreign404/teen403,
+wrong digits400, eight polls/one issue/seven410, HTTP-only cookies/person-cookie
+clear, unchanged parent generation, one household audit, active safe list,
+repeat cancellation204 and revoked401.
+
+Playwright390/1366 uses the real parent Settings dialog to create and confirm,
+and tablet1280 to enter the code/show digits. The tablet page is closed while
+waiting, before confirmation, to stop at this pairing boundary; issuance uses
+that same real browser context's cookie jar and verifies `/api/device/me`.
+The parent dialog then observes paired status and reloads the actual device
+list. No page errors, failed requests or overflow; tablet waiting and desktop
+parent-list screenshots inspected. This does not verify the unconverted tablet
+Today board or complete onboarding into it. No browser response was mocked.
+The built application source stayed unchanged during the final extra capacity
+fixture run. Evidence prefix `/tmp/herewoven-d1-device-pairing-`; all data and
+credentials fabricated/local. Owned preview stopped and temporary keys/config
+removed. No migration, production flag/resource/deployment, live-data, DNS,
+paid-plan or VPS change.
+
+Remaining: device management mutations/activity, PIN/password entry/elevated
+routes, boards and device/profile/routine commands; remaining domains/SSR,
+complete AI, private R2/mail, deployed-plan budgets and full household/cutover
+verification before retiring only Herewoven VPS resources. Full goal stays active.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
