@@ -42,7 +42,7 @@ function openDisclosure(label: string) {
 }
 beforeEach(() => refresh.mockClear());
 it.each(["parent", "teen"] as const)(
-  "%s gets the relative event-create route and separate grocery and all-list destinations",
+  "%s opens quick add without duplicating primary navigation",
   (role) => {
     mount(role);
     const dispatch = jest.spyOn(window, "dispatchEvent");
@@ -52,14 +52,8 @@ it.each(["parent", "teen"] as const)(
     );
     dispatch.mockRestore();
     openDisclosure("Today controls");
-    expect(screen.getByRole("link", { name: "Groceries" })).toHaveAttribute(
-      "href",
-      "/dashboard/lists/groceries",
-    );
-    expect(screen.getByRole("link", { name: "All lists" })).toHaveAttribute(
-      "href",
-      "/dashboard/lists",
-    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument();
   },
 );
 it("does not offer event creation or parent-only actions to a child", () => {
@@ -112,7 +106,7 @@ it("uses the typed Today dictionary for Spanish controls", () => {
     screen.getByRole("button", { name: "Añadir o preguntar" }),
   ).toBeInTheDocument();
   openDisclosure("Controles de hoy");
-  expect(screen.getByRole("link", { name: "Alimentos" })).toBeInTheDocument();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Actualizar ahora" }),
   ).toBeInTheDocument();

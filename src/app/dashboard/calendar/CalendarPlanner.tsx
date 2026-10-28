@@ -368,7 +368,10 @@ export function CalendarPlanner({
               className={styles.connectionMenu}
               onKeyDown={closeConnectionMenuOnEscape}
             >
-              <summary>{msg("calendarMenu")}</summary>
+              <summary aria-label={msg("calendarMenu")}>
+                <span className="hidden sm:inline">{msg("calendarMenu")}</span>
+                <span className="sm:hidden">{msg("calendars")}</span>
+              </summary>
               <div>
                 <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
                   {msg("calendarMenuHelp")}
@@ -414,7 +417,7 @@ export function CalendarPlanner({
         </div>
       </header>
       <div className={styles.layout}>
-        <aside className={styles.sources}>
+        <aside className={styles.sources} data-menu-source={canEditEvents}>
           <button
             type="button"
             className={styles.sourceToggle}
@@ -442,6 +445,11 @@ export function CalendarPlanner({
                 </option>
               ))}
             </select>
+            <p>{msg("sourceHelp")}</p>
+            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
+          </div>
+        </aside>
+        <section className={styles.main} aria-label={msg("range")}>
             {sourceState === "loading" && (
               <p role="status">{msg("loadingSources")}</p>
             )}
@@ -453,11 +461,6 @@ export function CalendarPlanner({
                 </button>
               </p>
             )}
-            <p>{msg("sourceHelp")}</p>
-            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
-          </div>
-        </aside>
-        <section className={styles.main} aria-label={msg("range")}>
           {displayState === "ready" && now !== null && loadedAt !== null && (
             <div className={styles.note}>
               <UpdatedLine

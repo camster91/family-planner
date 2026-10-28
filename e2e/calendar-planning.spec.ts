@@ -20,21 +20,21 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
-async function openSourceFilter(page: Page) {
-  const source = page.getByRole("combobox", {
-    name: "Calendar source",
-    exact: true,
-  });
-  if (!(await source.isVisible())) {
-    await page
-      .getByRole("button", {
-        name: "Show calendars and connections",
-        exact: true,
-      })
-      .click();
+async function selectConnectedSource(page: Page) {
+  const source = page.getByRole("combobox", { name: "Calendar source", exact: true });
+  if (await source.isVisible()) {
+    await source.selectOption("connected");
+    return;
   }
-  await expect(source).toBeVisible();
-  return source;
+  const toggle = page.getByRole("button", { name: "Show calendars and connections", exact: true });
+  if (await toggle.isVisible()) {
+    await toggle.click();
+    await source.selectOption("connected");
+    return;
+  }
+  const menu = page.locator("summary[aria-label='Calendars & connections']");
+  await menu.click();
+  await menu.locator("..").getByRole("button", { name: "Connected calendar", exact: true }).click();
 }
 
 for (const role of ["parent", "teen"] as const) {
@@ -85,7 +85,7 @@ for (const role of ["parent", "teen"] as const) {
       path: test.info().outputPath("calendar-overlap-review.png"),
       fullPage: true,
     });
-    await (await openSourceFilter(page)).selectOption("connected");
+    await selectConnectedSource(page);
     await expect(panel).toHaveCount(0);
     expect(writes).toEqual([]);
   });
@@ -136,7 +136,7 @@ test("parent planning: real range, fixed clock geometry, source empty, detail an
   await expect(detail.locator("time")).toHaveCount(2);
   await page.keyboard.press("Escape");
   await expect(longEvent).toBeFocused();
-  await (await openSourceFilter(page)).selectOption("connected");
+  await selectConnectedSource(page);
   await expect(
     page.getByRole("heading", { name: "No events from this calendar" }),
   ).toBeVisible();

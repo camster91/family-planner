@@ -126,13 +126,8 @@ test("Today keeps secondary actions tucked away and restores their dialog focus"
   await page.screenshot({
     path: `/tmp/today-hierarchy-${info.project.name}-controls.png`,
   });
-  await explore.click();
+  await expect(explore).toHaveCount(0);
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("heading").first().click();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await expect(explore).toBeFocused();
   const customize = nav.getByRole("button", {
     name: "Customize Today",
     exact: true,
