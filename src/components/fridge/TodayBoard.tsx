@@ -578,7 +578,9 @@ export default function TodayBoard({
   groceryAction,
   choresShownElsewhere,
   preparationBacklinks = {},
+  onCoveredChange,
 }: {
+  onCoveredChange?: (covered: boolean) => void;
   preparationBacklinks?: import("@/lib/event-preparation/discovery").PreparationBacklinks;
   data: TodayBoardData;
   /** Exact chore IDs rendered by the personal home summary. Ignored in fridge mode. */
@@ -667,6 +669,7 @@ export default function TodayBoard({
     now: now ? now.getTime() : null,
     display,
   });
+  React.useEffect(() => { onCoveredChange?.(covered); }, [covered, onCoveredChange]);
   const boardRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     // Covered: the board leaves the focus order and the accessibility tree

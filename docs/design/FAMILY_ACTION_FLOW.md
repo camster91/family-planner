@@ -122,3 +122,37 @@ Fresh desktop and phone screenshots were inspected. Report:
 `/tmp/today-dinner-report/index.html`; images:
 `/tmp/today-dinner-{project}.png`. This is personal-web evidence, not paired-device
 or native acceptance. No merge/deployment occurred.
+
+## Shared-tablet helper: first read-only slice
+
+For #464/#499, add a Household helper entry beside Parent on /device/today.
+Four explicit questions use only the already-authorized device-audience board
+snapshot: upcoming events today, dinner, remaining chores, and groceries. Reuse
+canonical local-day and chore selectors; cap answers at five rows with a truthful
+continuation hint. Show snapshot time and cached/error status. No free-form input,
+provider, microphone, person-session endpoint, storage, new API or write is added.
+The surface explicitly says it is not AI. It is groundwork, not completion of the
+requested family AI or wake assistant.
+
+Clear the question on dismissal, page hiding and calm/night cover; disable while
+covered or elevated. Existing snapshot purge/revocation unmounts the helper with
+the board. Parent elevation does not broaden helper access. Keyboard dismissal,
+focus restoration, readable wrapping and EN/ES copy are required. Rollback removes
+the helper entry/component and cover-state notification, with no data migration.
+
+Shared-helper local evidence: final production build (including TypeScript),
+affected ESLint and whitespace checks passed.18 focused helper/snapshot tests
+passed; the3 helper tests were rerun after the final preview-copy correction.
+All7 final browser checks passed:3 sign-in setups plus real pairing/helper and
+revocation journeys in portrait800×1280 and landscape1280×800. The helper made no
+non-GET request while answering all four questions, restored launcher focus, and
+showed none of the fixture private-data canaries. Revocation removed an open
+helper. Unit coverage checks cached copy and question clearing on inactivity/
+page hide; physical-device calm/wake and native voice acceptance remain separate.
+Screenshot inspection found a transient contrast issue when swapping filled and
+tinted buttons; stable tinted buttons with a selected border fixed it. Fresh
+screenshots were inspected after that fix. Final report:
+`/tmp/device-helper-final-report/index.html`. Screenshots:
+`/tmp/device-helper-{project}.png`. No provider was invoked and no production or
+schema change occurred. The feature is explicitly a read-only board helper, not
+completion of the requested AI/wake assistant.

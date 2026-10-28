@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useDeviceText, englishDeviceText, type DeviceFeedback, type DeviceText } from '@/i18n/device-management'
 import { Loader2, Lock, UserRound } from 'lucide-react'
 import TodayBoard from '@/components/fridge/TodayBoard'
+import DeviceHouseholdHelper from './DeviceHouseholdHelper'
 import { DeviceGroceryAdd } from './DeviceGroceryAdd'
 import BoardSettings, { type BoardSettingsData, type BoardSettingsTransport, type Place } from '@/components/fridge/BoardSettings'
 import { Dialog } from '@/components/ui/dialog'
@@ -40,6 +41,7 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * offers the board settings on the tablet itself (no photos, O-15).
  */
 export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2 }) {
+  const [covered, setCovered] = React.useState(false)
   const text = useDeviceText()
   const client = useDeviceClient()
   const boardText = useTodayBoardText()
@@ -235,7 +237,8 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           fridgeMode
           onRefresh={() => void loadBoard()}
           checkVersion={checkVersion}
-          actions={parentButton ?? <span />}
+          onCoveredChange={setCovered}
+          actions={<><DeviceHouseholdHelper data={data} cached={cached || Boolean(loadError)} active={!covered && !elevated} />{parentButton}</>}
           banner={banner}
           tileActions={actions}
           groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (

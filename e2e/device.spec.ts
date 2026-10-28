@@ -770,6 +770,49 @@ test.describe("Shared tablet", () => {
         tablet.getByRole("button", { name: "Parent", exact: true }),
       ).toBeVisible();
 
+      // The helper reads only this already-authorized board, with no provider or writes.
+      const helperRequests: string[] = [];
+      const watchHelper = (request: import("@playwright/test").Request) => {
+        if (request.method() !== "GET") helperRequests.push(request.url());
+      };
+      tablet.on("request", watchHelper);
+      const helper = tablet.getByRole("button", {
+        name: "Household helper",
+        exact: true,
+      });
+      await helper.click();
+      const helperDialog = tablet.getByRole("dialog", {
+        name: "Household helper",
+      });
+      await expect(helperDialog).toBeVisible();
+      await expect(helperDialog).toContainText(
+        "does not make changes or use AI",
+      );
+      for (const question of [
+        "What’s next today?",
+        "What’s for dinner?",
+        "Which chores are left?",
+        "What do we need to buy?",
+      ]) {
+        await helperDialog
+          .getByRole("button", { name: question, exact: true })
+          .click();
+        await expect(
+          helperDialog.getByRole("heading", { name: question }),
+        ).toBeVisible();
+        expectClean(await helperDialog.innerHTML(), "household helper");
+      }
+      await expect(helperDialog.getByRole("textbox")).toHaveCount(0);
+      await expect(helperDialog.getByRole("link")).toHaveCount(0);
+      await tablet.screenshot({
+        path: `/tmp/device-helper-${testInfo.project.name}.png`,
+      });
+      await tablet.keyboard.press("Escape");
+      await expect(helperDialog).toHaveCount(0);
+      await expect(helper).toBeFocused();
+      tablet.off("request", watchHelper);
+      expect(helperRequests).toEqual([]);
+
       // The tablet holds device cookies only, never a person session.
       const names = (await tablet.context().cookies()).map((c) => c.name);
       expect(names).toEqual(
@@ -938,6 +981,15 @@ test.describe("Shared tablet", () => {
     const parent = await openContext(browser, testInfo, authFile("parentA"));
     try {
       await pairViaApi(parent.page, tablet);
+      await tablet
+        .getByRole("button", { name: "Household helper", exact: true })
+        .click();
+      await tablet
+        .getByRole("button", { name: "What’s next today?", exact: true })
+        .click();
+      await expect(
+        tablet.getByRole("dialog", { name: "Household helper" }),
+      ).toBeVisible();
       await tablet.evaluate(() => {
         localStorage.setItem("fp-device:v1:probe:today", '{"cached":true}');
         localStorage.setItem("fp-device:v1:queue", "[]");
@@ -964,6 +1016,9 @@ test.describe("Shared tablet", () => {
       await expect(
         tablet.getByRole("heading", { name: "This tablet is disconnected" }),
       ).toBeVisible();
+      await expect(
+        tablet.getByRole("dialog", { name: "Household helper" }),
+      ).toHaveCount(0);
       const dump = await storageDump(tablet);
       expect(dump).not.toContain("fp-device:v1:");
       expect(dump).toContain("unrelated-key");
