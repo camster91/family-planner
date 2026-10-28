@@ -637,6 +637,47 @@ provider subscription, resource, data or VPS service changed. Remaining database
 checks/triggers, profile linking, member removal/deletion, other feature data/SSR,
 R2 and full household/deployment acceptance remain open.
 
+## Provider/feed/travel settings and Settings SSR — 2026-10-28
+
+D1 now backs parent-only feed-token creation/read/rotation, AI-provider settings
+and travel settings. Concurrent feed creation converges on one token; rotation
+retires the prior identity. AI values retain existing encryption/masking,
+provider URL/body bounds, omitted-key preservation and explicit clearing. Only
+source-whitelisted fields change. Travel keeps UTC date-only storage/response
+semantics, partial-patch behavior and explicit clears. Current parent role,
+household and cookie generation are checked inside each mutation's SQL batch;
+travel's enabled flag is checked in the UPDATE too.
+
+The shared server feature gate reads D1 through the guarded read client and
+fails closed when the household is absent. The Settings server wrapper now uses
+one scoped D1 seed: only parent joins can read household beta/PIN/key-presence
+facts; raw PIN hashes and AI ciphertext are never selected into that seed. The
+legacy PostgreSQL branch remains for the existing deployment.
+
+Evidence:
+
+- Actual-source local Worker smoke passes eight concurrent feed creates,
+  rotation/empty-token replacement, AI key preservation/clearing, child/foreign
+  refusals, four concurrent independent travel patches, date/clear semantics,
+  flag/session changes immediately before writes and role-scoped Settings seeds.
+- Rebuilt app Worker HTTP checks verify native crypto encrypted storage, masked
+  AI responses, no full key return, omitted-key preservation, clear/short-key
+  validation, feed races/rotation, child/foreign policies, travel feature gating,
+  UTC date-only round trips and demoted/revoked cookies. No provider call made.
+- Parent and teen Settings render HTTP 200 at 390x844 and 1366x768, with no
+  horizontal overflow or page exceptions. Teen browsers make no AI/feed/beta
+  requests. Screenshots inspected. **Not full Settings acceptance:** both roles
+  still get 500 from `/api/users/preferences`; parents also get 500 from
+  `/api/calendar/subscriptions`. Those unconverted paths are the next work.
+- OpenNext build, TypeScript, scoped ESLint and 40 affected Jest tests pass.
+  Evidence: `/tmp/herewoven-d1-preferences2-{build,smoke,http,tests,typecheck,lint}.log`,
+  HTTP-results/rendered JSON and masked phone/desktop screenshots.
+
+This milestone covers settings/credentials only, not the calendar feed consumer,
+provider calls, calendar subscription writers or AI-usage accounting. The full
+feature/storage migration and release acceptance remain open. No production
+resources, data, subscriptions, DNS or VPS services changed.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

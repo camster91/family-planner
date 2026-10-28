@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1FeedToken, ensureD1FeedToken } from '@/lib/cloudflare/family-preferences'
+import { D1FamilySettingsError } from '@/lib/cloudflare/family-settings'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
@@ -14,6 +17,11 @@ export async function GET(request: NextRequest) {
 
   const parentError = requireParent(auth.user.role)
   if (parentError) return parentError
+
+  if (storageBackend() === 'd1') {
+    try { return NextResponse.json(await readD1FeedToken({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 })) }
+    catch (err) { if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status }); throw err }
+  }
 
   const family = await prisma!.family.findUnique({
     where: { id: auth.user.family_id },
@@ -41,6 +49,8 @@ export async function POST(request: NextRequest) {
     }
     const regenerate = body?.regenerate === true
 
+    if (storageBackend() === 'd1') return NextResponse.json(await ensureD1FeedToken({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, regenerate))
+
     const family = await prisma!.family.findUnique({
       where: { id: auth.user.family_id },
       select: { feed_token: true },
@@ -59,6 +69,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ feedToken: token, regenerated: Boolean(family?.feed_token) })
   } catch (error) {
+    if (error instanceof D1FamilySettingsError) return NextResponse.json({ error: error.code }, { status: error.status })
     logRouteError('POST /api/family/feed-token', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

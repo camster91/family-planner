@@ -29,6 +29,9 @@ Revision races, defaults inheritance, current authority and rollback have local
 Worker evidence; the prior onboarding preference-request failure is fixed.
 Household rename, concurrent feature switches, beta-metrics controls and Recent
 changes now use D1, with atomic audit/retention and phone/desktop browser evidence.
+Feed-token management, encrypted AI-provider settings, travel settings and the
+shared feature gate now use D1. Parent/teen Settings SSR has a scoped D1 seed;
+notification preferences and calendar subscriptions still return 500 locally.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

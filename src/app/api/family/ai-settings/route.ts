@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1AiSettings, updateD1AiSettings } from '@/lib/cloudflare/family-preferences'
+import { D1FamilySettingsError } from '@/lib/cloudflare/family-settings'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -26,7 +29,11 @@ export async function GET(request: NextRequest) {
   const parentError = requireParent(auth.user.role)
   if (parentError) return parentError
 
-  const family = await prisma!.family.findUnique({
+  let family: Awaited<ReturnType<typeof readD1AiSettings>> | null
+  if (storageBackend() === 'd1') {
+    try { family = await readD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }) }
+    catch (err) { if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status }); throw err }
+  } else family = await prisma!.family.findUnique({
     where: { id: auth.user.family_id },
     select: {
       capture_ai_key_enc: true,
@@ -75,7 +82,8 @@ export async function POST(request: NextRequest) {
 
     // Clearing removes the key and the provider overrides.
     if (body?.clear === true) {
-      await prisma!.family.update({
+      if (storageBackend() === 'd1') await updateD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, { capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null })
+      else await prisma!.family.update({
         where: { id: auth.user.family_id },
         data: {
           capture_ai_key_enc: null,
@@ -120,7 +128,9 @@ export async function POST(request: NextRequest) {
       data.capture_ai_key_enc = encryptSecret(rawKey)
     }
 
-    const updated = await prisma!.family.update({
+    const updated = storageBackend() === 'd1'
+      ? await updateD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, data)
+      : await prisma!.family.update({
       where: { id: auth.user.family_id },
       data,
       select: {
@@ -138,6 +148,7 @@ export async function POST(request: NextRequest) {
       model: updated.capture_ai_model ?? '',
     })
   } catch (error) {
+    if (error instanceof D1FamilySettingsError) return NextResponse.json({ error: error.code }, { status: error.status })
     if (error instanceof RequestBodyTooLarge)
       return NextResponse.json({ error: 'Request is too large' }, { status: 413 })
     logRouteError('POST /api/family/ai-settings', error, getRequestId(request))
