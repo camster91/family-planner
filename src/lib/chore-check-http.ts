@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1Chore } from "@/lib/cloudflare/chore-check";
 import { choreCheckOwnerAvailableInTx, renewChoreCheckOwner } from "@/lib/chore-check-owner";
 import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
@@ -92,6 +94,25 @@ async function performChoreCheckRequest(request: NextRequest, mode: "legacy" | "
     }
 
     const { choreId, decision, verificationNotes } = parsed.data
+
+    if (storageBackend() === 'd1') {
+      const result = await checkD1Chore({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }, { choreId, decision, verificationNotes, original: originalCommand })
+      const effect = result.effect
+      if (effect?.decision === 'approve' && !effect.profile) await recordBetaMetric(prisma!, auth.user.family_id, 'chore_verified', { now: effect.at })
+      try {
+        if (effect?.assignee && !effect.notifiedInTx) {
+          const recipient = effect.assignee
+          await notificationServiceServer.sendNotification({ familyId: recipient.familyId, userId: recipient.id,
+            title: decision === 'approve' ? 'Chore Verified!' : 'Have another go',
+            message: decision === 'approve' ? `Your chore "${recipient.title}" has been verified. Great job!` : verificationNotes ? `"${recipient.title}": ${verificationNotes}` : `"${recipient.title}" needs another go.`,
+            type: decision === 'approve' ? 'reward' : 'chore',
+          })
+          if (effect.xp?.levelUp && await isGamificationOn(auth.user.family_id)) await notificationServiceServer.sendNotification({ familyId: recipient.familyId, userId: recipient.id,
+            title: `Level Up! ${effect.xp.newLevel}`, message: `You reached Level ${effect.xp.newLevel}! Keep it up!`, type: 'reward' })
+        }
+      } catch (notifyErr) { logRouteError('POST /api/chores/verify (notification)', notifyErr, getRequestId(request)) }
+      return choreJson(result.body, { status: result.status })
+    }
 
     // Get the chore and verify family ownership
     const chore = await prisma!.chore.findUnique({

@@ -72,7 +72,14 @@ category/opt-in/quiet policy is shared with PostgreSQL. Sender/recipient members
 manual sender session evidence and recipient preferences commit with delivery.
 Inbox reads, paging, read/clear/delete and snooze renew the account generation.
 Retained occurrence/recipient evidence now has immutable/terminal D1 guards.
-Verification/XP, creation/edit/delete and device/profile/routine command writers,
+Parent chore approval/send-back now uses D1 for legacy and reviewed commands,
+including account XP/streak/level, exact activity, profile reviews without User
+rewards, successor cleanup and current-state replies. The default-off check
+notification cohort commits its occurrence/terminal recipient/inbox effects in
+that same batch; deadlines and stale review epochs remain enforced. Default
+notices stay best-effort after a real transition. Parent/teen phone/desktop
+review/send-back/readback journeys pass; no cohort is enabled in production.
+Creation/edit/delete and device/profile/routine command writers,
 other-domain confirmation, canonical mutation
 orchestration and complete AI chat parity remain unfinished; deployed-plan
 query/CPU limits still need edge verification.

@@ -1398,6 +1398,72 @@ Evidence prefix `/tmp/herewoven-d1-notifications-`; all household data is
 fabricated. No production resources, deploy, paid-plan activation, DNS/live data
 or VPS changes. Owned preview keys/configuration are removed after shutdown.
 
+## Native parent chore verification and send-back — 2026-10-28
+
+The shared legacy and reviewed-command HTTP handler now dispatches to a closed
+native D1 parent check adapter. Current parent/session/family/feature, chore,
+canonical account/profile and XP inputs are witnessed before one atomic batch.
+Approval, state/proof epoch, exact activity and account XP/streak/level commit
+or roll back together. XP uses an increment and rechecks all derived source
+values; concurrent awards cannot lose each other or overwrite a reward debit.
+The existing pure streak/level/XP functions are reused. Points still accrue
+when the display feature is off, as before; a level-up notice stays suppressed.
+
+Send-back stores the reason, clears completion/proof fields, removes exactly
+the recorded still-pending legacy successor and awards no XP. Departed legacy
+work returns to the checking parent. Canonical mapping contradictions refuse;
+inactive canonical accounts may retain verified history without fresh rewards.
+Email-free active/unlinked profiles use their own activity subject with no User
+reward or account notice. Device/profile completion and Undo remain separate,
+unconverted protocols; a seeded completed profile is not proof of those flows.
+
+Reviewed commands retain exact owner, insertion generation, material epoch and
+completion epoch checks, including changes away and back again. Their existing
+context endpoint reads D1 and renews the owner. Ordinary repeated approval is a
+success without another effect; replay of an already consumed reviewed snapshot
+is a conflict. Private responses retain current chore state where prescribed.
+
+The default-off check-notification cohort is also translated: a successful
+canonical transition owns a fresh activity identity, validated occurrence
+coordinate, original recipient and terminal created/suppressed slot. Post-effect
+source/activity/level assertions and a D1-clock deadline check share the same
+batch with status/XP/activity/occurrence/recipient/inbox writes. Inserting a
+recipient failure rolls everything back. The central native notification row
+primitive is shared with ordinary delivery, preserving category/quiet policy.
+No producer/admission flag, provider, channel or scheduler is activated. The
+ordinary post-commit sender remains nonfatal; beta counts run only for an actual
+account approval and remain consent-aware/nonfatal.
+
+**Verification:** actual workerd fixtures pass eight competing approvals/one
+award/activity, concurrent separate awards, same-day streak/level results,
+send-back note/proof/successor behavior, role/household refusal, actor/feature
+changes at commit, forced activity rollback, profile review, archived/no-reward
+and departed handoff. Reviewed eight-way contention yields one success/seven
+conflicts; completion ABA and material edits refuse stale review. Private cohort
+checks pass actual level content, muted terminal suppression, assignment race,
+recipient-failure rollback and deadline expiry before batch execution.
+84 focused gamification, command/owner, notification wiring, removed-member and
+single-status-path tests pass, as do TypeScript, scoped lint and OpenNext build.
+Built HTTP passes legacy/reviewed eight-way races, one XP/activity/beta/notice,
+no disabled-feature level notice, profile/no-XP, reason delivery, stale ABA,
+foreign legacy403/reviewed404, teen403, invalid400 and revoked401.
+
+Playwright at 390px/1366px opens the parent review sheet, approves a chore,
+sends another back with a reason, and confirms canonical D1 states. The teen
+home renders the returned reason and its own inbox contains both actual notices.
+No page errors, failed requests or horizontal overflow; parent phone and teen
+desktop screenshots inspected. The harness uses the footer Close control (the
+sheet also has a labelled close icon). A local disk-full interruption was
+resolved by stopping the owned preview and removing its disposable bundler cache;
+only fabricated browser fixture state was reset before the passing browser run.
+
+Remaining: chore creation/edit/delete, device/profile completion/Undo and routine
+commands, other notification producers/export, other domains/SSR, complete AI,
+private R2, full household/device and mail flows, deployed-plan budgets and
+cutover/VPS retirement. No production resource, deployment, paid plan, live data,
+DNS or VPS change. Evidence prefix `/tmp/herewoven-d1-chore-check-`. Owned preview
+keys/configuration are removed after shutdown; the full migration remains active.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
