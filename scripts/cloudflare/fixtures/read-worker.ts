@@ -1,3 +1,4 @@
+import { testCalendarSubscriptions } from './calendar-subscriptions'
 import { testNotificationPreferences } from './notification-preferences'
 import { testFamilyPreferences } from './family-preferences'
 import { testHouseholdProfiles } from './household-profiles'
@@ -15,6 +16,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/calendar-subscriptions') return Response.json(await testCalendarSubscriptions(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/notification-preferences') return Response.json(await testNotificationPreferences(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/family-preferences') return Response.json(await testFamilyPreferences(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/profiles') return Response.json(await testHouseholdProfiles(env.DB as unknown as D1Store))

@@ -725,6 +725,58 @@ Notification creation/delivery/provider adoption and calendar subscription
 reads/writes/refresh remain separate unfinished domains. No production resource,
 data, subscription, deployment or VPS change occurred.
 
+## Calendar subscription controls — 2026-10-28
+
+The collection GET/POST and subscription PATCH/DELETE select explicit D1
+repositories in D1 deployments. PostgreSQL keeps its existing transactions.
+Each native primary batch checks the original account id, exact role, household,
+session generation and existing Family; every statement repeats that authority
+predicate. The response boundary renews it again and preserves held/unconfirmed
+status codes and private no-store caching. The owner header contract is unchanged.
+
+Create stores the existing encrypted URL envelope, uses a UUID and applies the
+10-calendar cap inside the INSERT, rather than a separate count/create race.
+HTTP bounded input, parent gates, rate limiting and public-address validation
+are preserved. Updates write only supplied name/colour fields and updated_at;
+the URL remains immutable. Removal atomically deletes the selected household's
+imported events and subscription. A failing subscription delete restores the
+prior event deletion through native batch rollback. Shared DTO and host-hint
+helpers were extracted without changing PostgreSQL exports or client shapes;
+teens never receive the URL hint or ciphertext.
+
+Evidence:
+- `npm run cloudflare:test:reads` passes the prior repositories and a new actual
+  workerd/D1 fixture: 14 concurrent creates admit 10, foreign targets are
+  concealed, teen/child management is refused, independent patches survive,
+  explicit null clears colour, injected delete failure rolls back events, local
+  and foreign events survive removal, revoked/moved/demoted actors cannot write.
+- Typecheck, scoped ESLint, OpenNext build, 28 subscription-isolation tests and
+  43 existing import fetch/sync tests pass. PostgreSQL integration/database tests
+  were not run for this slice.
+- Built Worker HTTP: public feed creation returns 201; own list, rename and
+  removal return 200; teen URL privacy, child/teen restrictions, foreign 404s,
+  private-address and immutable-URL 400s, imported deletion count, local-event
+  preservation and revoked-cookie 401s pass.
+- Playwright at 390x844 and 1366x768 opens Family Settings, loads subscribed
+  calendars, renames and reloads the persisted result: no page errors, failed
+  requests or horizontal overflow in that flow. Screenshot inspected.
+- Evidence prefix `/tmp/herewoven-d1-calendar-management-`: build, typecheck,
+  lint, smoke, tests, import-tests, HTTP and browser logs; HTTP/rendered JSON and
+  parent screenshots. The first browser attempt failed because the harness had
+  not opened Family Settings; the corrected flow passed. Initial preview startup
+  hit disk exhaustion; disposable Wrangler and prior dry-run output was cleared
+  and the retry passed. No app data or recovery backup was removed.
+
+This is subscription management only. Refresh fetch/parse/reconciliation,
+stale refresh, canonical Event views/writers and Google/Apple OAuth connections
+still require conversion. The successful local public-URL POST is not evidence
+that Node's DNS-pinned Undici fetch works in Workers. The next slice must verify
+that boundary and retain SSRF protections; Cloudflare's strictly-public fetch
+flag alone is not a DNS-pinning guarantee. Current official DNS documentation:
+https://developers.cloudflare.com/workers/runtime-apis/nodejs/dns/ and fetch flag:
+https://developers.cloudflare.com/workers/configuration/compatibility-flags/.
+No production deployment, data wipe, resource creation or VPS change occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { updateD1CalendarSubscription, deleteD1CalendarSubscription } from "@/lib/cloudflare/calendar-subscriptions";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import {
   withCalendarSubscriptionAccess,
@@ -70,7 +72,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       userId: auth.user.id, familyId: auth.user.family_id,
       role: auth.user.role, generation: auth.payload.tv ?? 0,
     };
-    const result = await withCalendarSubscriptionAccess(prisma!, actor, "manage", async tx => {
+    const result = storageBackend() === "d1" ? await updateD1CalendarSubscription(actor, id, parsed.data)
+      : await withCalendarSubscriptionAccess(prisma!, actor, "manage", async tx => {
       if (!await lockCalendarSubscriptionInTx(tx, id, actor.familyId)) return null;
       const data: Record<string, unknown> = {};
       if (parsed.data.name !== undefined) data.name = parsed.data.name;
@@ -108,7 +111,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       userId: auth.user.id, familyId: auth.user.family_id,
       role: auth.user.role, generation: auth.payload.tv ?? 0,
     };
-    const result = await withCalendarSubscriptionAccess(prisma!, actor, "manage", async tx => {
+    const result = storageBackend() === "d1" ? await deleteD1CalendarSubscription(actor, id)
+      : await withCalendarSubscriptionAccess(prisma!, actor, "manage", async tx => {
       if (!await lockCalendarSubscriptionInTx(tx, id, actor.familyId)) return null;
       return { removedEvents: await removeSubscriptionInTx(tx, id, actor.familyId) };
     });

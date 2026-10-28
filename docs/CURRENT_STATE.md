@@ -32,7 +32,10 @@ changes now use D1, with atomic audit/retention and phone/desktop browser eviden
 Feed-token management, encrypted AI-provider settings, travel settings and the
 shared feature gate now use D1. Parent/teen Settings SSR has a scoped D1 seed;
 notification preferences now use atomic D1 updates/receipts and pass phone/desktop
-save/reload checks. Calendar subscriptions remain unconverted and return 500 locally.
+save/reload checks. Calendar subscription list/create/rename/recolour/removal now
+use native atomic D1 batches; the prior Settings list failure is fixed locally,
+with parent phone/desktop rename/reload evidence. Feed refresh/reconciliation,
+calendar data views and OAuth connections remain unconverted.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

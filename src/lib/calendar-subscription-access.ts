@@ -1,6 +1,8 @@
 /** Original authenticated account boundary for subscription collection and management work.
  * This is HTTP actor renewal, not proof of the original browser session packet.
  */
+import { storageBackend } from "@/lib/storage-backend";
+import { renewD1CalendarSubscriptionActor } from "@/lib/cloudflare/calendar-subscriptions";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
@@ -55,7 +57,9 @@ export async function protectCalendarSubscriptionResponse(
   response.headers.set("Cache-Control", "private, no-store");
   if (!response.ok) return response;
   try {
-    const renewed = await withCalendarSubscriptionAccess(db, original, mode, async () => null);
+    const renewed = storageBackend() === "d1"
+      ? { kind: await renewD1CalendarSubscriptionActor(original, mode) ? "data" : "held" }
+      : await withCalendarSubscriptionAccess(db, original, mode, async () => null);
     return renewed.kind === "held" ? calendarSubscriptionAccessHeld() : response;
   } catch { return calendarSubscriptionAccessHeld(true); }
 }
