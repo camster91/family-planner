@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1AuditPage, D1FamilySettingsError } from '@/lib/cloudflare/family-settings'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -38,13 +40,13 @@ async function getAudit(request: NextRequest) {
     const parsed = parseAuditQuery(new URL(request.url).searchParams)
     if (!parsed.ok) return apiError(400, 'INVALID_QUERY', parsed.error, { requestId, headers: NO_STORE })
 
-    const page = await readAuditPage(prisma!, auth.user.family_id, {
-      limit: parsed.limit,
-      cursor: parsed.cursor,
-      now: new Date(),
-    })
+    const options = { limit: parsed.limit, cursor: parsed.cursor, now: new Date() }
+    const page = storageBackend() === 'd1'
+      ? await readD1AuditPage({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, options)
+      : await readAuditPage(prisma!, auth.user.family_id, options)
     return NextResponse.json(page, { headers: NO_STORE })
   } catch (err) {
+    if (err instanceof D1FamilySettingsError) return apiError(err.status, err.code, 'Access changed. Refresh to continue.', { requestId, headers: NO_STORE })
     logRouteError('GET /api/audit', err, requestId)
     return apiError(500, 'INTERNAL_ERROR', 'Could not load recent changes', { requestId, headers: NO_STORE })
   }

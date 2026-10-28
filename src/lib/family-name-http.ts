@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { renameD1Family, D1FamilySettingsError } from "@/lib/cloudflare/family-settings";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
@@ -49,12 +51,14 @@ export async function familyNameHttp(request: NextRequest, strict = false) {
     const parsed = (strict ? strictName : updateFamilySchema).safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: "Invalid household name" }, { status: 400, headers });
     const input = parsed.data;
-    const result = await prisma!.$transaction(tx => renameFamilyInTransaction(tx,
-      { familyId: input.familyId, name: input.name, ...(strict ? { baseName: (input as z.infer<typeof strictName>).baseName } : {}) },
-      { userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }),
+    const command = { familyId: input.familyId, name: input.name, ...(strict ? { baseName: (input as z.infer<typeof strictName>).baseName } : {}) };
+    const actor = { userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 };
+    if (storageBackend() === "d1") return NextResponse.json(await renameD1Family(command, actor), { headers });
+    const result = await prisma!.$transaction(tx => renameFamilyInTransaction(tx, command, actor),
       { timeout: 5000, maxWait: 5000 });
     return NextResponse.json(result.body, { status: result.status, headers });
   } catch (error) {
+    if (error instanceof D1FamilySettingsError) return NextResponse.json({ error: error.code, code: error.code }, { status: error.status, headers });
     logRouteError("PATCH family name", error, getRequestId(request));
     return NextResponse.json({ error: "Could not update household" }, { status: 500, headers });
   }

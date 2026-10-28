@@ -481,6 +481,47 @@ transaction emulation or provider scheduler is introduced.
 Other settings and feature domains, complete household flows, production mail,
 private R2 and cutover remain incomplete. Production is unchanged.
 
+## Household settings and Recent changes — 2026-10-28
+
+The modern/legacy household rename routes, feature switches, beta-metrics switch
+and Recent changes API now use direct D1 repositories when D1 is selected.
+Rename keeps strict base-name conflicts, convergent uncertain retries, the safe
+five-field projection and the legacy billing-only no-op. Feature writes merge
+only requested keys with a JSON compare-and-set/retry; concurrent parents cannot
+silently overwrite unrelated toggles. Every changed feature's canonical audit
+entry commits in the same SQLite batch. No-op requests add no duplicate history.
+Beta opt-out atomically disables collection, erases only the household's counts
+and records an actual change. All writes bind current parent authority, session
+generation and membership inside SQL, beyond the route's initial authentication.
+
+Recent changes reads/prunes only the authorized parent's household, with the
+existing cursor/timestamp ordering and retention policy. An actor's name is
+included only while that actor still belongs to the same household. No scheduler
+or PostgreSQL fallback is introduced.
+
+Evidence:
+
+- Actual-source local workerd/D1 smoke passes eight concurrent strict renames,
+  eight unrelated feature merges, no-op audit behavior, audit-failure rollback,
+  scoped metrics erasure, child/current-generation refusals and changes of
+  authority between preflight and the atomic batch. Audit pagination has no
+  duplicates, retains all expected rows, hides foreign actor names and prunes
+  only the authorized household's expired history.
+- Rebuilt app Worker HTTP checks pass strict rename 409, safe fields, billing
+  no-op, foreign rename 403, four concurrent feature merges, child read/write
+  rules, core-feature refusal, metrics erasure, audit pagination/validation,
+  demoted-parent 403 and revoked-session 401.
+- At 390x844 and 1366x768, actual browser feature toggles save through the API
+  and appear in Recent changes. Both views have no horizontal overflow, page
+  exceptions or failed requests. Representative screenshots were inspected.
+- OpenNext build, TypeScript, scoped ESLint and 81 affected Jest tests pass.
+  Evidence: `/tmp/herewoven-d1-settings-{build,smoke,http,tests,lint,typecheck}.log`,
+  HTTP-results/rendered JSON and feature/activity PNGs.
+
+Member/profile management, other settings, wider feature data/SSR, R2, full
+household acceptance and production cutover remain unfinished. No production
+resources, subscriptions, data or VPS services changed.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

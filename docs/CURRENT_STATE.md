@@ -17,7 +17,10 @@ onboarding in the built Worker; its runtime facade rejects writes, raw SQL and
 transactions. Phone/desktop onboarding renders without overflow or page errors,
 and its personal/household display-preferences APIs now use atomic D1 writes.
 Revision races, defaults inheritance, current authority and rollback have local
-Worker evidence; the prior onboarding preference-request failure is fixed. Other settings,
+Worker evidence; the prior onboarding preference-request failure is fixed.
+Household rename, concurrent feature switches, beta-metrics controls and Recent
+changes now use D1, with atomic audit/retention and phone/desktop browser evidence.
+Other settings,
 removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

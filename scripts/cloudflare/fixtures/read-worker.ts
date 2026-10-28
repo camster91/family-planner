@@ -1,3 +1,4 @@
+import { testFamilySettings } from './family-settings'
 import { testDisplayPreferences } from './display-preferences'
 import type { D1Store } from '../../../src/lib/cloudflare/database'
 import { withD1ReadClient } from '../../../src/lib/cloudflare/read-client'
@@ -11,6 +12,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/family-settings') return Response.json(await testFamilySettings(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/preferences') return Response.json(await testDisplayPreferences(env.DB as unknown as D1Store))
       const result = await withD1ReadClient(async db => {
         const member = await db.user.findUnique({
