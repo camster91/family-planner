@@ -44,8 +44,13 @@ and open source-labelled details. Review-draft context and capture-status reads
 also use D1, fixing supporting-request errors found in that browser flow.
 Online Event PATCH now uses one native atomic D1 batch with current-parent,
 repeat-review, read-only and date-bound checks. Phone/desktop title and duration
-save/reload flows pass, preserving unsupported repeat rules. Event create/delete,
-AI capture execution and OAuth connections remain unconverted.
+save/reload flows pass, preserving unsupported repeat rules. Manual Event creation
+and deletion now commit exact retry receipts atomically with their effects;
+creation includes Activity and nonfatal consent-aware beta counts. Phone/desktop
+create/open/confirm-delete flows pass. AI-proof-bearing Event writes remain
+explicitly held in D1 until source/target confirmation is ported; this is a
+remaining release gap, not completed AI parity. AI capture execution and OAuth
+connections also remain unconverted.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

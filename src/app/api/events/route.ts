@@ -1,3 +1,5 @@
+import { mutateD1Event, D1EventReceiptError } from "@/lib/cloudflare/event-mutations";
+import { recordBetaMetric } from "@/lib/beta-metrics";
 import { storageBackend } from "@/lib/storage-backend";
 import { readD1CalendarEvents } from "@/lib/cloudflare/calendar-events";
 import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
@@ -27,7 +29,7 @@ import {
 import {
   attachEventSources,
 } from "@/lib/calendar-import/source";
-import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+import { readIdempotencyKey, withIdempotency, idempotencyError } from "@/lib/idempotency";
 import { updatePersonEvent } from "@/lib/person-event-update";
 import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
@@ -249,6 +251,15 @@ export async function POST(request: NextRequest) {
       },
       "event_create",
     );
+    if (storageBackend() === "d1") {
+      // Portable source-grounding verification is a separate migration domain.
+      // Never treat the proof's presence as permission to skip its checks.
+      if (sourceGuard) throw new AssistantSourceRefused();
+      const result = await mutateD1Event({ userId: actor.userId, familyId: actor.familyId, generation: actor.tokenVersion, name: actor.name },
+        { kind: "create", input: parsed.data }, key);
+      if (result.created) await recordBetaMetric(prisma!, actor.familyId, "event_created");
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store", ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) } });
+    }
     const response = await withIdempotency(
       prisma!,
       key,
@@ -276,6 +287,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof AssistantSourceRefused) return error.response();
+    if (error instanceof D1EventReceiptError) return idempotencyError(error.code);
     logRouteError("POST /api/events", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
@@ -360,6 +372,11 @@ export async function DELETE(request: NextRequest) {
       parsed.data.eventId,
       Boolean(sourceGuard),
     );
+    if (storageBackend() === "d1") {
+      if (sourceGuard || targetGuard) throw new AssistantSourceRefused();
+      const result = await mutateD1Event(actor, { kind: "delete", eventId: parsed.data.eventId }, key);
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store", ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) } });
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -384,6 +401,7 @@ export async function DELETE(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof AssistantSourceRefused) return error.response();
+    if (error instanceof D1EventReceiptError) return idempotencyError(error.code);
     logRouteError("DELETE /api/events", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },

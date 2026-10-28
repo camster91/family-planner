@@ -83,7 +83,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const update = await fetch(`http://127.0.0.1:${port}/event-update`)
   const updateResult = await update.json()
   assert.equal(update.status, 200, JSON.stringify(updateResult))
-  console.log(JSON.stringify({ eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const mutations = await fetch(`http://127.0.0.1:${port}/event-mutations`)
+  const mutationResult = await mutations.json()
+  assert.equal(mutations.status, 200, JSON.stringify(mutationResult))
+  console.log(JSON.stringify({ eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

@@ -980,6 +980,70 @@ beta-metric and assistant source/delete-target proof semantics. OAuth, remaining
 feature/account/device domains, private R2, full-household checks and production
 cutover remain open. No production, paid-plan, DNS, data-wipe or VPS change.
 
+## Manual Event creation/deletion and exact receipts — 2026-10-28
+
+The existing Event POST/DELETE API now selects a native D1 mutation repository
+for manual form actions. Successful Event creation, its Activity and exact
+completed receipt share one atomic batch. Deletion, canonical FK cascades and
+its receipt also commit together. A rollback restores the whole effect, including
+cascaded preparation data. Creation records the existing consent-aware/nonfatal
+beta metric only after a new effect commits, never on completed replay.
+
+Receipts keep the canonical user namespace, action/body hash, seven-day expiry,
+30-second incomplete-claim timeout, exact private response and replay header.
+Concurrent same-key calls converge through native precondition checks and retry;
+completed create replay does not reapply edits or resurrect a later deleted
+record. Completed delete replay succeeds after the target is gone. Expired keys
+can serve a different body/action; abandoned claims preserve their identity and
+remaining TTL. Failed reclaimable effects release the key, allowing a corrected
+request. Existing bounded probabilistic housekeeping is reused, without a job.
+
+Current creation permissions retain the existing parent/teen/child API contract.
+Deletion requires the original current parent/household/generation and enabled
+calendar feature, including before completed replay. Imported events are refused;
+foreign existing targets retain the existing DELETE403 and missing targets404.
+Before deletion, insertion generation/material/preparation epochs and updated_at
+are checked inside the effect batch, so intervening edits/source changes cannot
+silently bypass the current eligibility read. Original person-role and household
+checks precede every effect and private completed replay.
+
+**Remaining AI parity:** source-proof-bearing creates and source/target-proof
+bearing deletes currently return the existing ASSISTANT_SOURCE_REFUSED409 in D1.
+They are never treated as manual actions or allowed to skip source verification.
+This is an explicit temporary migration hold: valid AI confirmations, canonical
+non-HTTP create/delete callsites and complete source/target proof parity remain
+unfinished and block release. PostgreSQL keeps its existing proof implementation.
+Next work is the D1 Today/reference loader and atomic source/delete-target snapshot
+checks; the hold must be removed only with positive and stale-proof evidence.
+
+Evidence:
+- Actual workerd/D1 fixtures pass eight concurrent creates/deletes, exact replay,
+  one Event/Activity, stable stored identity/date, action/body key reuse refusal,
+  no resurrection, role/household isolation, imported protection, preparation
+  cascade, pending/abandoned/expired receipts and error-key release. Forced receipt
+  failure rolls back creation/Activity and deletion/cascades. Revocation or a new
+  imported source immediately before the batch leaves effects/receipts unchanged.
+  Disabled feature and changed account authority prevent private replay. Previous
+  read/write fixtures remain green.
+- Typecheck, scoped ESLint, complete OpenNext build and56 focused Jest tests pass
+  across Event API isolation/imports, create authority, idempotency and canonical
+  deletion. No migration/schema change or PG integration pass in this slice.
+- Built Worker HTTP confirms eight same-key creates produce one Activity and beta
+  count; eight deletes converge; key reuse422, invalid-key400, revoked replay401,
+  teen/child creation, teen delete403, foreign delete403 and malformed assistant
+  proof409 pass. Exact create replay after deletion does not restore the Event.
+- Playwright390x844 and1366x768 uses the real form to create a30-minute event,
+  loads it for editing, opens confirmation and deletes it; canonical GET then404.
+  No failed page requests, page errors or overflow in the final flows. Stable
+  phone confirmation screenshot inspected after waiting for its entry animation.
+  The first harness attempt did not reach POST; the final run waits for the
+  mounted form/network to settle and checks native form validity. No app
+  validation or failed request was bypassed.
+- Evidence prefix `/tmp/herewoven-d1-event-mutations-`: build, typecheck, lint,
+  tests, smoke, runtime, HTTP and browser logs; HTTP/rendered JSON and screenshots.
+  Data is fabricated in local D1. No paid plan, production resource, deployment,
+  DNS, live data wipe or VPS removal occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
