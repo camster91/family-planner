@@ -1,7 +1,9 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1DeviceMe } from '@/lib/cloudflare/device-me'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
-import { deviceClock, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
+import { deviceClock, deviceError, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
 import { authenticateDevice } from '@/lib/device-route'
 import { elevationState } from '@/lib/device-session'
 import { getRequestId } from '@/lib/request-id'
@@ -22,6 +24,11 @@ export async function GET(request: NextRequest) {
     if (!auth.ok) return auth.response
     const { actor, device } = auth
     const now = deviceClock.now()
+    if (storageBackend() === 'd1') {
+      const result = await readD1DeviceMe(actor, now)
+      return result.body ? deviceJson(result.body) : deviceError(result.status as 401 | 503, result.code!)
+    }
+
 
     const [family, parents] = await Promise.all([
       prisma!.family.findUnique({ where: { id: actor.familyId }, select: { name: true, features: true, device_writes_enabled: true } }),

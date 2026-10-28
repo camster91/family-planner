@@ -101,6 +101,15 @@ occurrences before one atomic effect batch, preserves completed/today rows and
 manual rotation picks, and retains profile/authored-routine protocol refusals.
 Routine schedule editor handoff reads now use D1 with exact scoped identity.
 Built HTTP concurrency and phone/desktop weekday-save/reopen/stop flows pass.
+Shared-device access resolution and refresh now use native atomic D1 batches,
+including first-use/seen touches, unused-successor recovery, token-reuse
+revocation of all generations and elevation clearing. Current temporary-parent
+access checks/issuance primitives use device/session/family/parent-generation
+witnesses, with idle/max timeout and exact-hash clearing. `/api/device/me` reads
+only its admitted household's safe name-only identity. Native races/rollback,
+built HTTP and browser-cookie rotation/private access checks pass. Pairing,
+credential-entry/elevated mutation routes and full device boards remain separate
+unfinished paths. No shared-device production flag has been enabled.
 Dedicated device/profile/routine command writers,
 other-domain confirmation, canonical mutation
 orchestration and complete AI chat parity remain unfinished; deployed-plan

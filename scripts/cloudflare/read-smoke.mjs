@@ -113,13 +113,16 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const choreDelete = await fetch(`http://127.0.0.1:${port}/chore-delete`)
   const choreDeleteResult = await choreDelete.json()
   assert.equal(choreDelete.status, 200, JSON.stringify(choreDeleteResult))
+  const deviceSessions = await fetch(`http://127.0.0.1:${port}/device-sessions`)
+  const deviceSessionResult = await deviceSessions.json()
+  assert.equal(deviceSessions.status, 200, JSON.stringify(deviceSessionResult))
   const choreUpdate = await fetch(`http://127.0.0.1:${port}/chore-update`)
   const choreUpdateResult = await choreUpdate.json()
   assert.equal(choreUpdate.status, 200, JSON.stringify(choreUpdateResult))
   const choreCreate = await fetch(`http://127.0.0.1:${port}/chore-create`)
   const choreCreateResult = await choreCreate.json()
   assert.equal(choreCreate.status, 200, JSON.stringify(choreCreateResult))
-  console.log(JSON.stringify({ choreUpdate: choreUpdateResult, choreCreate: choreCreateResult, choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  console.log(JSON.stringify({ deviceSessions: deviceSessionResult, choreUpdate: choreUpdateResult, choreCreate: choreCreateResult, choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

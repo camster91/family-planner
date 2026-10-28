@@ -202,6 +202,10 @@ const unavailable = { ok: false, status: 503, code: 'SERVICE_UNAVAILABLE' } as c
  * database blip denies access without making the tablet purge itself.
  */
 export async function resolveDeviceAccess(db: Db, cookies: DeviceCookieValues, now: Date): Promise<DeviceAuthResult> {
+  if (storageBackend() === 'd1') {
+    const { resolveD1DeviceAccess } = await import('@/lib/cloudflare/device-sessions')
+    return resolveD1DeviceAccess(cookies, now)
+  }
   // No access cookie but a refresh cookie: the 1-hour cookie expired in the
   // browser; tell the client to refresh rather than purge.
   if (!cookies.access) return cookies.refresh ? accessExpired : invalid
@@ -272,6 +276,10 @@ const REFRESH_ROW_SELECT = {
 
 /** Look up a refresh cookie's row without changing anything (used for rate-limit keys). */
 export async function findRefreshDeviceId(db: Db, refreshToken: string): Promise<string | null> {
+  if (storageBackend() === 'd1') {
+    const { findD1RefreshDeviceId } = await import('@/lib/cloudflare/device-sessions')
+    return findD1RefreshDeviceId(refreshToken)
+  }
   const row = await db.deviceSession.findUnique({
     where: { refresh_token_hash: hashToken(refreshToken) },
     select: { device_id: true },
@@ -280,6 +288,10 @@ export async function findRefreshDeviceId(db: Db, refreshToken: string): Promise
 }
 
 export async function refreshDeviceSession(db: Db, refreshToken: string, now: Date): Promise<RefreshResult> {
+  if (storageBackend() === 'd1') {
+    const { refreshD1DeviceSession } = await import('@/lib/cloudflare/device-sessions')
+    return refreshD1DeviceSession(refreshToken, now)
+  }
   return refreshOnce(db, refreshToken, now, 0)
 }
 
@@ -529,6 +541,10 @@ export function elevationState(device: DeviceRow, now: Date): ElevationState {
 
 /** Clear the elevation columns, only if they still hold `expectedHash` (a newer elevation is left alone). */
 export async function clearElevation(db: Db, deviceId: string, expectedHash: string): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { clearD1Elevation } = await import('@/lib/cloudflare/device-sessions')
+    return clearD1Elevation(deviceId, expectedHash)
+  }
   const { count } = await db.householdDevice.updateMany({
     where: { id: deviceId, elevation_token_hash: expectedHash },
     data: { ...CLEARED_ELEVATION },
@@ -575,6 +591,10 @@ export async function resolveElevation(
   header: string | null | undefined,
   now: Date
 ): Promise<ElevationResult> {
+  if (storageBackend() === 'd1') {
+    const { resolveD1Elevation } = await import('@/lib/cloudflare/device-sessions')
+    return resolveD1Elevation(resolved, header, now)
+  }
   const { actor, device } = resolved
   if (!elevationHeaderMatches(device, header)) return { ok: false, status: 403, code: 'ELEVATION_REQUIRED' }
 
@@ -616,6 +636,10 @@ export async function startElevation(
   db: Db,
   args: { deviceId: string; parentId: string; tokenVersion: number; method: 'pin' | 'password'; now: Date }
 ): Promise<{ token: string; expiresAt: Date } | null> {
+  if (storageBackend() === 'd1') {
+    const { startD1Elevation } = await import('@/lib/cloudflare/device-sessions')
+    return startD1Elevation(args)
+  }
   const token = generateDeviceToken('e')
   const expiresAt = new Date(args.now.getTime() + ELEVATION_MAX_MS)
   const { count } = await db.householdDevice.updateMany({

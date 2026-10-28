@@ -1633,6 +1633,62 @@ data domains/SSR, complete AI/non-HTTP orchestration, private R2, household/devi
 mail flows, deployed-plan budgets and full cutover/VPS retirement. Production,
 live data, DNS, paid plans and VPS resources remain unchanged.
 
+## Native shared-device sessions and identity — 2026-10-28
+
+Device access resolution, refresh lookup/rotation, exact elevation clear and
+current elevation resolution/issuance primitives now use D1. Explicit source
+witnesses commit with first-use/last-seen touches, session-generation changes,
+unused-successor replacement, or all-generation token-reuse revocation. New
+session insertion requires a live device in the exact household. Refresh never
+produces a person session. Concurrent requests reclassify from fresh primary
+state; unused successors can recover a lost response only inside the original
+60-second grace window, and first use defeats that recovery. Reuse clears
+parent elevation and revokes every generation atomically. Retention/last-seen
+housekeeping remains opportunistic/best-effort after a real rotation.
+
+Elevation resolution re-admits the device session and current hash, parent
+household/role/token generation and idle/absolute deadlines with its touch or
+clear. A wrong/older hash cannot clear newer elevation. Issuance primitives
+require the current parent generation in the same live device household. The
+credential-entry route and its PIN/password proof/lockout transaction are still
+separate work; primitive verification does not claim that complete route works.
+
+`/api/device/me` rechecks the current device generation with the scoped roster
+and PIN-presence/feature metadata. Only names and PIN-presence booleans leave;
+no email, age, credentials, PIN hash or foreign household roster. Native audit
+writes share the central fixed-vocabulary device audit boundary with explicit
+bindings; audit failure does not undo security revocation. No callback transaction
+or permissive D1 facade was introduced. The PostgreSQL path is preserved.
+
+**Verification:** complete native Worker regression smoke passes. New device
+fixtures verify device-only identity, exact access expiry, first-use/seen and
+throttle, name-only household projection, parent/foreign/child boundaries,
+wrong-header/old-clear safety, idle and absolute timeouts, parent credential
+revocation, rotation/grace/reuse, all-generation clearing, eight concurrent
+refreshes/one remaining live generation, forced rollback, device revocation and
+successor-use races before commit, temporary503 without purging, stored family
+mismatch and content-minimal audits. 71 focused tests in four suites, standalone
+TypeScript, scoped ESLint and Cloudflare OpenNext build pass. Built HTTP verifies
+private/no-store own-household identity, mixed person/device403, HTTP-only and
+Strict refresh cookies, old-access expiry/new-access success, reuse/all-session
+revocation, cleared revoked cookies and unknown-refresh401. Playwright uses the
+actual cookie jar on the local Worker origin: rotates credentials, retains
+HTTP-only/Strict policy, reads the new generation, refuses a lingering person
+session and cannot read device tokens from script; no page errors. This is cookie
+and identity evidence, not acceptance of the still-unconverted device board.
+
+The native fixture's missing brace and response union were corrected before the
+passing runs. No migration added. Evidence prefix
+`/tmp/herewoven-d1-device-session-`; all credentials/households fabricated and
+local. Owned preview is stopped and temporary keys/config/private token fixture
+removed after verification. No production flag, resource, deployment, live-data,
+DNS, paid-plan or VPS change.
+
+Remaining: pairing/management and credential-entry/elevated route writes, full
+device/profile/routine command paths and boards, other domains/SSR, complete AI
+orchestration, private R2/mail, deployed-plan budgets and verified cutover/VPS
+retirement. Full migration remains active.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
