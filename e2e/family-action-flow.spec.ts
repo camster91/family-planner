@@ -152,3 +152,57 @@ test("Today keeps secondary actions tucked away and restores their dialog focus"
     ),
   ).toBe(true);
 });
+
+test("wide Today puts dinner beside the schedule without changing saved section order", async ({
+  page,
+}, info) => {
+  await page.goto("/dashboard/today");
+  const grid = page.getByTestId("board-grid");
+  const next = grid.locator(':scope > [data-today-section="next"]');
+  const dinner = grid.locator(':scope > [data-today-section="dinner"]');
+  await expect(dinner).toBeVisible();
+  const nextBox = await next.boundingBox();
+  const dinnerBox = await dinner.boundingBox();
+  expect(nextBox).not.toBeNull();
+  expect(dinnerBox).not.toBeNull();
+  if (page.viewportSize()!.width >= 1280) {
+    expect(Math.abs(nextBox!.y - dinnerBox!.y)).toBeLessThan(2);
+    expect(dinnerBox!.x).toBeGreaterThan(nextBox!.x + nextBox!.width);
+  } else {
+    expect(dinnerBox!.y).toBeGreaterThanOrEqual(nextBox!.y + nextBox!.height);
+  }
+  expect(
+    await grid
+      .locator(":scope > div")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("data-today-section")),
+      ),
+  ).toEqual(["next", "dinner", "groceries", "coming"]);
+  await page.screenshot({
+    path: `/tmp/today-dinner-${info.project.name}.png`,
+    fullPage: true,
+  });
+  // Preview a real customization without saving fixture preferences.
+  const nav = page.getByRole("navigation", { name: "Today quick actions" });
+  await nav.locator("summary", { hasText: "Today controls" }).click();
+  await nav
+    .getByRole("button", { name: "Customize Today", exact: true })
+    .click();
+  const editor = page.getByRole("dialog", { name: "Make Today yours" });
+  await editor.getByRole("button", { name: "Move Dinner up" }).click();
+  await editor.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(grid.locator(":scope > div").first()).toHaveAttribute(
+    "data-today-section",
+    "dinner",
+  );
+  const customNext = await next.boundingBox();
+  const customDinner = await dinner.boundingBox();
+  expect(customNext!.y).toBeGreaterThanOrEqual(
+    customDinner!.y + customDinner!.height,
+  );
+  await editor.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(grid.locator(":scope > div").first()).toHaveAttribute(
+    "data-today-section",
+    "next",
+  );
+});

@@ -101,3 +101,24 @@ outside the collapsed disclosure. No API/schema, shared-device or production
 change. Evidence: `/tmp/today-hierarchy-report/index.html` and
 `/tmp/today-hierarchy-{project}.png`; temporary artifacts may be removed by session
 cleanup. Broader Today/dinner composition remains a later stage.
+
+### Wide-board dinner placement
+
+At1280px and wider, if the visible saved order begins Next then Dinner, place
+Dinner alongside the schedule/chore row. Next takes two of three columns; Dinner
+takes the third. Groceries followed by Coming up share the next row. Other custom
+orders retain their existing composition. Phone/portrait stacking, hidden tiles,
+canonical meal links and the dedicated fridge board are unchanged. This CSS-only
+slice has no write path or preference migration. Revert the wide-board CSS block
+to roll back.
+
+Observed for the dinner-placement slice: production build and affected ESLint/
+whitespace checks passed. The first two build attempts failed from local ENOSPC;
+removing unused older Playwright downloads and inactive npx caches, then limiting
+Node heap to2048MB, allowed the final build to finish. All15 browser checks passed:
+3 sign-in setups and4 journeys at390×844,1280×800,1366×768. Dinner placement and
+real customization preview/cancel were checked without saving preferences.
+Fresh desktop and phone screenshots were inspected. Report:
+`/tmp/today-dinner-report/index.html`; images:
+`/tmp/today-dinner-{project}.png`. This is personal-web evidence, not paired-device
+or native acceptance. No merge/deployment occurred.

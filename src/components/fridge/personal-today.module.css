@@ -67,3 +67,27 @@
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
 }
+
+/* On wide personal boards, keep dinner beside the first schedule/task row.
+   Only use this composition when those sections are already first in the
+   viewer's chosen order. No dense packing or visual/keyboard reordering. */
+@media (min-width: 1280px) {
+  .layout:has(
+    > [data-today-section="next"]:first-child + [data-today-section="dinner"]
+  ) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .layout:has(
+      > [data-today-section="next"]:first-child + [data-today-section="dinner"]
+    )
+    > [data-today-section="next"] {
+    grid-column: span 2;
+  }
+  .layout:has(
+      > [data-today-section="next"]:first-child + [data-today-section="dinner"]
+    )
+    > [data-today-section="groceries"]
+    + [data-today-section="coming"] {
+    grid-column: span 2;
+  }
+}
