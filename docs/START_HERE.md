@@ -37,6 +37,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
+- Active hosting migration (#604): `docs/plans/cloudflare-native-migration.md` — Workers, D1 and private R2 with a fresh database; runtime compatibility remains blocked and production remains on the VPS.
+
 - Notification event/delivery follow-through (#141): `docs/plans/notification-delivery-v1.md` (source inventory plus N1–N5; generic dedupe/admission, recovery, exact destinations and provider/native rollout remain unfinished).
 
 - Stable-profile rotation proposal (#480/#450): `docs/plans/profile-rotation-v1.md` (source-backed namespace/lifecycle/rollout contract; implementation and credit/retention decisions remain pending).

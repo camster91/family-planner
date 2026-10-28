@@ -10,6 +10,26 @@ removal of this app's old VPS resources after successful cutover. It does not
 authorize deleting the shared VPS or other sites, changing unrelated accounts,
 or silently enabling paid subscriptions. No production data has been wiped.
 
+## Simple delivery plan
+
+One existing application, one D1 database, one private R2 bucket. Keep the
+current UI and API contracts. A fresh database removes the old-data import
+work, not the need for reliable writes and household permissions.
+
+1. **Make the app run:** fix Workers middleware compatibility, then move the
+   existing data and upload paths to D1 and R2. Start with identity/households,
+   then convert the existing feature domains through the same backend.
+2. **Check the complete flows:** use fabricated households to verify sign-in,
+   permissions, concurrent writes, uploads and the existing user journeys.
+3. **Switch hosting:** deploy, verify herewoven.com, then retire only this app's
+   VPS resources after the new service works and recovery is available.
+
+These stages group the detailed checklist below; they do not waive its checks.
+No new features, parallel backend, separate mobile API, cache service, scheduler
+or coordination service is part of the initial implementation. Consider an
+additional service only when a concrete operation cannot be implemented safely
+with D1's atomic operations. Do not remove safeguards to reduce service count.
+
 ## Target
 
 - Workers serves the existing web UI, route handlers and authentication.
