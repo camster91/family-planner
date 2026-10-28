@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 /**
  * Shared-device credentials (#157 contract, #240): tokens, per-request
  * resolution, refresh rotation with reuse detection, elevation and cookies.
@@ -385,6 +386,14 @@ async function afterRefresh(db: Db, deviceId: string, now: Date): Promise<void> 
  * whose session is live (looked up, never rotated here).
  */
 export async function hasLiveDeviceCredential(db: Db, cookies: DeviceCookieValues, now: Date): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { hasD1DeviceCredential } = await import('@/lib/cloudflare/device-credentials')
+    return hasD1DeviceCredential(await getD1Database(), {
+      access: cookies.access ? hashToken(cookies.access) : undefined,
+      refresh: cookies.refresh ? hashToken(cookies.refresh) : undefined,
+    }, now.getTime(), REFRESH_REUSE_GRACE_MS)
+  }
   if (cookies.access) {
     const row = await db.deviceSession.findUnique({
       where: { access_token_hash: hashToken(cookies.access) },

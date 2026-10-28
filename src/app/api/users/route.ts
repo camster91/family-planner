@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1PublicUser, updateD1Profile } from '@/lib/cloudflare/accounts'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
@@ -20,7 +23,9 @@ export async function GET(request: NextRequest) {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
-    const user = await prisma!.user.findUnique({
+    const user = storageBackend() === 'd1'
+      ? await findD1PublicUser(await getD1Database(), payload.userId)
+      : await prisma!.user.findUnique({
       where: { id: payload.userId },
       select: SAFE_USER_SELECT,
     })
@@ -68,11 +73,18 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
 
-    const user = await prisma!.user.update({
+    const user = storageBackend() === 'd1'
+      ? await updateD1Profile(await getD1Database(), payload.userId, payload.tv ?? 0, {
+        name: typeof updateData.name === 'string' ? updateData.name : undefined,
+        age: 'age' in updateData ? updateData.age as number | null : undefined,
+      })
+      : await prisma!.user.update({
       where: { id: payload.userId },
       data: updateData,
       select: SAFE_USER_SELECT,
     })
+
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     if (!(await isGamificationOn(user.family_id))) {
       return NextResponse.json({ user: omitUserGamification(user) })

@@ -1,3 +1,7 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1PasswordUser } from '@/lib/cloudflare/accounts'
+import { changeD1Password } from '@/lib/cloudflare/account-recovery'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyPassword, hashPassword } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -35,7 +39,9 @@ export async function POST(request: NextRequest) {
 
     const { currentPassword, newPassword } = parsed.data
 
-    const user = await prisma!.user.findUnique({
+    const user = storageBackend() === 'd1'
+      ? await findD1PasswordUser(await getD1Database(), payload.userId)
+      : await prisma!.user.findUnique({
       where: { id: payload.userId },
       select: { id: true, password: true },
     })
@@ -56,15 +62,20 @@ export async function POST(request: NextRequest) {
     // cookie below so the user is not signed out of the session they just used.
     // Any outstanding reset link is cleared too: a link requested before the
     // change must not be able to override the new password.
-    await prisma!.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        token_version: { increment: 1 },
-        reset_token: null,
-        reset_token_expires: null,
-      },
-    })
+    if (storageBackend() === 'd1') {
+      const changed = await changeD1Password(await getD1Database(), user.id, payload.tv ?? 0, user.password ?? '', hashedPassword)
+      if (!changed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    } else {
+      await prisma!.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          token_version: { increment: 1 },
+          reset_token: null,
+          reset_token_expires: null,
+        },
+      })
+    }
 
     const response = NextResponse.json({ message: 'Password changed successfully' })
     await attachSessionCookie(response, {

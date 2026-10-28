@@ -36,13 +36,19 @@ export async function createResetToken(userId: string): Promise<string> {
   const token = generateToken()
   const expires = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
-  await prisma!.user.update({
-    where: { id: userId },
-    data: {
-      reset_token: hashToken(token),
-      reset_token_expires: expires,
-    },
-  })
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { storeD1ResetToken } = await import('@/lib/cloudflare/account-recovery')
+    await storeD1ResetToken(await getD1Database(), userId, hashToken(token), expires.getTime())
+  } else {
+    await prisma!.user.update({
+      where: { id: userId },
+      data: {
+        reset_token: hashToken(token),
+        reset_token_expires: expires,
+      },
+    })
+  }
 
   return token
 }
@@ -60,6 +66,11 @@ export async function createResetToken(userId: string): Promise<string> {
  * between this check and the claim is still rejected.
  */
 export async function resetTokenExists(token: string): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { d1ResetTokenExists } = await import('@/lib/cloudflare/account-recovery')
+    return d1ResetTokenExists(await getD1Database(), tokenMatch(token), Date.now())
+  }
   const row = await prisma!.user.findFirst({
     where: {
       reset_token: tokenMatch(token),
@@ -84,6 +95,18 @@ export async function consumeResetToken(
   token: string,
   hashedPassword: string
 ): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { consumeD1ResetToken } = await import('@/lib/cloudflare/account-recovery')
+    const result = await consumeD1ResetToken(await getD1Database(), tokenMatch(token), hashedPassword, Date.now())
+    if (result.consumed && result.clearedPin?.familyId) {
+      await writeDeviceAudit(prisma!, {
+        familyId: result.clearedPin.familyId, actorUserId: result.clearedPin.userId,
+        type: 'parent_pin.cleared_by_reset', metadata: {},
+      })
+    }
+    return result.consumed
+  }
   // A reset implies possible compromise, so it also removes the parent's
   // tablet elevation PIN (SHARED_DEVICE.md §6.1). The PIN row is deleted
   // BEFORE the claim: if the claim then loses a race, the winner is the same

@@ -293,6 +293,65 @@ Observed validation:
 Next: password recovery/resend verification, account/profile reads, current
 shared-device authority and the remaining membership APIs; then domain storage.
 
+### Password recovery, profiles and paired-device refusal
+
+The existing forgot/reset/change-password and resend-verification endpoints
+now use D1. Reset token hashes are unique; the single-use claim, password write,
+session-generation increment and PIN deletion share one batch. Failure rolls
+all of them back. The canonical device-audit helper records PIN clearing after
+commit with its existing best-effort behavior. Password changes recheck both
+the current generation and the verified old password hash in the write itself;
+concurrent revocation/change cannot overwrite a newer password snapshot.
+
+A failed D1 verification resend restores its previous challenge only if the
+failed issue is still current and unverified; it cannot overwrite a newer issue
+or undo a completed claim. This preserves the existing best-effort resend
+contract; arbitrary overlapping provider successes/failures and real mail
+transport still need final recovery acceptance.
+
+User GET/PATCH and shared authenticated-user reads now use explicit D1
+projections. Profile updates accept only the existing name/age fields and check
+the current session generation. Live paired-device access/refresh presence
+checks now use primary D1 reads with the existing expiry, rotation grace,
+revocation and device/household-match rules. Full pairing, refresh rotation,
+elevation and device-management writes are **not yet converted**.
+
+`0003_credential_devices.sql` adds five complete scalar models needed here:
+HouseholdMember, HouseholdDevice, DeviceSession, ParentElevationPin and
+DeviceAuditEvent. Foreign keys include scoped member audit subjects; reset and
+verification token hashes gain unique indexes. `0004_device_audit_erasure.sql`
+preserves one-way audit-subject erasure. These tables are foundations, not a
+claim that profile linking/device functionality has all been ported. The local
+smoke now uses Wrangler's own SQL splitter so it also executes trigger bodies.
+
+Observed validation:
+
+- Actual local D1 repository checks passed reset races, PIN/token/password
+  rollback after an injected failure, generation/password compare-and-set,
+  private profile projections, rejection of stale profile edits, restoration
+  guards, device expiry/revocation/rotation/household mismatch and scoped audit
+  subject/one-way erasure constraints.
+- 88 affected Jest tests passed; six existing integration cases were skipped.
+  TypeScript, scoped ESLint, diff check and Workers build passed. Four migrations
+  (11 tables) applied through Wrangler locally.
+- Actual Worker HTTP passed failed-mail resend restoration/generic responses,
+  safe typed profile GET/PATCH, change-password session renewal/revocation,
+  reset single-use behavior and stored-hash replay rejection, PIN deletion and
+  audit, post-reset password/session rejection, and paired login/register/API
+  refusal with `SHARED_DEVICE_ENABLED=true`. A revoked device cookie no longer
+  refused a valid person session, matching the existing policy.
+- Mail remained unconfigured and verification/reset were driven by fabricated
+  local tokens. No delivered-mail or complete dashboard/native claim is made.
+- Evidence: `/tmp/herewoven-d1-recovery-smoke.log`,
+  `/tmp/herewoven-d1-recovery-tests.log`, `/tmp/herewoven-d1-recovery-build.log`,
+  `/tmp/herewoven-d1-recovery-migrations.log`,
+  `/tmp/herewoven-d1-recovery-http-results.json`.
+- Local Worker stopped and temporary secret/config files removed. No remote
+  resource, deployment, paid subscription or production data was changed.
+
+Next: household/member reads and writes, email-free profile identity/linking,
+full device operations, and feature domains. R2 and verified cutover remain.
+
 ## Execution order
 
 1. Complete worker artifact and runtime compatibility (middleware/auth, Node

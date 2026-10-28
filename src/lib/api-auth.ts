@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1AuthUser } from '@/lib/cloudflare/accounts'
 import { NextRequest, NextResponse } from 'next/server'
 import { signToken, TokenPayload } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -67,7 +70,9 @@ export async function authenticateWithUser(
   const [payload, error] = await authenticateRequest(request)
   if (error) return [null, error]
 
-  const user = await prisma!.user.findUnique({
+  const user = storageBackend() === 'd1'
+    ? await findD1AuthUser(await getD1Database(), payload.userId, payload.tv ?? 0)
+    : await prisma!.user.findUnique({
     where: { id: payload.userId },
     select: { id: true, family_id: true, role: true, name: true, last_chore_date: true },
   })

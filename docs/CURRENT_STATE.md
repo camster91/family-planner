@@ -7,9 +7,11 @@ replaced or removed. No production wipe or paid-plan activation has occurred.
 
 Local Workers public login, D1 session authority, registration, verification,
 login, invited-child admission, atomic family creation and persistent rate limits
-have focused runtime evidence. Two D1 migrations (six tables) apply locally.
-Password recovery, account/profile and device/membership APIs, the remaining
-data domains, full household flows, mail delivery, R2 and cutover remain unfinished. Detailed
+have focused runtime evidence. Password recovery/change, safe profile reads/edits
+and paired-device person refusal also pass selected local Worker flows. Four
+D1 migrations (11 tables) apply locally, including credential/device foundations
+and audit erasure guards. Full membership/profile-link/device APIs, the remaining
+data domains, complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).
 Earlier state sections below are historical and do not supersede this migration.
 

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { storageBackend } from '@/lib/storage-backend'
 /**
  * Shared-device audit trail (SHARED_DEVICE.md §10).
  *
@@ -66,6 +68,16 @@ export async function writeDeviceAudit(
   }
 ): Promise<void> {
   try {
+    if (storageBackend() === 'd1') {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      await (await getD1Database()).prepare(`INSERT INTO "DeviceAuditEvent"
+        (id,family_id,device_id,actor_user_id,subject_member_id,subject_member_erased,type,metadata,created_at)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,COALESCE(?9,CAST(unixepoch('subsec')*1000 AS INTEGER)))`)
+        .bind(randomUUID(), entry.familyId, entry.deviceId ?? null, entry.actorUserId ?? null,
+          entry.subjectMemberId ?? null, entry.subjectMemberErased ? 1 : 0, entry.type,
+          JSON.stringify(entry.metadata), entry.at?.getTime() ?? null).run()
+      return
+    }
     await db.deviceAuditEvent.create({
       data: {
         family_id: entry.familyId,

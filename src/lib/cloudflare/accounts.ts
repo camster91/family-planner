@@ -4,7 +4,8 @@ import type { D1Store } from './database'
 // Explicit server-only projections. Never include ignored/internal continuity
 // columns by widening to SELECT *; HTTP callers apply their auth-field allowlist.
 const ACCOUNT_COLUMNS = '"id", "email", "password", "name", "role", "age", "family_id", "avatar_url", "last_chore_date", "xp", "level", "streak", "best_streak", "email_verified", "reset_token", "reset_token_expires", "verify_token", "verify_token_expires", "token_version", "board_color", "display_preferences", "display_preferences_revision", "weekly_reset_progress", "weekly_reset_revision", "notify_chores", "notify_events", "notify_messages", "quiet_hours_enabled", "quiet_hours_start", "quiet_hours_end", "quiet_hours_time_zone", "morning_summary_enabled", "morning_summary_time_zone", "morning_summary_sent_on", "created_at"'
-const LOGIN_COLUMNS = 'id,email,name,role,age,family_id,avatar_url,email_verified,xp,level,streak,best_streak,last_chore_date,created_at,password,token_version'
+const PUBLIC_COLUMNS = 'id,email,name,role,age,family_id,avatar_url,email_verified,xp,level,streak,best_streak,last_chore_date,created_at'
+const LOGIN_COLUMNS = `${PUBLIC_COLUMNS},password,token_version`
 export type LoginUser = Pick<User, 'id' | 'email' | 'name' | 'role' | 'age' | 'family_id' | 'avatar_url' | 'email_verified' | 'xp' | 'level' | 'streak' | 'best_streak' | 'last_chore_date' | 'created_at' | 'password' | 'token_version'>
 
 function decodeUser<T>(raw: Record<string, unknown> | null): T | null {
@@ -84,4 +85,27 @@ export async function consumeD1VerificationToken(db: D1Store, tokenHash: string,
 export async function isD1VerificationTokenUsed(db: D1Store, tokenHash: string): Promise<boolean> {
   return (await db.withSession('first-primary').prepare('SELECT id FROM "User" WHERE verify_token=?1 AND verify_token_expires IS NULL AND email_verified=1')
     .bind(tokenHash).first()) !== null
+}
+
+export type PublicUser = Omit<LoginUser, 'password' | 'token_version'>
+export async function findD1PublicUser(db: D1Store, userId: string): Promise<PublicUser | null> {
+  const row = await db.withSession('first-primary').prepare(`SELECT ${PUBLIC_COLUMNS} FROM "User" WHERE id=?1`)
+    .bind(userId).first<Record<string, unknown>>()
+  return decodeUser<PublicUser>(row)
+}
+export async function findD1PasswordUser(db: D1Store, userId: string): Promise<Pick<User, 'id' | 'password'> | null> {
+  return db.withSession('first-primary').prepare('SELECT id,password FROM "User" WHERE id=?1')
+    .bind(userId).first<Pick<User, 'id' | 'password'>>()
+}
+export async function findD1AuthUser(db: D1Store, userId: string, version: number) {
+  const row = await db.withSession('first-primary').prepare('SELECT id,family_id,role,name,last_chore_date FROM "User" WHERE id=?1 AND token_version=?2')
+    .bind(userId, version).first<Record<string, unknown>>()
+  return decodeUser<Pick<User, 'id' | 'family_id' | 'role' | 'name' | 'last_chore_date'>>(row)
+}
+export async function updateD1Profile(db: D1Store, userId: string, version: number, data: { name?: string; age?: number | null }): Promise<PublicUser | null> {
+  const row = await db.prepare(`UPDATE "User" SET name=CASE WHEN ?1=1 THEN ?2 ELSE name END,
+    age=CASE WHEN ?3=1 THEN ?4 ELSE age END WHERE id=?5 AND token_version=?6 RETURNING ${PUBLIC_COLUMNS}`)
+    .bind(data.name !== undefined ? 1 : 0, data.name ?? null, data.age !== undefined ? 1 : 0,
+      data.age ?? null, userId, version).first<Record<string, unknown>>()
+  return decodeUser<PublicUser>(row)
 }

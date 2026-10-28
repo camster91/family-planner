@@ -1,9 +1,13 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1Account } from '@/lib/cloudflare/accounts'
+import { restoreD1VerificationToken } from '@/lib/cloudflare/account-recovery'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { getClientIp } from '@/lib/client-ip'
-import { createVerificationToken } from '@/lib/tokens'
+import { createVerificationToken, hashToken } from '@/lib/tokens'
 import { normalizeEmail } from '@/lib/family-invite'
 import { sendAccountMail } from '@/lib/notification-delivery'
 import { escapeHtml } from '@/lib/escape-html'
@@ -42,16 +46,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
     }
 
-    const user = await prisma!.user.findUnique({ where: { email } })
+    const user = storageBackend() === 'd1'
+      ? await findD1Account(await getD1Database(), email)
+      : await prisma!.user.findUnique({ where: { email } })
 
     if (user && !user.email_verified) {
       // Snapshot the existing token before createVerificationToken overwrites
       // it, so a failed delivery can restore the previously issued link.
       const oldToken = user.verify_token
       const oldExpires = user.verify_token_expires
+      let issuedToken: string | undefined
       // Best-effort: never leak delivery status through the response.
       try {
         const token = await createVerificationToken(user.id)
+        issuedToken = token
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://family.ashbi.ca'
         const verifyUrl = appUrl + '/verify-email?token=' + token
 
@@ -73,12 +81,17 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // Delivery failed AFTER the new token was written — restore the prior
         // token so the previously delivered link stays usable.
-        await prisma!.user
-          .update({
-            where: { id: user.id },
-            data: { verify_token: oldToken, verify_token_expires: oldExpires },
-          })
-          .catch(() => undefined)
+        if (storageBackend() === 'd1') {
+          if (issuedToken) await restoreD1VerificationToken(await getD1Database(), user.id,
+            hashToken(issuedToken), oldToken, oldExpires?.getTime() ?? null).catch(() => undefined)
+        } else {
+          await prisma!.user
+            .update({
+              where: { id: user.id },
+              data: { verify_token: oldToken, verify_token_expires: oldExpires },
+            })
+            .catch(() => undefined)
+        }
         logRouteWarning('POST /api/auth/resend-verification (mail)', e, getRequestId(request))
       }
     }
