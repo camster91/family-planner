@@ -155,6 +155,46 @@ Local evidence: `/tmp/herewoven-workers-http-smoke.json`,
 `/tmp/herewoven-middleware-loading-tests.log` and
 `/tmp/herewoven-cloudflare-lazy-build.log`. No production change.
 
+### D1 session-authority slice
+
+`HEREWOVEN_STORAGE=d1` now selects a direct D1 reader for the existing session
+API. The request binding is `DB`; it reads the canonical `User` table's
+`token_version`, `role` and `family_id` using bound parameters. Every authority
+read starts a `first-primary` D1 session so a stale read replica cannot admit a
+revoked session or old household role. No authority is cached across requests.
+
+Default storage remains PostgreSQL. Unknown explicit backend values throw.
+When D1 is selected, the old Prisma export is unavailable even if a PostgreSQL
+URL or cached client exists, preventing mixed-backend authorization. Missing
+D1 bindings and failed reads propagate to existing fail-closed callers.
+
+This is a **session-read slice**, not a completed account migration. The
+production schema, signup/login writers, rate limits, household membership
+mutations and domain APIs still need conversion. The committed Wrangler config
+does not enable D1 or provision a database. The existing startup environment
+checks are retained until the remaining PostgreSQL callers are converted.
+
+Verification on 2026-10-28:
+
+- 131 focused tests passed; TypeScript, scoped ESLint and OpenNext build passed.
+- Local Miniflare D1 with two fabricated households verified bound SQL,
+  current generation/role/household after updates and null after account deletion.
+- Rebuilt app running in local workerd with a real local D1 binding: a current
+  parent cookie on `/login` redirects to `/dashboard`; a child carrying a stale
+  parent claim is redirected away from `/dashboard/budget`; revoked and missing
+  accounts are redirected to login. No PostgreSQL service was available.
+- The local database used only a four-column session fixture, **not a production
+  migration**. These probes do not establish login-form submission, dashboard
+  rendering, write concurrency, or complete household isolation.
+- Evidence: `/tmp/herewoven-d1-runtime-results.json`,
+  `/tmp/herewoven-d1-smoke.log`, `/tmp/herewoven-d1-session-tests.log`,
+  `/tmp/herewoven-d1-typecheck.log`, `/tmp/herewoven-d1-build.log`.
+- Temporary secret/config files removed and local Worker stopped. No remote
+  resources, subscription, deployment, or production data were changed.
+
+Next: define the fresh D1 identity/household schema and atomic registration,
+verification, rate-limit and membership operations before enabling real signup.
+
 ## Execution order
 
 1. Complete worker artifact and runtime compatibility (middleware/auth, Node
