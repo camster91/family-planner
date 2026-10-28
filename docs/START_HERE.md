@@ -37,7 +37,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
-- Active hosting migration (#604): `docs/plans/cloudflare-native-migration.md` — Workers, D1 and private R2 with a fresh database; runtime compatibility remains blocked and production remains on the VPS.
+- Active hosting migration (#604): `docs/plans/cloudflare-native-migration.md` — Workers, D1 and private R2 with a fresh database; public login now runs locally in Workers; database conversion remains blocked/incomplete and production remains on the VPS.
 
 - Notification event/delivery follow-through (#141): `docs/plans/notification-delivery-v1.md` (source inventory plus N1–N5; generic dedupe/admission, recovery, exact destinations and provider/native rollout remain unfinished).
 

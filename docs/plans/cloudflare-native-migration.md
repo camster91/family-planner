@@ -124,12 +124,36 @@ framework changes. This choice must be judged by actual Workers execution.
   The local preview was stopped and its temporary `.dev.vars` removed.
 - Production remains on the existing host. No migration was deployed.
 
-Next implementation decision: move the existing middleware protections into a
-Workers-compatible execution boundary, preserving runtime secret access,
-session generation checks, redirects and CSRF rejection. Validate that boundary
-before treating this adapter as the migration runtime. If it cannot preserve
-these guarantees, evaluate the documented Cloudflare framework alternative;
-do not patch generated artifacts or weaken authentication to get a green page.
+### Follow-through: middleware startup fixed locally
+
+The initial loader crash is resolved by isolating device cookie/flag helpers
+from the database-backed token module and loading the session resolver only
+inside the existing protected-route validation boundary. Existing imports of
+cookie helpers retain compatibility through re-exports. No authority check,
+CSRF check, cookie attribute or role gate was removed.
+
+Observed on the rebuilt local Worker:
+
+- `/login`: 200, CSRF cookie set.
+- Anonymous `/dashboard/today`: 307 to login with return path.
+- Mutation without CSRF token: 403; cross-site login POST: 403.
+- Fabricated signed token with unavailable session authority: 307 to login.
+- Playwright login at 390×844 and 1366×768: 200, no horizontal overflow,
+  password input present, no page errors; screenshots visually inspected.
+- 125 focused tests passed across middleware, device sessions and module-load
+  failure coverage. Scoped ESLint and the OpenNext production build passed.
+
+The session authority probe exposes the next blocker: the existing Prisma
+PostgreSQL engine attempts runtime Wasm compilation that workerd rejects.
+Signed-in database flows are **not working or verified**. Replace this layer
+with D1-compatible storage as already planned; do not bypass the lookup.
+OpenNext's broader Node middleware support remains experimental, so these
+observations cover only the routes/cases listed above.
+
+Local evidence: `/tmp/herewoven-workers-http-smoke.json`,
+`/tmp/herewoven-workers-smoke/`, `/tmp/herewoven-middleware-tests.log`,
+`/tmp/herewoven-middleware-loading-tests.log` and
+`/tmp/herewoven-cloudflare-lazy-build.log`. No production change.
 
 ## Execution order
 

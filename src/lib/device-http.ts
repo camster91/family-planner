@@ -12,13 +12,10 @@
 import { NextResponse } from 'next/server'
 import { logRouteError } from '@/lib/api-error'
 import type { RateLimitResult } from '@/lib/rate-limit-db'
-import { clearDeviceCookies } from '@/lib/device-session'
+import { clearDeviceCookies } from '@/lib/device-cookies'
 
-/** Read at call time (Node runtime), so flipping the env needs no rebuild. */
-export function isSharedDeviceEnabled(): boolean {
-  const raw = (process.env.SHARED_DEVICE_ENABLED ?? '').trim().toLowerCase()
-  return raw === 'true' || raw === '1'
-}
+export { isSharedDeviceEnabled } from '@/lib/device-cookies'
+import { isSharedDeviceEnabled } from '@/lib/device-cookies'
 
 /** Indirection so tests can fix "now"; production always uses the wall clock. */
 export const deviceClock = {

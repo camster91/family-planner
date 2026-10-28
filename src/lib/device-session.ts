@@ -14,7 +14,6 @@
  * Set-Cookie header or JSON body that hands it to the tablet.
  */
 import crypto from 'crypto'
-import type { NextResponse } from 'next/server'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { hashToken } from '@/lib/tokens'
 import { timingSafeEqualStr } from '@/lib/constant-time'
@@ -24,13 +23,16 @@ import { describeError, log } from '@/lib/logger'
 // ---------------------------------------------------------------------------
 // Constants (§4, §6.3; O-2 and O-8 confirmed/defaulted)
 
-export const DEVICE_ACCESS_COOKIE = 'fp_device'
-export const DEVICE_REFRESH_COOKIE = 'fp_device_refresh'
-export const DEVICE_ELEVATION_HEADER = 'x-device-elevation'
-export const PERSON_SESSION_COOKIE = 'session_token'
+// Preserve existing imports while keeping cookie-only middleware free of DB code.
+export {
+  DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE, DEVICE_ELEVATION_HEADER,
+  PERSON_SESSION_COOKIE, ACCESS_TTL_MS, REFRESH_TTL_MS,
+  setDeviceCookies, clearDeviceCookies, clearPersonSessionCookie,
+} from '@/lib/device-cookies'
+import {
+  DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE, ACCESS_TTL_MS, REFRESH_TTL_MS,
+} from '@/lib/device-cookies'
 
-export const ACCESS_TTL_MS = 60 * 60 * 1000
-export const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000
 /** Rule 3: a rotated refresh token replayed this soon, with an unused successor, is a lost response. */
 export const REFRESH_REUSE_GRACE_MS = 60 * 1000
 /** Rotated generations older than this are deleted on the device's next refresh (§3 notes). */
@@ -623,58 +625,7 @@ export async function startElevation(
 }
 
 // ---------------------------------------------------------------------------
-// Cookies (§4 table)
-
-function secureCookie(): boolean {
-  return process.env.NODE_ENV === 'production'
-}
-
-export function setDeviceCookies(response: NextResponse, tokens: Pick<IssuedDeviceTokens, 'accessToken' | 'refreshToken'>) {
-  response.cookies.set(DEVICE_ACCESS_COOKIE, tokens.accessToken, {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: ACCESS_TTL_MS / 1000,
-  })
-  // Path=/ so cold launch at `/` and the login guard can see it; it is only
-  // rotated by POST /api/device/session/refresh.
-  response.cookies.set(DEVICE_REFRESH_COOKIE, tokens.refreshToken, {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'strict',
-    path: '/',
-    maxAge: REFRESH_TTL_MS / 1000,
-  })
-}
-
-export function clearDeviceCookies(response: NextResponse) {
-  response.cookies.set(DEVICE_ACCESS_COOKIE, '', {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  })
-  response.cookies.set(DEVICE_REFRESH_COOKIE, '', {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 0,
-  })
-}
-
-/** Pairing completion drops the person cookie on the tablet (no token_version bump). */
-export function clearPersonSessionCookie(response: NextResponse) {
-  response.cookies.set(PERSON_SESSION_COOKIE, '', {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  })
-}
+// Paired-device request authority
 
 /**
  * True when the request comes from a paired shared device: the kill switch is
