@@ -1292,6 +1292,62 @@ resource/DNS/live data or VPS change. Evidence prefix:
 runtime, HTTP/readback, rendered JSON and screenshots). All data is fabricated;
 owned preview bindings and key files are removed after stopping the preview.
 
+## Atomic account chore completion and Undo — 2026-10-28
+
+**Implemented locally:** `/api/chores/complete` and `/api/chores/uncomplete`
+now branch into a closed, account-session D1 adapter. The native batch checks
+current session generation, role, household, feature state, chore/photo reads
+and recurrence sources before committing the status effect. It preserves D3:
+any current household member may complete an account chore; Undo requires a
+parent or the assignee. Profile-only work refuses this account protocol.
+
+Completion, exact activity and generated series copies/checkpoints or a legacy
+successor commit together. Undo removes only its recorded, still-pending legacy
+successor; it cannot reopen a verified chore. No completion or Undo awards XP.
+Opted-in beta counting remains nonfatal and runs only after a real completion.
+The recurrence writer now exposes its captured checks and statements so all
+checks precede every effect inside this same batch. PostgreSQL paths remain.
+
+Migration `0010_chore_completion_epochs.sql` ports monotonic state/proof epochs,
+separate from material responsibility epochs. It rejects invalid/rewinding
+internal values and bumps the epoch for status/proof/successor changes. Other
+EventPreparation lifecycle and step triggers remain unported.
+
+**Verification:**
+
+- Actual local D1 schema check passes all ten migrations, 84 model tables,
+  963 scalar columns, 153 canonical unique keys and 208 relationships.
+- Native fixture passes concurrent tick/Undo, exact successor deletion and
+  re-completion, daily series top-up, inactive routine refusal, photo ownership,
+  owner revocation, upload deletion, verification winning Undo and archived
+  canonical assignee refusal. Forced activity failure rolls back status, epoch
+  and every generated occurrence. Epoch rewind and foreign/profile work refuse;
+  XP stays unchanged. Verification is simulated as a database winner here;
+  the verification endpoint is not converted by this slice.
+- Real HTTP: eight completions converge on one activity and one beta count;
+  eight Undo requests converge on pending. Sibling Undo is forbidden; verified
+  Undo conflicts; repeated verified completion is a no-op. Foreign, missing,
+  invalid and revoked-session requests return 403/404/400/401. JSON is private,
+  no-store.
+- Local Playwright parent and teen journeys at 390px and 1366px tick through the
+  rendered control, use the Undo toast and confirm D1 pending state through the
+  authenticated API. No page errors, failed HTTP requests or horizontal overflow;
+  phone-parent and desktop-teen screenshots inspected. The harness initially
+  expected the teen mission to be a checkbox; its existing button semantics
+  were used for the passing run. No product behavior was changed for the harness.
+- 88 focused PostgreSQL-path/unit checks pass. Scoped lint, TypeScript and the
+  OpenNext build pass. Full native read/mutation smoke passes, including prior
+  recurrence and chore-read fixtures.
+
+**Remaining:** Chore verification/XP, creation/edit/delete and dedicated
+profile/device/routine commands; other data domains/SSR, complete AI execution,
+private R2 and mail/household/device flows. Local workerd does not establish the
+deployed plan's CPU/query budget. The full migration remains incomplete; no
+production binding, deploy, paid plan, wipe, DNS or VPS change. Evidence prefix:
+`/tmp/herewoven-d1-chore-state-` (schema, smoke, unit, lint/typecheck/build,
+HTTP/readback, rendered results and screenshots). Preview keys/configuration are
+removed after stopping the owned preview. All data is fabricated.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

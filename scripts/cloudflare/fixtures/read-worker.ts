@@ -1,3 +1,4 @@
+import { testChoreState } from './chore-state'
 import { testChoreReads } from './chore-reads'
 import { testRecurringChores } from './recurring-chores'
 import { testAssistantDeleteTarget } from './assistant-delete-target'
@@ -25,6 +26,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/chore-state') return Response.json(await testChoreState(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/chore-reads') return Response.json(await testChoreReads(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/recurring-chores') return Response.json(await testRecurringChores(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/assistant-delete-target') return Response.json(await testAssistantDeleteTarget(env.DB as unknown as D1Store))

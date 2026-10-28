@@ -34,6 +34,8 @@ export function chorePhotoFilename(ref: string): string | null {
   return CHORE_PHOTO_FILENAME_RE.test(name) ? name : null
 }
 
+export type ChorePhotoReadDb = { upload: Pick<PrismaClient['upload'], 'findFirst'> }
+
 export type ChorePhotoResolution =
   | { ok: true; value: string | null | undefined }
   | { ok: false; error: string }
@@ -60,7 +62,7 @@ export async function resolveChorePhotoForWrite(
   familyId: string,
   input: string | null | undefined,
   current?: string | null,
-  db: Pick<PrismaClient, 'upload'> = prisma!
+  db: ChorePhotoReadDb = prisma!
 ): Promise<ChorePhotoResolution> {
   if (input === undefined) return { ok: true, value: undefined }
   if (input === null || input === '') return { ok: true, value: null }

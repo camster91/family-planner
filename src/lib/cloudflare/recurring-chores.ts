@@ -322,10 +322,77 @@ function gateCurrent(plan: Plan) {
     return false;
   return true;
 }
-/** Source reads and all generated copies/checkpoints commit in one native batch.
- * Concurrent visits replan after a failed witness; unique series/date is the
- * final collision guard. No identity creation, ignored transaction or scheduler.
- */
+/** Prepare source checks and canonical generated copies separately so a
+ * completion can put every check BEFORE its status effect in the same batch. */
+export async function prepareD1RecurringSeries(
+  templateId: string,
+  familyId: string,
+  now: Date,
+  store: D1Store,
+) {
+  const captured = await captureD1Reads(
+    (db) => planSeries(db, templateId, familyId, now),
+    store as unknown as NativeD1,
+  );
+  const plan = captured.value;
+  return {
+    checks(session: Pick<D1Store, "prepare">) {
+      if (!gateCurrent(plan))
+        throw new Error("Recurring capability changed during the operation");
+      return captured.checks(session);
+    },
+    writes(session: Pick<D1Store, "prepare">) {
+      const statements: ReturnType<D1Store["prepare"]>[] = [],
+        insertIndexes: number[] = [];
+      const created = Date.now();
+      for (const copy of plan.copies) {
+        insertIndexes.push(statements.length);
+        const values: SqlValue[] = [
+          randomUUID(),
+          copy.family_id,
+          copy.created_by,
+          copy.title,
+          copy.description,
+          copy.points,
+          copy.difficulty,
+          copy.icon,
+          copy.routine,
+          copy.routine_order,
+          copy.routine_stack_id ?? null,
+          copy.routine_anchor ?? null,
+          copy.routine_duration_minutes ?? null,
+          copy.due_date.getTime(),
+          copy.recurrence_id,
+          copy.assigned_to,
+          copy.assigned_member_id ?? null,
+          copy.rotation_index,
+          created,
+        ];
+        statements.push(
+          session
+            .prepare(
+              `INSERT INTO "Chore"(id,family_id,created_by,title,description,points,difficulty,icon,routine,routine_order,routine_stack_id,routine_anchor,routine_duration_minutes,due_date,recurrence_id,assigned_to,assigned_member_id,rotation_index,created_at,frequency,status,is_template,member_subject_erased)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,'once','pending',0,0)
+        ON CONFLICT(recurrence_id,due_date) DO NOTHING`,
+            )
+            .bind(...values),
+        );
+      }
+      if (plan.settleOnce)
+        statements.push(
+          session
+            .prepare(
+              `UPDATE "Chore" SET routine_series_config=json_set(routine_series_config,'$.once_pending',json('false')) WHERE id=?1 AND family_id=?2 AND recurrence_id=id`,
+            )
+            .bind(templateId, familyId),
+        );
+      return { statements, insertIndexes };
+    },
+    hasEffect:
+      Boolean(plan.copies.length || plan.settleOnce) && gateCurrent(plan),
+  };
+}
+/** Native expansion; source checks and all copies/checkpoints commit together. */
 export async function expandD1RecurringSeries(
   templateId: string,
   familyId: string,
@@ -337,61 +404,19 @@ export async function expandD1RecurringSeries(
   const store = database ?? (await getD1Database()),
     session = store.withSession("first-primary");
   for (let attempt = 0; attempt < 8; attempt++) {
-    const captured = await captureD1Reads(
-        (db) => planSeries(db, templateId, familyId, now),
-        store as unknown as NativeD1,
-      ),
-      plan = captured.value;
-    if ((!plan.copies.length && !plan.settleOnce) || !gateCurrent(plan))
-      return 0;
-    const statements = captured.checks(session),
-      insertIndexes: number[] = [];
-    const created = Date.now();
-    for (const copy of plan.copies) {
-      insertIndexes.push(statements.length);
-      const values: SqlValue[] = [
-        randomUUID(),
-        copy.family_id,
-        copy.created_by,
-        copy.title,
-        copy.description,
-        copy.points,
-        copy.difficulty,
-        copy.icon,
-        copy.routine,
-        copy.routine_order,
-        copy.routine_stack_id ?? null,
-        copy.routine_anchor ?? null,
-        copy.routine_duration_minutes ?? null,
-        copy.due_date.getTime(),
-        copy.recurrence_id,
-        copy.assigned_to,
-        copy.assigned_member_id ?? null,
-        copy.rotation_index,
-        created,
-      ];
-      statements.push(
-        session
-          .prepare(
-            `INSERT INTO "Chore"(id,family_id,created_by,title,description,points,difficulty,icon,routine,routine_order,routine_stack_id,routine_anchor,routine_duration_minutes,due_date,recurrence_id,assigned_to,assigned_member_id,rotation_index,created_at,frequency,status,is_template,member_subject_erased)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,'once','pending',0,0)
-        ON CONFLICT(recurrence_id,due_date) DO NOTHING`,
-          )
-          .bind(...values),
-      );
-    }
-    if (plan.settleOnce)
-      statements.push(
-        session
-          .prepare(
-            `UPDATE "Chore" SET routine_series_config=json_set(routine_series_config,'$.once_pending',json('false')) WHERE id=?1 AND family_id=?2 AND recurrence_id=id`,
-          )
-          .bind(templateId, familyId),
-      );
+    const prepared = await prepareD1RecurringSeries(
+      templateId,
+      familyId,
+      now,
+      store,
+    );
+    if (!prepared.hasEffect) return 0;
+    const checks = prepared.checks(session),
+      effect = prepared.writes(session);
     try {
-      const results = await session.batch(statements);
-      return insertIndexes.reduce(
-        (sum, index) => sum + results[index].meta.changes,
+      const result = await session.batch([...checks, ...effect.statements]);
+      return effect.insertIndexes.reduce(
+        (sum, index) => sum + result[checks.length + index].meta.changes,
         0,
       );
     } catch (cause) {

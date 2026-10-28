@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { transitionD1AccountChore } from "@/lib/cloudflare/chore-state";
 import { choreJson } from "@/lib/chore-json";
 import { prisma } from '@/lib/prisma'
 import { NextRequest } from 'next/server'
@@ -45,6 +47,11 @@ export async function POST(request: NextRequest) {
       return choreJson({ error: parsed.error.issues[0].message }, { status: 400 })
     }
     const { choreId } = parsed.data
+
+    if (storageBackend() === 'd1') {
+      const result = await transitionD1AccountChore({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }, { kind: 'undo', choreId })
+      return choreJson(result.body, { status: result.status })
+    }
 
     const chore = await prisma!.chore.findUnique({ where: { id: choreId } })
     if (!chore) {
