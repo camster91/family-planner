@@ -31,9 +31,6 @@ export async function readD1SessionAuthority(
 
 /** Resolve the request's binding, never a module-level snapshot of its env. */
 export async function getD1SessionAuthority(userId: string): Promise<SessionAuthority | null> {
-  const { getCloudflareContext } = await import('@opennextjs/cloudflare')
-  const { env } = getCloudflareContext()
-  const db = (env as typeof env & { DB?: SessionAuthorityDatabase }).DB
-  if (!db) throw new Error('D1 database binding DB is required')
-  return readD1SessionAuthority(db, userId)
+  const { getD1Database } = await import('./database')
+  return readD1SessionAuthority(await getD1Database(), userId)
 }

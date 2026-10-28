@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { familyNameHttp } from "@/lib/family-name-http";
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -30,6 +31,11 @@ export async function POST(request: NextRequest) {
     const parsed = createFamilySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    if (storageBackend() === 'd1') {
+      const { createD1FamilyHttp } = await import('@/lib/cloudflare/family-create-http')
+      return createD1FamilyHttp(payload, parsed.data.name)
     }
 
     // Check if user already has a family

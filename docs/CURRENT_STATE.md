@@ -1,3 +1,19 @@
+# Active Cloudflare migration — 2026-10-28
+
+Cameron approved moving Herewoven entirely to Cloudflare with fresh app data.
+Execution is #604 on `codex/cloudflare-native-migration-20261028`, based on
+`df80c65e2ed61175fc41279244047ad520162d37`. The existing VPS app has not been
+replaced or removed. No production wipe or paid-plan activation has occurred.
+
+Local Workers public login, D1 session authority, atomic family creation and
+persistent rate limits have focused runtime evidence. The first five-table D1
+identity migration applies locally. Registration/login writes, the remaining
+data domains, full household flows, R2 and cutover remain unfinished. Detailed
+source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).
+Earlier state sections below are historical and do not supersede this migration.
+
+---
+
 # Release and bounded follow-through — 2026-10-27
 
 PR #601 merged as `25957535e35f3448bcef10b21702fc908be8040b` and was

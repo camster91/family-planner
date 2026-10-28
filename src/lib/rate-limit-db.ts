@@ -9,6 +9,7 @@
  * Falls back to in-memory storage when prisma isn't available (build, tests).
  */
 
+import { storageBackend } from '@/lib/storage-backend'
 import { prisma } from '@/lib/prisma'
 
 export interface RateLimitResult {
@@ -44,6 +45,19 @@ export async function checkRateLimit(
   windowMs = 15 * 60 * 1000
 ): Promise<RateLimitResult> {
   const now = Date.now()
+
+  if (storageBackend() === 'd1') {
+    try {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      const { checkD1RateLimit } = await import('@/lib/cloudflare/rate-limit')
+      return await checkD1RateLimit(await getD1Database(), key, maxAttempts, windowMs, now)
+    } catch {
+      // An isolated Worker counter cannot enforce a deployment-wide limit.
+      // Refuse while storage is unavailable, without logging keys/IPs.
+      console.warn('D1 rate limit unavailable; request refused')
+      return { allowed: false, retryAfterMs: windowMs, remaining: 0 }
+    }
+  }
 
   // If prisma isn't ready (build-time, etc.) use the in-memory fallback
   if (!prisma) {
@@ -133,6 +147,11 @@ export async function checkRateLimit(
  * each request) to prevent the table from growing unbounded.
  */
 export async function cleanupRateLimits(): Promise<number> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const result = await (await getD1Database()).prepare('DELETE FROM "RateLimitEntry" WHERE resetAt < ?1').bind(Date.now()).run()
+    return result.meta.changes
+  }
   if (!prisma) return 0
   const result = await prisma.rateLimitEntry.deleteMany({
     where: { resetAt: { lt: new Date() } },
@@ -147,6 +166,16 @@ export async function cleanupRateLimits(): Promise<number> {
  */
 export async function isRateLimited(key: string, maxAttempts: number): Promise<RateLimitResult> {
   const now = Date.now()
+  if (storageBackend() === 'd1') {
+    try {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      const { isD1RateLimited } = await import('@/lib/cloudflare/rate-limit')
+      return await isD1RateLimited(await getD1Database(), key, maxAttempts, now)
+    } catch {
+      console.warn('D1 rate limit unavailable; request refused')
+      return { allowed: false, retryAfterMs: 60_000, remaining: 0 }
+    }
+  }
   let entry: { count: number; resetAt: number } | undefined
 
   if (prisma) {
@@ -169,6 +198,15 @@ export async function isRateLimited(key: string, maxAttempts: number): Promise<R
 
 /** Forget a key's window, e.g. after a successful login. */
 export async function resetRateLimit(key: string): Promise<void> {
+  if (storageBackend() === 'd1') {
+    try {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      await (await getD1Database()).prepare('DELETE FROM "RateLimitEntry" WHERE key = ?1').bind(key).run()
+    } catch {
+      // Best effort as on PostgreSQL; an uncleared window still expires.
+    }
+    return
+  }
   memStore.delete(key)
   if (!prisma) return
   try {

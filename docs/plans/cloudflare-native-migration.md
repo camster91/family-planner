@@ -195,6 +195,52 @@ Verification on 2026-10-28:
 Next: define the fresh D1 identity/household schema and atomic registration,
 verification, rate-limit and membership operations before enabling real signup.
 
+### Fresh identity schema, household create and rate limits
+
+`database/cloudflare/0001_identity.sql` now creates the fresh `Family`, `User`,
+`FamilyInvite`, `RateLimitEntry` and `AuditLog` tables. Scalar columns match the
+current Prisma models, excluding ignored food-source metadata. Dates use Unix
+milliseconds, booleans use checked 0/1 integers, JSON/arrays use checked JSON
+text, and foreign-key actions and relevant indexes are explicit. This is the
+first migration, **not the full 84-model schema**. Food-source generation/epoch
+columns and their non-resettable continuity behavior still need a subsequent
+migration and reader/writer conversion before any real feature rollout.
+
+The existing POST `/api/family` now uses D1 when selected. A single atomic batch
+conditionally creates the household for an existing, current-generation,
+unattached account and attaches that account. Missing/revoked accounts and
+concurrent second creates insert nothing. Invite-code collisions are retried
+without retaining an orphan family. Response booleans, JSON, dates and the
+renewed session cookie preserve the existing HTTP contract.
+
+All rate-limit helpers now have direct D1 paths. Window increment/reset is one
+SQLite upsert, failure-only reads use primary, success reset and expired-row
+cleanup use D1. Missing storage refuses attempts; it does not grant a fresh
+per-Worker memory allowance. No scheduler was added or enabled.
+
+Observed validation:
+
+- `cloudflare:test:identity` executes the actual repository SQL/functions in
+  ephemeral local workerd/D1. Passed scalar-column parity, 12 concurrent create
+  attempts with exactly one winner, deleted/revoked account rejection, forced
+  post-insert rollback, invite-code collision rollback, two-household separation,
+  and concurrent rate-limit increments/window resets/failure-only reads.
+- Wrangler `d1 migrations apply --local` applied `0001_identity.sql` successfully.
+- 51 affected Jest tests passed; TypeScript, scoped ESLint, diff check and the
+  OpenNext Workers build passed.
+- Actual Worker + migrated local D1 + fabricated account: POST `/api/family`
+  returned 200 with the expected response types/features and a renewed session
+  cookie; the repeat returned 400. No PostgreSQL service was available.
+- Evidence: `/tmp/herewoven-d1-identity-smoke.log`,
+  `/tmp/herewoven-d1-identity-migration.log`, `/tmp/herewoven-d1-family-http.json`,
+  `/tmp/herewoven-d1-identity-tests.log`, `/tmp/herewoven-d1-identity-build.log`.
+- Worker stopped and temporary secrets/config removed. No remote D1 database,
+  deployment, paid service, production write or wipe occurred.
+
+Next: convert registration/invite consumption, verification/login/password
+writes, shared-device authority and the remaining membership/account APIs. Full
+onboarding and dashboard rendering remain incomplete in the D1 candidate.
+
 ## Execution order
 
 1. Complete worker artifact and runtime compatibility (middleware/auth, Node
