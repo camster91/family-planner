@@ -10,7 +10,7 @@ login, invited-child admission, atomic family creation and persistent rate limit
 have focused runtime evidence. Password recovery/change, safe profile reads/edits
 and paired-device person refusal also pass selected local Worker flows. Four
 D1 identity/device migrations apply locally, including audit erasure guards.
-Eight migrations now define all 84 model tables, with 963 scalar columns, 153
+Nine migrations now define all 84 model tables, with 963 scalar columns, 153
 canonical unique keys and 208 relationships checked in local D1. This is schema
 foundation: remaining PostgreSQL-specific checks/triggers and feature writers
 are not yet converted. Profile family/erasure/chore/routine guards and
@@ -34,8 +34,12 @@ shared feature gate now use D1. Parent/teen Settings SSR has a scoped D1 seed;
 notification preferences now use atomic D1 updates/receipts and pass phone/desktop
 save/reload checks. Calendar subscription list/create/rename/recolour/removal now
 use native atomic D1 batches; the prior Settings list failure is fixed locally,
-with parent phone/desktop rename/reload evidence. Feed refresh/reconciliation,
-calendar data views and OAuth connections remain unconverted.
+with parent phone/desktop rename/reload evidence. Manual feed refresh and stale
+selection now use D1, retaining atomic reconciliation, source/account admission,
+bounded parsing and event schedule epochs. A built local Worker imported seven
+real holiday events through native public-network fetch; synthetic large-feed,
+rollback and authority-race checks also pass. Canonical calendar Event data
+views/writers and OAuth connections remain unconverted.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

@@ -777,6 +777,91 @@ https://developers.cloudflare.com/workers/runtime-apis/nodejs/dns/ and fetch fla
 https://developers.cloudflare.com/workers/configuration/compatibility-flags/.
 No production deployment, data wipe, resource creation or VPS change occurred.
 
+## Calendar refresh and public Workers egress — 2026-10-28
+
+Manual refresh now branches to the native D1 sync repository; its before/after
+subscription reads and final response renewal use the original account role,
+household and session generation. Subscription source capture is renewed after
+network waits using immutable id/family/creator/created_at/encrypted URL checks.
+A failed authority/source assertion aborts the native batch before event writes.
+Error classification rereads only after rollback. No callback transaction shim
+or compensating writes are used.
+
+One batch reconciles the complete bounded feed and updates status/validators.
+Existing matching occurrences keep their id, owner and insertion generation;
+only changed material fields update. Missing in-window occurrences and malformed
+identities are removed; valid older history, local events and other households
+are preserved. Empty complete feeds reconcile normally; invalid/truncated feeds
+record a safe error without deleting existing events. Not-modified responses
+update status while keeping events and validators. Expansion data uses 100-row
+JSON chunks, including chunked identity predicates, to avoid D1 value limits and
+its compound-SELECT limit. All chunks still share the same atomic batch.
+
+Migration 0009 preserves Event schedule insertion identity, integer/bounded and
+monotonic schedule/preparation epochs, and increments schedule_epoch on the same
+material fields as PostgreSQL. SQLite rejects attempted identity/counter rewinds
+rather than silently rewriting NEW. The source-owned import does not attempt
+those rewinds. Full preparation-plan lifecycle and other custom domain guards
+still need their own ports. Stale selection is D1-scoped and bounded at ten;
+existing persistent per-subscription rate-limit leases and event-driven refresh
+remain, with no new scheduler.
+
+Real networking exposed that Undici's Node TLS connector asks for unsupported
+ALPN options in Workers. A literal-IP TLS connector was also tried locally, but
+the platform refuses TCP access to HTTP services. Neither failed connector is
+shipped. D1 safeFetch now requires the native Cloudflare-Workers runtime and uses
+its public global outbound fetch, keeping HTTPS/credential/private-literal and
+full DNS-address validation. Node deployments retain the existing DNS-pinned
+Undici implementation. It cannot silently use unrestricted Node fetch in D1.
+The deployment keeps global_fetch_strictly_public, with a regression assertion
+against its removal or the private-origin flag. This relies on Workers' native
+public-only network for connect-time DNS-rebinding protection, not on the flag
+alone or on the earlier DNS check. No private/VPC binding is used by this path.
+
+Primary runtime contract: [workerd public network and SSRF boundary](https://github.com/cloudflare/workerd/discussions/1523),
+[Workers fetch routing flag](https://developers.cloudflare.com/workers/configuration/compatibility-flags/),
+[TLS API](https://developers.cloudflare.com/workers/runtime-apis/nodejs/tls/).
+Local evidence does not replace final edge smoke tests at production cutover.
+
+Validation:
+- Actual workerd/D1 source fixture passes initial/repeated/changed imports,
+  stable identities, material epoch advancement, conditional 304, invalid and
+  truncated feed preservation, status-write failure rollback, actor revocation
+  during fetch, changed-source refusal, cross-household isolation, history/local
+  event preservation, a 600-occurrence multi-megabyte expansion, stale selection,
+  private-literal refusal and event identity/counter guards. The previous
+  read/account/preferences/profile/subscription fixtures remain green.
+- All nine D1 migrations apply locally; 84 models/963 columns/153 unique keys/208
+  relations still pass the structural schema check. Remaining PG-only trigger
+  parity is not claimed.
+- 179 focused Jest tests pass across subscription isolation, import fetch/sync,
+  safe-fetch and outbound URL guards. Scoped ESLint and TypeScript pass.
+- Production Next compilation/typecheck completed. OpenNext packaging then hit
+  local ENOSPC; after clearing disposable package/browser response/code caches,
+  `opennextjs-cloudflare build --skipNextBuild` successfully packaged that exact
+  compiled app. A prior attempt with a 3 GiB heap ran out of memory; the 4 GiB
+  compile completed. Source, account/session files, app data and backups were
+  preserved. No updater installation cache was removed.
+- A standalone local native Worker downloaded the real Ontario holiday feed
+  (HTTP200; 19,844 bytes). The built app HTTP flow created the subscription and
+  refreshed it successfully, importing seven events; teen refresh returned200
+  without URL hints, child403, foreign404 and revoked-cookie401 passed. The first
+  built HTTP run exposed the old TLS issue and is not counted as a pass.
+- Playwright at390x844 and1366x768 opened Family Settings, refreshed the real
+  subscription and reloaded persisted ok status. No duplicate events were
+  created, no failed requests/page errors/overflow occurred. Phone screenshot
+  inspected. The initial harness incorrectly required status=ok on a valid304
+  result; it now accepts both ok and not_modified, and both viewports passed.
+- Evidence prefix `/tmp/herewoven-d1-calendar-sync-`: build, package, schema,
+  smoke, typecheck, lint, tests, migrations, runtime, HTTP and browser logs;
+  real-feed HTTP result is `http2-results.json`. Network probe evidence is
+  `/tmp/herewoven-d1-calendar-network-probe.log`.
+
+Canonical calendar Event views/writers, OAuth connections, the remaining feature
+and account/device domains, private R2, whole-household validation and production
+cutover remain unfinished. No production resources, DNS, paid plan, data wipe,
+deployment or VPS removal occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

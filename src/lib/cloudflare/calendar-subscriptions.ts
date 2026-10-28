@@ -88,3 +88,15 @@ export async function deleteD1CalendarSubscription(actor: CalendarSubscriptionAc
   ])
   return result[0].results.length ? { kind: 'data', value: result[2].results.length ? { removedEvents: result[1].meta.changes } : null } : { kind: 'held' }
 }
+
+/** Exact scoped status for refresh responses, without relying on list truncation. */
+export async function readD1CalendarSubscription(actor: CalendarSubscriptionActor, id: string, database?: D1Store): Promise<Outcome<ReturnType<typeof dto> | null>> {
+  if (!admitted(actor, 'refresh')) return { kind: 'held' }
+  const db = (database ?? await getD1Database()).withSession('first-primary')
+  const result = await db.batch<SubscriptionRow>([
+    db.prepare(authority).bind(...args(actor)),
+    db.prepare(`SELECT ${COLUMNS} FROM "CalendarSubscription" WHERE id=?5 AND family_id=?2 AND ${AUTH}`).bind(...args(actor), id),
+  ])
+  const row = result[1].results[0]
+  return result[0].results.length ? { kind: 'data', value: row ? dto(row, actor) : null } : { kind: 'held' }
+}

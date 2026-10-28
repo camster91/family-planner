@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 import { withCalendarSubscriptionAccess, lockCalendarSubscriptionInTx, type CalendarSubscriptionActor } from "@/lib/calendar-subscription-access";
 import { lockHousehold } from "@/lib/household-lock";
 // Sync engine for read-only ICS subscriptions (#232).
@@ -20,22 +21,9 @@ import {
 import { IcsParseError, parseIcsFeed, MAX_OCCURRENCES, type ImportedOccurrence } from "./parse";
 import { DEFAULT_FAMILY_TIMEZONE } from "./timezone";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-export const IMPORT_WINDOW_PAST_DAYS = 30;
-export const IMPORT_WINDOW_FUTURE_DAYS = 180;
-export const STALE_AFTER_MS = 15 * 60 * 1000;
+import { importWindow, STALE_AFTER_MS, CalendarSubscriptionSyncHeld, type SyncResult } from "./sync-values";
+export { importWindow, STALE_AFTER_MS, IMPORT_WINDOW_PAST_DAYS, IMPORT_WINDOW_FUTURE_DAYS, CalendarSubscriptionSyncHeld, type SyncResult, type SubscriptionStatus } from "./sync-values";
 export { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
-
-export type SubscriptionStatus = "pending" | "ok" | "error";
-
-export interface SyncResult {
-  status: "ok" | "not_modified" | "error";
-  created: number;
-  updated: number;
-  deleted: number;
-  error?: string;
-}
-
 export interface SyncOptions {
   db?: any;
   now?: Date;
@@ -44,13 +32,6 @@ export interface SyncOptions {
   timeZone?: string;
   /** Original HTTP actor for manual refresh; never copied from a newer cookie. */
   actor?: CalendarSubscriptionActor;
-}
-
-export function importWindow(now: Date): { start: Date; end: Date } {
-  return {
-    start: new Date(now.getTime() - IMPORT_WINDOW_PAST_DAYS * DAY_MS),
-    end: new Date(now.getTime() + IMPORT_WINDOW_FUTURE_DAYS * DAY_MS),
-  };
 }
 
 export { toSubscriptionDto, type SubscriptionDto } from "./subscription-dto";
@@ -180,10 +161,6 @@ export async function reconcileOccurrences(
     { timeout: 30_000, isolationLevel: "RepeatableRead" });
 }
 
-export class CalendarSubscriptionSyncHeld extends Error {
-  constructor(readonly reason: "access" | "source") { super("Calendar subscription refresh held"); }
-}
-
 type SyncSource = { id: string; family_id: string; created_by: string; url_enc: string; created_at: Date };
 
 async function persistSubscriptionSync<T>(
@@ -221,6 +198,10 @@ export async function syncSubscription(
   familyId: string,
   options: SyncOptions = {},
 ): Promise<SyncResult | null> {
+  if (storageBackend() === "d1") {
+    const { syncD1CalendarSubscription } = await import("@/lib/cloudflare/calendar-sync");
+    return syncD1CalendarSubscription(subscriptionId, familyId, options);
+  }
   const db = options.db ?? prisma;
   const actor = options.actor ? Object.freeze({ ...options.actor }) : undefined;
   const now = options.now ?? new Date();
@@ -365,7 +346,9 @@ export async function refreshStaleSubscriptions(
   const now = options.now ?? new Date();
   let refreshed = 0;
   try {
-    const stale: Array<{ id: string }> = await db.calendarSubscription.findMany(
+    const stale: Array<{ id: string }> = storageBackend() === "d1"
+      ? await (await import("@/lib/cloudflare/calendar-stale")).readD1StaleCalendarSubscriptions(familyId, now, options.actor)
+      : await db.calendarSubscription.findMany(
       {
         where: {
           family_id: familyId,

@@ -2,6 +2,7 @@
 // The resolver is injected, so no real DNS or network is used.
 
 import type { LookupAddress } from 'node:dns'
+import { readFileSync } from 'node:fs'
 import {
   UnsafeAddressError,
   createPinnedLookup,
@@ -96,6 +97,21 @@ describe('createPinnedLookup', () => {
 })
 
 describe('safeFetch', () => {
+  it('keeps Workers provider requests on the public front door', () => {
+    const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'))
+    expect(config.compatibility_flags).toContain('global_fetch_strictly_public')
+    expect(config.compatibility_flags).not.toContain('global_fetch_private_origin')
+  })
+  it('refuses D1 provider requests outside the native Workers network', async () => {
+    const previous = process.env.HEREWOVEN_STORAGE
+    process.env.HEREWOVEN_STORAGE = 'd1'
+    try {
+      await expect(safeFetch('https://feed.example.com/a.ics')).rejects.toThrow('Public Workers network is required')
+    } finally {
+      if (previous === undefined) delete process.env.HEREWOVEN_STORAGE
+      else process.env.HEREWOVEN_STORAGE = previous
+    }
+  })
   it.each(PRIVATE_ANSWERS)(
     'refuses at connect time when DNS rebinds to %s after a passing check',
     async (_label, privateAnswer) => {

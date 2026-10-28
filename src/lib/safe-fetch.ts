@@ -12,12 +12,14 @@
 // IP-literal hosts skip DNS entirely, so they are judged by the same shape
 // check (https only, no credentials, no private literals) before the request.
 //
-// Node-only (undici, node:dns). Import from server code only.
+// Server-only. PostgreSQL uses the pinned Node connector; D1 deployments
+// require the native Workers public outbound network (see safeFetch below).
 
 import { lookup as dnsLookup } from 'node:dns/promises'
 import type { LookupAddress, LookupOptions } from 'node:dns'
 import { Agent, fetch as undiciFetch } from 'undici'
-import { checkProviderUrlShape, isPrivateAddress } from './outbound-url'
+import { assertPublicProviderUrl, checkProviderUrlShape, isPrivateAddress } from './outbound-url'
+import { storageBackend } from './storage-backend'
 
 export type ResolvedAddress = { address: string; family: number }
 export type Resolver = (hostname: string) => Promise<ResolvedAddress[]>
@@ -85,7 +87,8 @@ export interface SafeFetchOptions {
 }
 
 /**
- * fetch() for a user-supplied https URL with connect-time address pinning.
+ * fetch() for a user-supplied https URL: Node pins vetted addresses; native
+ * Workers enforces its public outbound network at connection time.
  * Refuses non-https, credentialed and private-literal URLs up front. Callers
  * keep their own redirect policy (pass `redirect: 'manual'` and re-validate
  * each hop), timeouts and size limits.
@@ -96,6 +99,17 @@ export interface SafeFetchOptions {
 export async function safeFetch(url: string, init: RequestInit = {}, options: SafeFetchOptions = {}): Promise<Response> {
   const shapeError = checkProviderUrlShape(url)
   if (shapeError) throw new UnsafeAddressError(shapeError)
+  if (storageBackend() === 'd1' && !options.dispatcher) {
+    // Native Workers global outbound only reaches the public Internet, including
+    // after DNS resolution/rebinding. Keep global_fetch_strictly_public enabled
+    // so same-zone requests also traverse the public front door. Never replace
+    // this with Node fetch or a private/VPC service binding.
+    // Runtime contract: github.com/cloudflare/workerd/discussions/1523
+    if (typeof navigator === 'undefined' || navigator.userAgent !== 'Cloudflare-Workers')
+      throw new Error('Public Workers network is required for D1 provider requests')
+    try { await assertPublicProviderUrl(url) } catch { throw new UnsafeAddressError() }
+    return globalThis.fetch(url, init)
+  }
   try {
     const res = await undiciFetch(url, {
       ...(init as Parameters<typeof undiciFetch>[1]),
