@@ -651,6 +651,36 @@ export default function NotificationsPage() {
                       })}
                     </p>
                   )}
+                  {!isSnoozed(notification) && !notification.read && (
+                    <button
+                      type="button"
+                      disabled={writeHold || snoozePending !== null}
+                      onClick={() => handleMarkAsRead(notification.id)}
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full px-2 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill-secondary shrink-0"
+                      aria-label={text("markLabel", {
+                        title: notification.title,
+                      })}
+                    >
+                      <Check className="w-4 h-4" aria-hidden="true" />
+                      <span className="hidden sm:inline">
+                        {text("markRead")}
+                      </span>
+                    </button>
+                  )}
+                  <details
+                    className="max-w-full"
+                    onKeyDown={(event) => {
+                      if (event.key !== "Escape") return;
+                      event.stopPropagation();
+                      event.currentTarget.open = false;
+                      event.currentTarget.querySelector("summary")?.focus();
+                    }}
+                  >
+                    <summary aria-label={text("notificationOptionsLabel", { title: notification.title })}
+                      className="min-h-[44px] min-w-[44px] cursor-pointer list-none rounded-full px-3 py-2.5 text-subhead text-label-secondary hover:bg-surface-fill-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]">
+                      {text("notificationOptions")}
+                    </summary>
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--surface-separator)] p-2">
                   {isSnoozed(notification) ? (
                     <button
                       type="button"
@@ -693,22 +723,6 @@ export default function NotificationsPage() {
                       </select>
                     </label>
                   )}
-                  {!isSnoozed(notification) && !notification.read && (
-                    <button
-                      type="button"
-                      disabled={writeHold || snoozePending !== null}
-                      onClick={() => handleMarkAsRead(notification.id)}
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full px-2 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill-secondary shrink-0"
-                      aria-label={text("markLabel", {
-                        title: notification.title,
-                      })}
-                    >
-                      <Check className="w-4 h-4" aria-hidden="true" />
-                      <span className="hidden sm:inline">
-                        {text("markRead")}
-                      </span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     disabled={writeHold || snoozePending !== null}
@@ -722,7 +736,10 @@ export default function NotificationsPage() {
                       className="w-4 h-4 text-label-tertiary"
                       aria-hidden="true"
                     />
+                    <span className="ml-2">{text("notificationDelete")}</span>
                   </button>
+                    </div>
+                  </details>
                 </li>
               ))}
             </ul>

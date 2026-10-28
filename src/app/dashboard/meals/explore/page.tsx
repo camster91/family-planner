@@ -65,6 +65,8 @@ export default function RecipeExplorePage() {
   const [canSave, setCanSave] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  const importSection = React.useRef<HTMLDetailsElement>(null);
+  React.useEffect(() => { if (error && importSection.current) importSection.current.open = true; }, [error]);
   const [preview, setPreview] = React.useState<OnlineRecipe | null>(null);
   const [editor, setEditor] = React.useState(false);
   const [copyImport, setCopyImport] = React.useState(false);
@@ -299,13 +301,11 @@ export default function RecipeExplorePage() {
           </Link>
         )}
 
-        <section
-          className="card-apple p-4 space-y-3"
-          aria-labelledby="recipe-discovery-title"
-        >
-          <h2 id="recipe-discovery-title" className="text-title-3">
-            {text("findOnline")}
-          </h2>
+        <details className="card-apple p-4 space-y-3">
+          <summary id="recipe-discovery-title" className="min-h-[44px] cursor-pointer content-center text-title-3">
+            <h2 className="inline">{text("findOnline")}</h2>
+            {searching && <span role="status" className="ml-2 text-footnote">{text("searching")}</span>}
+          </summary>
           <form onSubmit={searchOnline} className="space-y-3">
             <label className="label-apple" htmlFor="recipeSearch">
               {text("searchPrompt")}
@@ -425,13 +425,14 @@ export default function RecipeExplorePage() {
           <p className="text-footnote text-label-secondary">
             {text("directSearchHint")}
           </p>
-        </section>
+        </details>
 
         {canSave && (
-          <section className="card-apple p-4" aria-labelledby="import-title">
-            <h2 id="import-title" className="text-title-3 mb-3">
-              {text("saveFromLink")}
-            </h2>
+          <details ref={importSection} className="card-apple p-4">
+            <summary id="import-title" className="min-h-[44px] cursor-pointer content-center text-title-3">
+              <h2 className="inline">{text("saveFromLink")}</h2>
+              {loading && <span role="status" className="ml-2 text-footnote">{text("reading")}</span>}
+            </summary>
             <form
               onSubmit={(event) => void readRecipe(event)}
               className="flex flex-wrap gap-3"
@@ -477,7 +478,7 @@ export default function RecipeExplorePage() {
                 )}
               </div>
             )}
-          </section>
+          </details>
         )}
 
         <section aria-labelledby="saved-title">
