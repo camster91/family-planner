@@ -91,3 +91,17 @@
     grid-column: span 2;
   }
 }
+
+/* Browsers cannot measure physical inches reliably. Offer the wall-board
+   entry on large touch layouts or roomy mouse/trackpad layouts only. This
+   hides it from small tablets and phones in both orientations; existing
+   fridge sessions keep their Exit control. */
+.fridgeEntry {
+  display: none;
+}
+@media (min-width: 800px) and (min-height: 800px),
+  (min-width: 1024px) and (min-height: 600px) and (pointer: fine) {
+  .fridgeEntry {
+    display: inline-flex;
+  }
+}

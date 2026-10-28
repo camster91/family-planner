@@ -924,13 +924,15 @@ export default function TodayBoard({
                   {text("exitFridgeMode")}
                 </Link>
               ) : (
-                <Link
-                  href="/dashboard/today?mode=fridge"
-                  className={actionLinkClass}
-                >
-                  <Maximize2 className="h-5 w-5" aria-hidden="true" />
-                  {text("fridgeMode")}
-                </Link>
+                <span className={personalStyles.fridgeEntry}>
+                  <Link
+                    href="/dashboard/today?mode=fridge"
+                    className={actionLinkClass}
+                  >
+                    <Maximize2 className="h-5 w-5" aria-hidden="true" />
+                    {text("fridgeMode")}
+                  </Link>
+                </span>
               )}
             </div>
           </div>

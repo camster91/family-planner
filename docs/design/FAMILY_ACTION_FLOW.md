@@ -191,3 +191,21 @@ fallback without any non-GET request. The final landscape screenshot was visuall
 inspected for field/button/answer contrast and clipping. Report:
 `/tmp/device-question-report/index.html`. This evidence does not establish general
 natural-language understanding, model behavior, voice or native acceptance.
+
+## Fridge entry size — user correction
+
+Hide the personal Today Fridge mode entry on phones and small tablet layouts.
+Physical diagonal inches are not reliably exposed by browsers, so use a responsive
+approximation: both viewport dimensions at least800 CSS pixels for touch layouts,
+or at least1024×600 with a fine pointer for desktop use. The rule applies before
+hydration and responds to rotation/resizing. Hiding the wrapper also removes the
+entry from keyboard/accessibility navigation. Existing direct fridge URLs and
+paired-device routes keep working; Exit fridge mode remains reachable at all
+sizes to avoid trapping an existing session. No device permissions or API changes.
+
+Fridge-entry validation: production build (including TypeScript), affected ESLint
+and whitespace checks passed.7 browser checks passed (3 sign-ins plus4 journeys):
+phone portrait/landscape and600×960/960×600 small-tablet entry hidden,800×1280 and
+1280×800 tablet entry visible,1366×768 desktop entry visible, and small-screen
+manual fridge entry still exposes Exit. Report: `/tmp/fridge-entry-report/index.html`.
+This verifies viewport behavior, not measurement of physical screen diagonals.
