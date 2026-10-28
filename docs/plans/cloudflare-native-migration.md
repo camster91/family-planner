@@ -1123,6 +1123,55 @@ No UI, schema, paid subscription, production resource, DNS, live data or VPS
 change. Evidence prefix: `/tmp/herewoven-d1-source-` (smoke, unit/Event tests,
 lint, typecheck, build, runtime and HTTP logs/results).
 
+## Exact Event delete review and atomic target guard — 2026-10-28
+
+The user-selected Event target-review endpoint and proof-bearing Event DELETE
+now use D1. Source/authority reads and the complete event/preparation/step/link
+snapshot are validated in native atomic batches. The delete effect, cascades,
+calendar-link tombstone and completed receipt commit together. The proof remains
+content-free and bound to owner, role, generation, action, ID and 60-second lease.
+SDK dates are explicitly serialized before fingerprinting, so date-only changes
+cannot canonicalize silently to empty objects. Child sets retain the 500-row and
+1 MiB snapshot bounds. Source-bearing deletion requires the exact-target guard in
+both HTTP and the native mutator; target-only proofs retain their existing path.
+
+A same-key concurrency gap found in native verification is fixed: if a competing
+request commits between receipt lookup and proof reads, the loser may see a
+missing target or changed Today projection. It now looks for that exact completed
+receipt and re-enters the normal current-authority replay path. Without a matching
+committed receipt the stale proof still refuses. This also fixes signed Event
+creation races when the first create changes the signed Today window.
+
+Evidence:
+- Actual workerd/D1 fixtures pass eight-way confirmed deletion, full canonical
+  preview/date output, content-free tokens, date/content/plan/step/link changes,
+  root/child/empty-child insertion races immediately before commit, missing target
+  proof, expiry, replay with AI gates off, teen refusal, revoked replay, foreign
+  targets/links and imported read-only targets. 501 dependent steps refuse review.
+  Receipt failure restores the event, preparation and original link state; success
+  retains the chore and nulls the link event ID as a tombstone. Existing native
+  domains remain green, including eight signed Today creates/one effect/replays.
+- 31 focused proof/Event/delete tests, scoped ESLint, standalone TypeScript and a
+  complete OpenNext build pass. This is not a PostgreSQL integration run or a
+  full assistant/user-journey acceptance claim.
+- The built Worker HTTP endpoint returns the selected canonical title/ISO detail,
+  a content-free target proof and private/no-store response. Eight deletes yield
+  one effect/seven exact replays. Missing target proof409, changed target409 with
+  the event preserved/no receipt and foreign target-review409 pass.
+- Initial fixture attempts exposed an invalid async expression, a missing required
+  due date in fabricated data and the real concurrent receipt gap above. Corrected
+  fixtures and final runtime checks pass. The read-smoke startup fetch now has a
+  bounded timeout so an initial Worker build error cannot hang a readiness probe.
+
+**Remaining:** chore/list target-review and effect adapters, recurring-series
+materialization, non-HTTP canonical mutation orchestration, complete chat/capture,
+other feature domains, private R2, complete household/device verification and
+cutover/VPS retirement. No UI/schema, paid subscription, production deployment,
+resource/DNS/live data or VPS change. Evidence prefix:
+`/tmp/herewoven-d1-delete-target-` (smoke, unit, lint, typecheck, build, runtime,
+HTTP logs/results). Local preview bindings and fabricated key files are removed
+when the owned preview is stopped.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

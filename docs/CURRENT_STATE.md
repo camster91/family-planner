@@ -48,12 +48,13 @@ save/reload flows pass, preserving unsupported repeat rules. Manual Event creati
 and deletion now commit exact retry receipts atomically with their effects;
 creation includes Activity and nonfatal consent-aware beta counts. Phone/desktop
 create/open/confirm-delete flows pass. AI-proof-bearing Event writes remain
-partly migrated: signed Event creation now uses a native D1 source-read witness
-inside the atomic effect/receipt batch. Exact-target delete confirmation, other
-AI effects and complete chat execution remain held and block release. AI capture execution and OAuth
+migrated for the Event HTTP create/delete paths: source and exact-target reads
+are checked inside the atomic effect/receipt batch. The target-review endpoint
+also reads D1. Other AI effects, canonical non-HTTP orchestration and complete
+chat execution remain unfinished and block release. AI capture execution and OAuth
 connections also remain unconverted. The bounded AI Today/reference read projection
 now runs against D1 with parent/teen privacy and feature-gate fixture evidence.
-Recurring-series materialization and destructive confirmation proofs remain held;
+Recurring-series materialization and other-domain confirmation writers remain held;
 this prerequisite does not enable AI writes or complete AI chat parity.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed

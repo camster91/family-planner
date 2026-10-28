@@ -45,7 +45,7 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   let response
   for (let attempt = 0; attempt < 120; attempt++) {
     if (worker.exitCode !== null || worker.signalCode !== null) throw new Error('Local Worker exited before ready')
-    try { response = await fetch(url); break } catch { await new Promise(resolve => setTimeout(resolve, 250)) }
+    try { response = await fetch(url, { signal: AbortSignal.timeout(2000) }); break } catch { await new Promise(resolve => setTimeout(resolve, 250)) }
   }
   assert.ok(response, 'Local Worker did not become ready')
   const first = await response.json()
@@ -92,7 +92,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const source = await fetch(`http://127.0.0.1:${port}/assistant-source`)
   const sourceResult = await source.json()
   assert.equal(source.status, 200, JSON.stringify(sourceResult))
-  console.log(JSON.stringify({ assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const target = await fetch(`http://127.0.0.1:${port}/assistant-delete-target`)
+  const targetResult = await target.json()
+  assert.equal(target.status, 200, JSON.stringify(targetResult))
+  console.log(JSON.stringify({ assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

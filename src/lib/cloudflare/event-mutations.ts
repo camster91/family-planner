@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { AssistantSourceRefused, readAssistantSourceProof, type AssistantSourceGuard } from '@/lib/assistant-source-proof'
 import { d1AssistantSourceChecks } from './assistant-source'
+import { readDeleteTargetProof, type DeleteTargetGuard } from '@/lib/assistant-delete-target'
+import { d1EventDeleteTargetChecks } from './assistant-delete-target'
 import type { Event } from '@prisma/client'
 import type { z } from 'zod'
 import type { createEventSchema } from '@/lib/validations'
@@ -38,16 +40,21 @@ function refusal(row: Authority | null, actor: Actor, mutation: Mutation): Effec
  * abandoned legacy receipt is replaced only after an atomic snapshot check.
  * No public callback can execute arbitrary writes outside this native batch.
  */
-export async function mutateD1Event(actor: Actor, mutation: Mutation, key: string | null, options: { now?: Date; database?: D1Store; sourceGuard?: AssistantSourceGuard } = {}): Promise<D1EventMutationResult> {
+export async function mutateD1Event(actor: Actor, mutation: Mutation, key: string | null, options: { now?: Date; database?: D1Store; sourceGuard?: AssistantSourceGuard; targetGuard?: DeleteTargetGuard } = {}): Promise<D1EventMutationResult> {
   if (mutation.kind === 'create' && typeof actor.name !== 'string') throw new Error('Event actor name unavailable')
   const database = options.database ?? await getD1Database()
   const db = database.withSession('first-primary')
   const guard = options.sourceGuard
   const guardActor = guard?.actor
   if (guard) {
-    // Destructive AI effects also require the exact-target proof, still unported.
-    if (mutation.kind !== 'create' || !guard.d1 || guard.d1.kind !== `event_${mutation.kind}` || !guardActor || actor.userId !== guardActor.userId || actor.familyId !== guardActor.familyId || actor.generation !== guardActor.generation || actor.role !== guardActor.role) throw new AssistantSourceRefused()
+    if ((mutation.kind === 'delete' && !options.targetGuard) || !guard.d1 || guard.d1.kind !== `event_${mutation.kind}` || !guardActor || actor.userId !== guardActor.userId || actor.familyId !== guardActor.familyId || actor.generation !== guardActor.generation || actor.role !== guardActor.role) throw new AssistantSourceRefused()
     readAssistantSourceProof(guard.d1.token, guardActor, guard.d1.kind)
+  }
+  const targetGuard = options.targetGuard
+  const targetActor = { userId: actor.userId, familyId: actor.familyId, role: actor.role ?? '', generation: actor.generation }
+  if (targetGuard) {
+    if (mutation.kind !== 'delete' || !targetGuard.d1 || targetGuard.d1.kind !== 'event_delete' || targetGuard.d1.targetId !== mutation.eventId) throw new AssistantSourceRefused()
+    readDeleteTargetProof(targetGuard.d1.token, targetActor, 'event_delete', mutation.eventId)
   }
   const renewSourceOwner = (current: Authority | null) => {
     if (guardActor && (!current || current.family_id !== guardActor.familyId || current.role !== guardActor.role || current.token_version !== guardActor.generation)) throw new AssistantSourceRefused()
@@ -82,9 +89,27 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
     const statements = [d1WriteCheck(db, `EXISTS (SELECT 1 FROM "User" u JOIN "Family" f ON f.id=u.family_id
       WHERE u.id=?1 AND u.family_id=?2 AND u.token_version=?3 AND u.role=?4${mutation.kind === 'delete' ? ' AND f.features IS ?5' : ''})`,
     [actor.userId, actor.familyId, actor.generation, authority!.role, ...(mutation.kind === 'delete' ? [authority!.features] : [])])]
-    if (guard && guardActor) {
-      const source = await d1AssistantSourceChecks(database, guardActor, `event_${mutation.kind}`, guard)
-      statements.push(...source.checks(db))
+    try {
+      if (guard && guardActor) {
+        const source = await d1AssistantSourceChecks(database, guardActor, `event_${mutation.kind}`, guard)
+        statements.push(...source.checks(db))
+      }
+      if (targetGuard && mutation.kind === 'delete') {
+        const target = await d1EventDeleteTargetChecks(database, targetActor, mutation.eventId, targetGuard)
+        statements.push(...target.checks(db))
+      }
+    } catch (cause) {
+      // A competing same-key effect may commit after our receipt lookup and
+      // before proof reads (especially deletion of the reviewed target). Its
+      // effect and receipt are atomic. Re-enter the ordinary replay path with
+      // renewed authority; never bypass a stale proof without that receipt.
+      if (cause instanceof AssistantSourceRefused && key !== null) {
+        const settled = await db.prepare(`SELECT id FROM "IdempotencyRecord" WHERE scope=?1 AND key=?2 AND family_id=?3
+          AND action=?4 AND request_hash=?5 AND response_status IS NOT NULL AND expires_at>?6`)
+          .bind(scope, key, actor.familyId, action, hash, now).first()
+        if (settled) continue
+      }
+      throw cause
     }
     if (key !== null) {
       if (prior) {

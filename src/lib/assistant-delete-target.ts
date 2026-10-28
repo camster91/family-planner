@@ -174,7 +174,16 @@ export function readDeleteTargetProof(
     throw new AssistantSourceRefused();
   }
 }
+/** Shared keyed fingerprint check; a native repository owns atomic reads. */
+export function deleteTargetSnapshotCurrent(
+  payload: ReturnType<typeof readDeleteTargetProof>, snapshot: DeleteSnapshot, now = Date.now(),
+) {
+  return isAssistantConfirmationEnabled() && now >= payload.issuedAt && now < payload.expiresAt &&
+    payload.expiresAt - payload.issuedAt === 60000 &&
+    digest("assistant-delete-snapshot.v1", snapshot) === payload.fingerprint;
+}
 export type DeleteTargetGuard = {
+  d1?: { token: string; actor: AssistantProofActor; kind: DeleteKind; targetId: string };
   verify: (tx: Prisma.TransactionClient) => Promise<void>;
   assertCurrent: () => void;
 };
@@ -201,6 +210,7 @@ export function assistantDeleteTargetGuard(
       throw new AssistantSourceRefused();
   };
   return {
+    d1: { token, actor, kind, targetId },
     assertCurrent,
     async verify(tx) {
       try {

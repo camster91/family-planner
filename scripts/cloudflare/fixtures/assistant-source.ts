@@ -111,6 +111,10 @@ export async function testAssistantSource(db: D1Store) {
   process.env.FAMILY_ASSISTANT_CONFIRMATION_READY='1'
   const teen={...actor,userId:'proof-teen',role:'teen',name:'Teen'}
   check((await mutateD1Event(teen,create,'proof-teen-create',{database:db,sourceGuard:await issue(teen)})).created,'teen signed projection retains canonical creation right')
+  const todayGuard=await issue()
+  const todayInput={...input,title:'Today confirmed event',start_time:new Date(day+12*3600000).toISOString(),end_time:new Date(day+13*3600000).toISOString()}
+  const todayResults=await Promise.all(Array.from({length:8},()=>mutateD1Event(actor,{kind:'create',input:todayInput},'proof-create-today-eight',{database:db,sourceGuard:todayGuard})))
+  check(todayResults.every(r=>r.status===200)&&todayResults.filter(r=>r.created).length===1&&todayResults.filter(r=>r.replayed).length===7,'receipt replay wins when a competing creation changes the signed Today projection')
   const revoked=await issue()
   await db.prepare(`UPDATE "User" SET token_version=1 WHERE id='proof-parent'`).run()
   await refused(()=>mutateD1Event(actor,create,'proof-create-eight',{database:db,sourceGuard:revoked}))
@@ -118,5 +122,5 @@ export async function testAssistantSource(db: D1Store) {
   await refused(()=>mutateD1Event(actor,create,'proof-create-eight',{database:db,sourceGuard:revoked}))
   await db.prepare(`UPDATE "User" SET role='parent',family_id='proof-b' WHERE id='proof-parent'`).run()
   await refused(()=>mutateD1Event(actor,create,'proof-create-eight',{database:db,sourceGuard:revoked}))
-  return {signedCreateRace:8,sourceDomains:5,nestedRecipeAndCook:true,featureGates:true,atomicSourceRace:true,nestedAndEmptyBatchRaces:true,insertedSource:true,expiredRefusal:true,completedReplay:true,teenCreate:true,renewedAuthority:true,unicodeWitness:true}
+  return {signedCreateRace:8,todayCreateChangesProjectionRace:8,sourceDomains:5,nestedRecipeAndCook:true,featureGates:true,atomicSourceRace:true,nestedAndEmptyBatchRaces:true,insertedSource:true,expiredRefusal:true,completedReplay:true,teenCreate:true,renewedAuthority:true,unicodeWitness:true}
 }

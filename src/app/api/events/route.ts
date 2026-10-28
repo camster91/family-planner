@@ -370,8 +370,7 @@ export async function DELETE(request: NextRequest) {
       Boolean(sourceGuard),
     );
     if (storageBackend() === "d1") {
-      if (sourceGuard || targetGuard) throw new AssistantSourceRefused();
-      const result = await mutateD1Event(actor, { kind: "delete", eventId: parsed.data.eventId }, key);
+      const result = await mutateD1Event(actor, { kind: "delete", eventId: parsed.data.eventId }, key, { sourceGuard, targetGuard });
       return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store", ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) } });
     }
     return await withIdempotency(
