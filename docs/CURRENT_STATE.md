@@ -113,8 +113,12 @@ reservation, scoped foreground retention and atomic replacement/session/audit.
 Eight-way claim/confirm/issue and cross-code capacity races pass. Built HTTP and
 phone/desktop parent UI plus tablet claim UI pass; issuance uses the same browser
 cookie jar, with admitted device identity readback. Tablet board acceptance was
-explicitly excluded from that evidence. Management mutations/activity,
-credential-entry/elevated mutation routes and full device boards remain separate
+explicitly excluded from that evidence. PIN set/remove and device PIN/password entry now use witnessed D1 credentials
+and atomic failure counters/lockout/grant effects. Parent and elevated-device
+rename/removal, all-session/elevation revocation and private activity paging also
+use D1, including their canonical household audit facts. Native race/rollback,
+built HTTP and phone/desktop parent controls pass. Tablet board rendering,
+elevated board settings and full device/profile/routine commands remain separate
 unfinished paths. No shared-device production flag has been enabled.
 Dedicated device/profile/routine command writers,
 other-domain confirmation, canonical mutation

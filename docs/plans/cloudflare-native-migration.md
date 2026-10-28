@@ -1750,6 +1750,71 @@ routes, boards and device/profile/routine commands; remaining domains/SSR,
 complete AI, private R2/mail, deployed-plan budgets and full household/cutover
 verification before retiring only Herewoven VPS resources. Full goal stays active.
 
+## Native parent proof and device management — 2026-10-28
+
+PIN set/remove and device PIN/password entry now run through native D1. A bcrypt
+proof is tied to witnessed current password/PIN material, parent household/role,
+account generation and device session. Replanning can reuse a comparison only
+for the same observed credential hash; a changed secret is compared again.
+Failure-only pair/device/account/login counters, stale own-PIN cleanup, PIN
+lockout or successful hash-only elevation issuance commit with those source
+checks. The central rate-limit increment statement is shared with the existing
+standalone atomic limiter. A foreign/non-parent/unknown target receives the same
+credential refusal and cannot advance that account's lockout. Password fallback
+remains available during PIN lockout, subject to the shared password limit.
+No work factor or credential policy was reduced.
+
+Parent and elevated-device rename/removal now use witnessed authority, scoped
+target state and one native effect/household-audit batch. Elevated commands
+recheck the live device/session, current header hash, parent role/household/
+generation and deadlines and can target only that device. Convergent rename
+produces one material fact; repeat removal preserves the existing result.
+Revocation clears every admitted generation and elevation. Self-removal retains
+the existing response and cookie clearing. Security audit events remain
+best-effort after actual effects. Private device activity now uses bounded D1
+paging with household-scoped actor names and the existing cursor protocol.
+
+**Verification:** full native Worker regression and identity smoke pass. New
+fixtures verify password-protected/hashed PIN, PIN/password entry, foreign
+lockout refusal, 8-way failure cap, atomic counter/PIN-lock rollback, account
+lockout with password fallback, changed-secret proof, PIN/session generation and
+device revocation races, 8-way rename and convergent one-fact behavior, revoke
+audit rollback, elevated self-only and parent-generation admission, 8-way revoke/
+one household fact/all-session clearing, removed/foreign/teen refusals, private
+paged activity and idempotent PIN removal. 112 focused tests in six suites,
+standalone TypeScript, scoped ESLint and the Cloudflare OpenNext build pass.
+The separate identity smoke also exercises the shared limiter/reset boundary.
+
+Built HTTP verifies weak PIN400/password proof401/set204/teen403, PIN/password
+elevation with private/no-store and no person cookie, exact shared rename DTO,
+activity and invalid-cursor400/foreign404, header exit, parent rename/removal,
+self-removal cookie/all-generation clearing and repeated PIN removal204.
+Playwright390/1366 uses the actual parent device UI to rename, open activity,
+cancel removal without changing active state, then confirm and read stored
+removed state. No page errors, failed requests or overflow; phone removal sheet
+and desktop removed-list screenshots inspected. An initial harness assertion
+read the row before its asynchronous reload; the final run waits for the rendered
+removed attribute and uses fresh fabricated device identities. No application
+behavior or guard was changed to satisfy that assertion. Tablet-board/PIN-modal
+acceptance remains separate from these HTTP and parent-UI checks.
+
+Evidence prefix `/tmp/herewoven-d1-device-parent-`; all data/credentials local
+and fabricated. Owned preview stopped and temporary keys/config removed. No
+migration, production flag/resource/deployment, live-data, DNS, paid-plan or VPS
+change. Remaining: tablet board/version/settings, full device/profile/routine
+commands, other domains/SSR, complete AI, private R2/mail, deployed-edge budgets
+and full household/cutover verification. Full goal stays active.
+
+**Deployment budget observation (read-only):** official Workers limits and
+configuration docs were rechecked on 2026-10-28: Free has 10ms CPU per HTTP
+invocation, and local development does not enforce deployed CPU limits. Local
+bcrypt/SSR results do not establish Free-plan compatibility. The existing account
+reports `default_usage_model: standard`; that alone does not establish its paid
+tier. OAuth billing/subscription reads are unsupported (403); no subscription was
+changed. Keep actual deployed-plan/CPU verification as a release gate and retain
+credential security. Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+and [runtime limits configuration](https://developers.cloudflare.com/workers/wrangler/configuration/#limits).
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

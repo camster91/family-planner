@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { deviceError, deviceInternalError, deviceJson, killSwitch } from '@/lib/device-http'
@@ -32,6 +33,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!manager.ok) return manager.response
     const { id } = await params
     const { familyId } = manager
+
+    if (storageBackend() === 'd1') {
+      const { readD1DeviceEvents } = await import('@/lib/cloudflare/device-management')
+      const result = await readD1DeviceEvents(manager,id,request.nextUrl.searchParams.get('cursor'))
+      return result.body ? deviceJson(result.body) : deviceError(result.status,result.code!,{message:result.message})
+    }
 
     const device = await prisma!.householdDevice.findFirst({ where: { id, family_id: familyId }, select: { id: true } })
     if (!device) return deviceError(404, 'NOT_FOUND')

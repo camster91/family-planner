@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -63,6 +64,12 @@ export async function POST(request: NextRequest) {
     const parsed = bodySchema.safeParse(await readJson(request))
     if (!parsed.success) return deviceError(400, 'VALIDATION_ERROR')
     const { userId, method, secret } = parsed.data
+    if (storageBackend() === 'd1') {
+      const { enterD1DeviceElevation } = await import('@/lib/cloudflare/device-credentials-entry')
+      const { deviceParentReply } = await import('@/lib/cloudflare/device-parent-http')
+      return deviceParentReply(await enterD1DeviceElevation(auth.actor,parsed.data,now))
+    }
+
 
     const deviceUserKey = `device-elev-fail:${deviceId}:${userId}`
     const deviceKey = `device-elev-fail:${deviceId}`

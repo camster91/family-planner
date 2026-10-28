@@ -1,3 +1,4 @@
+import { testDeviceParent } from './device-parent'
 import { testDevicePairing } from './device-pairing'
 import { testDeviceSessions } from './device-sessions'
 import { testChoreUpdate } from './chore-update'
@@ -33,6 +34,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/device-parent') return Response.json(await testDeviceParent(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/device-pairing') return Response.json(await testDevicePairing(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/device-sessions') return Response.json(await testDeviceSessions(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/chore-update') return Response.json(await testChoreUpdate(env.DB as unknown as D1Store))

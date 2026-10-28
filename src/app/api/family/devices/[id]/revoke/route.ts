@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -44,6 +45,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const limit = await checkRateLimit(`device-revoke:${userId}`, 30, 60 * 60 * 1000)
     if (!limit.allowed) return rateLimited(limit)
+
+    if (storageBackend() === 'd1') {
+      const { manageD1Device } = await import('@/lib/cloudflare/device-management')
+      const result = await manageD1Device({kind:'person',actor:manager},{kind:'revoke',id,reason},deviceClock.now())
+      return result.body ? deviceJson(result.body) : deviceError(result.status,result.code!,{message:result.message})
+    }
 
     const existing = await prisma!.householdDevice.findFirst({
       where: { id, family_id: familyId },

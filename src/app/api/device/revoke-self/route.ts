@@ -1,8 +1,9 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { writeDeviceAudit } from '@/lib/device-audit'
-import { deviceClock, deviceInternalError, deviceJson, killSwitch, rateLimited } from '@/lib/device-http'
+import { deviceClock, deviceError, deviceInternalError, deviceJson, killSwitch, rateLimited } from '@/lib/device-http'
 import { authenticateDevice, requireElevation } from '@/lib/device-route'
 import { clearDeviceCookies, revokeDevice } from '@/lib/device-session'
 import { auditSummary, writeAuditLog } from '@/lib/household-audit'
@@ -24,6 +25,17 @@ export async function POST(request: NextRequest) {
 
     const limit = await checkRateLimit(`device-revoke:${actor.parentId}`, 30, 60 * 60 * 1000)
     if (!limit.allowed) return rateLimited(limit)
+
+    if (storageBackend() === 'd1') {
+      const { manageD1Device } = await import('@/lib/cloudflare/device-management')
+      const result = await manageD1Device({kind:'device',actor,header:request.headers.get('x-device-elevation')},{kind:'revoke',id:actor.deviceId,reason:'parent'},deviceClock.now())
+      if (result.code) {
+        const response=deviceError(result.status,result.code,{message:result.message})
+        if (result.code==='DEVICE_REVOKED'||result.code==='DEVICE_SESSION_INVALID') clearDeviceCookies(response)
+        return response
+      }
+      const response=deviceJson({status:'revoked'});clearDeviceCookies(response);return response
+    }
 
     await writeDeviceAudit(prisma!, {
       familyId: actor.familyId,

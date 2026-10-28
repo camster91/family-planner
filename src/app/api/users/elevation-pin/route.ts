@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword, verifyPassword } from '@/lib/auth'
@@ -38,6 +39,12 @@ export async function PUT(request: NextRequest) {
       return deviceError(401, 'INVALID_PASSWORD')
     }
 
+    if (storageBackend() === 'd1') {
+      const { setD1ParentPin } = await import('@/lib/cloudflare/device-credentials-entry')
+      const { deviceParentReply } = await import('@/lib/cloudflare/device-parent-http')
+      return deviceParentReply(await setD1ParentPin(manager,{pin,password:body.currentPassword},new Date()))
+    }
+
     const user = await prisma!.user.findUnique({ where: { id: userId }, select: { password: true } })
     if (!user?.password || !(await verifyPassword(body.currentPassword, user.password))) {
       return deviceError(401, 'INVALID_PASSWORD')
@@ -63,6 +70,11 @@ export async function DELETE(request: NextRequest) {
   try {
     const manager = await requireDeviceManager(request)
     if (!manager.ok) return manager.response
+    if (storageBackend() === 'd1') {
+      const { removeD1ParentPin } = await import('@/lib/cloudflare/device-credentials-entry')
+      const { deviceParentReply } = await import('@/lib/cloudflare/device-parent-http')
+      return deviceParentReply(await removeD1ParentPin(manager,new Date()))
+    }
     const { count } = await prisma!.parentElevationPin.deleteMany({ where: { user_id: manager.userId } })
     if (count > 0) {
       await writeDeviceAudit(prisma!, {

@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -35,6 +36,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!limit.allowed) return rateLimited(limit)
 
     // Foreign and missing ids are the same 404.
+    if (storageBackend() === 'd1') {
+      const { manageD1Device } = await import('@/lib/cloudflare/device-management')
+      const result = await manageD1Device({kind:'person',actor:manager},{kind:'rename',id,label},deviceClock.now())
+      return result.body ? deviceJson(result.body) : deviceError(result.status,result.code!,{message:result.message})
+    }
+
     const existing = await prisma!.householdDevice.findFirst({
       where: { id, family_id: familyId },
       select: { id: true, label: true, revoked_at: true },
