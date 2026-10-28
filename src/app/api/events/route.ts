@@ -252,11 +252,8 @@ export async function POST(request: NextRequest) {
       "event_create",
     );
     if (storageBackend() === "d1") {
-      // Portable source-grounding verification is a separate migration domain.
-      // Never treat the proof's presence as permission to skip its checks.
-      if (sourceGuard) throw new AssistantSourceRefused();
-      const result = await mutateD1Event({ userId: actor.userId, familyId: actor.familyId, generation: actor.tokenVersion, name: actor.name },
-        { kind: "create", input: parsed.data }, key);
+      const result = await mutateD1Event({ userId: actor.userId, familyId: actor.familyId, generation: actor.tokenVersion, name: actor.name, role: auth.user.role },
+        { kind: "create", input: parsed.data }, key, { sourceGuard });
       if (result.created) await recordBetaMetric(prisma!, actor.familyId, "event_created");
       return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store", ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) } });
     }

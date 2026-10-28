@@ -89,7 +89,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const assistant = await fetch(`http://127.0.0.1:${port}/assistant-context`)
   const assistantResult = await assistant.json()
   assert.equal(assistant.status, 200, JSON.stringify(assistantResult))
-  console.log(JSON.stringify({ assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const source = await fetch(`http://127.0.0.1:${port}/assistant-source`)
+  const sourceResult = await source.json()
+  assert.equal(source.status, 200, JSON.stringify(sourceResult))
+  console.log(JSON.stringify({ assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

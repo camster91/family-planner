@@ -27,7 +27,11 @@ export function checkProductionEnv(env: Env): EnvCheckResult {
   if (!jwt) errors.push('JWT_SECRET is not set: no one can sign in.')
   else if (jwt.length < 32) errors.push('JWT_SECRET is shorter than 32 characters.')
 
-  if (!env.DATABASE_URL) errors.push('DATABASE_URL is not set.')
+  const backend = env.HEREWOVEN_STORAGE ?? 'postgres'
+  if (backend !== 'postgres' && backend !== 'd1') errors.push('HEREWOVEN_STORAGE must be postgres or d1.')
+  // D1 is a request-scoped Workers binding, checked by getD1Database. Requiring
+  // an unused PostgreSQL URL would conceal an incomplete native deployment.
+  if (backend === 'postgres' && !env.DATABASE_URL) errors.push('DATABASE_URL is not set.')
 
   if (!env.MAILGUN_API_KEY) {
     warnings.push(

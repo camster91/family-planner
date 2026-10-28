@@ -1,7 +1,7 @@
 import { getD1Database } from './database'
 
 const READ_OPERATIONS = new Set(['findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy'])
-type NativeD1 = Exclude<ConstructorParameters<typeof import('@prisma/adapter-d1').PrismaD1>[0], { CLOUDFLARE_D1_TOKEN: string }>
+export type NativeD1 = Exclude<ConstructorParameters<typeof import('@prisma/adapter-d1').PrismaD1>[0], { CLOUDFLARE_D1_TOKEN: string }>
 
 async function openReadClient(binding: NativeD1) {
   const [{ PrismaClient }, { PrismaD1 }] = await Promise.all([

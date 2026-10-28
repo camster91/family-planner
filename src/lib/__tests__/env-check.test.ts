@@ -23,6 +23,12 @@ describe('checkProductionEnv', () => {
     expect(checkProductionEnv({ ...GOOD, DATABASE_URL: '' }).errors).toHaveLength(1)
   })
 
+  it('D1 needs no PostgreSQL URL and an invalid storage choice never falls back', () => {
+    expect(checkProductionEnv({ ...GOOD, HEREWOVEN_STORAGE: 'd1', DATABASE_URL: undefined }).errors).toEqual([])
+    expect(checkProductionEnv({ ...GOOD, HEREWOVEN_STORAGE: 'typo' }).errors).toEqual(['HEREWOVEN_STORAGE must be postgres or d1.'])
+    expect(checkProductionEnv({ ...GOOD, HEREWOVEN_STORAGE: 'd1', JWT_SECRET: undefined }).errors).toHaveLength(1)
+  })
+
   it('missing mail or proxy hops are warnings', () => {
     const { errors, warnings } = checkProductionEnv({
       ...GOOD,

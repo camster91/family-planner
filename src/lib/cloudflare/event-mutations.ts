@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { AssistantSourceRefused, readAssistantSourceProof, type AssistantSourceGuard } from '@/lib/assistant-source-proof'
+import { d1AssistantSourceChecks } from './assistant-source'
 import type { Event } from '@prisma/client'
 import type { z } from 'zod'
 import type { createEventSchema } from '@/lib/validations'
@@ -36,9 +38,20 @@ function refusal(row: Authority | null, actor: Actor, mutation: Mutation): Effec
  * abandoned legacy receipt is replaced only after an atomic snapshot check.
  * No public callback can execute arbitrary writes outside this native batch.
  */
-export async function mutateD1Event(actor: Actor, mutation: Mutation, key: string | null, options: { now?: Date; database?: D1Store } = {}): Promise<D1EventMutationResult> {
+export async function mutateD1Event(actor: Actor, mutation: Mutation, key: string | null, options: { now?: Date; database?: D1Store; sourceGuard?: AssistantSourceGuard } = {}): Promise<D1EventMutationResult> {
   if (mutation.kind === 'create' && typeof actor.name !== 'string') throw new Error('Event actor name unavailable')
-  const db = (options.database ?? await getD1Database()).withSession('first-primary')
+  const database = options.database ?? await getD1Database()
+  const db = database.withSession('first-primary')
+  const guard = options.sourceGuard
+  const guardActor = guard?.actor
+  if (guard) {
+    // Destructive AI effects also require the exact-target proof, still unported.
+    if (mutation.kind !== 'create' || !guard.d1 || guard.d1.kind !== `event_${mutation.kind}` || !guardActor || actor.userId !== guardActor.userId || actor.familyId !== guardActor.familyId || actor.generation !== guardActor.generation || actor.role !== guardActor.role) throw new AssistantSourceRefused()
+    readAssistantSourceProof(guard.d1.token, guardActor, guard.d1.kind)
+  }
+  const renewSourceOwner = (current: Authority | null) => {
+    if (guardActor && (!current || current.family_id !== guardActor.familyId || current.role !== guardActor.role || current.token_version !== guardActor.generation)) throw new AssistantSourceRefused()
+  }
   const now = (options.now ?? new Date()).getTime(), scope = `user:${actor.userId}`
   const action = `event.${mutation.kind}`
   const input = mutation.kind === 'create' ? mutation.input : { eventId: mutation.eventId }
@@ -48,6 +61,7 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
   let prune = key !== null && Math.random() < IDEMPOTENCY_PRUNE_PROBABILITY
   for (let attempt = 0; attempt < 16; attempt++) {
     const authority = await readAuthority()
+    renewSourceOwner(authority)
     const denied = refusal(authority, actor, mutation)
     if (denied) return result(denied)
     if (prune) { prune = false; try { await pruneD1ExpiredReceipts(db, now) } catch { console.warn('[idempotency] Expired receipt cleanup could not finish') } }
@@ -56,7 +70,9 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
     if (prior && prior.expires_at > now) {
       if (prior.family_id !== actor.familyId || prior.action !== action || prior.request_hash !== hash) throw new D1EventReceiptError('IDEMPOTENCY_KEY_REUSED')
       if (prior.response_status !== null) {
-        const currentRefusal = refusal(await readAuthority(), actor, mutation)
+        const current = await readAuthority()
+        renewSourceOwner(current)
+        const currentRefusal = refusal(current, actor, mutation)
         if (currentRefusal) return result(currentRefusal)
         try { return result({ status: prior.response_status, body: JSON.parse(prior.response_body!) }, true) }
         catch { throw new D1EventReceiptError('IDEMPOTENCY_IN_PROGRESS') }
@@ -66,6 +82,10 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
     const statements = [d1WriteCheck(db, `EXISTS (SELECT 1 FROM "User" u JOIN "Family" f ON f.id=u.family_id
       WHERE u.id=?1 AND u.family_id=?2 AND u.token_version=?3 AND u.role=?4${mutation.kind === 'delete' ? ' AND f.features IS ?5' : ''})`,
     [actor.userId, actor.familyId, actor.generation, authority!.role, ...(mutation.kind === 'delete' ? [authority!.features] : [])])]
+    if (guard && guardActor) {
+      const source = await d1AssistantSourceChecks(database, guardActor, `event_${mutation.kind}`, guard)
+      statements.push(...source.checks(db))
+    }
     if (key !== null) {
       if (prior) {
         statements.push(d1WriteCheck(db, `EXISTS (SELECT 1 FROM "IdempotencyRecord" WHERE id=?1 AND scope=?2 AND key=?3

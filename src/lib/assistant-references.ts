@@ -10,6 +10,7 @@ import {
 import {
   loadAssistantTodayContext,
   type AssistantTodayDb,
+  type AssistantTodayContext,
   type LoadAssistantTodayContextInput,
 } from "./assistant-today-context";
 export type AssistantSourceRow = {
@@ -115,6 +116,14 @@ export async function loadReferencedAssistantToday(
       rows = current;
     },
   });
+  return referenceAssistantToday(context, rows, input);
+}
+/** Shared catalog validation for source-owned storage loaders. */
+export function referenceAssistantToday(
+  context: AssistantTodayContext | null,
+  rows: AssistantSourceRow[],
+  input: LoadAssistantTodayContextInput & { generation: number },
+) {
   if (!context) return null;
   const expected =
     context.today.events.length +

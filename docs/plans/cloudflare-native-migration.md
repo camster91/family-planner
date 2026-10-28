@@ -1072,6 +1072,57 @@ subscription, DNS, live data or VPS resource changed.
 Evidence prefix: `/tmp/herewoven-d1-assistant-context-` (native smoke, focused
 unit tests, typecheck, lint and build logs). No schema migration in this slice.
 
+## Atomic AI Event creation source guard — 2026-10-28
+
+Signed Event POST now accepts a valid source proof in D1. The shared proof
+format, current owner/role/generation, normalized feature digest, opaque catalog,
+Today projection and 60-second/local-day lease are preserved. Completed receipts
+renew current authority without requiring a fresh source or enabled AI gate.
+First effects capture the exact source-owned native SELECT results used by the
+read-only projection. The same SELECTs become assertions in the Event/Activity/
+receipt batch, including empty windows, order, limits and nested recipe/cook/list
+reads. A change before commit aborts the whole effect; it is never an ignored
+interactive transaction or a preflight-only promise. An integer SQLite clock
+assertion also bounds admission at expiry or local midnight.
+
+The witness is request-local and bounded to 256 reads/1 MiB; unsupported values,
+column shapes and operations fail closed. It only wraps native parameterized
+SELECTs reached through the enforced model-read facade, and quotes captured
+column identifiers. It receives no model/client SQL and grants no write methods.
+Projected source windows are still bounded; this does not claim complete
+household history. Comparisons cover the exact fetched sets, including new rows
+that would change those windows, rather than only the prior positive row IDs.
+
+Verification:
+- Actual local workerd/D1 fixtures pass eight concurrent signed creates with one
+  effect/Activity/receipt; stale events, chores, nested recipe/cook, groceries,
+  inventory and feature changes refuse. Changes immediately before batch commit
+  to groceries, recipe details and an empty chore window roll back the effect
+  and receipt. Quoted/newline/Unicode values, newly inserted sources, expiry,
+  historical replay, teen creation and current role/generation/family refusal pass.
+  Existing schema-backed read/write fixture domains remain green.
+- 41 focused AI/context/environment tests and 56 Event/idempotency/authority tests
+  pass, plus scoped ESLint, standalone TypeScript and a full OpenNext build.
+  The first build found an extra argument accidentally added to three test
+  assertions; those assertions were corrected before the passing build.
+- Built HTTP confirms one signed create and seven exact replays, one Activity and
+  consent-aware beta count, private/no-store responses, expiry409, expired-proof
+  completed replay, foreign/tampered proof409 and stale-source409 with no receipt.
+- The first built HTTP run found production instrumentation still requiring a
+  PostgreSQL URL in D1 mode. Environment validation now recognizes the selected
+  storage backend, rejects unknown choices and preserves the PostgreSQL/JWT
+  requirements. The final built Worker starts and passes without DATABASE_URL;
+  no dummy PostgreSQL configuration or live account data was used.
+
+**Remaining:** D1 AI deletes remain held in both the HTTP path and direct native
+mutator until exact-target proofs are converted. Other AI effect writers,
+recurring materialization, non-HTTP canonical mutation orchestration and the
+complete assistant chat/capture flows remain unfinished. This is source guard
+and Event POST progress, not full AI parity or production release acceptance.
+No UI, schema, paid subscription, production resource, DNS, live data or VPS
+change. Evidence prefix: `/tmp/herewoven-d1-source-` (smoke, unit/Event tests,
+lint, typecheck, build, runtime and HTTP logs/results).
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
