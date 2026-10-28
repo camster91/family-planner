@@ -14,11 +14,21 @@ import {
   formatTime,
   localDayKey,
 } from "@/components/fridge/board-model";
+import {
+  deviceHelperQuestion,
+  MAX_DEVICE_HELPER_QUESTION,
+  type DeviceHelperTopic,
+} from "@/lib/device-helper-question";
 import { secondaryButtonClass } from "./styles";
 
 const messages = {
   en: {
     title: "Household helper",
+    question: "Ask about today’s shared plan",
+    placeholder: "For example: What’s for dinner?",
+    ask: "Show answer",
+    unsupported:
+      "Try one of the questions below. This helper answers about today’s schedule, dinner, chores and groceries; it cannot make changes.",
     description:
       "Quick answers from this tablet’s board. This helper does not make changes or use AI.",
     schedule: "What’s next today?",
@@ -35,6 +45,11 @@ const messages = {
   },
   es: {
     title: "Ayuda del hogar",
+    question: "Pregunta sobre el plan compartido de hoy",
+    placeholder: "Por ejemplo: ¿Qué hay para cenar?",
+    ask: "Mostrar respuesta",
+    unsupported:
+      "Prueba una de las preguntas de abajo. Esta ayuda responde sobre la agenda de hoy, la cena, las tareas y las compras; no puede hacer cambios.",
     description:
       "Respuestas rápidas del tablero de esta tableta. Esta ayuda no hace cambios ni usa IA.",
     schedule: "¿Qué sigue hoy?",
@@ -51,7 +66,7 @@ const messages = {
     now: "Ahora",
   },
 };
-type Topic = "schedule" | "dinner" | "chores" | "groceries";
+type Topic = DeviceHelperTopic;
 const topics: Topic[] = ["schedule", "dinner", "chores", "groceries"];
 
 /** Device-audience DTO only. No person requests, provider, storage or write path. */
@@ -68,11 +83,16 @@ export default function DeviceHouseholdHelper({
   const text = messages[locale];
   const displayLocale = useDisplayLocale();
   const [topic, setTopic] = React.useState<Topic | null>(null);
+  const [question, setQuestion] = React.useState("");
+  const [unsupported, setUnsupported] = React.useState(false);
+  const questionId = React.useId();
   const [open, setOpen] = React.useState(false);
   const [now, setNow] = React.useState(() => new Date());
   const close = React.useCallback(() => {
     setOpen(false);
     setTopic(null);
+    setQuestion("");
+    setUnsupported(false);
   }, []);
   React.useEffect(() => {
     if (!active) close();
@@ -159,6 +179,46 @@ export default function DeviceHouseholdHelper({
           {text.snapshot}:{" "}
           {new Date(data.generatedAt).toLocaleString(displayLocale)}
         </p>
+        <form
+          className="mb-4 space-y-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const next = deviceHelperQuestion(question);
+            setNow(new Date());
+            setTopic(next);
+            setUnsupported(next === null);
+          }}
+        >
+          <label htmlFor={questionId} className="block text-body font-semibold">
+            {text.question}
+          </label>
+          <input
+            id={questionId}
+            type="text"
+            className="input-apple w-full"
+            maxLength={MAX_DEVICE_HELPER_QUESTION}
+            value={question}
+            autoComplete="off"
+            placeholder={text.placeholder}
+            onChange={(event) => {
+              setQuestion(event.target.value);
+              setUnsupported(false);
+              setTopic(null);
+            }}
+          />
+          <button
+            type="submit"
+            className="btn-primary min-h-[44px]"
+            disabled={!question.trim()}
+          >
+            {text.ask}
+          </button>
+          {unsupported && (
+            <p role="status" className="text-body text-label-secondary">
+              {text.unsupported}
+            </p>
+          )}
+        </form>
         <div className="flex flex-wrap gap-2">
           {topics.map((value) => (
             <button
@@ -169,6 +229,8 @@ export default function DeviceHouseholdHelper({
               onClick={() => {
                 setNow(new Date());
                 setTopic(value);
+                setQuestion("");
+                setUnsupported(false);
               }}
             >
               {text[value]}

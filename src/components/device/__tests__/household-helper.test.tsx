@@ -40,7 +40,7 @@ it("shows only shared snapshot answers and explains cached data", () => {
   expect(
     screen.getByText("This preview does not show every item."),
   ).toBeVisible();
-  expect(screen.queryByRole("textbox")).toBeNull();
+  expect(screen.getByRole("textbox")).toHaveValue("");
   expect(screen.queryByRole("link")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "What’s for dinner?" }));
   expect(screen.getByText("This section is turned off.")).toBeVisible();
@@ -67,4 +67,20 @@ it("drops open answers on page hide", () => {
   fireEvent.click(screen.getByRole("button", { name: "Household helper" }));
   fireEvent(window, new Event("pagehide"));
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("answers a supported question locally and clears the answer for an unsupported request", () => {
+  render(<DeviceHouseholdHelper data={board} cached={false} active />);
+  fireEvent.click(screen.getByRole("button", { name: "Household helper" }));
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "What do we need to buy?" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
+  expect(screen.getByText("Milk × 2")).toBeVisible();
+  fireEvent.change(input, { target: { value: "delete groceries" } });
+  fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
+  expect(screen.getByText(/Try one of the questions below/)).toBeVisible();
+  expect(screen.queryByText("Milk × 2")).toBeNull();
+  fireEvent(window, new Event("pagehide"));
+  fireEvent.click(screen.getByRole("button", { name: "Household helper" }));
+  expect(screen.getByRole("textbox")).toHaveValue("");
 });

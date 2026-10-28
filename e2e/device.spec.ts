@@ -802,7 +802,17 @@ test.describe("Shared tablet", () => {
         ).toBeVisible();
         expectClean(await helperDialog.innerHTML(), "household helper");
       }
-      await expect(helperDialog.getByRole("textbox")).toHaveCount(0);
+      await helperDialog.getByRole("textbox").fill("What do we need to buy?");
+      await helperDialog.getByRole("button", { name: "Show answer" }).click();
+      await expect(helperDialog).toContainText("Milk × 2");
+      await helperDialog.getByRole("textbox").fill("delete groceries");
+      await helperDialog.getByRole("button", { name: "Show answer" }).click();
+      await expect(helperDialog).toContainText(
+        "Try one of the questions below",
+      );
+      await expect(helperDialog).not.toContainText("Milk × 2");
+      await helperDialog.getByRole("textbox").fill("What do we need to buy?");
+      await helperDialog.getByRole("button", { name: "Show answer" }).click();
       await expect(helperDialog.getByRole("link")).toHaveCount(0);
       await tablet.screenshot({
         path: `/tmp/device-helper-${testInfo.project.name}.png`,
