@@ -188,7 +188,7 @@ it("localizes the overview and embedded routine controls without translating hou
     screen.getByRole("combobox", { name: "Más vistas de tareas" }),
   ).toBeTruthy();
   expect(
-    screen.getByRole("checkbox", { name: "Enfocarse en el siguiente paso" }),
+    screen.getByRole("radio", { name: "Guiada" }),
   ).toBeTruthy();
   expect(screen.getByText("0 de 2 pasos hechos · 0 revisados")).toBeTruthy();
   expect(screen.getByText("Morning reset")).toBeTruthy();

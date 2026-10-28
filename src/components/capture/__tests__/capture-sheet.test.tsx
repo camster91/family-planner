@@ -7,6 +7,9 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { CaptureSheet } from "../CaptureSheet";
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn() }),
+}));
 // These existing cases cover the pre-adoption sheet/legacy-envelope path.
 // Owned capture integration has its own actor/storage/batch cases.
 jest.mock("../CaptureBox", () => {
@@ -470,4 +473,46 @@ it("blocks Escape and close while a confirmed write is pending", async () => {
       ),
     ).toBeVisible(),
   );
+});
+
+it("opens a requested capture only after availability, without submitting", async () => {
+  configuredFetch();
+  render(
+    <I18nProvider locale="en">
+      <CaptureSheet requested canCreateManually />
+    </I18nProvider>,
+  );
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toBeVisible();
+  expect(
+    (fetch as jest.Mock).mock.calls.every(
+      ([, init]) => !init?.method || init.method === "GET",
+    ),
+  ).toBe(true);
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Close quick add" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+});
+
+it("explains an unavailable requested capture and retains manual entry", async () => {
+  global.fetch = jest.fn(async () =>
+    response(200, { configured: false, allowed: true }),
+  ) as typeof fetch;
+  render(
+    <I18nProvider locale="en">
+      <CaptureSheet requested canCreateManually />
+    </I18nProvider>,
+  );
+  expect(
+    await screen.findByText(
+      "Photo and quick add are not available for this account right now.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "Add an event manually" }),
+  ).toHaveAttribute("href", "/dashboard/calendar/create");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

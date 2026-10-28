@@ -187,7 +187,7 @@ export function EditGroceryDialog({
             onChange={(event) => setContent(event.target.value)}
             disabled={frozen}
             maxLength={500}
-            className="mt-1 min-h-[44px] w-full rounded-xl border border-[var(--separator)] bg-[var(--surface-fill)] px-3 text-label-primary"
+            className="mt-1 min-h-[44px] w-full rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill)] px-3 text-label-primary"
           />
         </div>
         <div>
@@ -206,7 +206,7 @@ export function EditGroceryDialog({
             value={quantity}
             onChange={(event) => setQuantity(event.target.value)}
             disabled={frozen}
-            className="mt-1 min-h-[44px] w-full rounded-xl border border-[var(--separator)] bg-[var(--surface-fill)] px-3 text-label-primary"
+            className="mt-1 min-h-[44px] w-full rounded-xl border border-[var(--surface-separator)] bg-[var(--surface-fill)] px-3 text-label-primary"
           />
         </div>
         {!online && (

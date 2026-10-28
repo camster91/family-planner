@@ -2,20 +2,36 @@
 // (route inventory F-6, #289): two households, one shared helper, same answers.
 // Also: GET /api/lists/items carries a Deprecation header (F-5).
 
-jest.mock('next/server', () => require('@/__tests__/helpers/two-household').nextServerMock)
-jest.mock('next/headers', () => require('@/__tests__/helpers/two-household').nextHeadersMock)
-jest.mock('@/lib/session', () => require('@/__tests__/helpers/two-household').sessionMock)
-jest.mock('@/lib/prisma', () => ({ prisma: require('@/__tests__/helpers/two-household').fakePrisma }))
+jest.mock(
+  'next/server',
+  () => require('@/__tests__/helpers/two-household').nextServerMock,
+)
+jest.mock(
+  'next/headers',
+  () => require('@/__tests__/helpers/two-household').nextHeadersMock,
+)
+jest.mock(
+  '@/lib/session',
+  () => require('@/__tests__/helpers/two-household').sessionMock,
+)
+jest.mock('@/lib/prisma', () => ({
+  prisma: require('@/__tests__/helpers/two-household').fakePrisma,
+}))
 
 const mockGate = jest.fn(async (..._args: unknown[]): Promise<unknown> => null)
-jest.mock('@/lib/feature-gate-server', () => ({ featureGate: (...args: unknown[]) => mockGate(...args) }))
+jest.mock('@/lib/feature-gate-server', () => ({
+  featureGate: (...args: unknown[]) => mockGate(...args),
+}))
 
 jest.mock('@/lib/list-item-delete', () => {
   const actual = jest.requireActual('@/lib/list-item-delete')
   return { deletePersonListItem: jest.fn(actual.deletePersonListItem) }
 })
 
-import { DELETE as deleteRest } from '../items/[id]/route'
+import {
+  DELETE as deleteRest,
+  GET as getDeleteStatus,
+} from '../items/[id]/route'
 import { DELETE as deleteLegacy } from '../items/delete/route'
 import { GET as getItems } from '../items/route'
 import { deletePersonListItem } from '@/lib/list-item-delete'
@@ -28,13 +44,41 @@ import {
   writesTo,
   expectNoForeignData,
   nextServerMock,
+  USER_IDS,
   type UserKey,
 } from '@/__tests__/helpers/two-household'
 
 const rest = (as: UserKey | null, id: string) =>
-  deleteRest(req({ as, method: 'DELETE', path: `/api/lists/items/${id}` }), params({ id }))
+  deleteRest(
+    req({ as, method: 'DELETE', path: `/api/lists/items/${id}` }),
+    params({ id }),
+  )
 const legacy = (as: UserKey | null, itemId: string) =>
-  deleteLegacy(req({ as, method: 'DELETE', path: '/api/lists/items/delete', query: { itemId } }))
+  deleteLegacy(
+    req({
+      as,
+      method: 'DELETE',
+      path: '/api/lists/items/delete',
+      query: { itemId },
+    }),
+  )
+const status = (as: UserKey | null, id: string, listId: string) =>
+  getDeleteStatus(
+    req({
+      as,
+      method: 'GET',
+      path: `/api/lists/items/${id}`,
+      query:
+        as === null
+          ? { listId, userId: 'parent-a', generation: '0' }
+          : {
+              listId,
+              userId: USER_IDS[as],
+              generation: '0',
+            },
+    }),
+    params({ id }),
+  )
 
 const helper = deletePersonListItem as jest.Mock
 
@@ -47,22 +91,28 @@ beforeEach(() => {
 
 describe('DELETE /api/lists/items/[id] — two households', () => {
   it.each([
-    [rest, 'generation'], [legacy, 'generation'],
-    [rest, 'role'], [legacy, 'role'],
-    [rest, 'household'], [legacy, 'household'],
-  ] as const)('renews authority after the outer gate before deleting (%s, %s)', async (remove, change) => {
-    mockGate.mockImplementationOnce(async () => {
-      const current = db.find('user', 'parent-a')!;
-      if (change === 'generation') current.token_version = 1;
-      if (change === 'role') current.role = 'teen';
-      if (change === 'household') current.family_id = 'family-B';
-      return null;
-    });
-    const response = await remove('parentA', 'item-a');
-    expect(response.status).toBe(401);
-    expect(db.find('listItem', 'item-a')).toBeTruthy();
-    expect(writesTo('listItem')).toHaveLength(0);
-  });
+    [rest, 'generation'],
+    [legacy, 'generation'],
+    [rest, 'role'],
+    [legacy, 'role'],
+    [rest, 'household'],
+    [legacy, 'household'],
+  ] as const)(
+    'renews authority after the outer gate before deleting (%s, %s)',
+    async (remove, change) => {
+      mockGate.mockImplementationOnce(async () => {
+        const current = db.find('user', 'parent-a')!
+        if (change === 'generation') current.token_version = 1
+        if (change === 'role') current.role = 'teen'
+        if (change === 'household') current.family_id = 'family-B'
+        return null
+      })
+      const response = await remove('parentA', 'item-a')
+      expect(response.status).toBe(401)
+      expect(db.find('listItem', 'item-a')).toBeTruthy()
+      expect(writesTo('listItem')).toHaveLength(0)
+    },
+  )
 
   it('401 without a session, and writes nothing', async () => {
     expect((await rest(null, 'item-a')).status).toBe(401)
@@ -80,13 +130,21 @@ describe('DELETE /api/lists/items/[id] — two households', () => {
     expect(db.find('listItem', 'item-b')).toBeTruthy()
   })
 
-  it.each<[UserKey]>([['teenA'], ['childA']])('%s gets 403 (item delete stays parent-only)', async (who) => {
-    expect((await rest(who, 'item-a')).status).toBe(403)
-    expect(db.writes).toHaveLength(0)
-  })
+  it.each<[UserKey]>([['teenA'], ['childA']])(
+    '%s gets 403 (item delete stays parent-only)',
+    async (who) => {
+      expect((await rest(who, 'item-a')).status).toBe(403)
+      expect(db.writes).toHaveLength(0)
+    },
+  )
 
   it('lists off: the feature gate answers and nothing is deleted', async () => {
-    mockGate.mockResolvedValue(nextServerMock.NextResponse.json({ error: 'Lists is off' }, { status: 403 }))
+    mockGate.mockResolvedValue(
+      nextServerMock.NextResponse.json(
+        { error: 'Lists is off' },
+        { status: 403 },
+      ),
+    )
     expect((await rest('parentA', 'item-a')).status).toBe(403)
     expect(mockGate).toHaveBeenCalledWith('family-A', 'lists')
     expect(db.writes).toHaveLength(0)
@@ -96,10 +154,17 @@ describe('DELETE /api/lists/items/[id] — two households', () => {
     const res = await rest('parentA', 'item-a')
     expect(res.status).toBe(200)
     expect(await bodyOf(res)).toEqual({ success: true })
-    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', { familyId: 'family-A', addedBy: 'parent-a', role: 'parent', generation: 0 })
+    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', {
+      familyId: 'family-A',
+      addedBy: 'parent-a',
+      role: 'parent',
+      generation: 0,
+    })
     expect(db.find('listItem', 'item-a')).toBeFalsy()
     expect(db.find('listItem', 'item-b')).toBeTruthy()
-    expect(writesTo('listItem').map((w) => w.args.where)).toEqual([{ id: 'item-a', list: { family_id: 'family-A' } }])
+    expect(writesTo('listItem').map((w) => w.args.where)).toEqual([
+      { id: 'item-a', list: { family_id: 'family-A' } },
+    ])
     // A repeat is a plain 404: the row is gone.
     expect((await rest('parentA', 'item-a')).status).toBe(404)
   })
@@ -124,7 +189,12 @@ describe('DELETE /api/lists/items/delete (deprecated, kept for installed Android
       const a = await rest(who, id)
       db.reset()
       const b = await legacy(who, id)
-      expect([who, id, b.status, await bodyOf(b)]).toEqual([who, id, a.status, await bodyOf(a)])
+      expect([who, id, b.status, await bodyOf(b)]).toEqual([
+        who,
+        id,
+        a.status,
+        await bodyOf(a),
+      ])
     }
     db.reset()
     helper.mockClear()
@@ -132,20 +202,33 @@ describe('DELETE /api/lists/items/delete (deprecated, kept for installed Android
     expect(ok.status).toBe(200)
     expect(await bodyOf(ok)).toEqual({ success: true })
     expect(helper).toHaveBeenCalledTimes(1)
-    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', { familyId: 'family-A', addedBy: 'parent-a', role: 'parent', generation: 0 })
+    expect(helper).toHaveBeenCalledWith(expect.anything(), 'item-a', {
+      familyId: 'family-A',
+      addedBy: 'parent-a',
+      role: 'parent',
+      generation: 0,
+    })
     expect(db.find('listItem', 'item-a')).toBeFalsy()
   })
 
   it('still needs itemId (400)', async () => {
-    const res = await deleteLegacy(req({ as: 'parentA', method: 'DELETE', path: '/api/lists/items/delete' }))
+    const res = await deleteLegacy(
+      req({ as: 'parentA', method: 'DELETE', path: '/api/lists/items/delete' }),
+    )
     expect(res.status).toBe(400)
     expect(res.headers.get('Deprecation')).toBe(`@${DEPRECATED_SINCE_289}`)
   })
 
   it('marks every response deprecated and links the REST route', async () => {
-    for (const res of [await legacy(null, 'item-a'), await legacy('parentA', 'item-b'), await legacy('parentA', 'item-a')]) {
+    for (const res of [
+      await legacy(null, 'item-a'),
+      await legacy('parentA', 'item-b'),
+      await legacy('parentA', 'item-a'),
+    ]) {
       expect(res.headers.get('Deprecation')).toBe(`@${DEPRECATED_SINCE_289}`)
-      expect(res.headers.get('Link')).toMatch(/^<\/api\/lists\/items\/item-[ab]>; rel="successor-version"$/)
+      expect(res.headers.get('Link')).toMatch(
+        /^<\/api\/lists\/items\/item-[ab]>; rel="successor-version"$/,
+      )
       expect(res.headers.get('Sunset')).toBeNull()
     }
   })
@@ -153,7 +236,9 @@ describe('DELETE /api/lists/items/delete (deprecated, kept for installed Android
 
 describe('GET /api/lists/items (deprecated read, F-5)', () => {
   it('still returns the household list items, with a Deprecation header and no Sunset', async () => {
-    const res = await getItems(req({ as: 'childA', query: { listId: 'list-a' } }))
+    const res = await getItems(
+      req({ as: 'childA', query: { listId: 'list-a' } }),
+    )
     expect(res.status).toBe(200)
     const body = await expectNoForeignData(res)
     expect(body.items.map((i: { id: string }) => i.id)).toEqual(['item-a'])
@@ -173,6 +258,52 @@ describe('GET /api/lists/items (deprecated read, F-5)', () => {
   })
 
   it('the deprecation date is 2026-09-29 UTC', () => {
-    expect(new Date(DEPRECATED_SINCE_289 * 1000).toISOString()).toBe('2026-09-29T00:00:00.000Z')
+    expect(new Date(DEPRECATED_SINCE_289 * 1000).toISOString()).toBe(
+      '2026-09-29T00:00:00.000Z',
+    )
+  })
+})
+
+describe('GET /api/lists/items/[id] — exact delete reconciliation', () => {
+  it('returns found only for the exact item in the caller household and list', async () => {
+    const found = await status('parentA', 'item-a', 'list-a')
+    expect(found.status).toBe(200)
+    expect(await bodyOf(found)).toEqual({ state: 'found' })
+
+    db.tables.listItem = db.tables.listItem.filter((row) => row.id !== 'item-a')
+    const missing = await status('parentA', 'item-a', 'list-a')
+    expect(missing.status).toBe(200)
+    expect(await bodyOf(missing)).toEqual({ state: 'missing' })
+  })
+
+  it('holds inaccessible list scope instead of turning it into missing', async () => {
+    const foreign = await status('parentA', 'item-b', 'list-b')
+    expect(foreign.status).toBe(409)
+    expect(await bodyOf(foreign)).toEqual({ state: 'held', error: 'Unable to reconcile this item' })
+    await expectNoForeignData(foreign)
+  })
+
+  it('requires the current household session', async () => {
+    const response = await status(null, 'item-a', 'list-a')
+    expect(response.status).toBe(401)
+    await expectNoForeignData(response)
+  })
+
+  it('holds a stale actor generation instead of reconciling under a newer session', async () => {
+    const stale = await getDeleteStatus(
+      req({
+        as: 'parentA',
+        method: 'GET',
+        path: '/api/lists/items/item-a',
+        query: {
+          listId: 'list-a',
+          userId: USER_IDS.teenA,
+          generation: '0',
+        },
+      }),
+      params({ id: 'item-a' }),
+    )
+    expect(stale.status).toBe(409)
+    expect(await bodyOf(stale)).toEqual({ state: 'held', error: 'Unable to reconcile this item' })
   })
 })

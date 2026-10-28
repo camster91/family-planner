@@ -151,7 +151,7 @@ export function OwnedChoreReview({ owner, choreId, initialDecision, onSaved, onC
       </fieldset>}
       {!retired && latest?.version && latest.chore?.status === "completed" && <button type="button" className="btn-filled min-h-[44px]" disabled={busy}
         onClick={replaceReview}>{text("reviewLatest")}</button>}
-      {leaving && <div className="space-y-3 rounded-xl border border-[var(--separator)] p-3" role="alert">
+      {leaving && <div className="space-y-3 rounded-xl border border-[var(--surface-separator)] p-3" role="alert">
         <p>{text("reviewLeaveWarning")}</p><div className="flex flex-wrap gap-2">
           <button type="button" className="btn-tinted min-h-[44px]" onClick={() => setLeaving(false)}>{text("reviewKeep")}</button>
           <button type="button" className="btn-destructive min-h-[44px]" disabled={busy} onClick={() => void finish()}>{text("reviewLeave")}</button>

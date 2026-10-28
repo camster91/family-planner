@@ -1,6 +1,9 @@
 "use client";
 import * as React from "react";
-import { FEEDBACK_VIEW_HEADER, FEEDBACK_SUMMARY_VIEW } from "@/lib/feedback-response-contract";
+import {
+  FEEDBACK_VIEW_HEADER,
+  FEEDBACK_SUMMARY_VIEW,
+} from "@/lib/feedback-response-contract";
 import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
 import Link from "next/link";
@@ -71,28 +74,64 @@ type Report = {
   created_at: string;
 };
 function reportRows(value: unknown): Report[] | null {
-  if (!value || typeof value !== "object" || !("reports" in value) || !Array.isArray(value.reports) || value.reports.length > 25) return null;
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("reports" in value) ||
+    !Array.isArray(value.reports) ||
+    value.reports.length > 25
+  )
+    return null;
   const rows: Report[] = [];
   for (const row of value.reports) {
-    if (!row || typeof row !== "object" ||
-      !["id", "kind", "title", "status", "created_at"].every(key => typeof row[key] === "string") ||
-      !row.id.trim() || !Number.isFinite(Date.parse(row.created_at))) return null;
-    rows.push({ id: row.id, kind: row.kind, title: row.title, status: row.status, created_at: row.created_at });
+    if (
+      !row ||
+      typeof row !== "object" ||
+      !["id", "kind", "title", "status", "created_at"].every(
+        (key) => typeof row[key] === "string",
+      ) ||
+      !row.id.trim() ||
+      !Number.isFinite(Date.parse(row.created_at))
+    )
+      return null;
+    rows.push({
+      id: row.id,
+      kind: row.kind,
+      title: row.title,
+      status: row.status,
+      created_at: row.created_at,
+    });
   }
-  return new Set(rows.map(row => row.id)).size === rows.length ? rows : null;
+  return new Set(rows.map((row) => row.id)).size === rows.length ? rows : null;
 }
 /** Provider work already has a30-second limit; leave room for server admission.
  * This bounds the caller, never proves that a timed-out provider call was free. */
 async function readAssistantChat(init: RequestInit) {
-  return runOwnedForeground(async signal => {
-    let response: Response;
-    try { response = await fetch("/api/assistant", { ...init, signal, cache: "no-store" }); }
-    catch { return { kind: "network" as const }; }
-    try {
-      const body = await readBoundedJsonResponse(response, signal, 256 * 1024);
-      return { kind: "reply" as const, response, body };
-    } catch { return { kind: "unreadable" as const, response }; }
-  }, { timeoutMs: 45_000 });
+  return runOwnedForeground(
+    async (signal) => {
+      let response: Response;
+      try {
+        response = await fetch("/api/assistant", {
+          ...init,
+          signal,
+          cache: "no-store",
+        });
+      } catch {
+        return { kind: "network" as const };
+      }
+      try {
+        const body = await readBoundedJsonResponse(
+          response,
+          signal,
+          256 * 1024,
+        );
+        return { kind: "reply" as const, response, body };
+      } catch {
+        return { kind: "unreadable" as const, response };
+      }
+    },
+    { timeoutMs: 45_000 },
+  );
 }
 const target =
   "min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50";
@@ -169,6 +208,7 @@ function actionRecoveryPath(action: AssistantAction): string {
   if (action.kind === "chore_create" || action.kind === "chore_delete")
     return "/dashboard/chores";
   if (action.kind === "note_create") return "/dashboard/notes";
+  if (action.kind === "grocery_add") return "/dashboard/lists/groceries";
   return "/dashboard/lists";
 }
 
@@ -176,6 +216,7 @@ function actionRecoveryMessage(path: string): AssistantMessage {
   if (path === "/dashboard/calendar") return "checkCalendar";
   if (path === "/dashboard/chores") return "checkChores";
   if (path === "/dashboard/notes") return "checkNotes";
+  if (path === "/dashboard/lists/groceries") return "checkGroceries";
   return path === "/dashboard/lists" ? "checkLists" : "checkHelp";
 }
 
@@ -354,18 +395,33 @@ export default function AssistantPanel({
       reportsLoadGeneration.current += 1;
     };
   }, [panelOpen, tab]);
+  const pageLock = React.useRef<{
+    background: Element | null;
+    wasInert: boolean;
+    overflow: string;
+  } | null>(null);
+  const releasePageLock = React.useCallback(() => {
+    const lock = pageLock.current;
+    if (!lock) return;
+    if (!lock.wasInert) lock.background?.removeAttribute("inert");
+    document.body.style.overflow = lock.overflow;
+    pageLock.current = null;
+  }, []);
   React.useEffect(() => {
     if (!panelOpen) return;
     const background = document.querySelector("[data-dashboard-background]");
-    const wasInert = background?.hasAttribute("inert") ?? false;
-    const overflow = document.body.style.overflow;
+    const lock = {
+      background,
+      wasInert: background?.hasAttribute("inert") ?? false,
+      overflow: document.body.style.overflow,
+    };
+    pageLock.current = lock;
     background?.setAttribute("inert", "");
     document.body.style.overflow = "hidden";
     return () => {
-      if (!wasInert) background?.removeAttribute("inert");
-      document.body.style.overflow = overflow;
+      if (pageLock.current === lock) releasePageLock();
     };
-  }, [panelOpen]);
+  }, [panelOpen, releasePageLock]);
   const open = (next: AssistantPanelTab) => {
     if (busy) return;
     voice.stop();
@@ -382,8 +438,16 @@ export default function AssistantPanel({
     setReportsLoading(true);
     setReportsLoadFailed(false);
     try {
-      const result = await requestOwnedJson("/api/feedback", { method: "GET", headers: { [FEEDBACK_VIEW_HEADER]: FEEDBACK_SUMMARY_VIEW } }, 512 * 1024);
-      if (result.kind === "unknown" || !result.response.ok) throw new Error("Reports unavailable");
+      const result = await requestOwnedJson(
+        "/api/feedback",
+        {
+          method: "GET",
+          headers: { [FEEDBACK_VIEW_HEADER]: FEEDBACK_SUMMARY_VIEW },
+        },
+        512 * 1024,
+      );
+      if (result.kind === "unknown" || !result.response.ok)
+        throw new Error("Reports unavailable");
       const rows = reportRows(result.body);
       if (!rows) throw new Error("Invalid reports");
       if (generation !== reportsLoadGeneration.current) return;
@@ -400,6 +464,8 @@ export default function AssistantPanel({
     if (busy) return;
     voice.stop();
     if (tab === "reports") reportsLoadGeneration.current += 1;
+    // Release inert before Dialog cleanup restores the original Today opener.
+    releasePageLock();
     onClose();
   };
   async function requestChat(
@@ -442,23 +508,28 @@ export default function AssistantPanel({
         ...(includeToday ? { includeToday: true } : {}),
       };
       const result = await readAssistantChat({
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(includeToday
-              ? { "X-Assistant-References": ASSISTANT_REFERENCES_PROTOCOL }
-              : {}),
-            ...(includeToday && confirmationEnabled
-              ? { "X-Assistant-Confirmation": ASSISTANT_CONFIRMATION_PROTOCOL }
-              : {}),
-          },
-          body: JSON.stringify(requestBody),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(includeToday
+            ? { "X-Assistant-References": ASSISTANT_REFERENCES_PROTOCOL }
+            : {}),
+          ...(includeToday && confirmationEnabled
+            ? { "X-Assistant-Confirmation": ASSISTANT_CONFIRMATION_PROTOCOL }
+            : {}),
+        },
+        body: JSON.stringify(requestBody),
       });
-      if (result.kind === "unknown") throw new AssistantCopyError("chatUnavailable");
-      if (result.kind === "network") throw new AssistantCopyError("chatOffline");
-      if (result.kind === "unreadable") throw new AssistantCopyError(
-        result.response.ok || result.response.status < 500 ? "replyUnreadable" : "chatUnavailable",
-      );
+      if (result.kind === "unknown")
+        throw new AssistantCopyError("chatUnavailable");
+      if (result.kind === "network")
+        throw new AssistantCopyError("chatOffline");
+      if (result.kind === "unreadable")
+        throw new AssistantCopyError(
+          result.response.ok || result.response.status < 500
+            ? "replyUnreadable"
+            : "chatUnavailable",
+        );
       const { response: r, body } = result;
       if (!r.ok) {
         if (r.status === 429) throw new AssistantCopyError("chatRateLimited");
@@ -840,14 +911,25 @@ export default function AssistantPanel({
     };
     const pendingReport = reportRequest.current;
     try {
-      const result = await requestOwnedJson("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", [FEEDBACK_VIEW_HEADER]: FEEDBACK_SUMMARY_VIEW },
-        body: JSON.stringify(pendingReport),
-      }, 64 * 1024);
-      if (result.kind === "unknown") throw new AssistantCopyError("reportSaveFailed");
+      const result = await requestOwnedJson(
+        "/api/feedback",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [FEEDBACK_VIEW_HEADER]: FEEDBACK_SUMMARY_VIEW,
+          },
+          body: JSON.stringify(pendingReport),
+        },
+        64 * 1024,
+      );
+      if (result.kind === "unknown")
+        throw new AssistantCopyError("reportSaveFailed");
       const { response: r, body } = result;
-      const b = body && typeof body === "object" ? body as { error?: unknown; report?: { id?: unknown } } : null;
+      const b =
+        body && typeof body === "object"
+          ? (body as { error?: unknown; report?: { id?: unknown } })
+          : null;
       if (!r.ok) {
         if (typeof b?.error === "string" && b.error) throw new Error(b.error);
         throw new AssistantCopyError("reportSaveFailed");
@@ -977,24 +1059,6 @@ export default function AssistantPanel({
         )}
         {tab === "chat" && (
           <div className="space-y-4">
-            {canChat ? (
-              <AssistantQuickStart
-                role={role}
-                features={features}
-                disabled={busy}
-                canNavigate={() => !lock.current}
-                onNavigated={close}
-                todayActions={features.meals ? (
-                  <MealPlanningReviewLinks
-                    disabled={busy}
-                    canNavigate={() => !lock.current}
-                    onNavigated={close}
-                  />
-                ) : undefined}
-              />
-            ) : (
-              <AppGuide role={role} disabled={busy} canNavigate={() => !lock.current} onNavigated={close} />
-            )}
             <p className="text-sm text-label-secondary">
               {msg(includeToday ? "chatIntroWithToday" : "chatIntro")}
             </p>
@@ -1492,6 +1556,41 @@ export default function AssistantPanel({
                 {msg("aiSetup")}
               </Link>
             )}
+            <details className="rounded-2xl border border-[var(--surface-separator)] bg-surface-fill">
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] [&::-webkit-details-marker]:hidden">
+                <span>{msg("browseActions")}</span>
+                <span aria-hidden="true" className="text-label-secondary">
+                  ⌄
+                </span>
+              </summary>
+              <div className="border-t border-[var(--surface-separator)] p-4">
+                {canChat ? (
+                  <AssistantQuickStart
+                    role={role}
+                    features={features}
+                    disabled={busy}
+                    canNavigate={() => !lock.current}
+                    onNavigated={close}
+                    todayActions={
+                      features.meals ? (
+                        <MealPlanningReviewLinks
+                          disabled={busy}
+                          canNavigate={() => !lock.current}
+                          onNavigated={close}
+                        />
+                      ) : undefined
+                    }
+                  />
+                ) : (
+                  <AppGuide
+                    role={role}
+                    disabled={busy}
+                    canNavigate={() => !lock.current}
+                    onNavigated={close}
+                  />
+                )}
+              </div>
+            </details>
           </div>
         )}
         {tab === "report" && (

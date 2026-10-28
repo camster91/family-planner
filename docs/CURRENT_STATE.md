@@ -1,3 +1,21 @@
+# Release and bounded follow-through — 2026-10-27
+
+PR #601 merged as `25957535e35f3448bcef10b21702fc908be8040b` and was
+verified in production on 2026-10-26 Toronto time. Exact release, check and
+recovery evidence is in [programme issue #128](https://github.com/camster91/family-planner/issues/128#issuecomment-6431963249).
+The unpublished/unverified descriptions below are historical recovery notes,
+not the current release state. Programme/native/provider/beta acceptance remains
+separate from that scoped release.
+
+Current follow-through is #470: bind captured morning summaries to the original
+account session version and role as well as household. This prevents old content
+from being delivered after removal and same-household rejoin, or a role change.
+The daily claim and both delivery channels recheck that context. No schema,
+provider, scheduler or production-setting change is part of this follow-through.
+The focused PR records exact validation; this follow-through is not yet deployed.
+
+---
+
 # Current no-QA issue follow-through — 2026-10-24
 
 ## Source identity and boundaries

@@ -5,6 +5,9 @@ import { useTranslation } from "@/i18n";
 
 const en = {
   notifications: "Notifications",
+  notificationOptions: "Options",
+  notificationDelete: "Delete",
+  notificationOptionsLabel: 'Options for "{title}"',
   refreshNotifications: "Refresh notifications",
   notificationReadChanged: "Notifications changed while loading. Refresh or retry to see the latest state.",
   openNotification: "Open",
@@ -89,6 +92,9 @@ const en = {
 } as const;
 const es: Record<keyof typeof en, string> = {
   notifications: "Notificaciones",
+  notificationOptions: "Opciones",
+  notificationDelete: "Eliminar",
+  notificationOptionsLabel: 'Opciones de "{title}"',
   refreshNotifications: "Actualizar notificaciones",
   notificationReadChanged: "Las notificaciones cambiaron durante la carga. Actualiza o reintenta para ver el estado más reciente.",
   openNotification: "Abrir",

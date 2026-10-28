@@ -131,7 +131,7 @@ function Input({
       ref={inputRef}
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className={`min-h-11 w-full rounded-lg bg-[var(--surface-secondary)] px-3 py-2 text-body text-label-primary placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ""}`}
+      className={`min-h-11 w-full rounded-lg bg-[var(--surface-fill-secondary)] px-3 py-2 text-body text-label-primary placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${className ?? ""}`}
     />
   );
 }
@@ -281,7 +281,7 @@ function AddEditModal({
               id={id}
               value={form.relationship}
               onChange={(event) => set("relationship", event.target.value)}
-              className="min-h-11 w-full rounded-lg bg-[var(--surface-secondary)] px-3 py-2 text-body text-label-primary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="min-h-11 w-full rounded-lg bg-[var(--surface-fill-secondary)] px-3 py-2 text-body text-label-primary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             >
               {RELATIONSHIPS.map((relationship) => (
                 <option key={relationship} value={relationship}>
@@ -336,7 +336,7 @@ function AddEditModal({
                       onChange={(event) => set("notes", event.target.value)}
                       rows={3}
                       placeholder={t("emergency.examples.notes")}
-                      className="min-h-11 w-full resize-y rounded-lg bg-[var(--surface-secondary)] px-3 py-2 text-body text-label-primary placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                      className="min-h-11 w-full resize-y rounded-lg bg-[var(--surface-fill-secondary)] px-3 py-2 text-body text-label-primary placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     />
                   )}
                 </FormField>
@@ -883,14 +883,7 @@ function EmergencyPageInner() {
             <p className="text-subhead text-label-secondary mt-1">
               {t("emergency.emptySubtitle")}
             </p>
-            {isParent && (
-              <button
-                onClick={() => setShowAdd(true)}
-                className="mt-4 min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
-              >
-                {t("emergency.addCard")}
-              </button>
-            )}
+
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -929,7 +922,7 @@ function EmergencyPageInner() {
                       type="button"
                       onClick={() => setPreviewContact(null)}
                       aria-label={t("emergency.closePreview")}
-                      className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-secondary)]"
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full hover:bg-[var(--surface-fill-secondary)]"
                     >
                       <X
                         className="w-4 h-4 text-label-secondary"

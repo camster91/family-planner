@@ -52,7 +52,7 @@ export interface SavedTransaction {
 }
 
 const FIELD_CLASS =
-  'w-full min-h-[44px] px-4 py-2.5 bg-[var(--surface-secondary)] border border-[var(--surface-separator)] rounded-xl text-body text-label-primary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors placeholder:text-label-tertiary'
+  'w-full min-h-[44px] px-4 py-2.5 bg-[var(--surface-fill-secondary)] border border-[var(--surface-separator)] rounded-xl text-body text-label-primary focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors placeholder:text-label-tertiary'
 const LABEL_CLASS = 'block text-subhead font-medium text-label-secondary mb-2'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -530,7 +530,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
               onChange={handleAmountChange}
               placeholder="0.00"
               ref={amountRef}
-              className="w-full pl-10 pr-4 py-3.5 text-3xl font-bold text-label-primary bg-[var(--surface-secondary)] border border-[var(--surface-separator)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all placeholder:text-label-tertiary"
+              className="w-full pl-10 pr-4 py-3.5 text-3xl font-bold text-label-primary bg-[var(--surface-fill-secondary)] border border-[var(--surface-separator)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all placeholder:text-label-tertiary"
             />
           </div>
         </div>
@@ -545,7 +545,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
             <p className={LABEL_CLASS}>{text('transactionCategory')}</p>
           )}
           {isLoadingCategories && (
-            <p role="status" className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-secondary)] rounded-xl">
+            <p role="status" className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-fill-secondary)] rounded-xl">
               {text('loadingCategories')}
             </p>
           )}
@@ -582,7 +582,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
             </>
           ) : !isLoadingCategories && !categoryError ? (
             <>
-              <p className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-secondary)] rounded-xl">
+              <p className="text-subhead text-label-secondary py-2.5 px-4 bg-[var(--surface-fill-secondary)] rounded-xl">
                 {text('noCategories', { type: text(type === 'income' ? 'income' : 'expense') })}
               </p>
             </>
@@ -734,7 +734,7 @@ export default function TransactionForm({ onClose, onSuccess, onDeleted, initial
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
                 disabled={busy}
-                className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 rounded-xl text-subhead font-medium text-danger-text hover:bg-[var(--surface-secondary)] disabled:opacity-40"
+                className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 rounded-xl text-subhead font-medium text-danger-text hover:bg-[var(--surface-fill-secondary)] disabled:opacity-40"
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
                 {text('transactionDelete')}

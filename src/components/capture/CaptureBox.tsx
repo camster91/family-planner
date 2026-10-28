@@ -816,7 +816,7 @@ export function LegacyCaptureBox({
 
   const storageRecoveryNotice = recoveryStorageBlocked ? (
     <div
-      className="mt-3 rounded-lg border border-[var(--separator)] p-3"
+      className="mt-3 rounded-lg border border-[var(--surface-separator)] p-3"
       role="alert"
     >
       <p className="text-subhead text-[var(--danger-text)]">
@@ -1600,7 +1600,7 @@ export function LegacyCaptureBox({
         recoveryMessage ||
         recoveryStorageBlocked) && (
         <section
-          className="mt-4 rounded-xl border border-[var(--separator)] p-3"
+          className="mt-4 rounded-xl border border-[var(--surface-separator)] p-3"
           aria-labelledby={
             recoveryOperations.length > 0 ? "capture-recovery-title" : undefined
           }
@@ -1671,7 +1671,7 @@ export function LegacyCaptureBox({
       )}
 
       {draft && (
-        <div className="mt-4 rounded-xl border border-[var(--separator)] p-3">
+        <div className="mt-4 rounded-xl border border-[var(--surface-separator)] p-3">
           <div className="flex items-center gap-2 text-label-secondary text-footnote mb-1">
             <KindIcon className="w-3.5 h-3.5" />
             {msg(KIND_MESSAGE[draft.kind])}
@@ -1752,7 +1752,7 @@ export function LegacyCaptureBox({
       )}
 
       {photoEvents && (
-        <div className="mt-4 rounded-xl border border-[var(--separator)] p-3">
+        <div className="mt-4 rounded-xl border border-[var(--surface-separator)] p-3">
           <div className="flex items-center gap-2 text-label-secondary text-footnote mb-2">
             <Camera className="w-3.5 h-3.5" />
             {photoEvents.length === 0

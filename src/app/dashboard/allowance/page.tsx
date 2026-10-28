@@ -249,7 +249,7 @@ function AllowancePageInner() {
       {roleError && (
         <div
           role="alert"
-          className="rounded-xl bg-[var(--surface-secondary)] p-4 text-body"
+          className="rounded-xl bg-[var(--surface-fill-secondary)] p-4 text-body"
         >
           <p>{copy.roleFailed}</p>
           <button
@@ -265,7 +265,7 @@ function AllowancePageInner() {
       {(loadError || (actionError && !cancelId)) && (
         <div
           role="alert"
-          className="rounded-xl bg-[var(--surface-secondary)] p-4 text-body"
+          className="rounded-xl bg-[var(--surface-fill-secondary)] p-4 text-body"
         >
           <p>{loadError ? copy.loadFailed : errorText}</p>
           <button

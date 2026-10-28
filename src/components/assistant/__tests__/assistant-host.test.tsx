@@ -49,6 +49,22 @@ beforeEach(() => {
   });
   delete (window as any).SpeechRecognition;
 });
+
+async function openChat(
+  user: ReturnType<typeof userEvent.setup>,
+  locale: "en" | "es" = "en",
+) {
+  await user.click(
+    screen.getByRole("button", {
+      name: locale === "es" ? "Añadir o preguntar" : "Add or ask",
+    }),
+  );
+  await user.click(
+    await screen.findByRole("button", {
+      name: locale === "es" ? /Preguntar al asistente/ : /Ask the assistant/,
+    }),
+  );
+}
 it("keeps a late Spanish launcher hydration-safe and localizes after hydration", async () => {
   const serverUi = (
     <I18nProvider locale="en">
@@ -85,7 +101,7 @@ it("keeps a late Spanish launcher hydration-safe and localizes after hydration",
     expect(errors).toEqual([]);
     expect(recoverable).toEqual([]);
     expect(container.textContent).toContain("Informar / Sugerir");
-    expect(container.textContent).toContain("Asistente de IA");
+    expect(container.textContent).toContain("Añadir o preguntar");
   } finally {
     errorSpy.mockRestore();
     act(() => root?.unmount());
@@ -107,7 +123,7 @@ it("proposes an editable list and only writes after explicit confirm", async () 
     );
   }) as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Make a trip list");
   await user.click(screen.getByRole("button", { name: "Send" }));
   const title = await screen.findByLabelText("Proposed title");
@@ -144,7 +160,7 @@ it("requires choosing an actual record and deletion checkbox", async () => {
     );
   }) as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Remove Trip");
   await user.click(screen.getByRole("button", { name: "Send" }));
   await screen.findByLabelText("Item to remove");
@@ -206,7 +222,7 @@ it("keeps a chore proposal and draft when member choices fail, then reloads choi
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   const draft = "Add recycling Mondays and Thursdays";
   await user.type(within(dialog).getByLabelText("Your message"), draft);
@@ -276,7 +292,7 @@ it("keeps a removal proposal when its choices GET fails, then reloads that GET o
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.type(
     within(dialog).getByLabelText("Your message"),
@@ -311,7 +327,7 @@ it("keeps a removal proposal when its choices GET fails, then reloads that GET o
 });
 it("child gets reports but no paid assistant; shared fridge shows neither launcher", () => {
   const view = render(<AssistantHost role="child" />);
-  expect(screen.queryByRole("button", { name: "AI assistant" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Add or ask" })).toBeNull();
   expect(screen.getByRole("button", { name: "Report / Suggest" })).toBeTruthy();
   view.unmount();
   mockMode = "mode=fridge";
@@ -334,7 +350,7 @@ it("tucks launchers away for external form focus and restores dialog focus", asy
   const settingsField = screen.getByLabelText("Settings field");
   const other = screen.getByRole("button", { name: "Other control" });
   const assistantLauncher = screen.getByRole("button", {
-    name: "AI assistant",
+    name: "Add or ask",
   });
 
   await user.click(settingsField);
@@ -351,11 +367,11 @@ it("tucks launchers away for external form focus and restores dialog focus", asy
   expect(launchers).not.toHaveClass("invisible");
   expect(assistantLauncher).not.toHaveAttribute("tabindex");
 
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
   await user.keyboard("{Escape}");
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "AI assistant" })).toHaveFocus(),
+    expect(screen.getByRole("button", { name: "Add or ask" })).toHaveFocus(),
   );
 });
 it("keeps both launcher actions reachable in a compact 320px layout", () => {
@@ -374,6 +390,7 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
   );
   const buttons = within(launchers).getAllByRole("button");
   expect(buttons).toHaveLength(2);
+  expect(screen.getByRole("button", { name: "Add or ask" })).toBeVisible();
   for (const button of buttons) {
     expect(button).toHaveClass(
       "min-h-[44px]",
@@ -385,16 +402,16 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
   expect(screen.getByText("Report / Suggest")).toHaveClass(
     "max-[320px]:sr-only",
   );
-  expect(screen.getByText("AI assistant")).toHaveClass("max-[320px]:sr-only");
+  expect(screen.getByText("Add or ask")).toHaveClass("max-[320px]:sr-only");
 });
 it("keeps a chat draft when the assistant is closed and reopened", async () => {
   const user = userEvent.setup();
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const message = screen.getByLabelText("Your message");
   await user.type(message, "Add library pickup tomorrow");
   await user.click(screen.getByRole("button", { name: "Close" }));
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   expect(screen.getByLabelText("Your message")).toHaveValue(
     "Add library pickup tomorrow",
   );
@@ -454,7 +471,7 @@ it("voice fills draft, never sends automatically, and stops when closing", async
   const user = userEvent.setup();
   global.fetch = jest.fn() as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.click(screen.getByRole("button", { name: "Voice input" }));
   const { act } = require("@testing-library/react");
   act(() =>
@@ -471,7 +488,7 @@ it("unconfigured AI is shown honestly and keyboard closes the sheet", async () =
     response({ error: "AI is not connected yet." }, false),
   ) as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Add milk");
   await user.click(screen.getByRole("button", { name: "Send" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("not connected");
@@ -494,7 +511,7 @@ it("keeps a failed chat request exact while retrying without overwriting a newer
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const message = screen.getByLabelText("Your message");
   await user.type(message, "Add school pickup tomorrow");
   await user.click(screen.getByRole("button", { name: "Send" }));
@@ -541,7 +558,7 @@ it("localizes provider setup and unreadable chat recovery without granting teen 
       <AssistantHost role="teen" />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  await openChat(user, "es");
   const dialog = screen.getByRole("dialog");
   const message = within(dialog).getByLabelText("Tu mensaje");
   await user.type(message, "Ayuda");
@@ -580,7 +597,7 @@ it("locks chat send and retry controls while a recovery request is pending", asy
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const message = screen.getByLabelText("Your message");
   await user.type(message, "Check the calendar");
   await user.click(screen.getByRole("button", { name: "Send" }));
@@ -610,7 +627,7 @@ it.each([
     }) as any;
 
     render(<AssistantHost role="parent" />);
-    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await openChat(user);
     const message = screen.getByLabelText("Your message");
     const draft = status === 429 ? "Try again" : "A message that is too long";
     await user.type(message, draft);
@@ -639,7 +656,7 @@ it("offers a read-only affected-section check after an uncertain action without 
     throw new TypeError("Connection lost after the write");
   }) as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Make a trip list");
   await user.click(screen.getByRole("button", { name: "Send" }));
   await user.click(
@@ -671,7 +688,7 @@ it("preserves uncertain-action recovery across report tabs until explicitly clea
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.type(
     within(dialog).getByLabelText("Your message"),
@@ -754,7 +771,7 @@ it("keeps Chat recovery ahead of a Reports request that resolves after the write
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.type(
     within(dialog).getByLabelText("Your message"),
@@ -816,7 +833,7 @@ it("does not resurrect a late Reports failure after Chat recovery is cleared", a
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(within(dialog).getByRole("button", { name: "My reports" }));
   await user.click(within(dialog).getByRole("button", { name: "Assistant" }));
@@ -833,7 +850,10 @@ it("does not let a late Reports failure overwrite Report state", async () => {
   global.fetch = jest.fn(async (path, options) => {
     // The reports loader sends an explicit GET; keep that pending while the
     // report form performs its independent POST.
-    if (path === "/api/feedback" && (!options?.method || options.method === "GET"))
+    if (
+      path === "/api/feedback" &&
+      (!options?.method || options.method === "GET")
+    )
       return new Promise((resolve) => {
         releaseReports = resolve;
       });
@@ -842,7 +862,7 @@ it("does not let a late Reports failure overwrite Report state", async () => {
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(within(dialog).getByRole("button", { name: "My reports" }));
   await waitFor(() => expect(releaseReports).toEqual(expect.any(Function)));
@@ -885,7 +905,7 @@ it("keeps a grocery proposal editable after list discovery fails until explicit 
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Add milk");
   await user.click(screen.getByRole("button", { name: "Send" }));
   const confirm = await screen.findByRole("button", {
@@ -930,7 +950,7 @@ it("keeps a grocery item write uncertain after discovery succeeds", async () => 
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Add milk");
   await user.click(screen.getByRole("button", { name: "Send" }));
   await user.click(
@@ -940,9 +960,9 @@ it("keeps a grocery item write uncertain after discovery succeeds", async () => 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "connection ended before confirmation",
   );
-  expect(screen.getByRole("link", { name: "Check Lists" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Check Groceries" })).toHaveAttribute(
     "href",
-    "/dashboard/lists",
+    "/dashboard/lists/groceries",
   );
   expect(screen.queryByRole("button", { name: "Confirm and save" })).toBeNull();
   expect(calls).toEqual([
@@ -976,7 +996,7 @@ it("requires choosing a real household member before creating a weekly chore", a
     );
   }) as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(
     screen.getByLabelText("Your message"),
     "Add recycling Mondays and Thursdays",
@@ -1012,7 +1032,7 @@ it("localizes the shell, report and voice copy while retaining an unsent draft",
       <AssistantHost role="parent" />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   const message = within(dialog).getByLabelText("Your message");
   await user.type(message, "Keep this unsent");
@@ -1068,7 +1088,7 @@ it("localizes the proposed-action review without translating generated titles", 
       <AssistantHost role="parent" />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  await openChat(user, "es");
   const dialog = screen.getByRole("dialog");
   await user.type(
     within(dialog).getByLabelText("Tu mensaje"),
@@ -1110,7 +1130,7 @@ it("localizes semantic voice errors without changing recognition behavior", asyn
       <AssistantHost role="parent" />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  await openChat(user, "es");
   await user.click(screen.getByRole("button", { name: "Entrada de voz" }));
   const { act } = require("@testing-library/react");
   act(() => mockRecognition.onerror({ error: "not-allowed" }));
@@ -1143,7 +1163,7 @@ it("localizes weekly action review controls and weekday choices", async () => {
       <AssistantHost role="parent" />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "Asistente de IA" }));
+  await openChat(user, "es");
   const dialog = screen.getByRole("dialog");
   await user.type(
     within(dialog).getByLabelText("Tu mensaje"),
@@ -1189,7 +1209,7 @@ it("re-localizes a static action failure after switching language", async () => 
       <AssistantHost role="parent" />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.type(within(dialog).getByLabelText("Your message"), "Add pickup");
   await user.click(within(dialog).getByRole("button", { name: "Send" }));
@@ -1224,7 +1244,7 @@ it("keeps an invalid event proposal editable without POST, then writes only afte
   }) as any;
 
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.type(within(dialog).getByLabelText("Your message"), "Add pickup");
   await user.click(within(dialog).getByRole("button", { name: "Send" }));
@@ -1265,7 +1285,7 @@ it("sends an explicit Include Today choice and keeps the draft on an unavailable
     );
   }) as any;
   render(<AssistantHost role="parent" todayContextEnabled />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(
     within(dialog).getByRole("checkbox", { name: /Include Today/i }),
@@ -1298,7 +1318,7 @@ it("discloses the Today provider payload in both locales and tracks the opt-in s
       <AssistantHost role="parent" todayContextEnabled />
     </I18nProvider>,
   );
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   expect(dialog).toHaveTextContent("Household records are not attached.");
   expect(dialog).toHaveTextContent(
@@ -1362,7 +1382,7 @@ it("blocks an expired Today action until an explicit fresh preview", async () =>
     return result;
   }) as any;
   render(<AssistantHost role="parent" todayContextEnabled />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(
     within(dialog).getByRole("checkbox", { name: /Include Today/i }),
@@ -1427,7 +1447,7 @@ it("fails closed for a noncanonical or overlong freshness lease", async () => {
     ),
   ) as any;
   render(<AssistantHost role="parent" todayContextEnabled />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(
     within(dialog).getByRole("checkbox", { name: /Include Today/i }),
@@ -1471,7 +1491,7 @@ it("expires a Today preview when the tab backgrounds before confirmation", async
     ),
   ) as any;
   render(<AssistantHost role="parent" todayContextEnabled />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(
     within(dialog).getByRole("checkbox", { name: /Include Today/i }),
@@ -1536,7 +1556,7 @@ it("fails closed when the monotonic lease clock moves backwards", async () => {
   ) as any;
   try {
     render(<AssistantHost role="parent" todayContextEnabled />);
-    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await openChat(user);
     const dialog = screen.getByRole("dialog");
     await user.click(
       within(dialog).getByRole("checkbox", { name: /Include Today/i }),
@@ -1581,7 +1601,7 @@ it("rejects a Today response that arrives after the request-start lease", async 
     ),
   ) as any;
   render(<AssistantHost role="parent" todayContextEnabled />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   const dialog = screen.getByRole("dialog");
   await user.click(
     within(dialog).getByRole("checkbox", { name: /Include Today/i }),
@@ -1683,7 +1703,7 @@ it.each(["same", "different", "unavailable"] as const)(
     render(
       <AssistantHost role="parent" todayContextEnabled confirmationEnabled />,
     );
-    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await openChat(user);
     await user.click(screen.getByRole("checkbox", { name: /Include Today/i }));
     await user.type(
       screen.getByLabelText("Your message"),
@@ -1777,7 +1797,7 @@ it("reviews the current removal target and sends both source and target proofs o
   render(
     <AssistantHost role="parent" todayContextEnabled confirmationEnabled />,
   );
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.click(screen.getByRole("checkbox", { name: /Include Today/i }));
   await user.type(
     screen.getByLabelText("Your message"),
@@ -1862,7 +1882,7 @@ it.each([true, false])(
       return response({ choreId: "created-chore" });
     }) as any;
     render(<AssistantHost role="parent" profileAssignmentEnabled />);
-    await user.click(screen.getByRole("button", { name: "AI assistant" }));
+    await openChat(user);
     await user.type(
       screen.getByLabelText("Your message"),
       "Make a shoes chore",
@@ -1906,11 +1926,19 @@ it.each([true, false])(
 
 // Authored source only; no provider request or test execution at this checkpoint.
 it("keeps the chat draft when an oversized reply cannot be decoded", async () => {
-  const decode = jest.fn(async () => ({ reply: "Oversized reply", action: null }));
-  global.fetch = jest.fn(async () => ({ ok: true, status: 200, headers: new Headers({ "content-length": "1048576" }), json: decode })) as unknown as typeof fetch;
+  const decode = jest.fn(async () => ({
+    reply: "Oversized reply",
+    action: null,
+  }));
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-length": "1048576" }),
+    json: decode,
+  })) as unknown as typeof fetch;
   const user = userEvent.setup();
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "AI assistant" }));
+  await openChat(user);
   await user.type(screen.getByLabelText("Your message"), "Help with dinner");
   await user.click(screen.getByRole("button", { name: "Send" }));
   await screen.findByRole("alert");
@@ -1926,20 +1954,30 @@ it("retains the exact feedback request after an oversized receipt and retries it
   global.fetch = jest.fn(async (_input, init) => {
     bodies.push(String(init?.body));
     return bodies.length === 1
-      ? ({ ok: true, status: 200, headers: new Headers({ "content-length": "131072" }), json: decode }) as unknown as Response
+      ? ({
+          ok: true,
+          status: 200,
+          headers: new Headers({ "content-length": "131072" }),
+          json: decode,
+        } as unknown as Response)
       : response({ report: { id: "confirmed-receipt" } });
   }) as typeof fetch;
   const user = userEvent.setup();
   render(<AssistantHost role="parent" />);
   await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
   await user.type(screen.getByLabelText("Title"), "Calendar feedback");
-  await user.type(screen.getByLabelText("What happened or what would help?"), "Please preserve this original private report.");
+  await user.type(
+    screen.getByLabelText("What happened or what would help?"),
+    "Please preserve this original private report.",
+  );
   await user.click(screen.getByRole("button", { name: "Save report" }));
   await screen.findByRole("alert");
   expect(screen.getByLabelText("Title")).toHaveValue("Calendar feedback");
   expect(decode).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Save report" }));
-  expect(await screen.findByRole("status")).toHaveTextContent("confirmed-receipt");
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "confirmed-receipt",
+  );
   expect(bodies).toHaveLength(2);
   expect(bodies[1]).toBe(bodies[0]);
 });

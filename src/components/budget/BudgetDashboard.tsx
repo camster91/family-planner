@@ -674,12 +674,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true, a
             glyphColor="budget"
             title={text('noTransactions')}
             description={text('noTransactionsDescription')}
-            action={canEdit ? (
-              <button onClick={() => setShowForm(true)} className="btn-filled min-h-[44px] gap-2 px-4">
-                <Plus className="w-4 h-4" aria-hidden="true" />
-                <span>{text('addExpense')}</span>
-              </button>
-            ) : undefined}
+
           />
         )}
       </div>

@@ -26,9 +26,13 @@ function mount(role = "parent", online = true, choices = links) {
     />,
   );
 }
-// Source adapted for the compact disclosures; execution remains deferred.
+function openQuickAdd(label = "Add or ask") {
+  fireEvent.click(screen.getByRole("button", { name: label }));
+}
 function disclosure(label = "Today controls") {
-  return screen.getByText(label, { selector: "summary" }).closest("details") as HTMLDetailsElement;
+  return screen
+    .getByText(label, { selector: "summary" })
+    .closest("details") as HTMLDetailsElement;
 }
 function openDisclosure(label: string) {
   const control = disclosure(label);
@@ -38,36 +42,23 @@ function openDisclosure(label: string) {
 }
 beforeEach(() => refresh.mockClear());
 it.each(["parent", "teen"] as const)(
-  "%s gets the relative event-create route and separate grocery and all-list destinations",
+  "%s opens quick add without duplicating primary navigation",
   (role) => {
     mount(role);
-    openDisclosure("Add");
-    expect(screen.getByRole("link", { name: "Add event" })).toHaveAttribute(
-      "href",
-      "/dashboard/calendar/create",
+    const dispatch = jest.spyOn(window, "dispatchEvent");
+    openQuickAdd();
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "herewoven:quick-add" }),
     );
-    if (role === "parent") {
-      expect(screen.getByRole("link", { name: "Add chore" })).toHaveAttribute(
-        "href",
-        "/dashboard/chores/create",
-      );
-    } else {
-      expect(screen.queryByText("Add chore")).not.toBeInTheDocument();
-      expect(screen.queryByText("Household features")).not.toBeInTheDocument();
-    }
+    dispatch.mockRestore();
     openDisclosure("Today controls");
-    expect(screen.getByRole("link", { name: "Groceries" })).toHaveAttribute(
-      "href",
-      "/dashboard/lists/groceries",
-    );
-    expect(screen.getByRole("link", { name: "All lists" })).toHaveAttribute(
-      "href",
-      "/dashboard/lists",
-    );
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument();
   },
 );
 it("does not offer event creation or parent-only actions to a child", () => {
   mount("child");
+  expect(screen.queryByRole("button", { name: "Add or ask" })).toBeNull();
   expect(screen.queryByText("Add event")).not.toBeInTheDocument();
   expect(screen.queryByText("Add chore")).not.toBeInTheDocument();
   expect(screen.queryByText("Household features")).not.toBeInTheDocument();
@@ -111,12 +102,11 @@ it("uses the typed Today dictionary for Spanish controls", () => {
   expect(
     screen.getByRole("navigation", { name: "Acciones rápidas de hoy" }),
   ).toBeInTheDocument();
-  openDisclosure("Añadir");
   expect(
-    screen.getByRole("link", { name: "Añadir evento" }),
+    screen.getByRole("button", { name: "Añadir o preguntar" }),
   ).toBeInTheDocument();
   openDisclosure("Controles de hoy");
-  expect(screen.getByRole("link", { name: "Alimentos" })).toBeInTheDocument();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Actualizar ahora" }),
   ).toBeInTheDocument();
@@ -148,4 +138,20 @@ it("dismisses on Escape and outside pointer", () => {
   details.open = true;
   fireEvent.pointerDown(document.body);
   expect(details.open).toBe(false);
+});
+
+it("leaves an open child dialog in charge of Escape", () => {
+  render(
+    <TodayControls role="parent" links={links} onRefresh={refresh} online>
+      <div role="dialog" aria-label="Customize Today">
+        <button type="button">Child action</button>
+      </div>
+    </TodayControls>,
+  );
+  const details = openDisclosure("Today controls");
+  const child = screen.getByRole("button", { name: "Child action" });
+  child.focus();
+  fireEvent.keyDown(child, { key: "Escape" });
+  expect(details.open).toBe(true);
+  expect(child).toHaveFocus();
 });

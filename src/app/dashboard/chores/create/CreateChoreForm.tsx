@@ -157,6 +157,7 @@ export default function CreateChoreForm({
   const [targetsAttempt, setTargetsAttempt] = useState(0);
   const [membersState, setMembersState] = useState<"loading" | "ready" | "failed">("loading");
   const [profilesFailed, setProfilesFailed] = useState(false);
+  const [profilesUnsupported, setProfilesUnsupported] = useState(false);
   const [profilesLoading, setProfilesLoading] = useState(true);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -359,14 +360,17 @@ export default function CreateChoreForm({
   useEffect(() => {
     let retired = false;
     const controller = new AbortController();
-    setProfilesFailed(false); setProfilesLoading(true);
+    setProfilesFailed(false); setProfilesUnsupported(false); setProfilesLoading(true);
     async function loadProfiles() {
       const result = await requestOwnedJson("/api/family/profiles", { signal: controller.signal }, 256 * 1024);
       if (retired) return;
       setProfilesLoading(false);
       // A disabled profile capability remains optional; failures are not an
       // authoritative empty profile list and must not clear a selected draft.
-      if (result.kind === "reply" && result.response.status === 404) { setProfileOptions([]); setProfileRecurrenceSupported(false); return; }
+      if (result.kind === "reply" && (result.response.status === 404 ||
+        (result.response.status === 409 && readApiErrorCode(result.body) === "PROFILE_SETUP_UNSUPPORTED"))) {
+        setProfileOptions([]); setProfileRecurrenceSupported(false); setProfilesUnsupported(true); return;
+      }
       const profiles = result.kind === "reply" && result.response.ok ? readHouseholdProfilesResponse(result.body) : null;
       if (!profiles) { setProfilesFailed(true); return; }
       setProfileRecurrenceSupported(profiles.profileChoreSupported === true && profiles.profileChoreRecurrenceSupported === true);
@@ -838,7 +842,7 @@ export default function CreateChoreForm({
                     )}
                   </select>
                   {membersState === "loading" && <p role="status" className="text-footnote text-label-secondary mt-1.5">{message("assignmentLoading")}</p>}
-                  {(membersState === "failed" || profilesFailed) && <div className="mt-1.5 space-y-1">
+                  {(membersState === "failed" || profilesFailed || (profilesUnsupported && profileTargetId)) && <div className="mt-1.5 space-y-1">
                     <p role="alert" className="text-footnote text-danger-text">{message(membersState === "failed" ? "assignmentLoadFailed" : "profileChoicesLoadFailed")}</p>
                     <button type="button" className="btn-plain min-h-11" disabled={busy || membersState === "loading"} onClick={() => setTargetsAttempt(attempt => attempt + 1)}>{message("retryAssignments")}</button>
                   </div>}

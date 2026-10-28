@@ -9,10 +9,97 @@ import { MEAL_INCLUDE, resolveMealLink } from '@/lib/meal-recipe-link'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { updateMealSchema } from '@/lib/validations'
+import { authorizeMealBatchInTx, batchJson } from '@/lib/meal-batch-api'
 
 export const dynamic = 'force-dynamic'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+
+// GET - Read one meal under the caller's exact current household/session
+// context. The meals page uses this bounded read after an interrupted delete;
+// it must never infer absence from a range/paginated collection.
+export async function GET(request: NextRequest) {
+  try {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+
+    const gate = await featureGate(auth.user.family_id, 'meals')
+    if (gate) return gate
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+    const expectedUserId = searchParams.get('expected_user_id')
+    const expectedFamilyId = searchParams.get('expected_family_id')
+    const expectedGeneration = searchParams.get('expected_generation')
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      tokenVersion: auth.payload.tv ?? 0,
+    }
+
+    // The exact read renews the authenticated actor under the same ordered
+    // user/household locks used by meal mutations. The initial HTTP auth is a
+    // gate, not the final authority for an Undo receipt.
+    const result = await prisma!.$transaction(async (tx) => {
+      const refusal = await authorizeMealBatchInTx(tx, actor, true)
+      if (refusal) return { kind: 'response' as const, response: batchJson(refusal) }
+
+      if (expectedUserId !== null || expectedFamilyId !== null || expectedGeneration !== null) {
+        const generation = expectedGeneration === null ? NaN : Number(expectedGeneration)
+        if (
+          !expectedUserId ||
+          !expectedFamilyId ||
+          !Number.isSafeInteger(generation) ||
+          generation < 0 ||
+          actor.userId !== expectedUserId ||
+          actor.familyId !== expectedFamilyId ||
+          actor.tokenVersion !== generation
+        )
+          return {
+            kind: 'response' as const,
+            response: NextResponse.json(
+              { error: { code: 'MEAL_OWNER_CHANGED' } },
+              { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
+            ),
+          }
+      }
+
+      const meal = await tx.familyMeal.findUnique({
+        where: { id },
+        select: { id: true, family_id: true },
+      })
+      if (meal) {
+        const familyError = requireFamilyMatch(meal.family_id, actor.familyId)
+        if (familyError) return { kind: 'response' as const, response: familyError }
+      }
+
+      return {
+        kind: meal ? ('present' as const) : ('missing' as const),
+        mealId: meal?.id ?? id,
+        context: {
+          userId: actor.userId,
+          familyId: actor.familyId,
+          generation: actor.tokenVersion,
+        },
+      }
+    })
+
+    if (result.kind === 'response') return result.response
+    return NextResponse.json(
+      {
+        state: result.kind,
+        meal: { id: result.mealId },
+        context: result.context,
+      },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    )
+  } catch (err) {
+    logRouteError('GET /api/meals/[id]', err, getRequestId(request))
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
 
 // PATCH - Update a meal slot. Optional `recipe_id` (same household; null
 // unlinks) and `servings` (null clears). Linking without `recipe_name` sets the
@@ -118,6 +205,52 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    }
+
+    const expectedUserId = searchParams.get('expected_user_id')
+    const expectedFamilyId = searchParams.get('expected_family_id')
+    const expectedGeneration = searchParams.get('expected_generation')
+    const hasExpectedOwner =
+      expectedUserId !== null ||
+      expectedFamilyId !== null ||
+      expectedGeneration !== null
+    let expectedOwner:
+      | { userId: string; familyId: string; generation: number }
+      | undefined
+    if (hasExpectedOwner) {
+      const generation = expectedGeneration === null ? NaN : Number(expectedGeneration)
+      if (
+        !expectedUserId ||
+        !expectedFamilyId ||
+        !Number.isSafeInteger(generation) ||
+        generation < 0
+      )
+        return NextResponse.json(
+          { error: { code: 'MEAL_OWNER_CHANGED' } },
+          { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
+        )
+      expectedOwner = {
+        userId: expectedUserId,
+        familyId: expectedFamilyId,
+        generation,
+      }
+    }
+
+    // Recovery deletes carry the exact owner snapshot captured by the prior
+    // read. The existing meal authority transaction rechecks it under the
+    // ordered locks, with no nested transaction for batched meals. Legacy
+    // callers omit these parameters and retain the existing path below.
+    if (expectedOwner) {
+      return mutateBatchedMeal(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          tokenVersion: auth.payload.tv ?? 0,
+        },
+        id,
+        undefined,
+        expectedOwner,
+      )
     }
 
     const meal = await prisma!.familyMeal.findUnique({

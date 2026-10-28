@@ -21,7 +21,7 @@ import { useMealWeekText } from "@/i18n/meal-week";
 import { useMealsPageText } from "@/i18n/meals-page";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
-import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
+import { Plus, UtensilsCrossed, BookOpen, Refrigerator, ChevronLeft, ChevronRight } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { Dialog } from "@/components/ui/dialog";
@@ -80,6 +80,38 @@ interface MealSaveData {
   recipe_id?: string | null;
   cook_id?: string | null;
   servings?: number | null;
+}
+
+type MealDeleteOwner = {
+  userId: string;
+  familyId: string;
+  generation: number;
+  state: "present" | "missing";
+};
+type MealDeleteRecovery = {
+  meal: MealSlot;
+  scope: MealPrepContext;
+  owner: MealDeleteOwner;
+  key: string;
+  issuedAt: string;
+};
+
+const MEAL_DELETE_REQUEST_TIMEOUT_MS = 10_000;
+
+function mealDeleteRequestSignal() {
+  if (typeof AbortSignal.timeout === "function")
+    return AbortSignal.timeout(MEAL_DELETE_REQUEST_TIMEOUT_MS);
+  // Older WebViews (and older jsdom) do not expose AbortSignal.timeout yet.
+  // Keep the request bounded there too rather than silently dropping the
+  // deadline on the fridge/tablet clients.
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(
+    () => controller.abort(),
+    MEAL_DELETE_REQUEST_TIMEOUT_MS,
+  );
+  if (typeof timer === "object" && timer !== null && "unref" in timer)
+    (timer as unknown as { unref: () => void }).unref();
+  return controller.signal;
 }
 
 // Add/Edit Modal
@@ -614,6 +646,9 @@ function MealsPageInner() {
   );
   const { addToast, removeToast } = useToast();
   const showUndo = useUndoToast();
+  const [deleteRecovery, setDeleteRecovery] =
+    React.useState<MealDeleteRecovery | null>(null);
+  const [deleteRecoveryBusy, setDeleteRecoveryBusy] = React.useState(false);
   // Canonical reloads retain the explicit loaded depth of the selected week.
   // The hook renews range identity for mutation/Undo callbacks that outlive it.
   const openAdd = (day: DayPlan, mealType: MealType) =>
@@ -759,16 +794,129 @@ function MealsPageInner() {
     }
   };
 
+  const readMealDeleteOwner = (body: unknown, mealId: string) => {
+    if (!body || typeof body !== "object") return null;
+    const value = body as {
+      meal?: { id?: unknown };
+      context?: { userId?: unknown; familyId?: unknown; generation?: unknown };
+      state?: unknown;
+    };
+    const generation = value.context?.generation;
+    if (
+      (value.state !== "present" && value.state !== "missing") ||
+      value.meal?.id !== mealId ||
+      typeof value.context?.userId !== "string" ||
+      typeof value.context.familyId !== "string" ||
+      !Number.isSafeInteger(generation) ||
+      (generation as number) < 0
+    )
+      return null;
+    return {
+      userId: value.context.userId,
+      familyId: value.context.familyId,
+      generation: generation as number,
+      state: value.state,
+    } satisfies MealDeleteOwner;
+  };
+
+  const reconcileMealDelete = async (recovery: MealDeleteRecovery) => {
+    if (deleteRecoveryBusy) return;
+    setDeleteRecoveryBusy(true);
+    try {
+      const params = new URLSearchParams({
+        id: recovery.meal.id,
+        expected_user_id: recovery.owner.userId,
+        expected_family_id: recovery.owner.familyId,
+        expected_generation: String(recovery.owner.generation),
+      });
+      let response: Response;
+      let body: unknown = null;
+      try {
+        response = await fetch(
+          `/api/meals/${encodeURIComponent(recovery.meal.id)}?${params}`,
+          {
+            cache: "no-store",
+            signal: mealDeleteRequestSignal(),
+          },
+        );
+        body = await response.json().catch(() => null);
+      } catch {
+        setDeleteRecovery(recovery);
+        setModal(null);
+        return;
+      }
+
+      // A successful, explicit missing result from this exact, original-owner
+      // read is the only positive proof that the delete committed. A legacy
+      // HTTP 404, malformed body, or present result remains uncertain because
+      // the DELETE may still arrive later; never offer a second retry there.
+      const read = readMealDeleteOwner(body, recovery.meal.id);
+      if (
+        response.ok &&
+        read?.state === "missing" &&
+        read.userId === recovery.owner.userId &&
+        read.familyId === recovery.owner.familyId &&
+        read.generation === recovery.owner.generation
+      ) {
+        setDeleteRecovery(null);
+        setModal(null);
+        await fetchMeals();
+        showUndo({
+          title: text("deleted", {
+            name: mealTitle(recovery.meal, text("untitled")),
+          }),
+          onUndo: () =>
+            void restoreMeal(
+              recovery.meal,
+              recovery.scope,
+              recovery.key,
+              recovery.issuedAt,
+            ),
+        });
+        return;
+      }
+
+      // A malformed/foreign/current-owner response stays in the same explicit
+      // unknown state, including the old route's generic 404 response.
+      setDeleteRecovery(recovery);
+      setModal(null);
+    } finally {
+      setDeleteRecoveryBusy(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!modal?.meal || mealMutationPending.current) return;
+    // Do not let an unresolved delete be replaced by another destructive
+    // request; the recovery banner must retain the original target/key/body.
+    if (deleteRecovery) {
+      setModal(null);
+      return;
+    }
     mealMutationPending.current = true;
     const meal = modal.meal;
+    let recovery: MealDeleteRecovery | null = null;
+    let deleteIssued = false;
     setSaving(true);
     try {
+      const ownerParams = new URLSearchParams({ id: meal.id });
+      const ownerResponse = await fetch(
+        `/api/meals/${encodeURIComponent(meal.id)}?${ownerParams}`,
+        { cache: "no-store", signal: mealDeleteRequestSignal() },
+      );
+      if (!ownerResponse.ok)
+        throw new Error("Meal context unavailable");
+      const owner = readMealDeleteOwner(
+        await ownerResponse.json().catch(() => null),
+        meal.id,
+      );
+      if (!owner || owner.state !== "present")
+        throw new Error("Meal context unavailable");
       let undoScope = bulkContext.current ?? undefined;
       if (meal.batch_id && !undoScope) {
         const contextResponse = await fetch("/api/meals/bulk", {
           cache: "no-store",
+          signal: mealDeleteRequestSignal(),
         });
         if (!contextResponse.ok) throw new Error("Batch context unavailable");
         undoScope = mealPrepListSchema.parse(
@@ -778,23 +926,73 @@ function MealsPageInner() {
       if (!meal.batch_id) {
         const contextResponse = await fetch("/api/meals/create", {
           cache: "no-store",
+          signal: mealDeleteRequestSignal(),
         });
         if (!contextResponse.ok) throw new Error("Meal context unavailable");
         undoScope = mealCreateContext.parse(await contextResponse.json());
       }
+      if (
+        !undoScope ||
+        undoScope.userId !== owner.userId ||
+        undoScope.familyId !== owner.familyId
+      )
+        throw new Error("Meal context changed");
       const undoKey = newIdempotencyKey();
       const undoIssuedAt = new Date().toISOString();
-      const res = await fetch(`/api/meals/${meal.id}?id=${meal.id}`, {
-        method: "DELETE",
+      recovery = {
+        meal,
+        scope: undoScope,
+        owner,
+        key: undoKey,
+        issuedAt: undoIssuedAt,
+      };
+      deleteIssued = true;
+      const deleteParams = new URLSearchParams({
+        id: meal.id,
+        expected_user_id: owner.userId,
+        expected_family_id: owner.familyId,
+        expected_generation: String(owner.generation),
       });
-      if (!res.ok) throw new Error("Failed to delete");
+      const res = await fetch(
+        `/api/meals/${encodeURIComponent(meal.id)}?${deleteParams}`,
+        {
+        method: "DELETE",
+          signal: mealDeleteRequestSignal(),
+        },
+      );
+      if (!res.ok) {
+        if (res.status === 404) {
+          setModal(null);
+          await fetchMeals();
+          addToast({
+            type: "info",
+            title: text("alreadyGone", {
+              name: mealTitle(meal, text("untitled")),
+            }),
+          });
+          return;
+        }
+        if (res.status >= 500) {
+          await reconcileMealDelete(recovery);
+          return;
+        }
+        throw new Error("Failed to delete");
+      }
       setModal(null);
       await fetchMeals();
       showUndo({
         title: text("deleted", { name: mealTitle(meal, text("untitled")) }),
-        onUndo: () => void restoreMeal(meal, undoScope, undoKey, undoIssuedAt),
+        onUndo: () =>
+          void restoreMeal(meal, undoScope, undoKey, undoIssuedAt),
       });
     } catch (err) {
+      if (recovery && deleteIssued) {
+        // A transport failure after the server may have committed is not a
+        // normal delete failure. Exact reconciliation decides only the
+        // committed-absence case; all other results remain held/unknown.
+        await reconcileMealDelete(recovery);
+        return;
+      }
       console.error(err);
       addToast({
         type: "error",
@@ -838,6 +1036,27 @@ function MealsPageInner() {
           </button>
         )}
       </div>
+
+      {deleteRecovery && (
+        <div
+          role="alert"
+          className="rounded-xl border border-[var(--danger)] bg-[var(--surface-grouped)] p-4 space-y-2"
+        >
+          <p className="text-subhead">
+            {text("deleteUnknown", {
+              name: mealTitle(deleteRecovery.meal, text("untitled")),
+            })}
+          </p>
+          <button
+            type="button"
+            className="btn-tinted min-h-[44px]"
+            disabled={deleteRecoveryBusy}
+            onClick={() => void reconcileMealDelete(deleteRecovery)}
+          >
+            {deleteRecoveryBusy ? text("checkingDelete") : text("checkDelete")}
+          </button>
+        </div>
+      )}
 
       <MealViewNav active={view === "bulk" ? "prep" : "plan"} />
       <FoodPlanningLauncher
@@ -928,15 +1147,16 @@ function MealsPageInner() {
             </h2>
             <nav
               aria-label={text("weeks")}
-              className="flex flex-wrap gap-2"
+              className="flex items-center gap-2"
             >
               <button
                 type="button"
-                className="btn-tinted min-h-[44px]"
+                className="btn-tinted min-h-[44px] min-w-[44px] px-3"
+                aria-label={text("previousWeek")}
                 disabled={!previousWeek}
                 onClick={() => navigateWeek(-1)}
               >
-                {text("previousWeek")}
+                <ChevronLeft size={18} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -947,11 +1167,12 @@ function MealsPageInner() {
               </button>
               <button
                 type="button"
-                className="btn-tinted min-h-[44px]"
+                className="btn-tinted min-h-[44px] min-w-[44px] px-3"
+                aria-label={text("nextWeek")}
                 disabled={!nextWeek}
                 onClick={() => navigateWeek(1)}
               >
-                {text("nextWeek")}
+                <ChevronRight size={18} aria-hidden="true" />
               </button>
             </nav>
           </div>

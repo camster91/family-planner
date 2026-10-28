@@ -3,11 +3,13 @@ export const assistantShellMessages = {
   en: {
     loading: "Opening assistant…",
     launcherReport: "Report / Suggest",
+    launcherAddAsk: "Add or ask",
     launcherAssistant: "AI assistant",
   },
   es: {
     loading: "Abriendo asistente…",
     launcherReport: "Informar / Sugerir",
+    launcherAddAsk: "Añadir o preguntar",
     launcherAssistant: "Asistente de IA",
   },
 } as const;

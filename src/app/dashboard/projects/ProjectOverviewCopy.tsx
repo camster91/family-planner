@@ -66,7 +66,7 @@ export function ProjectOverviewSection({
   );
 }
 
-export function ProjectsEmptyState({ isParent }: { isParent: boolean }) {
+export function ProjectsEmptyState() {
   const text = useProjectOverviewText();
 
   return (
@@ -76,16 +76,7 @@ export function ProjectsEmptyState({ isParent }: { isParent: boolean }) {
         glyphColor="projects"
         title={text("noProjectsTitle")}
         description={text("noProjectsDescription")}
-        action={
-          isParent ? (
-            <Link
-              href="/dashboard/projects/create"
-              className="btn-tinted min-h-[44px] bg-tint-projects px-5 py-2 text-base font-medium text-white"
-            >
-              {text("createProject")}
-            </Link>
-          ) : undefined
-        }
+
       />
     </div>
   );

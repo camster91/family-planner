@@ -375,6 +375,27 @@ describe("KidHome reward claim", () => {
   beforeEach(() => jest.useFakeTimers({ advanceTimers: true }));
   afterEach(() => jest.useRealTimers());
 
+  it("does not show the parent-only family rewards link to a child", () => {
+    renderHome([], {
+      user: { name: "Casey", role: "child", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    });
+
+    expect(screen.queryByRole("link", { name: "All family rewards" })).toBeNull();
+  });
+
+  it("keeps the family rewards link for a role allowed to open it", () => {
+    renderHome([], {
+      user: { name: "Cameron", role: "parent", xp: 80, level: 1 },
+      rewards: [{ id: "r1", name: "Movie night", cost: 50, status: "available" }],
+    });
+
+    expect(screen.getByRole("link", { name: "All family rewards" })).toHaveAttribute(
+      "href",
+      "/dashboard/rewards",
+    );
+  });
+
   it("updates the XP ring from the response, then drops the reward and refreshes", async () => {
     replies["/api/rewards/claim"] = [
       { status: 200, body: claimedReward("r1", 30) },

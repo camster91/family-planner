@@ -91,7 +91,6 @@ function DeferredTodayLayoutEditor({
 
   return (
     <>
-      <DisplayPreferencesStatus />
       <button
         type="button"
         className="btn-tinted min-h-[44px]"
@@ -579,7 +578,9 @@ export default function TodayBoard({
   groceryAction,
   choresShownElsewhere,
   preparationBacklinks = {},
+  onCoveredChange,
 }: {
+  onCoveredChange?: (covered: boolean) => void;
   preparationBacklinks?: import("@/lib/event-preparation/discovery").PreparationBacklinks;
   data: TodayBoardData;
   /** Exact chore IDs rendered by the personal home summary. Ignored in fridge mode. */
@@ -668,6 +669,7 @@ export default function TodayBoard({
     now: now ? now.getTime() : null,
     display,
   });
+  React.useEffect(() => { onCoveredChange?.(covered); }, [covered, onCoveredChange]);
   const boardRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     // Covered: the board leaves the focus order and the accessibility tree
@@ -875,20 +877,20 @@ export default function TodayBoard({
 
         <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 md:mb-5 2xl:mb-8">
           <div className="min-w-0">
-            <p className="mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]">
+            <p className={`${personal ? "hidden sm:block" : ""} mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]`}>
               {text("today")}
             </p>
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
               <h1
                 data-testid="board-date"
-                className="font-display text-[30px] font-semibold tracking-tight leading-tight text-label-primary md:text-[40px] lg:text-[44px] 2xl:text-[56px]"
+                className={`font-display ${personal ? "text-[24px] sm:text-[30px]" : "text-[30px]"} font-semibold tracking-tight leading-tight text-label-primary md:text-[40px] lg:text-[44px] 2xl:text-[56px]`}
               >
                 {now ? formatLongDate(now, displayLocale) : text("today")}
               </h1>
               {now && (
                 <p
                   data-testid="board-clock"
-                  className="text-[20px] font-medium tabular-nums text-label-secondary md:text-[26px] lg:text-[32px] 2xl:text-[44px]"
+                  className={`${personal ? "hidden sm:block" : ""} text-[20px] font-medium tabular-nums text-label-secondary md:text-[26px] lg:text-[32px] 2xl:text-[44px]`}
                 >
                   <span className="sr-only">{text("time")}</span>
                   {formatTime(now, displayLocale)}
@@ -899,7 +901,7 @@ export default function TodayBoard({
 
           {/* Right cluster: weather (#262, only when the household opted in and a
             forecast is available) above the refresh time and the mode action. */}
-          <div className="flex w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
+          <div className={`${personal && !view?.weather ? "hidden sm:flex" : "flex"} w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end`}>
             {view?.weather && (
               <div className="w-full min-w-0 sm:w-auto">
                 <LazyWeatherTile view={view.weather} />
@@ -911,7 +913,7 @@ export default function TodayBoard({
                 <UpdatedLine
                   lastSyncAt={shownSyncAt}
                   now={now.getTime()}
-                  className="text-[13px] text-label-secondary md:text-[15px] 2xl:text-[19px]"
+                  className={`${personal ? "hidden sm:block" : ""} text-[13px] text-label-secondary md:text-[15px] 2xl:text-[19px]`}
                 />
               )}
               {actions ? (
@@ -922,27 +924,34 @@ export default function TodayBoard({
                   {text("exitFridgeMode")}
                 </Link>
               ) : (
-                <Link
-                  href="/dashboard/today?mode=fridge"
-                  className={actionLinkClass}
-                >
-                  <Maximize2 className="h-5 w-5" aria-hidden="true" />
-                  {text("fridgeMode")}
-                </Link>
+                <span className={personalStyles.fridgeEntry}>
+                  <Link
+                    href="/dashboard/today?mode=fridge"
+                    className={actionLinkClass}
+                  >
+                    <Maximize2 className="h-5 w-5" aria-hidden="true" />
+                    {text("fridgeMode")}
+                  </Link>
+                </span>
               )}
             </div>
           </div>
         </header>
 
         {!fridgeMode && viewer && !tileActions && (
-          <TodayControls
-            links={data.links}
-            role={viewer.role}
-            onRefresh={refresh}
-            online={online}
-          >
-            <DeferredTodayLayoutEditor available={availableSections} />
-          </TodayControls>
+          <>
+            <DisplayPreferencesStatus />
+            <TodayControls
+              links={data.links}
+              role={viewer.role}
+              onRefresh={refresh}
+              online={online}
+            >
+              <DeferredTodayLayoutEditor available={availableSections} />
+              {now && <UpdatedLine lastSyncAt={shownSyncAt} now={now.getTime()}
+                testId="today-menu-updated" className="px-3 py-2 text-footnote text-label-secondary sm:hidden" />}
+            </TodayControls>
+          </>
         )}
         {viewer && !tileActions && (
           <PersonQueueStorageRecovery userId={viewer.id} />

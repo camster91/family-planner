@@ -74,18 +74,19 @@ test("inline routine steps complete and undo their exact occurrence once", async
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-    const focus = page.getByRole("checkbox", {
-      name: "Focus on the next step",
+    const focus = page.getByRole("radio", {
+      name: "Guided",
       exact: true,
     });
-    await focus.check({ timeout: 10_000 });
+    await focus.click({ timeout: 10_000 });
+    await expect(routine.locator('[aria-current="step"]')).toHaveCount(1);
     await expect(
       routine.getByRole("checkbox", { name: titles[0], exact: true }),
     ).toHaveCount(1);
     await expect(
       routine.getByRole("checkbox", { name: titles[1], exact: true }),
     ).toHaveCount(0);
-    await focus.uncheck({ timeout: 10_000 });
+    await page.getByRole("radio", { name: "List", exact: true }).click();
     const complete = page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/chores/complete") &&

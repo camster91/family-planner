@@ -46,6 +46,7 @@ export function CalendarPlanner({
   readScope: suppliedReadScope,
   initialDate,
   initialView,
+  focusStart,
   canEditEvents = false,
   calendarSyncAvailable = false,
   refreshKey = 0,
@@ -55,6 +56,7 @@ export function CalendarPlanner({
   readScope?: CalendarReadScope;
   initialDate: string;
   initialView?: PlanningView;
+  focusStart?: string;
   canEditEvents?: boolean;
   calendarSyncAvailable?: boolean;
   refreshKey?: unknown;
@@ -121,12 +123,19 @@ export function CalendarPlanner({
   }, []);
   React.useEffect(() => {
     setLocal(true);
-    setDate(chooseLocalToday ? dayKey(new Date(), true) : initialDate);
+    const focusedLocalDate =
+      chooseLocalToday && focusStart && Number.isFinite(Date.parse(focusStart))
+        ? dayKey(new Date(focusStart), true)
+        : null;
+    setDate(
+      focusedLocalDate ||
+        (chooseLocalToday ? dayKey(new Date(), true) : initialDate),
+    );
     setView(
       initialView ||
         (window.matchMedia?.("(max-width: 639px)").matches ? "agenda" : "week"),
     );
-  }, [initialDate, initialView, chooseLocalToday]);
+  }, [initialDate, initialView, chooseLocalToday, focusStart]);
   const days = visibleDays(date, view, local),
     range = planningRange(date, view, local),
     start = range?.start || "",
@@ -359,7 +368,10 @@ export function CalendarPlanner({
               className={styles.connectionMenu}
               onKeyDown={closeConnectionMenuOnEscape}
             >
-              <summary>{msg("calendarMenu")}</summary>
+              <summary aria-label={msg("calendarMenu")}>
+                <span className="hidden sm:inline">{msg("calendarMenu")}</span>
+                <span className="sm:hidden">{msg("calendars")}</span>
+              </summary>
               <div>
                 <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
                   {msg("calendarMenuHelp")}
@@ -405,7 +417,7 @@ export function CalendarPlanner({
         </div>
       </header>
       <div className={styles.layout}>
-        <aside className={styles.sources}>
+        <aside className={styles.sources} data-menu-source={canEditEvents}>
           <button
             type="button"
             className={styles.sourceToggle}
@@ -433,6 +445,11 @@ export function CalendarPlanner({
                 </option>
               ))}
             </select>
+            <p>{msg("sourceHelp")}</p>
+            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
+          </div>
+        </aside>
+        <section className={styles.main} aria-label={msg("range")}>
             {sourceState === "loading" && (
               <p role="status">{msg("loadingSources")}</p>
             )}
@@ -444,11 +461,6 @@ export function CalendarPlanner({
                 </button>
               </p>
             )}
-            <p>{msg("sourceHelp")}</p>
-            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
-          </div>
-        </aside>
-        <section className={styles.main} aria-label={msg("range")}>
           {displayState === "ready" && now !== null && loadedAt !== null && (
             <div className={styles.note}>
               <UpdatedLine

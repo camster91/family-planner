@@ -595,6 +595,9 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
+  .sources[data-menu-source="true"] {
+    display: none;
+  }
   .planner .sourceToggle {
     display: flex;
     width: 100%;

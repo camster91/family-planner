@@ -212,7 +212,7 @@ export function LongPressRow({
             )}
           >
             {/* Action list */}
-            <div className="divide-y divide-[var(--surface-border)]">
+            <div className="divide-y divide-[var(--surface-separator)]">
               {actions.map((action, i) => (
                 <button
                   key={i}
@@ -235,7 +235,7 @@ export function LongPressRow({
             </div>
 
             {/* Cancel button */}
-            <div className="p-2 border-t border-[var(--surface-border)]">
+            <div className="p-2 border-t border-[var(--surface-separator)]">
               <button
                 type="button"
                 onClick={closeMenu}

@@ -43,11 +43,15 @@ function Language() {
 }
 function setup({
   roster = () => json(200, { members }),
+  profiles = () => json(409, { error: { code: "PROFILE_SETUP_UNSUPPORTED" } }),
+  profileCreate = () => json(201, { success: true }),
   remove = async () => json(200, { success: true }),
   me = "me",
   household = true,
 }: {
-  roster?: () => Response;
+  roster?: () => Response | Promise<Response>;
+  profiles?: () => Response | Promise<Response>;
+  profileCreate?: () => Response | Promise<Response>;
   remove?: () => Promise<Response>;
   me?: string;
   household?: boolean | (() => boolean);
@@ -69,6 +73,9 @@ function setup({
         },
       });
     if (url === "/api/family/members") return roster();
+    if (url === "/api/family/profiles") {
+      return method === "POST" ? profileCreate() : profiles();
+    }
     if (method === "DELETE") return remove();
     return json(404, {});
   }) as typeof fetch;
@@ -99,9 +106,165 @@ it("renders account-backed cards, preserves private text and hides self removal"
   );
   expect(calls).toEqual([
     { url: "/api/auth/me", method: "GET" },
+    { url: "/api/family/profiles", method: "GET" },
     { url: "/api/family/members", method: "GET" },
     { url: "/api/family/profile-links", method: "GET" },
   ]);
+});
+
+it("shows active email-free profiles separately from account members", async () => {
+  setup({
+    profiles: () =>
+      json(200, {
+        profiles: [
+          {
+            id: "profile-preschool",
+            family_id: "family-a",
+            name: "Little one",
+            role: "child",
+            age: 3,
+            archived_at: null,
+            revision: 0,
+          },
+          {
+            id: "profile-archived",
+            family_id: "family-a",
+            name: "Former profile",
+            role: "child",
+            age: null,
+            archived_at: "2026-10-01T00:00:00.000Z",
+            revision: 1,
+          },
+        ],
+        profileChoreSupported: false,
+      }),
+  });
+
+  await screen.findByRole("heading", { name: "Little one" });
+  expect(screen.getByRole("heading", { name: "Household profiles" })).toBeVisible();
+  expect(screen.getByText("No login account")).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Former profile" })).not.toBeInTheDocument();
+  expect(screen.getByText("3 account members · 1 household profile")).toBeVisible();
+});
+
+it("ignores a late profile response after a newer roster load starts", async () => {
+  const pendingProfiles = deferred();
+  const pendingMembers = deferred();
+  let profileAttempt = 0;
+  let memberAttempt = 0;
+  setup({
+    roster: () =>
+      memberAttempt++ === 0
+        ? pendingMembers.promise
+        : json(200, { members }),
+    profiles: () =>
+      profileAttempt++ === 0
+        ? pendingProfiles.promise
+        : json(409, { error: { code: "PROFILE_SETUP_UNSUPPORTED" } }),
+  });
+
+  await act(async () => pendingMembers.resolve(json(503, {})));
+  await screen.findByRole("alert");
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+  await screen.findByRole("heading", { name: rawName });
+
+  await act(async () =>
+    pendingProfiles.resolve(
+      json(200, {
+        profiles: [
+          {
+            id: "late-profile",
+            family_id: "family-a",
+            name: "Late profile",
+            role: "child",
+            age: 3,
+            archived_at: null,
+            revision: 0,
+          },
+        ],
+        profileChoreSupported: false,
+      }),
+    ),
+  );
+  expect(screen.queryByRole("heading", { name: "Late profile" })).not.toBeInTheDocument();
+});
+
+it("keeps the newest profile refresh when an earlier read resolves late", async () => {
+  const pendingInitial = deferred();
+  let profileRead = 0;
+  const createdProfile = {
+    id: "created-profile",
+    family_id: "family-a",
+    name: "Created profile",
+    role: "child",
+    age: null,
+    archived_at: null,
+    revision: 0,
+  };
+  setup({
+    profiles: () => {
+      profileRead += 1;
+      if (profileRead === 1) return pendingInitial.promise;
+      if (profileRead === 2) return json(200, { profiles: [], profileChoreSupported: false });
+      return json(200, { profiles: [createdProfile], profileChoreSupported: false });
+    },
+    profileCreate: () => json(201, { profile: createdProfile }),
+  });
+
+  await screen.findByRole("heading", { name: rawName });
+  await userEvent.click(screen.getByRole("button", { name: "Add a household profile" }));
+  await screen.findByRole("dialog");
+  await userEvent.type(screen.getByLabelText("Name"), "Created profile");
+  await userEvent.click(screen.getByRole("button", { name: "Save profile" }));
+  await screen.findByRole("heading", { name: "Created profile" });
+
+  await act(async () =>
+    pendingInitial.resolve(
+      json(200, {
+        profiles: [
+          {
+            ...createdProfile,
+            id: "stale-profile",
+            name: "Stale profile",
+          },
+        ],
+        profileChoreSupported: false,
+      }),
+    ),
+  );
+  expect(screen.getByRole("heading", { name: "Created profile" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Stale profile" })).not.toBeInTheDocument();
+});
+
+it("hides saved profiles when a refresh loses parent authorization", async () => {
+  let profileRead = 0;
+  const initialProfile = {
+    id: "initial-profile",
+    family_id: "family-a",
+    name: "Initial profile",
+    role: "child",
+    age: 3,
+    archived_at: null,
+    revision: 0,
+  };
+  const createdProfile = { ...initialProfile, id: "created-profile", name: "Created profile" };
+  setup({
+    profiles: () => {
+      profileRead += 1;
+      if (profileRead === 1) return json(200, { profiles: [initialProfile], profileChoreSupported: false });
+      if (profileRead === 2) return json(200, { profiles: [], profileChoreSupported: false });
+      return json(403, { error: { code: "PARENT_REQUIRED" } });
+    },
+    profileCreate: () => json(201, { profile: createdProfile }),
+  });
+
+  await screen.findByRole("heading", { name: "Initial profile" });
+  await userEvent.click(screen.getByRole("button", { name: "Add a household profile" }));
+  await screen.findByRole("dialog");
+  await userEvent.type(screen.getByLabelText("Name"), "Created profile");
+  await userEvent.click(screen.getByRole("button", { name: "Save profile" }));
+  await screen.findByText("Profile saved.");
+  expect(screen.queryByTestId("family-profile")).not.toBeInTheDocument();
 });
 
 it("keeps the selected member, dialog, focus and fetch count through locale changes", async () => {

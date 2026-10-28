@@ -157,6 +157,7 @@ export default async function ListDetailPage({
         listType={list.type as ListType}
         items={mappedItems}
         userId={actor.id}
+        ownerGeneration={actor.tokenVersion}
         canDeleteItems={canDelete}
         paging={{
           continued: Boolean(paging.cursor),

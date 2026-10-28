@@ -370,8 +370,8 @@ describe('Family page', () => {
 
   it('does not say "0 members" while loading', async () => {
     render(<FamilyPage />)
-    expect(screen.queryByText('0 members')).toBeNull()
-    expect(await screen.findByText('1 member')).toBeTruthy()
+    expect(screen.queryByText('0 account members')).toBeNull()
+    expect(await screen.findByText('1 account member')).toBeTruthy()
   })
 
   it('shows a retryable error, not "No family members yet", when loading fails', async () => {
@@ -388,7 +388,7 @@ describe('Family page', () => {
     render(<FamilyPage />)
     expect((await screen.findByRole('alert')).textContent).toContain("Couldn't load your family")
     expect(screen.queryByText('No family members yet')).toBeNull()
-    expect(screen.queryByText('0 members')).toBeNull()
+    expect(screen.queryByText('0 account members')).toBeNull()
     fail = false
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Sam Example')).toBeTruthy()

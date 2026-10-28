@@ -275,7 +275,7 @@ function AddEditModal({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               placeholder={text("namePlaceholder")}
               required
             />
@@ -291,7 +291,7 @@ function AddEditModal({
               id={typeId}
               value={type}
               onChange={(e) => setType(e.target.value as typeof type)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             >
               <option value="birthday">{t("dates.dateBirthday")}</option>
               <option value="anniversary">{t("dates.dateAnniversary")}</option>
@@ -310,7 +310,7 @@ function AddEditModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               required
             />
           </div>
@@ -329,7 +329,7 @@ function AddEditModal({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[var(--surface-fill-secondary)] text-label-primary text-body placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             />
           </details>
         </div>

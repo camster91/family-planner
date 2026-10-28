@@ -49,7 +49,7 @@ export function FoodGroceryOutcomesView({
   }, [result]);
   return (
     <section
-      className="space-y-3 border-t border-[var(--separator)] pt-3"
+      className="space-y-3 border-t border-[var(--surface-separator)] pt-3"
       aria-label={text("groceryResults")}
     >
       <button

@@ -98,3 +98,28 @@ it("also uses Agenda on a spring-forward day with skipped clock times", async ()
   expect(await screen.findByText(/Clock change.*Agenda/i)).toBeTruthy();
   expect(screen.queryByLabelText("Timed calendar, all 24 hours")).toBeNull();
 });
+it("resolves a focused instant to the viewer's local day after hydration", async () => {
+  global.fetch = jest.fn(async (url) => ({
+    ok: true,
+    headers: calendarReadOwnerHeaders(),
+    json: async () =>
+      String(url).includes("subscriptions")
+        ? { subscriptions: [] }
+        : { events: [], hasMore: false, nextCursor: null },
+  })) as jest.Mock;
+  // 01:00Z is still the previous evening in New York.
+  render(
+    <CalendarPlanner
+      initialDate="2026-10-05"
+      initialView="day"
+      chooseLocalToday
+      focusStart="2026-10-05T01:00:00Z"
+    />,
+  );
+  await screen.findByText("No events in this range");
+  const request = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+    String(url).includes("start="),
+  );
+  const query = new URL(String(request![0]), "http://localhost").searchParams;
+  expect(query.get("start")).toBe(dateAt("2026-10-04", true).toISOString());
+});

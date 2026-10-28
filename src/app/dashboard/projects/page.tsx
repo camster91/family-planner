@@ -26,11 +26,9 @@ function canReadProjectRoute(role?: string) {
 
 async function ProjectsContent({
   familyId,
-  isParent,
   cursor,
 }: {
   familyId: string;
-  isParent: boolean;
   cursor?: string | string[];
 }) {
   const sessionUser = await getServerUser();
@@ -68,7 +66,7 @@ async function ProjectsContent({
       <ProjectOverviewSection status="completed" projects={completedProjects} />
       <ProjectOverviewSection status="archived" projects={archivedProjects} />
       {projectCards.length === 0 && (cursor === undefined
-        ? <ProjectsEmptyState isParent={isParent} />
+        ? <ProjectsEmptyState />
         : <ProjectPageState invalid={false} />)}
       <ProjectPageNavigation nextCursor={result.nextCursor ?? null} hasEarlierPage={cursor !== undefined} />
     </div>
@@ -122,7 +120,7 @@ export default async function ProjectsPage({ searchParams }: {
       <div className="px-4 mt-6">
         {familyId ? (
           <Suspense fallback={<ProjectsSkeleton />}>
-            <ProjectsContent key={Array.isArray(params?.cursor) ? "invalid" : params?.cursor ?? "first"} familyId={familyId} isParent={isParent} cursor={params?.cursor} />
+            <ProjectsContent key={Array.isArray(params?.cursor) ? "invalid" : params?.cursor ?? "first"} familyId={familyId} cursor={params?.cursor} />
           </Suspense>
         ) : (
           <ProjectNoFamilyState />

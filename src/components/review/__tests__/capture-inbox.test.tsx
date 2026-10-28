@@ -34,12 +34,16 @@ jest.mock("@/components/capture/CaptureBox", () => {
 });
 
 const identity = { userId: "parent-a", familyId: "family-a" };
-function view(source: InboxPage["source"], owner = identity) {
+function view(
+  source: InboxPage["source"],
+  owner = identity,
+  items: InboxPage["items"] = [],
+) {
   return (
     <I18nProvider locale="en">
       <ReviewInbox
         identity={owner}
-        page={{ source, state: "available", items: [], next: null }}
+        page={{ source, state: "available", items, next: null }}
       />
     </I18nProvider>
   );
@@ -66,4 +70,15 @@ it("does not initialize capture merely to show another inbox category", () => {
   expect(
     screen.queryByLabelText("Fixture capture draft"),
   ).not.toBeInTheDocument();
+});
+it("opens a check at its exact chore focus instead of the generic chore board", () => {
+  render(
+    view("checks", identity, [
+      { id: "chore-a", title: "Take out trash", kind: "check" },
+    ]),
+  );
+  expect(screen.getByRole("link", { name: "Open chore checks" })).toHaveAttribute(
+    "href",
+    "/dashboard/chores?focus=chore-a",
+  );
 });

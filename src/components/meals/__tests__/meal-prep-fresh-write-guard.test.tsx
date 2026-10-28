@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nProvider } from "@/i18n";
 import type { MealPrepSummary } from "@/lib/meal-batches";
 import { MealPrepActionSheet } from "../MealPrepActionSheet";
@@ -180,5 +180,69 @@ describe("mounted bulk cooking write guards", () => {
     expect(
       screen.getAllByRole("button", { name: "Reload latest" }),
     ).toHaveLength(1);
+  });
+
+  it("disables eaten submission when reload finds no portions left", async () => {
+    const consumedSession: MealPrepSummary = {
+      ...session,
+      batches: [
+        {
+          ...session.batches[0],
+          consumption: [
+            {
+              id: "consumption-1",
+              meal_id: null,
+              servings: 4,
+              consumed_at: "2026-01-06T12:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    };
+    const { rerender } = render(
+      <I18nProvider locale="en">
+        <MealPrepActionSheet
+          kind="eaten"
+          session={session}
+          batch={session.batches[0]}
+          context={context}
+          freshWritesBlocked
+          onClose={jest.fn()}
+          onSaved={jest.fn()}
+          onReload={async () => [consumedSession]}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reload latest" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Portions eaten")).toBeDisabled(),
+    );
+    expect(
+      screen.getByText("This dish has no unplanned portions. No meals were changed."),
+    ).toBeVisible();
+
+    // The parent normally clears the fresh-write hold after this reload. The
+    // local availability guard must still prevent the stale eaten mutation.
+    rerender(
+      <I18nProvider locale="en">
+        <MealPrepActionSheet
+          kind="eaten"
+          session={session}
+          batch={session.batches[0]}
+          context={context}
+          freshWritesBlocked={false}
+          onClose={jest.fn()}
+          onSaved={jest.fn()}
+          onReload={async () => [consumedSession]}
+        />
+      </I18nProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Save eaten portions" }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText("Portions eaten")).toBeDisabled();
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
+    expect(postCalls()).toHaveLength(0);
   });
 });

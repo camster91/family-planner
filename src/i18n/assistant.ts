@@ -86,6 +86,7 @@ export const assistantEnglish = {
   tabAssistant: "Assistant",
   tabReport: "Report / Suggest",
   tabReports: "My reports",
+  browseActions: "Browse actions and help",
   chatIntro:
     "Ask to add an event, chore, list, grocery item or note; remove an event, chore or list; or open another section. Changes need your review. Chat text goes to your household’s configured AI provider. Household records are not attached.",
   chatIntroWithToday:
@@ -212,6 +213,7 @@ export const assistantEnglish = {
   checkCalendar: "Check Calendar",
   checkChores: "Check Chores",
   checkLists: "Check Lists",
+  checkGroceries: "Check Groceries",
   checkNotes: "Check Notes",
   checkHelp: "Open Help",
   actionFailed: "Action failed. Check the app before retrying.",
@@ -256,6 +258,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   tabAssistant: "Asistente",
   tabReport: "Informar / Sugerir",
   tabReports: "Mis informes",
+  browseActions: "Ver acciones y ayuda",
   chatIntro:
     "Pide añadir un evento, tarea, lista, artículo de compras o nota; eliminar un evento, tarea o lista; o abrir otra sección. Los cambios requieren tu revisión. El texto del chat se envía al proveedor de IA configurado para tu hogar. No se adjuntan registros del hogar.",
   sourceEvidence: "Fuentes de esta respuesta",
@@ -387,6 +390,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   checkCalendar: "Revisar Calendario",
   checkChores: "Revisar Tareas",
   checkLists: "Revisar Listas",
+  checkGroceries: "Revisar Compras",
   checkNotes: "Revisar Notas",
   checkHelp: "Abrir Ayuda",
   sourceChanged:

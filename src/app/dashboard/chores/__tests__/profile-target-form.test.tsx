@@ -91,6 +91,23 @@ describe("profile target in the create chore form", () => {
     }) as unknown as typeof fetch;
   });
 
+  it.each([
+    [409, "PROFILE_SETUP_UNSUPPORTED", false],
+    [409, "ANOTHER_CONFLICT", true],
+    [500, "INTERNAL_ERROR", true],
+  ])("distinguishes optional capability refusal from failure (%s %s)", async (status, code, failed) => {
+    const read = global.fetch;
+    global.fetch = jest.fn(async (url, init) => url === "/api/family/profiles"
+      ? { ok: false, status, json: async () => ({ error: { code } }) }
+      : read(url, init)) as typeof fetch;
+    render(<CreateChorePage />);
+    await screen.findByRole("option", { name: "Parent" });
+    await waitFor(() => expect(calls.some(call => call.url === "/api/family/members")).toBe(true));
+    if (failed) await screen.findByText(/Email-free profiles could not be checked/);
+    else expect(screen.queryByText(/Email-free profiles could not be checked/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Assign To")).toHaveValue("account-1");
+  });
+
   it("does not expose profiles when setup is readable but the chore writer is off", async () => {
     global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });

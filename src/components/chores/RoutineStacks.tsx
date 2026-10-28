@@ -137,7 +137,8 @@ export function RoutineStacks({
   const { t } = useTranslation();
   const routineText = useRoutineStackText();
   const profileText = useProfileSetupText();
-  const [focusNext, setFocusNext] = useState(false);
+  const [viewMode, setViewMode] = useState<"guided" | "list">("list");
+  const guided = viewMode === "guided";
   const stacks = routineStacks(chores);
   const other = chores.filter((c) => !c.routine?.trim() && !c.routine_stack_id);
   const editorDate =
@@ -149,7 +150,20 @@ export function RoutineStacks({
     // Parent rows keep their existing sheets/Undo; other account roles retain
     // this component's own-step-only controls. Profile callbacks remain disabled.
     if (!done && renderOpenRow && (userRole === "parent" || profileOnly))
-      return <li key={chore.id}>{renderOpenRow(chore.id)}</li>;
+      return (
+        <li
+          key={chore.id}
+          aria-current={next && guided ? "step" : undefined}
+          data-guided-step={next && guided ? "true" : undefined}
+          className={
+            next && guided
+              ? "rounded-xl border-l-4 border-l-[var(--accent)] bg-[var(--surface-fill-secondary)] px-3"
+              : undefined
+          }
+        >
+          {renderOpenRow(chore.id)}
+        </li>
+      );
     const profilePaused = chore.actionAvailability?.state === "paused";
     const profileUnavailable = profileOnly && chore.subject?.kind !== "profile";
     const canComplete =
@@ -158,7 +172,9 @@ export function RoutineStacks({
     return (
       <li
         key={chore.id}
-        className="flex flex-wrap items-center gap-3 py-3 border-b border-[var(--surface-separator)] last:border-0"
+        className={`flex flex-wrap items-center gap-3 py-3 border-b border-[var(--surface-separator)] last:border-0 ${next && guided ? "rounded-xl border-l-4 border-l-[var(--accent)] bg-[var(--surface-fill-secondary)] px-3" : ""}`}
+        aria-current={next && guided ? "step" : undefined}
+        data-guided-step={next && guided ? "true" : undefined}
       >
         <RoutineIcon
           icon={chore.icon ?? null}
@@ -231,14 +247,38 @@ export function RoutineStacks({
       aria-label={routineText("stacksLabel")}
     >
       {stacks.length > 0 && (
-        <label className="flex items-center gap-3 min-h-[44px] text-body text-label-primary">
-          <input
-            type="checkbox"
-            checked={focusNext}
-            onChange={(e) => setFocusNext(e.target.checked)}
-          />
-          {routineText("focusNext")}
-        </label>
+        <div
+          className="flex flex-wrap items-center gap-3"
+          data-testid="routine-view-controls"
+        >
+          <div
+            className="flex min-h-[44px] items-center gap-1 rounded-xl bg-[var(--surface-fill-secondary)] p-1"
+            role="radiogroup"
+            aria-label={routineText("viewMode")}
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={viewMode === "guided"}
+              onClick={() => setViewMode("guided")}
+              className={`min-h-[36px] rounded-lg px-3 text-footnote font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${viewMode === "guided" ? "bg-[var(--surface-elevated)] text-label-primary shadow-sm" : "text-label-secondary"}`}
+            >
+              {routineText("guided")}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={viewMode === "list"}
+              onClick={() => setViewMode("list")}
+              className={`min-h-[36px] rounded-lg px-3 text-footnote font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${viewMode === "list" ? "bg-[var(--surface-elevated)] text-label-primary shadow-sm" : "text-label-secondary"}`}
+            >
+              {routineText("list")}
+            </button>
+          </div>
+          <p className="text-footnote text-label-secondary" aria-live="polite">
+            {routineText(viewMode === "guided" ? "guidedHint" : "listHint")}
+          </p>
+        </div>
       )}
       {showBuilder && userRole === "parent" && familyId && (
         <Link
@@ -322,10 +362,10 @@ export function RoutineStacks({
             )}
             <ol>
               {stack.steps
-                .filter((c) => !focusNext || c.id === next)
+                .filter((c) => !guided || c.id === next)
                 .map((c) => renderStep(c, c.id === next, true))}
             </ol>
-            {focusNext && !next && (
+            {guided && !next && (
               <p className="text-footnote text-label-secondary mt-2">
                 {routineText(
                   checked < done ? "allDoneWaiting" : "allDoneChecked",
