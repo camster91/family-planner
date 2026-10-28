@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Search } from "lucide-react";
 import { MealContextLink as Link } from "@/components/meals/MealContextLink";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
@@ -502,22 +503,24 @@ export default function RecipeExplorePage() {
             }}
             className="space-y-3 mb-4"
           >
-            <label htmlFor="saved-recipe-search" className="label-apple">
+            <label htmlFor="saved-recipe-search" className="sr-only">
               {text("searchSaved")}
             </label>
             <div className="flex flex-wrap gap-2">
               <input
                 id="saved-recipe-search"
-                className="input-apple min-w-0 flex-1 basis-48"
+                className="input-apple min-w-0 flex-1"
+                placeholder={text("searchSaved")}
                 maxLength={120}
                 value={savedQuery}
                 onChange={(event) => setSavedQuery(event.target.value)}
               />
               <button
-                className="btn-tinted min-h-[44px]"
+                className="btn-tinted min-h-[44px] min-w-[44px] shrink-0"
+                aria-label={text("searchSaved")}
                 disabled={loadingLibrary}
               >
-                {text("searchSaved")}
+                <Search size={20} aria-hidden="true" />
               </button>
               {libraryFilters && (
                 <button
