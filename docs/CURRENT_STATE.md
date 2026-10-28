@@ -38,8 +38,12 @@ with parent phone/desktop rename/reload evidence. Manual feed refresh and stale
 selection now use D1, retaining atomic reconciliation, source/account admission,
 bounded parsing and event schedule epochs. A built local Worker imported seven
 real holiday events through native public-network fetch; synthetic large-feed,
-rollback and authority-race checks also pass. Canonical calendar Event data
-views/writers and OAuth connections remain unconverted.
+rollback and authority-race checks also pass. Calendar Event single/range/recent/upcoming reads, server owner checks and exact
+notification focus now use D1. Parent/teen phone and desktop calendars render
+and open source-labelled details. Review-draft context and capture-status reads
+also use D1, fixing supporting-request errors found in that browser flow.
+Event create/edit/delete, AI capture execution and OAuth connections remain
+unconverted.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

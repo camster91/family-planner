@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { withD1ReadClient } from '@/lib/cloudflare/read-client'
 import { createAiUsageJob, type AiUsageJob } from '@/lib/ai-usage-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithFamily } from '@/lib/api-auth'
@@ -145,7 +147,10 @@ export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request)
   if (error) { error.headers.set('Cache-Control', 'private, no-store'); return error }
 
-  const family = await prisma!.family.findUnique({
+  const family = storageBackend() === 'd1'
+    ? await withD1ReadClient(db => db.family.findUnique({ where: { id: auth.user.family_id },
+      select: { capture_ai_key_enc: true, capture_ai_base_url: true, capture_ai_model: true } }))
+    : await prisma!.family.findUnique({
     where: { id: auth.user.family_id },
     select: {
       capture_ai_key_enc: true,
@@ -153,6 +158,12 @@ export async function GET(request: NextRequest) {
       capture_ai_model: true,
     },
   })
+  if (storageBackend() === 'd1') {
+    const [fresh, refusal] = await authenticateWithFamily(request)
+    if (refusal) { refusal.headers.set('Cache-Control', 'private, no-store'); return refusal }
+    if (fresh.user.id !== auth.user.id || fresh.user.family_id !== auth.user.family_id || fresh.user.role !== auth.user.role || (fresh.payload.tv ?? 0) !== (auth.payload.tv ?? 0))
+      return NextResponse.json({ error: 'Your account or household changed. Please try again.', code: 'CAPTURE_SOURCE_CHANGED' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } })
+  }
   const config = resolveCaptureConfig(family)
   // `allowed` lets the UI show "Ask a parent to add this." to a child instead
   // of a box that would only ever return 403 (D4).

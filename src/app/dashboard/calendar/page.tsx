@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1CalendarViewer } from "@/lib/cloudflare/calendar-events";
 import { CALENDAR_OWNER_PROTOCOL, calendarOwnerSchema } from "@/lib/calendar-read-owner";
 import { after } from "next/server";
 import { readEventNotificationFocus } from "@/lib/event-notification-focus";
@@ -31,7 +33,7 @@ export default async function CalendarPage({
     return null;
   }
 
-  const user = await prisma!.user.findUnique({
+  const user = storageBackend() === "d1" ? await readD1CalendarViewer(sessionUser.id, sessionUser.tokenVersion) : await prisma!.user.findUnique({
     where: { id: sessionUser.id },
     select: { family_id: true, role: true, token_version: true },
   });
@@ -100,7 +102,7 @@ export default async function CalendarPage({
   // Do not serialize the focused private record after a membership/role or
   // revocation change while its read was waiting. Browser reads retain this
   // exact original owner instead of adopting a newer server refresh.
-  const current = await prisma!.user.findUnique({ where: { id: owner.actorId },
+  const current = storageBackend() === "d1" ? await readD1CalendarViewer(owner.actorId, owner.generation) : await prisma!.user.findUnique({ where: { id: owner.actorId },
     select: { family_id: true, role: true, token_version: true } });
   if (!current || current.family_id !== owner.familyId || current.role !== owner.role ||
     current.token_version !== owner.generation) return null;

@@ -77,7 +77,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const sync = await fetch(`http://127.0.0.1:${port}/calendar-sync`)
   const syncResult = await sync.json()
   assert.equal(sync.status, 200, JSON.stringify(syncResult))
-  console.log(JSON.stringify({ calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const events = await fetch(`http://127.0.0.1:${port}/calendar-events`)
+  const eventResult = await events.json()
+  assert.equal(events.status, 200, JSON.stringify(eventResult))
+  console.log(JSON.stringify({ calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

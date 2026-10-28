@@ -862,6 +862,66 @@ and account/device domains, private R2, whole-household validation and productio
 cutover remain unfinished. No production resources, DNS, paid plan, data wipe,
 deployment or VPS removal occurred.
 
+## Calendar Event reads and rendered owner views — 2026-10-28
+
+`GET /api/events` now selects a scoped native D1 read repository for single,
+range/cursor, recent and upcoming reads. One primary SQL query applies exact
+original user/family/role/token authority and joins current creator/source names
+inside the event's household. The API retains final authentication renewal,
+owner comparison/header metadata and private no-store caching. Source hostnames,
+ciphertext and private account metadata are not selected or serialized. Existing
+scalar event history is retained; a creator who moved households has no current
+name projection, and a foreign source reference gets only the historical generic
+source label. Dates/booleans have the same API representation as PostgreSQL.
+
+Ranges preserve overlapping-event inclusion, excluded end boundaries, stable
+start/id cursors and limit+1 lookahead. Recent reads retain old recurring masters;
+upcoming reads use start-from-now. Individual targets remain independent of the
+list window. Calendar SSR checks the current viewer before and after its work.
+Notification focus uses one authorized D1 query with the canonical calendar
+feature gate; recurring masters, invalid/unrepresentable dates, zero-length or
+foreign targets retain the neutral fallback. The UI continues to fetch its
+viewer-local window rather than serializing a partial UTC event list.
+
+Browser testing found two supporting GETs still on PostgreSQL. Review-document
+context now uses the guarded read-only D1 client, preserving its historical
+owner/feature/adoption contracts and final owner renewal. Capture configuration
+status also uses that client and renews the same account before returning the
+existing configured/model/allowed/role/namespace shape. Keys remain server-only.
+This does not port review-document writes or AI capture execution.
+
+Evidence:
+- Actual workerd/D1 fixtures pass overlap/tied-time cursor paging, date/boolean
+  projection, current creator/source privacy, foreign targets, recurring/recent
+  and upcoming windows, exact focus, disabled-calendar focus, invalid dates and
+  original role/session/household changes. Prior read-domain fixtures still pass.
+- Typecheck, scoped ESLint, complete OpenNext build and112 focused Jest tests
+  pass across Event reads/isolation/import guards/focus, recipe preview/context
+  and capture routes/isolation. The first build caught a fixture owner literal
+  widened to string; its explicit CalendarReadOwner annotation fixed that error.
+- Built Worker HTTP passes range paging, source/creator DTOs, a single target,
+  ISO dates, cross-household cursor400, foreign404, invalid400, owner-mismatch409,
+  teen reads, no-store and revoked-cookie401. Latest-build readback confirms
+  parent/teen capture/recipe context200 with their own account/family roles.
+- Playwright at390x844 and1366x768 for parent and teen renders the calendar,
+  opens imported read-only details, checks parent-only local edit-link presence,
+  and loads an exact From notification card. No page errors, failed requests or
+  overflow in the final tested journey; phone screenshot inspected. The initial
+  harness used Edit instead of the actual Edit event label; the corrected run
+  then exposed the context/capture GET failures above. Those failures were fixed
+  and all four final journeys passed without suppression.
+- Evidence prefix `/tmp/herewoven-d1-calendar-events-`: build, typecheck, lint,
+  tests, smoke, HTTP, readback, runtime and browser logs; HTTP/readback/rendered
+  JSON and parent/teen screenshots. Fixtures are fabricated households in local
+  D1. No PostgreSQL integration or whole-app/production acceptance is claimed.
+
+Next: online Event PATCH with atomic current authority, schedule identity/version
+preconditions, imported-event refusal and repeat-rule review semantics; then
+create/delete receipt, activity, source-proof and replay parity. Their forms can
+load D1 records now, but their writes remain unconverted. OAuth, remaining
+feature/account/device domains, private R2 and full release/cutover remain open.
+No production deployment, paid plan, data wipe, DNS or VPS change occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1CalendarEvents } from "@/lib/cloudflare/calendar-events";
 import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
 import { projectEventCreators } from "@/lib/event-people";
 import { assistantDeleteTargetGuard } from "@/lib/assistant-delete-target";
@@ -73,6 +75,11 @@ async function handleGET(request: NextRequest) {
     if (searchParams.has("id")) {
       if (!id || searchParams.getAll("id").length !== 1)
         return NextResponse.json({ error: "Invalid event target" }, { status: 400 });
+      if (storageBackend() === "d1") {
+        const [event] = await readD1CalendarEvents(original, { id });
+        if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+        return await reply({ event });
+      }
       const event = await prisma!.event.findFirst({
         where: { id, family_id: original.familyId },
       });
@@ -98,7 +105,7 @@ async function handleGET(request: NextRequest) {
     }
     if (range) {
       const { start, end, limit, after } = range;
-      const events = await prisma!.event.findMany({
+      const events = storageBackend() === "d1" ? await readD1CalendarEvents(original, { range }) : await prisma!.event.findMany({
         where: {
           family_id: original.familyId,
           OR: [
@@ -124,7 +131,7 @@ async function handleGET(request: NextRequest) {
       const page = events.slice(0, limit);
       const hasMore = events.length > limit;
       return await reply({
-        events: await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page)),
+        events: storageBackend() === "d1" ? page : await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page)),
         nextCursor: hasMore
           ? encodeCalendarCursor(
               original.familyId,
@@ -161,7 +168,7 @@ async function handleGET(request: NextRequest) {
       ];
     }
 
-    const events = await prisma!.event.findMany({
+    const events = storageBackend() === "d1" ? await readD1CalendarEvents(original, { upcoming }) : await prisma!.event.findMany({
       where,
       orderBy: [{ start_time: "asc" }, { id: "asc" }],
       take: 100,
@@ -169,7 +176,7 @@ async function handleGET(request: NextRequest) {
 
     // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
     return await reply({
-      events: await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events)),
+      events: storageBackend() === "d1" ? events : await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events)),
     });
   } catch (error) {
     logRouteError("GET /api/events", error, getRequestId(request));
