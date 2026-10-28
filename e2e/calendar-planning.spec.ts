@@ -21,12 +21,18 @@ test.beforeEach(async ({ context }) => {
 });
 
 async function selectConnectedSource(page: Page) {
-  const source = page.getByRole("combobox", { name: "Calendar source", exact: true });
+  const source = page.getByRole("combobox", {
+    name: "Calendar source",
+    exact: true,
+  });
   if (await source.isVisible()) {
     await source.selectOption("connected");
     return;
   }
-  const toggle = page.getByRole("button", { name: "Show calendars and connections", exact: true });
+  const toggle = page.getByRole("button", {
+    name: "Show calendars and connections",
+    exact: true,
+  });
   if (await toggle.isVisible()) {
     await toggle.click();
     await source.selectOption("connected");
@@ -34,7 +40,10 @@ async function selectConnectedSource(page: Page) {
   }
   const menu = page.locator("summary[aria-label='Calendars & connections']");
   await menu.click();
-  await menu.locator("..").getByRole("button", { name: "Connected calendar", exact: true }).click();
+  await menu
+    .locator("..")
+    .getByRole("button", { name: "Connected calendar", exact: true })
+    .click();
 }
 
 for (const role of ["parent", "teen"] as const) {

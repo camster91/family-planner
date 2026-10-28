@@ -279,7 +279,7 @@ describe('GET /api/lists/items/[id] — exact delete reconciliation', () => {
   it('holds inaccessible list scope instead of turning it into missing', async () => {
     const foreign = await status('parentA', 'item-b', 'list-b')
     expect(foreign.status).toBe(409)
-    expect(await bodyOf(foreign)).toEqual({ state: 'held' })
+    expect(await bodyOf(foreign)).toEqual({ state: 'held', error: 'Unable to reconcile this item' })
     await expectNoForeignData(foreign)
   })
 
@@ -304,6 +304,6 @@ describe('GET /api/lists/items/[id] — exact delete reconciliation', () => {
       params({ id: 'item-a' }),
     )
     expect(stale.status).toBe(409)
-    expect(await bodyOf(stale)).toEqual({ state: 'held' })
+    expect(await bodyOf(stale)).toEqual({ state: 'held', error: 'Unable to reconcile this item' })
   })
 })

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       (auth.payload.tv ?? 0) !== parsedGeneration
     ) {
       return NextResponse.json(
-        { state: 'held' },
+        { state: 'held', error: 'Unable to reconcile this item' },
         { status: 409, headers: { 'Cache-Control': 'private, no-store' } },
       )
     }
@@ -73,13 +73,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return item ? 'found' as const : 'missing' as const
     })
     return NextResponse.json(
-      { state },
+      state === 'held' ? { state, error: 'Unable to reconcile this item' } : { state },
       { status: state === 'held' ? 409 : 200, headers: { 'Cache-Control': 'private, no-store' } },
     )
   } catch (error) {
     logRouteError('GET /api/lists/items/[id]', error, getRequestId(request))
     return NextResponse.json(
-      { state: 'held' },
+      { state: 'held', error: 'Unable to reconcile this item' },
       { status: 503, headers: { 'Cache-Control': 'private, no-store' } },
     )
   }
