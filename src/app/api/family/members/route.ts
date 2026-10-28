@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { authenticateRequest } from '@/lib/api-auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { refusePairedDevice } from '@/lib/device-refusal'
@@ -11,6 +13,13 @@ type SessionUser = { id: string; email: string; role?: string; family_id?: strin
  * Used by feature pages that need an assignee selector (pickups, allowance).
  */
 export async function GET(request: NextRequest) {
+  if (storageBackend() === 'd1') {
+    const [payload, error] = await authenticateRequest(request)
+    if (error) return error
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { readD1FamilyMembers } = await import('@/lib/cloudflare/membership')
+    return NextResponse.json({ members: await readD1FamilyMembers(await getD1Database(), payload.userId, payload.tv ?? 0) })
+  }
   const deviceRefusal = await refusePairedDevice(request)
   if (deviceRefusal) return deviceRefusal
 

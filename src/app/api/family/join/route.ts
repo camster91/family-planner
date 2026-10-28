@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest, attachSessionCookie } from '@/lib/api-auth'
@@ -64,6 +65,11 @@ export async function POST(request: NextRequest) {
     const parsed = joinFamilySchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: 'inviteCode or token is required' }, { status: 400 })
+    }
+
+    if (storageBackend() === 'd1') {
+      const { joinD1FamilyHttp } = await import('@/lib/cloudflare/membership-http')
+      return await joinD1FamilyHttp(payload, parsed.data)
     }
 
     const user = await prisma!.user.findUnique({

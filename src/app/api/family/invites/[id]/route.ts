@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -16,6 +18,16 @@ export async function DELETE(
 
   const { id } = await params
   const familyId = auth.user.family_id
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { revokeD1Invite } = await import('@/lib/cloudflare/invites')
+    const { revokedInviteSummaries } = await import('@/lib/cloudflare/invites-http')
+    const removed = await revokeD1Invite(await getD1Database(), {
+      userId: auth.user.id, familyId, generation: auth.payload.tv ?? 0,
+    }, id, randomUUID(), revokedInviteSummaries(), Date.now())
+    return removed ? NextResponse.json({ success: true }) : NextResponse.json({ error: 'Invite not found' }, { status: 404 })
+  }
+
   // The revoke and its household audit row (#285) commit together.
   const count = await prisma!.$transaction(async (tx) => {
     const invite = await tx.familyInvite.findFirst({

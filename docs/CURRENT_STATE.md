@@ -10,8 +10,10 @@ login, invited-child admission, atomic family creation and persistent rate limit
 have focused runtime evidence. Password recovery/change, safe profile reads/edits
 and paired-device person refusal also pass selected local Worker flows. Four
 D1 migrations (11 tables) apply locally, including credential/device foundations
-and audit erasure guards. Full membership/profile-link/device APIs, the remaining
-data domains, complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
+and audit erasure guards. Membership joins, scoped family/member reads and
+invitation/code controls also pass selected local Worker checks. Rename/settings,
+removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
+complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).
 Earlier state sections below are historical and do not supersede this migration.
 

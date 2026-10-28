@@ -352,6 +352,42 @@ Observed validation:
 Next: household/member reads and writes, email-free profile identity/linking,
 full device operations, and feature domains. R2 and verified cutover remain.
 
+### Membership joins, family reads and invitation controls
+
+Existing family GET, member GET, code lookup, invite preview/list/create/revoke,
+code rotation and join endpoints now have D1 paths. Family reads and member
+emails recheck actor generation/membership/role in their SQL projections; a
+stale parent claim cannot expose parent-only values. Code joins retain teens
+and otherwise grant child; email joins use only the live stored invite's role,
+address and household. Join admission, audit and invite claim share one batch.
+SQLite `changes()` gates follow-through on the winning statement; the local D1
+checks verify it across concurrent batches. Name snapshot conflicts return a
+retryable 409 rather than write an inaccurate audit summary.
+
+Invite replacement/revoke and code rotation include their audit in the same
+transaction. Mail-failure compensation targets only the exact unaccepted issue,
+retaining accepted invitations. No mail was actually sent. D1 join/create HTTP
+branches now await delegated handlers so async failures retain the existing
+logged JSON error contract.
+
+Validation: local D1 repository race/rollback/privacy/replacement/collision
+checks passed; 62 affected Jest tests passed and 12 integration cases skipped.
+TypeScript, scoped ESLint, diff check and the rebuilt Worker passed. Actual
+Worker HTTP passed code and email joins, rejected address/household switching,
+parent/child/teen projections, foreign-invite 404, cancellation, missing-mail
+503 compensation, code retirement, stale-role refusal, and injected audit
+failure with full membership rollback and a JSON 500 response.
+Evidence: `/tmp/herewoven-d1-membership-smoke.log`,
+`/tmp/herewoven-d1-membership-tests.log`, `/tmp/herewoven-d1-membership-build.log`,
+`/tmp/herewoven-d1-membership-http-results.json`. Local preview stopped and its
+temporary secrets/config removed. No production or paid-provider change.
+
+Remaining: rename/settings, removal/deletion and full profile/member identity,
+full device operations, feature domains/SSR, R2, complete acceptance and cutover.
+A supported Prisma-D1 read adapter may reduce remaining read-query rewrites,
+but it must first pass real Worker/date/JSON/array/isolation checks and cannot
+replace the required explicit transaction/raw-SQL conversions.
+
 ## Execution order
 
 1. Complete worker artifact and runtime compatibility (middleware/auth, Node
@@ -386,7 +422,8 @@ new household writes, reverting to an older database can lose data: freeze
 writes and restore/reconcile the correct state instead.
 
 Current status: local Workers account/session/invitation reads and selected
-registration, verification, login, household-create and rate-limit writes verified;
+registration, verification, login, recovery/profile, membership/invitation,
+household-create and rate-limit paths verified;
 the full data/storage migration and production cutover remain incomplete.
 No D1/R2 production resources created, no Cloudflare application deployed, no
 subscription changed, no data deletion, no VPS removal.

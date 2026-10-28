@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     if (storageBackend() === 'd1') {
       const { createD1FamilyHttp } = await import('@/lib/cloudflare/family-create-http')
-      return createD1FamilyHttp(payload, parsed.data.name)
+      return await createD1FamilyHttp(payload, parsed.data.name)
     }
 
     // Check if user already has a family
@@ -117,6 +117,15 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
+
+    if (storageBackend() === 'd1') {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      const { readD1Family } = await import('@/lib/cloudflare/membership')
+      const result = await readD1Family(await getD1Database(), {
+        userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0,
+      })
+      return result ? NextResponse.json(result) : NextResponse.json({ error: 'Family not found' }, { status: 404 })
+    }
 
     const family = await prisma!.family.findUnique({
       where: { id: auth.user.family_id },

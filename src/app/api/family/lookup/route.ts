@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1FamilyByCode } from '@/lib/cloudflare/membership'
 import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -61,7 +64,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Valid invite code is required' }, { status: 400 })
     }
 
-    const family = await prisma!.family.findUnique({
+    const family = storageBackend() === 'd1'
+      ? await findD1FamilyByCode(await getD1Database(), code)
+      : await prisma!.family.findUnique({
       where: { invite_code: code },
       select: { id: true, name: true },
     })
