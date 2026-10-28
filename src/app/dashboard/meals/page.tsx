@@ -21,7 +21,7 @@ import { useMealWeekText } from "@/i18n/meal-week";
 import { useMealsPageText } from "@/i18n/meals-page";
 import { mealPrepListSchema, type MealPrepContext } from "@/lib/meal-batches";
 import { newIdempotencyKey } from "@/lib/idempotency-key";
-import { Plus, UtensilsCrossed, BookOpen, Refrigerator } from "lucide-react";
+import { Plus, UtensilsCrossed, BookOpen, Refrigerator, ChevronLeft, ChevronRight } from "lucide-react";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { useFeatureEnabled } from "@/components/providers/features-provider";
 import { Dialog } from "@/components/ui/dialog";
@@ -1147,15 +1147,16 @@ function MealsPageInner() {
             </h2>
             <nav
               aria-label={text("weeks")}
-              className="flex flex-wrap gap-2"
+              className="flex items-center gap-2"
             >
               <button
                 type="button"
-                className="btn-tinted min-h-[44px]"
+                className="btn-tinted min-h-[44px] min-w-[44px] px-3"
+                aria-label={text("previousWeek")}
                 disabled={!previousWeek}
                 onClick={() => navigateWeek(-1)}
               >
-                {text("previousWeek")}
+                <ChevronLeft size={18} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -1166,11 +1167,12 @@ function MealsPageInner() {
               </button>
               <button
                 type="button"
-                className="btn-tinted min-h-[44px]"
+                className="btn-tinted min-h-[44px] min-w-[44px] px-3"
+                aria-label={text("nextWeek")}
                 disabled={!nextWeek}
                 onClick={() => navigateWeek(1)}
               >
-                {text("nextWeek")}
+                <ChevronRight size={18} aria-hidden="true" />
               </button>
             </nav>
           </div>
