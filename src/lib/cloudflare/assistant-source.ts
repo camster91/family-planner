@@ -24,7 +24,7 @@ export async function d1AssistantSourceChecks(database: D1Store, actor: Assistan
         throw new AssistantSourceRefused()
       const family = await db.family.findUnique({ where: { id: actor.familyId }, select: { features: true } })
       let sources: AssistantSourceRow[] = []
-      const context = await loadAssistantTodayFromReads(db as unknown as AssistantTodayDb, { ...input, onSources(rows) { sources = rows } }, false)
+      const context = await loadAssistantTodayFromReads(db as unknown as AssistantTodayDb, { ...input, onSources(rows) { sources = rows } }, null)
       const snapshot = referenceAssistantToday(context, sources, input)
       if (!family || !snapshot || !assistantSourceSnapshotCurrent(payload, snapshot, family.features)) throw new AssistantSourceRefused()
       return snapshot

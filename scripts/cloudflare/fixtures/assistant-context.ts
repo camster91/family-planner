@@ -42,9 +42,9 @@ export async function testAssistantContext(database: D1Store) {
   check(teen?.today.chores.length === 1 && teen.today.chores[0].title === 'Teen chore' && teen.today.chores[0].assignee === 'You' && teen.today.dinner?.cook === 'Another household member', 'teen capability projection')
   check(await loadD1AssistantTodayContext({ ...input, role: 'child' }, binding) === null && await loadD1AssistantTodayContext({ ...input, surface: 'paired-device' }, binding) === null, 'child and shared-device refusal')
   check(await loadD1AssistantTodayContext({ ...input, familyId: 'ai-read-b' }, binding) === null, 'household claim cannot rebind')
-  check(await loadD1AssistantTodayContext({ ...input, materializeSeries: true }, binding) === null, 'unported recurring writer cannot produce false complete Today')
+  check((await loadD1AssistantTodayContext({ ...input, materializeSeries: true }, binding))?.today.chores.length === 2, 'native recurring writer supports the normal Today context path')
   await db.prepare(`UPDATE "Family" SET features=json_set(features,'$.chores',json('false'),'$.meals',json('false'),'$.inventory',json('false')) WHERE id='ai-read-a'`).run()
   const simple = await loadD1AssistantTodayContext({ ...input, materializeSeries: true }, binding)
   check(simple?.today.chores.length === 0 && simple.today.dinner === null && simple.today.useSoon.length === 0 && simple.today.unavailable.includes('dinner'), 'disabled features do not query/project domains')
-  return { sixDomainProjection: true, referenceCatalog: 6, teenPrivacy: true, householdIsolation: true, childAndDeviceRefusal: true, explicitMaterializerHold: true, featureGates: true }
+  return { sixDomainProjection: true, referenceCatalog: 6, teenPrivacy: true, householdIsolation: true, childAndDeviceRefusal: true, nativeMaterializerAvailable: true, featureGates: true }
 }

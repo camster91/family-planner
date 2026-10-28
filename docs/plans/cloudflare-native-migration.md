@@ -1172,6 +1172,63 @@ resource/DNS/live data or VPS change. Evidence prefix:
 HTTP logs/results). Local preview bindings and fabricated key files are removed
 when the owned preview is stopped.
 
+## Native recurring-series materialization — 2026-10-28
+
+D1 now has native recurring-series expansion, paged explicit all-series expansion,
+and bounded foreground top-up. Legacy daily/weekly/monthly windows use a shared
+pure date planner with PostgreSQL, retaining original month anchors, selected
+weekdays, latest-occurrence continuation and rotation places. Canonical account
+eligibility is extracted into a read-only projection reused under the existing
+PG household lock and D1 atomic read witness. Profile assignment uses the existing
+role/age/archive/erasure/link/gate projector; no login identity is synthesized.
+
+Authored routine definitions retain stack consistency, current subject, reviewed
+content, cue/duration snapshots and explicit once-only handover/checkpoint rules.
+The separate once/repeating 100-root budgets and gated cyclic attempted-position
+cursor are retained. Unknown/contradictory definitions hold rather than falling
+back to historical fields. Each root's reads, copies and once checkpoint commit
+in one native batch; conflicts replan and the series/date unique key remains the
+final collision guard. No scheduler or rollout flag is enabled in production.
+
+The default AI Today loader can now call the native foreground top-up after its
+actor/family/role/feature checks. The source-confirmation loader still passes no
+materializer and explicitly requests read-only context. A bounded visit does not
+prove every household series is full; foreground failures retain existing rows
+and emit fixed diagnostics, matching the existing availability model.
+
+Evidence:
+- Actual workerd/D1 fixtures pass eight concurrent daily expansions/one bounded
+  window, selected weekdays, Jan 31/Feb 28/Mar 31 anchoring, no missed-day backfill,
+  rotations skipping foreign/departed participants, email-free profiles,
+  archive refusal and archive-at-commit race, authored/stack-linked routines,
+  cue/duration snapshots, contradictory/unknown metadata holds, explicit once
+  recovery/checkpoint and once-profile work with recurrence opt-in off.
+- Mid-batch failure rolls back all generated rows; stop/edit/feature-off races
+  prevent stale copies. The normal AI Today context can materialize native work.
+  Fair traversal reaches 105 new series across visits rather than starving IDs
+  beyond the first 100. Existing native domains remain green.
+- 89 focused recurrence/UTC/routine/identity/AI tests pass, plus standalone
+  TypeScript and scoped ESLint. Initial native attempts found a non-existent
+  Chore timestamp column in the insert and a fixture trying to persist a protocol
+  the schema correctly rejects. The insert uses the actual schema; the fixture
+  now exercises an unrecognized shape within the supported stored protocol.
+- The wide Chore row exposed a platform-specific witness requirement: D1 caps SQL
+  functions at 32 arguments. Row comparison now constructs flat arrays in bounded
+  chunks rather than calling json_array with every column at once. Native
+  fixtures and the complete OpenNext build cover this final form.
+
+**Remaining:** Chore API/SSR, creation/edit/completion/undo and routine command
+writers, other feature domains, complete chat/capture, private R2, household/device
+flows and cutover. Native local verification does not prove deployed-plan CPU or
+per-invocation query budgets: high-volume foreground/rotation requests still need
+edge-budget verification/optimization before release. No paid plan is approved or
+activated. See [D1 platform limits](https://developers.cloudflare.com/d1/platform/limits/)
+(checked 2026-10-28; batches count as one invocation query, individual reads count
+separately). No UI/schema, production resource/deployment, DNS/live data or VPS
+change. Evidence prefix: `/tmp/herewoven-d1-recurrence-` (native smoke, focused
+unit tests, typecheck, lint and build). No rendered or full-household acceptance
+claim is made for the still-unconverted Chore surfaces.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

@@ -1,3 +1,4 @@
+import { testRecurringChores } from './recurring-chores'
 import { testAssistantDeleteTarget } from './assistant-delete-target'
 import { testAssistantSource } from './assistant-source'
 import { testAssistantContext } from './assistant-context'
@@ -23,6 +24,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/recurring-chores') return Response.json(await testRecurringChores(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/assistant-delete-target') return Response.json(await testAssistantDeleteTarget(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/assistant-source') return Response.json(await testAssistantSource(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/assistant-context') return Response.json(await testAssistantContext(env.DB as unknown as D1Store))

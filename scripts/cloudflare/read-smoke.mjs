@@ -95,7 +95,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const target = await fetch(`http://127.0.0.1:${port}/assistant-delete-target`)
   const targetResult = await target.json()
   assert.equal(target.status, 200, JSON.stringify(targetResult))
-  console.log(JSON.stringify({ assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const recurrence = await fetch(`http://127.0.0.1:${port}/recurring-chores`)
+  const recurrenceResult = await recurrence.json()
+  assert.equal(recurrence.status, 200, JSON.stringify(recurrenceResult))
+  console.log(JSON.stringify({ recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

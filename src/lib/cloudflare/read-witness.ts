@@ -4,6 +4,15 @@ import type { D1Store, SqlValue } from './database'
 
 type Read = { sql: string; values: SqlValue[]; columns: string[]; rows: SqlValue[][] }
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`
+/** D1 limits SQL functions to 32 arguments. Keep wide canonical rows flat
+ * without calling json_array with one argument per field beyond that limit. */
+function jsonRow(columns: string[]) {
+  let value = `json_array(${columns.slice(0, 32).map(quote).join(',')})`
+  for (let offset = 32; offset < columns.length; offset += 15) {
+    value = `json_insert(${value},${columns.slice(offset, offset + 15).map(name => `'$[#]',${quote(name)}`).join(',')})`
+  }
+  return value
+}
 /** Capture exactly the native SQL/results used by a source-owned read loader.
  * The callback still receives only the enforced read facade. No client/model
  * SQL is accepted. Repeating these reads as assertions inside the effect batch
@@ -60,7 +69,7 @@ export async function captureD1Reads<T>(read: (client: D1ReadClient) => Promise<
       if (reads.length === 0) throw new Error('D1 read witness is empty')
       return reads.map(read => read.rows.length === 0
         ? d1WriteCheck(db, `NOT EXISTS (${read.sql})`, read.values)
-        : d1WriteCheck(db, `(SELECT json_group_array(json_array(${read.columns.map(quote).join(',')})) FROM (${read.sql}) AS "__witness") IS ?`,
+        : d1WriteCheck(db, `(SELECT json_group_array(${jsonRow(read.columns)}) FROM (${read.sql}) AS "__witness") IS ?`,
           [...read.values, JSON.stringify(read.rows)]))
     },
     queryCount: reads.length,

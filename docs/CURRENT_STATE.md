@@ -47,15 +47,20 @@ repeat-review, read-only and date-bound checks. Phone/desktop title and duration
 save/reload flows pass, preserving unsupported repeat rules. Manual Event creation
 and deletion now commit exact retry receipts atomically with their effects;
 creation includes Activity and nonfatal consent-aware beta counts. Phone/desktop
-create/open/confirm-delete flows pass. AI-proof-bearing Event writes remain
+create/open/confirm-delete flows pass. AI-proof-bearing Event writes are
 migrated for the Event HTTP create/delete paths: source and exact-target reads
 are checked inside the atomic effect/receipt batch. The target-review endpoint
 also reads D1. Other AI effects, canonical non-HTTP orchestration and complete
 chat execution remain unfinished and block release. AI capture execution and OAuth
 connections also remain unconverted. The bounded AI Today/reference read projection
 now runs against D1 with parent/teen privacy and feature-gate fixture evidence.
-Recurring-series materialization and other-domain confirmation writers remain held;
-this prerequisite does not enable AI writes or complete AI chat parity.
+Recurring-series expansion and foreground top-up now use native D1 batches,
+including rotations, profile-owned work, authored routines, once-only recovery
+and the gated fair cursor. The default AI Today context can materialize through
+D1; confirmation reloads stay read-only. This preserves bounded visits rather
+than promising every series is full. Chore API/SSR and other-domain confirmation
+writers, canonical mutation orchestration and complete AI chat parity remain
+unconverted; deployed-plan query/CPU limits still need edge verification.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

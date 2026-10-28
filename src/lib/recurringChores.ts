@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { choreExpansionDays, choreExpansionWindowSize } from '@/lib/chore-expansion-window'
 import { isFairChoreTopUpEnabled } from "@/lib/chore-top-up-gates"
 import { topUpFairHouseholdSeries } from "@/lib/chore-top-up-cursor"
 import { isProfileChoreRecurrenceSupported } from '@/lib/profile-chore-gates'
@@ -105,54 +107,19 @@ export async function expandSeriesInTx(
     if (!await eligibleProfileChoreAssigneeInTx(tx, familyId, profileMemberId)) return 0
   }
 
-  const windowSize = WINDOW_SIZE[original.frequency as Exclude<ChoreFrequency, 'once'>] * (original.frequency === 'weekly' ? Math.max(1, normalizedWeekdays(original.weekly_days).length) : 1)
+  const windowSize = choreExpansionWindowSize(original.frequency, original.weekly_days)
   if (!windowSize) return 0
-
-  // The series anchor is the template id. An occurrence is any row whose
-  // recurrence_id is the template id; the anchor itself counts as the first.
-  const seriesId = original.id
-  const today = startOfDay(now)
-
-  // Horizon: `windowSize` intervals after the later of today and the series'
-  // first date (a series created to start next month still gets its window).
-  const firstDay = startOfDay(original.due_date)
-  const monthlyAnchorDay = firstDay.getUTCDate()
-  let horizon: Date = firstDay > today ? firstDay : today
-  for (let i = 0; i < windowSize; i++) {
-    const next = nextDueDate(horizon, original.frequency, original.weekly_days, monthlyAnchorDay)
-    if (!next) return 0
-    horizon = next
-  }
-
-  // Once the window is full, more future rows cannot change the decision.
-  // If fewer exist, this reads all of them, retaining the exact collision set.
+  const seriesId = original.id, today = startOfDay(now)
   const upcoming = await tx.chore.findMany({
     where: { family_id: familyId, recurrence_id: seriesId, due_date: { gte: today } },
-    select: { due_date: true },
-    orderBy: [{ due_date: 'asc' }, { id: 'asc' }],
-    take: windowSize,
+    select: { due_date: true }, orderBy: [{ due_date: 'asc' }, { id: 'asc' }], take: windowSize,
   })
-  const needed = windowSize - upcoming.length
-  if (needed <= 0) return 0
-
-  // Latest date already in the series. Falling back to the template's own due
-  // date means a brand-new series starts one interval after its first row.
+  if (upcoming.length >= windowSize) return 0
   const latest = await tx.chore.findFirst({
     where: { family_id: familyId, recurrence_id: seriesId },
-    orderBy: [{ due_date: 'desc' }, { id: 'desc' }],
-    select: { due_date: true, rotation_index: true },
+    orderBy: [{ due_date: 'desc' }, { id: 'desc' }], select: { due_date: true, rotation_index: true },
   })
-  const anchorDate = latest?.due_date ?? original.due_date
-
-  const existingKeys = new Set(upcoming.map((c) => c.due_date.getTime()))
-  const candidates: Date[] = []
-  let cursor = nextDueDate(anchorDate, original.frequency, original.weekly_days, monthlyAnchorDay)
-  while (cursor && cursor < horizon && candidates.length < needed) {
-    if (cursor >= today && !existingKeys.has(cursor.getTime())) {
-      candidates.push(cursor)
-    }
-    cursor = nextDueDate(cursor, original.frequency, original.weekly_days, monthlyAnchorDay)
-  }
+  const candidates = choreExpansionDays(original, upcoming, latest, now)
 
   if (candidates.length === 0) return 0
 
@@ -247,6 +214,10 @@ export async function expandRecurringChores(
   if (template.frequency === 'once') return 0
   if (!WINDOW_SIZE[template.frequency as Exclude<ChoreFrequency, 'once'>]) return 0
 
+  if (storageBackend() === 'd1') {
+    const { expandD1RecurringSeries } = await import('@/lib/cloudflare/recurring-chores')
+    return expandD1RecurringSeries(template.id, familyId, now)
+  }
   return prisma!.$transaction((tx) => expandSeriesInTx(tx, template.id, familyId, now))
 }
 
@@ -261,6 +232,10 @@ export async function expandRecurringChores(
  * legacy row is inert until it is deliberately adopted as a template.
  */
 export async function expandAllRecurringChores(familyId: string, now: Date = new Date()): Promise<number> {
+  if (storageBackend() === 'd1') {
+    const { expandAllD1RecurringChores } = await import('@/lib/cloudflare/recurring-chores')
+    return expandAllD1RecurringChores(familyId, now)
+  }
   const templates = await prisma!.chore.findMany({
     where: {
       family_id: familyId,
@@ -304,6 +279,10 @@ export const MAX_SERIES_PER_TOP_UP = 100
  * renders what is already there.
  */
 export async function topUpHouseholdSeries(familyId: string, now: Date = new Date()): Promise<number> {
+  if (storageBackend() === 'd1') {
+    const { topUpD1HouseholdSeries } = await import('@/lib/cloudflare/recurring-chores')
+    return topUpD1HouseholdSeries(familyId, now)
+  }
   // Explicit once-only routine recovery has its own bounded pass. It neither
   // changes legacy once semantics nor consumes the repeating-template budget.
   const onceInserted = await topUpScheduledOnceSteps(prisma!, familyId, now, expandSeriesInTx)

@@ -203,12 +203,12 @@ export async function loadAssistantTodayContext(
     const { loadD1AssistantTodayContext } = await import("./cloudflare/assistant-context");
     return loadD1AssistantTodayContext(input);
   }
-  return loadAssistantTodayFromReads(db, input, true);
+  return loadAssistantTodayFromReads(db, input, topUpHouseholdSeries);
 }
 
 /** Shared projection; storage adapters never gain write/transaction methods. */
 export async function loadAssistantTodayFromReads(
-  db: AssistantTodayDb, input: LoadAssistantTodayContextInput, allowSeriesMaterialization: boolean,
+  db: AssistantTodayDb, input: LoadAssistantTodayContextInput, materializeSeries: ((familyId: string, now: Date) => Promise<number>) | null,
 ): Promise<AssistantTodayContext | null> {
   assertInput(input);
 
@@ -250,10 +250,8 @@ export async function loadAssistantTodayFromReads(
     // feature is off. The helper is bounded, household-scoped and idempotent;
     // it also fails closed so an exhausted series never blocks the request.
     if (features.chores && input.materializeSeries !== false) {
-      // D1 recurring-series materialization is still a separate unfinished
-      // writer. Do not present an unmaterialized projection as complete Today.
-      if (!allowSeriesMaterialization) return null;
-      await topUpHouseholdSeries(family.id, input.serverNow);
+      if (!materializeSeries) return null;
+      await materializeSeries(family.id, input.serverNow);
     }
     const rows = await loadAssistantTodayRows(db, {
       familyId: family.id,
