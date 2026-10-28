@@ -1,3 +1,4 @@
+import { storageBackend } from "./storage-backend";
 import type { AssistantSourceRow } from "./assistant-references";
 /**
  * Dormant, server-only Today context for Family AI.
@@ -129,8 +130,10 @@ export interface LoadAssistantTodayContextInput {
   materializeSeries?: boolean;
 }
 
-export type AssistantTodayDb = Pick<PrismaClient, "user" | "family"> &
-  AssistantTodayLoaderDb;
+export type AssistantTodayDb = AssistantTodayLoaderDb & {
+  user: Pick<PrismaClient["user"], "findUnique" | "findMany">;
+  family: Pick<PrismaClient["family"], "findUnique">;
+};
 
 export class AssistantTodayInputError extends Error {
   readonly code: "INVALID_TIME_ZONE" | "INVALID_CLOCK" | "INVALID_SERVER_TIME";
@@ -196,6 +199,17 @@ export async function loadAssistantTodayContext(
   db: AssistantTodayDb,
   input: LoadAssistantTodayContextInput,
 ): Promise<AssistantTodayContext | null> {
+  if (storageBackend() === "d1") {
+    const { loadD1AssistantTodayContext } = await import("./cloudflare/assistant-context");
+    return loadD1AssistantTodayContext(input);
+  }
+  return loadAssistantTodayFromReads(db, input, true);
+}
+
+/** Shared projection; storage adapters never gain write/transaction methods. */
+export async function loadAssistantTodayFromReads(
+  db: AssistantTodayDb, input: LoadAssistantTodayContextInput, allowSeriesMaterialization: boolean,
+): Promise<AssistantTodayContext | null> {
   assertInput(input);
 
   // These are cheap, pre-database refusals for callers that already know the
@@ -236,6 +250,9 @@ export async function loadAssistantTodayContext(
     // feature is off. The helper is bounded, household-scoped and idempotent;
     // it also fails closed so an exhausted series never blocks the request.
     if (features.chores && input.materializeSeries !== false) {
+      // D1 recurring-series materialization is still a separate unfinished
+      // writer. Do not present an unmaterialized projection as complete Today.
+      if (!allowSeriesMaterialization) return null;
       await topUpHouseholdSeries(family.id, input.serverNow);
     }
     const rows = await loadAssistantTodayRows(db, {

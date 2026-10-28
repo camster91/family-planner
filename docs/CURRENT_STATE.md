@@ -50,7 +50,10 @@ creation includes Activity and nonfatal consent-aware beta counts. Phone/desktop
 create/open/confirm-delete flows pass. AI-proof-bearing Event writes remain
 explicitly held in D1 until source/target confirmation is ported; this is a
 remaining release gap, not completed AI parity. AI capture execution and OAuth
-connections also remain unconverted.
+connections also remain unconverted. The bounded AI Today/reference read projection
+now runs against D1 with parent/teen privacy and feature-gate fixture evidence.
+Recurring-series materialization and atomic confirmation proofs remain held;
+this prerequisite does not enable AI writes or complete AI chat parity.
 Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
 complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
 source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).

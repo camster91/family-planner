@@ -1,3 +1,4 @@
+import { testAssistantContext } from './assistant-context'
 import { testEventMutations } from './event-mutations'
 import { testEventUpdate } from './event-update'
 import { testCalendarEvents } from './calendar-events'
@@ -20,6 +21,7 @@ function check(condition: unknown, message: string): asserts condition {
 const worker = {
   async fetch(request: Request, env: { DB: NativeD1 }) {
     try {
+      if (new URL(request.url).pathname === '/assistant-context') return Response.json(await testAssistantContext(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/event-mutations') return Response.json(await testEventMutations(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/event-update') return Response.json(await testEventUpdate(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-events') return Response.json(await testCalendarEvents(env.DB as unknown as D1Store))

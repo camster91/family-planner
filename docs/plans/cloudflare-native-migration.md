@@ -1044,6 +1044,34 @@ Evidence:
   Data is fabricated in local D1. No paid plan, production resource, deployment,
   DNS, live data wipe or VPS removal occurred.
 
+## AI Today/reference read projection — 2026-10-28
+
+The source-owned Today loader now exposes only its selected read methods. Its
+D1 adapter uses the runtime-enforced read-only client and the same bounded
+projection as PostgreSQL, including current actor/role/family checks, feature
+gates, nested dinner recipe/cook reads and opaque reference catalog inputs.
+The compatibility cast is limited to these read projections; no write, raw SQL
+or transaction method is exposed or emulated.
+
+Actual local workerd/D1 fixtures cover events, two chore assignments, dinner,
+groceries and inventory; all six reference entries have distinct opaque IDs.
+Parent/teen projections, foreign-household exclusion, child/shared-device
+refusal and disabled feature sections pass. Existing read/write fixtures pass,
+as do 25 focused AI loader/context/capability/reference/source-proof unit tests,
+typecheck, scoped ESLint and a complete OpenNext build. These are local runtime checks, not production or
+complete assistant-flow acceptance.
+
+AI confirmation writes remain explicitly refused in D1. Recurring-series
+materialization is also still unported: a context request that requires it
+returns unavailable rather than claiming an incomplete Today is current.
+Read-only confirmation reloads explicitly request no materialization, as before.
+Atomic source/target snapshot verification, valid AI write confirmations and
+complete chat execution are the next unfinished boundary. No production,
+subscription, DNS, live data or VPS resource changed.
+
+Evidence prefix: `/tmp/herewoven-d1-assistant-context-` (native smoke, focused
+unit tests, typecheck, lint and build logs). No schema migration in this slice.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
