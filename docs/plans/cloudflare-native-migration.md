@@ -2029,6 +2029,23 @@ non-deletion slice was omitted. This combined domain run does not substitute
 for the baseline HTTP matrix, account deletion, rendered full-app journeys,
 actual edge CPU evidence, provider readiness, or production cutover.
 
+### Final native matrix and live preflight (2026-10-29)
+
+Root observed the complete default native matrix pass, including baseline
+HTTP/read contracts and all 41 domain slices with account deletion. The same
+frozen snapshot passed `tsc --noEmit --incremental false`. Output:
+`/tmp/herewoven-final-native-matrix-oct29.log` and
+`/tmp/herewoven-final-types-oct29.log`. Routine foreground retry is receiving
+one additional targeted fixture before the source checkpoint.
+
+Read-only VPS inspection confirms the existing Herewoven app is healthy on
+release `df80c65e2ed61175fc41279244047ad520162d37`, with the existing upload
+mount. Secret-presence checks (no secret values printed) confirm JWT and Mailgun
+configuration are present; calendar OAuth/token encryption, cron and web-push
+credentials are absent. Preserve the existing configured capability state at
+cutover; mocked provider tests are not evidence of live provider configuration.
+No production state was changed by this inspection.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

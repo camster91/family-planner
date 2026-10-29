@@ -9,12 +9,18 @@ import assert from 'node:assert/strict'
 
 // Real workerd/D1 + the application's actual read factory, without provider
 // credentials, production routes, account cookies or persistent household data.
+const only=process.argv.find(value=>value.startsWith('--only='))?.slice('--only='.length).split(',')
+const allowedOnly=["account-deletion", "analytics-feedback", "device-parent", "budget", "food-planning", "wishlist", "ai-usage", "food-source-versions", "assistant-actions", "food-source", "notes-projects", "board-settings", "board", "storage", "messages", "account-recovery", "inventory-recovery", "allowance", "device-writes", "routines", "meals", "inventory", "recipe-grocery", "recipe-library", "read-witness-numeric", "health", "rewards", "activity-locations-pickups", "anniversaries", "search", "review-inbox", "handoffs", "finance-archive-export", "weekly-reset", "responsibility", "morning-summary", "r2-storage", "inventory-cooking-review", "food-ai-feedback", "calendar-import", "family-import"]
+if(only&&(!only.length||only.some(name=>!allowedOnly.includes(name))))throw new Error('Unknown native smoke slice')
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const scratch = await mkdtemp(path.join(tmpdir(), 'herewoven-read-smoke-'))
 const configPath = path.join(root, `.wrangler-read-smoke-${process.pid}.json`)
 const state = path.join(scratch, 'state')
 const wrangler = path.join(root, 'node_modules/wrangler/bin/wrangler.js')
-const env = { ...process.env, WRANGLER_SEND_METRICS: 'false' }
+// Disposable fixtures never edit their config while running. Disabling
+// Wrangler's config watcher avoids a macOS chokidar readiness deadlock when
+// several isolated probes run in parallel.
+const env = { ...process.env, WRANGLER_SEND_METRICS: 'false', WRANGLER_CI_DISABLE_CONFIG_WATCHING: 'true' }
 const logPath = path.join(scratch, 'worker.log')
 let worker
 const run = args => execFileSync(process.execPath, [wrangler, ...args], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
@@ -23,6 +29,9 @@ try {
     name: 'herewoven-local-read-smoke', main: path.join(root, 'scripts/cloudflare/fixtures/read-worker.ts'),
     tsconfig: 'tsconfig.json', compatibility_date: '2026-10-13', compatibility_flags: ['nodejs_compat'],
     workers_dev: false, preview_urls: false,
+    r2_buckets: [{ binding: 'UPLOADS', bucket_name: 'herewoven-local-private-uploads' }],
+    durable_objects: { bindings: [{ name: 'PASSWORD_COMPUTE_DO', class_name: 'LocalPasswordCompute' }] },
+    migrations: [{ tag: 'v1', new_sqlite_classes: ['LocalPasswordCompute'] }],
     d1_databases: [{ binding: 'DB', database_name: 'local-read-smoke', database_id: '00000000-0000-0000-0000-000000000001', migrations_dir: path.join(root, 'database/cloudflare') }],
   }))
   const databaseArgs = ['DB', '--local', '--config', configPath, '--persist-to', state]
@@ -51,6 +60,18 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const first = await response.json()
   assert.equal(response.status, 200, JSON.stringify(first))
   assert.equal(first.refused.length, 11)
+  if(only){
+    const results={}
+    const failures=[]
+    for(const name of only){
+      const response=await fetch(`http://127.0.0.1:${port}/${name}`,{signal:AbortSignal.timeout(120000)})
+      const result=await response.json()
+      if(response.status!==200) failures.push({slice:name,status:response.status,result})
+      else results[name]=result
+    }
+    console.log(JSON.stringify(results))
+    assert.equal(failures.length,0,JSON.stringify(failures))
+  }else{
   // Fresh clients/primary sessions must work on concurrent Worker requests.
   await Promise.all(Array.from({ length: 12 }, async () => {
     const result = await fetch(url)
@@ -128,7 +149,10 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const choreCreate = await fetch(`http://127.0.0.1:${port}/chore-create`)
   const choreCreateResult = await choreCreate.json()
   assert.equal(choreCreate.status, 200, JSON.stringify(choreCreateResult))
-  console.log(JSON.stringify({ deviceParent: deviceParentResult, devicePairing: devicePairingResult, deviceSessions: deviceSessionResult, choreUpdate: choreUpdateResult, choreCreate: choreCreateResult, choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  const additions={}
+  for(const name of allowedOnly.filter(name=>name!=='device-parent')){const response=await fetch(`http://127.0.0.1:${port}/${name}`,{signal:AbortSignal.timeout(120000)});const result=await response.json();assert.equal(response.status,200,JSON.stringify(result));additions[name]=result}
+  console.log(JSON.stringify({ ...additions, deviceParent: deviceParentResult, devicePairing: devicePairingResult, deviceSessions: deviceSessionResult, choreUpdate: choreUpdateResult, choreCreate: choreCreateResult, choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
+  }
 } catch (error) {
   let output = ''
   try { output = await readFile(logPath, 'utf8') } catch { /* startup may fail before the log exists */ }

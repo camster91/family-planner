@@ -5,6 +5,9 @@ import { checkRateLimit } from '@/lib/rate-limit-db'
 import { MemberRemovalError, removeHouseholdMember } from '@/lib/member-removal'
 import { apiError, logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { NativeMemberRemovalError, removeD1HouseholdMember } from '@/lib/cloudflare/account-deletion'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,10 +53,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return apiError(404, 'MEMBER_NOT_FOUND', 'That person is not in your household.', { requestId })
     }
 
-    const result = await removeHouseholdMember({ actorId: auth.user.id, familyId: auth.user.family_id, targetId: id })
+    const result = storageBackend() === 'd1'
+      ? await removeD1HouseholdMember({ actorId: auth.user.id, familyId: auth.user.family_id, targetId: id }, { database: await getD1Database() })
+      : await removeHouseholdMember({ actorId: auth.user.id, familyId: auth.user.family_id, targetId: id })
     return NextResponse.json({ success: true, removedId: result.removedId, tabletsRevoked: result.tabletsRevoked })
   } catch (err) {
     if (err instanceof MemberRemovalError) return apiError(err.status, err.code, err.message, { requestId })
+    if (err instanceof NativeMemberRemovalError) return apiError(err.status, err.code, err.message, { requestId })
     logRouteError('DELETE /api/family/members/[id]', err, requestId)
     return apiError(500, 'INTERNAL_ERROR', 'Could not remove this member. Try again.', { requestId })
   }
