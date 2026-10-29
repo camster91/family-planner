@@ -282,35 +282,25 @@ async function main() {
     const profileButton = page.getByRole("button", {
       name: /add a household profile/i,
     });
-    if (!(await profileButton.count())) {
-      record("email-free-profile", "unsupported", {
-        reason: "profile control not rendered",
-      });
-    } else {
-      await profileButton.click();
-      const dialog = page.getByTestId("profile-setup-dialog");
-      await dialog.waitFor();
-      const profileName = dialog.locator("#profile-name");
-      if (!(await profileName.count())) {
-        record("email-free-profile", "unsupported", {
-          reason: (await dialog.textContent())?.replace(/\s+/g, " ").trim(),
-        });
-        const close = dialog.getByRole("button", { name: /close/i });
-        if (await close.count()) await close.first().click();
-      } else {
-        await profileName.fill("Smoke shared-screen child");
-        await dialog.locator("#profile-role").selectOption("child");
-        await dialog.locator("#profile-age").fill("3");
-        await dialog.getByRole("button", { name: /save profile/i }).click();
-        await dialog
-          .getByRole("status")
-          .filter({ hasText: /profile saved/i })
-          .waitFor();
-        record("email-free-profile", "passed", { role: "child", age: 3 });
-        const close = dialog.getByRole("button", { name: /close/i });
-        if (await close.count()) await close.first().click();
-      }
-    }
+    // Availability is checked asynchronously after family creation. A missing
+    // required profile flow is a failure, rather than an unsupported pass.
+    await profileButton.waitFor({ state: "visible", timeout: 15_000 });
+    await profileButton.click();
+    const dialog = page.getByTestId("profile-setup-dialog");
+    await dialog.waitFor();
+    const profileName = dialog.locator("#profile-name");
+    await profileName.waitFor({ state: "visible", timeout: 15_000 });
+    await profileName.fill("Smoke shared-screen child");
+    await dialog.locator("#profile-role").selectOption("child");
+    await dialog.locator("#profile-age").fill("3");
+    await dialog.getByRole("button", { name: /save profile/i }).click();
+    await dialog
+      .getByRole("status")
+      .filter({ hasText: /profile saved/i })
+      .waitFor();
+    record("email-free-profile", "passed", { role: "child", age: 3 });
+    const close = dialog.getByRole("button", { name: /close/i });
+    if (await close.count()) await close.first().click();
 
     const finish = page
       .getByRole("link", { name: /continue to today|finish later/i })
