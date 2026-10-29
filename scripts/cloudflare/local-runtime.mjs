@@ -36,6 +36,25 @@ const LOCAL_DATABASE_NAME = "herewoven-local-runtime";
 const LOCAL_UPLOAD_BUCKET = "herewoven-local-runtime-uploads";
 const FAKE_JWT_SECRET =
   "fabricated-local-runtime-jwt-secret-not-production-0123456789";
+// This password is deliberately disposable and is returned only when the
+// caller explicitly asks for --seed-smoke. It is never used outside the
+// local runtime and is hashed by the private password-compute Worker below.
+const SMOKE_PASSWORD = "HerewovenLocalSmoke-2026!";
+const SMOKE_PARENT = {
+  id: "local-smoke-parent",
+  email: "local-smoke-parent@example.test",
+  name: "Local Smoke Parent",
+};
+const SMOKE_CHILD = {
+  id: "local-smoke-child",
+  email: "local-smoke-child@example.test",
+  name: "Local Smoke Child",
+};
+const SMOKE_CHILD_FAMILY = {
+  id: "local-smoke-child-family",
+  name: "Local Smoke Child Household",
+  inviteCode: "local-smoke-child-household",
+};
 const PRIVATE_PASSWORD_COMPUTE_FILES = [
   "src/cloudflare/password-compute-worker.ts",
   "src/lib/cloudflare/password-compute-do.ts",
@@ -47,9 +66,10 @@ const PRIVATE_PASSWORD_COMPUTE_FILES = [
 function usage() {
   console.log(
     [
-      "Usage: node scripts/cloudflare/local-runtime.mjs --runtime <archive>",
+      "Usage: node scripts/cloudflare/local-runtime.mjs --runtime <archive> [--seed-smoke]",
       "",
       "The archive must be the opt-in cloudflare-local-runtime artifact.",
+      "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
       "The process stays alive until SIGINT/SIGTERM and prints one JSON URL line.",
     ].join("\n"),
   );
@@ -70,6 +90,7 @@ if (!runtimeArchive) {
   usage();
   process.exit(2);
 }
+const seedSmoke = process.argv.includes("--seed-smoke");
 
 const safeChildEnv = {
   PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -535,6 +556,86 @@ async function applyMigrations(scratch) {
   return path.join(state, "v3");
 }
 
+async function seedSmokeAccounts(app, passwordCompute) {
+  const passwordResponse = await passwordCompute.dispatchFetch(
+    "https://password-compute.internal/v1/compute",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        operation: "hash-password",
+        secret: SMOKE_PASSWORD,
+        routingKey: "local-smoke",
+      }),
+    },
+  );
+  if (!passwordResponse.ok)
+    throw new Error(
+      `Local password-compute Worker could not seed smoke credentials (status ${passwordResponse.status})`,
+    );
+  const passwordPayload = await passwordResponse.json();
+  if (
+    !passwordPayload ||
+    typeof passwordPayload !== "object" ||
+    typeof passwordPayload.hash !== "string"
+  )
+    throw new Error(
+      "Local password-compute Worker returned no smoke credential hash",
+    );
+
+  const db = await app.getD1Database("DB");
+  const now = Date.now();
+  const childFeatures = JSON.stringify({
+    chores: true,
+    calendar: true,
+    lists: true,
+    family: true,
+    meals: true,
+    notes: false,
+    emergency: true,
+    inventory: true,
+  });
+  await db.batch([
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO Family(id,name,invite_code,features,created_at)
+         VALUES (?1,?2,?3,?4,?5)`,
+      )
+      .bind(
+        SMOKE_CHILD_FAMILY.id,
+        SMOKE_CHILD_FAMILY.name,
+        SMOKE_CHILD_FAMILY.inviteCode,
+        childFeatures,
+        now,
+      ),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO User(id,email,password,name,role,age,family_id,email_verified,token_version,created_at)
+         VALUES (?1,?2,?3,?4,'parent',NULL,NULL,1,0,?5)`,
+      )
+      .bind(
+        SMOKE_PARENT.id,
+        SMOKE_PARENT.email,
+        passwordPayload.hash,
+        SMOKE_PARENT.name,
+        now,
+      ),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO User(id,email,password,name,role,age,family_id,email_verified,token_version,created_at)
+         VALUES (?1,?2,?3,?4,'child',8,?5,1,0,?6)`,
+      )
+      .bind(
+        SMOKE_CHILD.id,
+        SMOKE_CHILD.email,
+        passwordPayload.hash,
+        SMOKE_CHILD.name,
+        SMOKE_CHILD_FAMILY.id,
+        now,
+      ),
+  ]);
+}
+
 async function waitForSignal() {
   await new Promise((resolve) => {
     const done = () => resolve();
@@ -640,21 +741,30 @@ try {
   );
 
   const ready = await app.ready;
+  if (seedSmoke) await seedSmokeAccounts(app, passwordCompute);
   const url = new URL(ready);
   url.pathname = "/";
   url.search = "";
   url.hash = "";
-  console.log(
-    JSON.stringify({
-      url: url.href,
-      sourceSha,
-      local: true,
-      host: "127.0.0.1",
-      externalEgress: "denied",
-      email: "off",
-      providerCalls: "disabled",
-    }),
-  );
+  const metadata = {
+    url: url.href,
+    sourceSha,
+    local: true,
+    host: "127.0.0.1",
+    externalEgress: "denied",
+    email: "off",
+    providerCalls: "disabled",
+  };
+  if (seedSmoke) {
+    metadata.smokeAccounts = {
+      parentEmail: SMOKE_PARENT.email,
+      childEmail: SMOKE_CHILD.email,
+      password: SMOKE_PASSWORD,
+      parentFamily: null,
+      childFamily: SMOKE_CHILD_FAMILY.id,
+    };
+  }
+  console.log(JSON.stringify(metadata));
   await waitForSignal();
 } finally {
   await app?.dispose();
