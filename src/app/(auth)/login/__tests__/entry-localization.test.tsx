@@ -5,12 +5,12 @@ import { renderToString } from "react-dom/server";
 import { I18nProvider, useTranslation, messages } from "@/i18n";
 import LoginPage from "../page";
 import RegisterPage from "../../register/page";
-const mockPush = jest.fn();
-const mockRefresh = jest.fn();
+import { replaceWithFreshDocument } from "@/lib/auth-navigation";
+const mockReplace = replaceWithFreshDocument as jest.Mock;
 const mockClear = jest.fn();
 const mockClearCapture = jest.fn();
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
+jest.mock("@/lib/auth-navigation", () => ({
+  replaceWithFreshDocument: jest.fn(),
 }));
 jest.mock("@/lib/offline-queue-browser", () => ({
   clearAllPersonQueues: () => mockClear(),
@@ -74,8 +74,7 @@ function switchLanguage() {
 }
 beforeEach(() => {
   window.history.replaceState({}, "", "/login");
-  mockPush.mockReset();
-  mockRefresh.mockReset();
+  mockReplace.mockReset();
   mockClear.mockReset();
   mockClearCapture.mockReset();
   global.fetch = jest.fn();
@@ -165,7 +164,7 @@ it.each(["fallback", "network", "raw"] as const)(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: raw.email, password: raw.password }),
     });
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
     expect(mockClear).toHaveBeenCalledTimes(1);
     expect(mockClearCapture).toHaveBeenCalledTimes(1);
   },
@@ -189,9 +188,8 @@ it.each([
     fireEvent.submit(container.querySelector("form")!);
     await act(async () => {});
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(mockPush).toHaveBeenCalledTimes(1);
-    expect(mockPush).toHaveBeenCalledWith(target);
-    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith(target);
     expect(fetch).toHaveBeenCalledTimes(1);
   },
 );
@@ -321,7 +319,7 @@ it.each(["fallback", "network", "raw"] as const)(
         body: JSON.stringify(raw),
       });
       expect(container.querySelector("#password")).toHaveValue(raw.password);
-      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockReplace).not.toHaveBeenCalled();
     } finally {
       log.mockRestore();
     }
@@ -407,8 +405,7 @@ it.each(["parent", "teen", "child", "Unknown {role} 李"])(
       ...raw,
       inviteToken: "synthetic+ {token}",
     });
-    expect(mockPush).toHaveBeenCalledWith("/dashboard");
-    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
   },
 );
 it.each(["fallback", "network", "raw"] as const)(
@@ -438,7 +435,7 @@ it.each(["fallback", "network", "raw"] as const)(
     );
     switchLanguage();
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   },
 );
 it.each(["success", "refusal", "network"] as const)(
@@ -475,7 +472,7 @@ it.each(["success", "refusal", "network"] as const)(
       }),
     ).toBeDisabled();
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenLastCalledWith("/api/auth/resend-verification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

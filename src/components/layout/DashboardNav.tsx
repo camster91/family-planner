@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/ui/brand-illustration";
+import { replaceWithFreshDocument } from "@/lib/auth-navigation";
 import { useReviewInboxShellText } from "@/i18n/review-inbox-shell";
 import { PRODUCT_BRAND } from "@/lib/brand";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Inbox,
   Search,
@@ -63,7 +64,6 @@ export default function DashboardNav({ user }: DashboardNavProps) {
     params?: Record<string, string | number>,
   ) => t(key, params, navigationMessages);
   const pathname = usePathname();
-  const router = useRouter();
   const [avatarOpen, setAvatarOpen] = useState(false);
   // Children cannot open Settings (kid-access.ts), so their "Delete my
   // account" (D-3, ACCOUNT_DELETION.md) and their notification switches (#286)
@@ -167,8 +167,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
       // Offline or the request failed: still leave the signed-in UI. The
       // middleware sends a still-valid session straight back from /login.
     }
-    router.push("/login");
-    router.refresh();
+    replaceWithFreshDocument("/login");
   };
 
   return (

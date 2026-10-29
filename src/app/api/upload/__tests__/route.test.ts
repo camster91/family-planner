@@ -6,14 +6,15 @@
 
 const mockFiles = new Map<string, Buffer>();
 function mockFilePath(p: string): string { return require('node:path').resolve(p); }
-const mockMkdir = jest.fn(async () => undefined);
+type MockMkdirOptions = { recursive?: boolean };
+const mockMkdir = jest.fn(async (_path: string, _options?: MockMkdirOptions): Promise<void> => undefined);
 const mockExistsSync = jest.fn((p: string) => mockFiles.has(mockFilePath(p)) || !/\.[a-z]+$/i.test(p));
 
 jest.mock("fs/promises", () => ({
   writeFile: async (p: string, buf: Buffer) => {
     mockFiles.set(mockFilePath(p), Buffer.from(buf));
   },
-  mkdir: (...args: [string, { recursive?: boolean }]) => mockMkdir(...args),
+  mkdir: (p: string, options?: MockMkdirOptions) => mockMkdir(p, options),
   rename: async (from: string, to: string) => {
     const buf = mockFiles.get(mockFilePath(from));
     if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
@@ -38,16 +39,18 @@ const mockD1Bucket = {
   delete: jest.fn(async () => undefined),
 };
 const mockGetPrivateObjectStore = jest.fn(async () => mockD1Bucket);
-const mockPruneD1UnreferencedUploads = jest.fn(async () => 0);
-const mockStoreD1ChoreUpload = jest.fn(async ({ filename, contentType, bytes }: { filename: string; contentType: string; bytes: Uint8Array }) => ({
+type MockD1PruneOptions = { familyId: string; bucket: unknown; keepFilename: string };
+type MockD1UploadOptions = { filename: string; contentType: string; bytes: Uint8Array };
+const mockPruneD1UnreferencedUploads = jest.fn(async (_options: MockD1PruneOptions): Promise<number> => 0);
+const mockStoreD1ChoreUpload = jest.fn(async ({ filename, contentType, bytes }: MockD1UploadOptions) => ({
   kind: "ok" as const,
   created: true,
   row: { id: "d1-upload", family_id: "family-A", filename, content_type: contentType, size_bytes: bytes.byteLength },
 }));
 jest.mock("@/lib/cloudflare/storage", () => ({ getPrivateObjectStore: (...args: []) => mockGetPrivateObjectStore(...args) }));
 jest.mock("@/lib/cloudflare/uploads", () => ({
-  pruneD1UnreferencedUploads: (...args: unknown[]) => mockPruneD1UnreferencedUploads(...args),
-  storeD1ChoreUpload: (...args: unknown[]) => mockStoreD1ChoreUpload(...args as [{ filename: string; contentType: string; bytes: Uint8Array }]),
+  pruneD1UnreferencedUploads: (options: MockD1PruneOptions) => mockPruneD1UnreferencedUploads(options),
+  storeD1ChoreUpload: (options: MockD1UploadOptions) => mockStoreD1ChoreUpload(options),
 }));
 jest.mock("@/lib/cloudflare/database", () => ({ getD1Database: jest.fn(async () => ({})) }));
 jest.mock("@/lib/cloudflare/accounts", () => ({
