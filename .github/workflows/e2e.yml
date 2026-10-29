@@ -11,6 +11,10 @@ on:
     branches: [main, master]
   workflow_dispatch:
     inputs:
+      cloudflare_only:
+        description: "Build and measure the Cloudflare Worker only; no deployment or browser shards"
+        type: boolean
+        default: false
       update_snapshots:
         description: "Regenerate visual baselines on the CI runner and upload them as an artifact (never commits)"
         type: boolean
@@ -25,6 +29,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: E2E viewport shard (${{ matrix.group }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -186,6 +191,7 @@ jobs:
           retention-days: 7
 
   recovery_expanded:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Password recovery ordinary and expanded QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -269,7 +275,7 @@ jobs:
 
       # Every recovery POST is intercepted; screenshots contain fabricated values only.
       - name: Preserve ordinary and expanded recovery reports and captures
-        if: ${{ always() }}
+        if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: recovery-qa-${{ github.sha }}
@@ -282,6 +288,7 @@ jobs:
           retention-days: 7
 
   inventory_localization:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Inventory ordinary and expanded QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -369,6 +376,7 @@ jobs:
           retention-days: 7
 
   settings_localization:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Settings ${{ matrix.mode }} QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -457,6 +465,7 @@ jobs:
           retention-days: 7
 
   profile_routine:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Email-free profile routine QA (six viewports)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -536,6 +545,7 @@ jobs:
           retention-days: 7
 
   review_documents:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Adopted Capture recovery QA (six viewports)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -641,3 +651,54 @@ jobs:
           PROFILE_ROUTINE_RESULT: ${{ needs.profile_routine.result }}
           REVIEW_DOCUMENTS_RESULT: ${{ needs.review_documents.result }}
         run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success && test "$PROFILE_ROUTINE_RESULT" = success && test "$REVIEW_DOCUMENTS_RESULT" = success
+
+  cloudflare_build:
+    name: Cloudflare build and bundle measurement
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.cloudflare_only == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+      NEXT_PUBLIC_APP_URL: https://herewoven.com
+      HEREWOVEN_STORAGE: d1
+      # Isolated build identity only; no production/provider secrets are used.
+      JWT_SECRET: fabricated-cloudflare-ci-build-key-not-production
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - name: Checkout selected source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Record source identity
+        run: |
+          mkdir -p cloudflare-readiness
+          node -e "require('node:fs').writeFileSync('cloudflare-readiness/source.json', JSON.stringify({sha:process.env.GITHUB_SHA,ref:process.env.GITHUB_REF,storage:'d1',deployment:false},null,2))"
+      - name: Build Worker without deployment
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run cloudflare:build 2>&1 | tee cloudflare-readiness/build.log
+      - name: Measure upload bundle without deployment
+        shell: bash
+        run: |
+          set -o pipefail
+          npx wrangler deploy --dry-run --outdir cloudflare-readiness/bundle 2>&1 | tee cloudflare-readiness/bundle.log
+      - name: Upload source and build evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloudflare-readiness-${{ github.sha }}
+          path: |
+            cloudflare-readiness/source.json
+            cloudflare-readiness/build.log
+            cloudflare-readiness/bundle.log
+          if-no-files-found: warn
+          retention-days: 7
