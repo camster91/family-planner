@@ -49,7 +49,9 @@ function resolveUpstreamOrigin(value: string | undefined): string | null {
     )
       return null;
 
-    return (ALLOWED_UPSTREAM_ORIGINS as readonly string[]).includes(parsed.origin)
+    return (ALLOWED_UPSTREAM_ORIGINS as readonly string[]).includes(
+      parsed.origin,
+    )
       ? parsed.origin
       : null;
   } catch {
@@ -102,7 +104,9 @@ function rewriteOwnedRedirect(
     const target = isProtocolRelative
       ? new URL(`${incomingURL.protocol}${location}`)
       : new URL(location);
-    if (!(ALLOWED_UPSTREAM_ORIGINS as readonly string[]).includes(target.origin))
+    if (
+      !(ALLOWED_UPSTREAM_ORIGINS as readonly string[]).includes(target.origin)
+    )
       return null;
 
     return `${incomingURL.origin}${target.pathname}${target.search}${target.hash}`;
@@ -142,10 +146,7 @@ function targetURLForRequest(upstreamOrigin: string, incomingURL: URL): URL {
   return target;
 }
 
-function rewriteResponse(
-  response: Response,
-  incomingURL: URL,
-): Response {
+function rewriteResponse(response: Response, incomingURL: URL): Response {
   // A 101 response may carry a WebSocket; reconstructing it as a normal
   // Response would discard the upgrade. It has no redirect body to adapt.
   if (response.status === 101) return response;
@@ -173,8 +174,7 @@ function rewriteResponse(
 export async function handleLegacyAliasRequest(
   request: Request,
   env: LegacyAliasEnv,
-  fetcher: LegacyAliasFetcher = (forwardedRequest) =>
-    fetch(forwardedRequest),
+  fetcher: LegacyAliasFetcher = (forwardedRequest) => fetch(forwardedRequest),
 ): Promise<Response> {
   const incomingURL = new URL(request.url);
 

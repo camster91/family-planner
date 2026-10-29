@@ -46,7 +46,9 @@ describe("legacy ashbi.ca alias Worker", () => {
     expect(targetRequest?.headers.get("authorization")).toBe(
       "Bearer fixture-token",
     );
-    expect(targetRequest?.headers.get("cookie")).toBe("session=fixture-session");
+    expect(targetRequest?.headers.get("cookie")).toBe(
+      "session=fixture-session",
+    );
     expect(targetRequest?.headers.get("host")).toBeNull();
     expect(targetRequest?.headers.get("x-forwarded-host")).toBe(
       "family.ashbi.ca",
@@ -57,7 +59,9 @@ describe("legacy ashbi.ca alias Worker", () => {
     expect(targetRequest?.headers.get(LEGACY_PROXY_IP_HEADER)).toBe(
       "203.0.113.10",
     );
-    expect(await targetRequest?.text()).toBe(JSON.stringify({ title: "Dinner" }));
+    expect(await targetRequest?.text()).toBe(
+      JSON.stringify({ title: "Dinner" }),
+    );
   });
 
   it("rewrites only owned absolute redirects and preserves duplicate cookies", async () => {
@@ -84,10 +88,7 @@ describe("legacy ashbi.ca alias Worker", () => {
     const cookies = response.headers.getSetCookie?.() ?? [
       response.headers.get("set-cookie") ?? "",
     ];
-    expect(cookies).toEqual([
-      "first=1; Path=/",
-      "second=2; Path=/; HttpOnly",
-    ]);
+    expect(cookies).toEqual(["first=1; Path=/", "second=2; Path=/; HttpOnly"]);
   });
 
   it("leaves external and relative redirects unchanged", async () => {
