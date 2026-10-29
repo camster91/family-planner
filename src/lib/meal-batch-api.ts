@@ -26,6 +26,8 @@ import {
   type MealPrepAction,
   type MealBatchAllocation,
 } from "@/lib/meal-batches";
+import { storageBackend } from "@/lib/storage-backend";
+import { mutateD1MealPrep } from "@/lib/cloudflare/meal-bulk";
 
 type Actor = { userId: string; familyId: string; tokenVersion: number };
 const errorMessages: Record<string, string> = {
@@ -461,6 +463,16 @@ export async function mealPrepMutation(
       parsed.data.expected_user_id !== actor.userId
     )
       return batchJson(batchFailure(403, "AUTH_CONTEXT_CHANGED"));
+    if (storageBackend() === "d1") {
+      const result = await mutateD1MealPrep(
+        { userId: actor.userId, familyId: actor.familyId, role: auth.user.role, generation: actor.tokenVersion },
+        parsed.data as CreateMealPrepInput | MealPrepAction,
+        key,
+      );
+      const response = batchJson(result);
+      if (result.replayed) response.headers.set("Idempotency-Replayed", "true");
+      return response;
+    }
     const action = "action" in parsed.data ? parsed.data.action : "create";
     const response = await withIdempotency(
       prisma!,

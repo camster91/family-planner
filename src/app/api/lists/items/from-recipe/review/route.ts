@@ -5,6 +5,8 @@ import { refusePairedDevice } from "@/lib/device-route";
 import { featureGate } from "@/lib/feature-gate-server";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1RecipeGroceryReview } from "@/lib/cloudflare/recipe-grocery";
 import {
   indexCookInventory,
   loadCookInventory,
@@ -34,6 +36,23 @@ export async function GET(request: NextRequest) {
         { error: "recipeId is required" },
         { status: 400 },
       );
+    if (storageBackend() === "d1") {
+      const mealId = new URL(request.url).searchParams.get("mealId");
+      const batchId = new URL(request.url).searchParams.get("batchId");
+      const result = await readD1RecipeGroceryReview(
+        {
+          userId: auth.user.id,
+          familyId,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        { recipeId, mealId, batchId },
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const recipe = await prisma!.recipe.findFirst({
       where: { id: recipeId, family_id: familyId },
       select: {

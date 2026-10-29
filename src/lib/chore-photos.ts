@@ -2,6 +2,7 @@ import { CHORE_PHOTO_FILENAME_RE, CHORE_PHOTO_PATH_PREFIX } from "@/lib/chore-ph
 export { CHORE_PHOTO_FILENAME_RE, CHORE_PHOTO_PATH_PREFIX } from "@/lib/chore-photo-contract";
 import type { PrismaClient } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
 
 // Chore photo ownership (D3, #102).
 //
@@ -91,6 +92,10 @@ export async function resolveChorePhotoForWrite(
  *    canonical path or the bare filename. Removed in the D3 contract step.
  */
 export async function canFamilyReadChorePhoto(familyId: string, filename: string): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { canD1FamilyReadChorePhoto } = await import('@/lib/cloudflare/uploads')
+    return canD1FamilyReadChorePhoto(familyId, filename)
+  }
   const upload = await prisma!.upload.findUnique({
     where: { filename },
     select: { family_id: true },

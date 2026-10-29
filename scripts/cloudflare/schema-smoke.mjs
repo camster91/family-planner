@@ -9,6 +9,10 @@ import { unstable_splitSqlQuery as splitSqlQuery } from 'wrangler'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const source = await fs.readFile(path.join(root, 'prisma/schema.prisma'), 'utf8')
 const models = [...source.matchAll(/^model (\w+) \{\n([\s\S]*?)\n\}/gm)]
+// Explicit additions are checked, never a blanket allowance for unexpected
+// columns. Food continuity fields stay @ignore in Prisma because SQL owns them.
+const nativeFoodModels = new Set(['Family','User','InventoryItem','Recipe','Ingredient','RecipeIngredient','FamilyMeal','MealPrepSession','MealBatch','MealBatchConsumption','List'])
+const nativeLifecycleColumns = {Upload:{last_accessed_at:'INTEGER'},MessageAttachment:{last_accessed_at:'INTEGER'}}
 const mf = new Miniflare(convertV4MiniflareOptions({
   name: 'schema-fixture', modules: true, compatibilityDate: '2026-10-13',
   script: 'export default { fetch() { return new Response("local schema fixture") } }',
@@ -19,15 +23,24 @@ try {
   for (const file of (await fs.readdir(path.join(root, 'database/cloudflare'))).filter(f => f.endsWith('.sql')).sort()) {
     for (const statement of splitSqlQuery(await fs.readFile(path.join(root, 'database/cloudflare', file), 'utf8'))) await db.prepare(statement).run()
   }
-  let uniqueKeys = 0, relations = 0, columns = 0
+  let uniqueKeys = 0, relations = 0, columns = 0, portedIgnoredColumns=0, nativeLifecycleCount=0
   for (const [, name, body] of models) {
-    const fields = body.split('\n').filter(line => !line.includes('@ignore')).map(line => {
+    const fields = body.split('\n').filter(line => !line.includes('@ignore') || (nativeFoodModels.has(name) && /^\s*food_(generation|epoch)\s/.test(line))).map(line => {
       const match = line.match(/^\s*(\w+)\s+(String|Int|BigInt|Boolean|DateTime|Float|Decimal|Json)(\?|\[\])?(?:\s|$)/)
       return match ? { name: match[1], type: match[2], array: match[3] === '[]', optional: match[3] === '?', line } : null
     }).filter(Boolean)
     const actual = (await db.prepare(`PRAGMA table_info("${name}")`).all()).results
-    assert.deepEqual(actual.map(c => c.name).sort(), fields.map(f => f.name).sort(), `${name}: canonical scalar fields`)
+    const lifecycle=nativeLifecycleColumns[name]??{}
+    assert.deepEqual(actual.map(c => c.name).sort(), [...fields.map(f=>f.name),...Object.keys(lifecycle)].sort(), `${name}: canonical and explicitly ported scalar fields`)
+    for(const [column,type] of Object.entries(lifecycle)){
+      const field=actual.find(row=>row.name===column)
+      assert.equal(field.type,type,`${name}.${column}: lifecycle type`)
+      assert.equal(field.notnull,1,`${name}.${column}: lifecycle nullability`)
+      assert.equal(Number(field.dflt_value),0,`${name}.${column}: lifecycle default`)
+    }
     columns += fields.length
+    portedIgnoredColumns+=fields.filter(field=>field.line.includes('@ignore')).length
+    nativeLifecycleCount+=Object.keys(lifecycle).length
     for (const field of fields) {
       const type = name === 'BetaMetricDaily' && field.name === 'day' ? 'TEXT'
         : field.array || ['String', 'Json'].includes(field.type) ? 'TEXT' : field.type === 'Float' ? 'REAL' : field.type === 'Decimal' ? 'DECIMAL' : 'INTEGER'
@@ -103,5 +116,5 @@ try {
   assert.equal((await db.prepare(`SELECT count(*) AS n FROM "HouseholdMemberAccountLink"`).first()).n, 0)
   assert.equal((await db.prepare(`SELECT family_id FROM "User" WHERE id='schema-user'`).first()).family_id, null)
   assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, [])
-  console.log(JSON.stringify({ models: models.length, columns, uniqueKeys, relations, foreignKeysValid: true, crossHouseholdLinkRefused: true, retryKeyUnique: true, millisecondDefaults: true, arrayDefaults: true, uuidDefaults: true, typedChecks: true, immutableProfile: true, erasureGuard: true, linkedFamilyDeletion: true, remaining: 'PostgreSQL-only custom checks/triggers and feature writers still require conversion' }))
+  console.log(JSON.stringify({ models: models.length, columns, canonicalColumns:columns-portedIgnoredColumns, portedIgnoredColumns, nativeLifecycleColumns:nativeLifecycleCount, uniqueKeys, relations, foreignKeysValid: true, crossHouseholdLinkRefused: true, retryKeyUnique: true, millisecondDefaults: true, arrayDefaults: true, uuidDefaults: true, typedChecks: true, immutableProfile: true, erasureGuard: true, linkedFamilyDeletion: true, remaining: 'PostgreSQL-only custom checks/triggers and feature writers still require conversion' }))
 } finally { await mf.dispose() }

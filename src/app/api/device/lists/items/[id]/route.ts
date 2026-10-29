@@ -7,6 +7,9 @@ import { isGroceryListType } from '@/lib/grocery-display'
 import { DUPLICATE_OPEN_ITEM, updateListItemAndNoteTick } from '@/lib/list-item-update'
 import { getRequestId } from '@/lib/request-id'
 import { deviceQueueOwner, queueOwnerMatches } from '@/lib/queue-owner-server'
+import { storageBackend } from '@/lib/storage-backend'
+import { runD1DeviceListCheck } from '@/lib/cloudflare/device-writes'
+import { deviceJson } from '@/lib/device-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +41,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { checked } = ctx.body
     if (typeof checked !== 'boolean' || Object.keys(ctx.body).some((k) => k !== 'checked' && k !== 'actingMemberId')) {
       return deviceError(400, 'VALIDATION_ERROR', { message: 'Send `checked` (true or false) and `actingMemberId`.' })
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await runD1DeviceListCheck(ctx.actor, { itemId: id, checked, memberId: ctx.member.id }, ctx.key)
+      return deviceJson(result.body, result.status, result.replayed ? { 'Idempotency-Replayed': 'true' } : {})
     }
 
     return await runDeviceWrite(ctx, ACTION, { itemId: id, checked, actingMemberId: ctx.member.id }, async () => {

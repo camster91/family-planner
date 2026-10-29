@@ -5,6 +5,7 @@ import { link, mkdir, rename, unlink } from 'fs/promises'
 import path from 'path'
 import { lockHousehold, lockHouseholdForJoin } from '@/lib/household-lock'
 import { resolveUploadDir } from '@/lib/upload-dir'
+import { storageBackend } from '@/lib/storage-backend'
 
 /** Message files never share the chore-photo directory or URL contract. */
 export const MESSAGE_ATTACHMENT_PATH_PREFIX = '/api/messages/attachments/'
@@ -160,6 +161,27 @@ export async function storeMessageAttachment(
   uploadDir = resolveUploadDir(),
   actorGeneration?: number,
 ): Promise<StoredMessageAttachment> {
+  if (storageBackend() === 'd1') {
+    const [{ getPrivateObjectStore }, { storeD1MessageAttachment }] = await Promise.all([
+      import('@/lib/cloudflare/storage'),
+      import('@/lib/cloudflare/message-attachments'),
+    ])
+    const row = await storeD1MessageAttachment({
+      familyId,
+      userId,
+      generation: actorGeneration ?? 0,
+      bytes,
+      contentType,
+      ext,
+      bucket: await getPrivateObjectStore(),
+    })
+    return {
+      id: row.id,
+      filename: row.filename,
+      content_type: row.content_type as MessageAttachmentMime,
+      size_bytes: row.size_bytes,
+    }
+  }
   if (bytes.byteLength > MESSAGE_ATTACHMENT_MAX_BYTES)
     throw new Error('MESSAGE_ATTACHMENT_TOO_LARGE')
   const dir = messageAttachmentDir(uploadDir)
@@ -327,6 +349,17 @@ export async function pruneUnboundMessageAttachments(
   familyId: string,
   options: { uploadDir?: string; now?: number } = {},
 ): Promise<number> {
+  if (storageBackend() === 'd1') {
+    const [{ getPrivateObjectStore }, { pruneD1MessageAttachments }] = await Promise.all([
+      import('@/lib/cloudflare/storage'),
+      import('@/lib/cloudflare/message-attachments'),
+    ])
+    return pruneD1MessageAttachments({
+      familyId,
+      bucket: await getPrivateObjectStore(),
+      now: options.now,
+    }).catch(() => 0)
+  }
   const cutoff = new Date(
     (options.now ?? Date.now()) - MESSAGE_ATTACHMENT_STALE_AGE_MS,
   )

@@ -31,6 +31,10 @@ import {
 } from "@/lib/inventory-edit";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1InventoryItem, updateD1Inventory, deleteD1Inventory } from "@/lib/cloudflare/inventory";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +56,24 @@ export async function GET(request: NextRequest, context: Context) {
     if (today instanceof NextResponse) return today;
 
     const { id } = await context.params;
+    if (storageBackend() === "d1") {
+      const native = await readD1InventoryItem(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        id,
+        today,
+      );
+      if (native.refusal)
+        return NextResponse.json(native.refusal.body, {
+          status: native.refusal.status,
+          headers: { "Cache-Control": "private, no-store" },
+        });
+      return native.item ? inventoryJson({ item: native.item }) : itemNotFound();
+    }
     const row = await prisma!.inventoryItem.findFirst({
       where: { id, family_id: auth.user.family_id },
       select: INVENTORY_ITEM_SELECT,
@@ -104,6 +126,37 @@ export async function PATCH(request: NextRequest, context: Context) {
     const data = parsed.data;
     const familyId = auth.user.family_id;
     const { id } = await context.params;
+
+    if (storageBackend() === "d1") {
+      try {
+        const result = await updateD1Inventory(
+          {
+            userId: auth.user.id,
+            familyId,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          id,
+          data,
+          today,
+          key,
+        );
+        const response = NextResponse.json(result.body, {
+          status: result.status,
+          headers: result.replayed
+            ? { "Idempotency-Replayed": "true" }
+            : undefined,
+        });
+        response.headers.set("Cache-Control", "private, no-store");
+        return response;
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError)
+          return idempotencyError(error.code);
+        if (error instanceof InventoryInputError)
+          return inventoryError(400, "INGREDIENT_NOT_FOUND", error.message);
+        throw error;
+      }
+    }
 
     const res = await withIdempotency(
       prisma!,
@@ -186,6 +239,32 @@ export async function DELETE(request: NextRequest, context: Context) {
 
     const familyId = auth.user.family_id;
     const { id } = await context.params;
+    if (storageBackend() === "d1") {
+      try {
+        const result = await deleteD1Inventory(
+          {
+            userId: auth.user.id,
+            familyId,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          id,
+          key,
+        );
+        const response = NextResponse.json(result.body, {
+          status: result.status,
+          headers: result.replayed
+            ? { "Idempotency-Replayed": "true" }
+            : undefined,
+        });
+        response.headers.set("Cache-Control", "private, no-store");
+        return response;
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError)
+          return idempotencyError(error.code);
+        throw error;
+      }
+    }
     const res = await withIdempotency(
       prisma!,
       key,

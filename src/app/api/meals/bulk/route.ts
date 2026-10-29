@@ -11,6 +11,8 @@ import {
   BATCH_MEALS_SELECT,
   BATCH_CONSUMPTION_SELECT,
 } from "@/lib/meal-batch-api";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1MealPrep } from "@/lib/cloudflare/meal-bulk";
 
 export const dynamic = "force-dynamic";
 export const POST = (request: NextRequest) =>
@@ -32,6 +34,13 @@ export async function GET(request: NextRequest) {
       (cursor !== null || sessionId.length === 0 || sessionId.length > 128)
     )
       return batchJson(batchFailure(400, "INVALID_CURSOR"));
+    if (storageBackend() === "d1") {
+      const result = await readD1MealPrep(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        { cursor, sessionId },
+      );
+      return batchJson(result);
+    }
     return await prisma!.$transaction(async (tx) => {
       const refusal = await authorizeMealBatchInTx(tx, {
         userId: auth.user.id,

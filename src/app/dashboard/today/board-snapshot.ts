@@ -30,6 +30,9 @@ import { CHORE_PHOTO_FILENAME_RE, chorePhotoPath } from '@/lib/chore-photos'
 import { MAX_AMBIENT_PHOTOS, idleMinutesFrom, nightHoursFrom } from '@/lib/ambient'
 import type { MemberProtocol } from '@/lib/member-subject-contract'
 import { buildTodayBoard, type BoardDisplayData, type BoardPhoto, type TodayBoardData } from './today-board-data'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1TodayBoard } from '@/lib/cloudflare/today-board'
+import type { D1Store } from '@/lib/cloudflare/database'
 
 type Db = Pick<
   PrismaClient,
@@ -103,6 +106,10 @@ export function boardVersion(board: TodayBoardData, weatherKey: unknown): string
 }
 
 export async function loadTodayBoard(db: Db, options: LoadTodayBoardOptions): Promise<TodayBoardData> {
+  if (storageBackend() === 'd1') {
+    const result = await readD1TodayBoard(options, db ? (db as unknown as D1Store) : undefined)
+    return { ...result.data, version: boardVersion(result.data, result.weatherKey) }
+  }
   const { familyId, withWeather = false } = options
   const isDevice = options.audience === 'device'
   const now = options.now ?? new Date()

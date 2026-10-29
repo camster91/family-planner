@@ -25,6 +25,7 @@ import {
   RoutineStackMutationError,
   RoutineStackValidationError,
 } from "@/lib/routine-stack-mutation";
+import { storageBackend } from "@/lib/storage-backend";
 
 export const dynamic = "force-dynamic";
 
@@ -52,12 +53,14 @@ function validOccurrenceDate(value: string | null): value is string {
 function routineStackActor(
   request: NextRequest,
   user: { family_id: string; id: string; role: string },
+  tokenVersion?: number,
 ) {
   const memberProtocol = requestedMemberProtocol(request);
   return {
     familyId: user.family_id,
     userId: user.id,
     role: user.role,
+    ...(tokenVersion === undefined ? {} : { tokenVersion }),
     ...(memberProtocol === 2 ? { memberProtocol } : {}),
   };
 }
@@ -110,6 +113,11 @@ export async function GET(request: NextRequest) {
           "Open routine plans to change this schedule.",
           requestId,
         );
+    }
+    if (storageBackend() === "d1") {
+      const result = await (await import("@/lib/cloudflare/routine-stack")).readD1RoutineStack(routineStackActor(request, auth.user, auth.payload.tv ?? 0), stackId, occurrenceDate);
+      if (!result) return error(404, "ROUTINE_STACK_NOT_FOUND", "That routine is not available.", requestId);
+      return NextResponse.json(result.body, { status: result.status, headers: NO_STORE });
     }
     const result = await readParentRoutineStack(
       prisma! as unknown as RoutineStackReadDb,
@@ -183,6 +191,12 @@ export async function POST(request: NextRequest) {
       return error(400, "INVALID_JSON", "Invalid JSON.", requestId);
     }
 
+    if (storageBackend() === "d1") {
+      const result = await (await import("@/lib/cloudflare/routine-stack")).saveD1RoutineStack(routineStackActor(request, auth.user, auth.payload.tv ?? 0), body, key);
+      const response = NextResponse.json(result.body, { status: result.status });
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
     const result = await saveParentRoutineStack(
       prisma! as unknown as RoutineStackWriteDb,
       body,

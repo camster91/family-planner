@@ -31,14 +31,24 @@ import { z } from 'zod'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { normalizeName } from '@/lib/backfill/meals-groceries'
 import type { EffectResult } from '@/lib/idempotency'
+import {
+  ADD_FROM_RECIPE_ACTION,
+  DEFAULT_GROCERY_LIST_NAME,
+  FROM_RECIPE_MAX_INGREDIENTS,
+  POSSIBLE_DUPLICATES_LIMIT,
+  UNDO_WINDOW_MS,
+  recipeGroceryAmount,
+} from '@/lib/grocery-from-recipe-contract'
 
-/** Idempotency action name; part of the stored request hash. */
-export const ADD_FROM_RECIPE_ACTION = 'grocery.add-from-recipe'
-/** O-5: the original actor may undo their own add for this long. */
-export const UNDO_WINDOW_MS = 10 * 60 * 1000
-export const FROM_RECIPE_MAX_INGREDIENTS = 100
-export const POSSIBLE_DUPLICATES_LIMIT = 20
-export const DEFAULT_GROCERY_LIST_NAME = 'Groceries'
+export {
+  ADD_FROM_RECIPE_ACTION,
+  DEFAULT_GROCERY_LIST_NAME,
+  FROM_RECIPE_MAX_INGREDIENTS,
+  POSSIBLE_DUPLICATES_LIMIT,
+  UNDO_WINDOW_MS,
+  recipeGroceryAmount,
+} from '@/lib/grocery-from-recipe-contract'
+
 /** Upper bound on free-text rows scanned for lookalikes (lists are small in practice). */
 const LOOKALIKE_SCAN_LIMIT = 2000
 
@@ -194,14 +204,6 @@ export async function resolveDefaultGroceryListInTx(
 // Add
 
 type AddDb = TxDb
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
-}
-/** Exact canonical amount shown during review and persisted by recipe adds. */
-export function recipeGroceryAmount(amount: number, baseServings: number, targetServings: number): number {
-  return round2(amount * (targetServings / baseServings))
-}
 
 /**
  * The effect behind `POST /api/lists/items/from-recipe`. `requestId` is the

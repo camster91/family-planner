@@ -31,6 +31,10 @@ import {
   todayFrom,
   writeForbidden,
 } from '@/lib/inventory-http'
+import { storageBackend } from '@/lib/storage-backend'
+import { adjustD1Inventory } from '@/lib/cloudflare/inventory'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { idempotencyError } from '@/lib/idempotency'
 
 export type ItemContext = { params: Promise<{ id: string }> }
 
@@ -62,6 +66,32 @@ export async function handleAdjust(request: NextRequest, context: ItemContext, k
 
     const familyId = auth.user.family_id
     const { id } = await context.params
+    if (storageBackend() === 'd1') {
+      try {
+        const result = await adjustD1Inventory(
+          {
+            userId: auth.user.id,
+            familyId,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          id,
+          kind,
+          amount,
+          today,
+          key,
+        )
+        const response = NextResponse.json(result.body, {
+          status: result.status,
+          headers: result.replayed ? { 'Idempotency-Replayed': 'true' } : undefined,
+        })
+        response.headers.set('Cache-Control', 'private, no-store')
+        return response
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
+        throw error
+      }
+    }
     const res = await withIdempotency(
       prisma!,
       key,

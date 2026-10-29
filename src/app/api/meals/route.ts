@@ -7,6 +7,9 @@ import { MEAL_INCLUDE, resolveMealLink } from "@/lib/meal-recipe-link";
 import { recordBetaMetric } from "@/lib/beta-metrics";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1Meals, createD1Meal, D1MealReadRefusal } from "@/lib/cloudflare/meals";
+import { readIdempotencyKey } from "@/lib/idempotency";
 import { createMealSchema } from "@/lib/validations";
 import {
   parseMealPaging,
@@ -80,6 +83,24 @@ export async function GET(request: NextRequest) {
     const paging = parseMealPaging(searchParams, scope);
     if (!paging.ok)
       return NextResponse.json({ error: paging.error }, { status: 400 });
+    if (storageBackend() === "d1") {
+      try {
+        const rows = await readD1Meals(
+          { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+          { start: rangeStart, end: rangeEnd, ...(paging.paged ? { limit: paging.limit, cursor: paging.cursor } : {}) },
+        );
+        const meals = paging.paged ? rows.slice(0, paging.limit) : rows;
+        return NextResponse.json(
+          paging.paged
+            ? { meals, nextCursor: rows.length > paging.limit ? encodeMealCursor(scope, meals[meals.length - 1]) : null }
+            : { meals },
+          { headers: { "Cache-Control": "private, no-store" } },
+        );
+      } catch (cause) {
+        if (cause instanceof D1MealReadRefusal) return NextResponse.json(cause.result.body, { status: cause.result.status });
+        throw cause;
+      }
+    }
     const rows = await prisma!.familyMeal.findMany({
       where: {
         family_id: auth.user.family_id,
@@ -148,6 +169,20 @@ export async function POST(request: NextRequest) {
 
     if (!MEAL_TYPES.includes(meal_type)) {
       return NextResponse.json({ error: `meal_type must be one of: ${MEAL_TYPES.join(', ')}` }, { status: 400 })
+    }
+
+    if (storageBackend() === "d1") {
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await createD1Meal(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        { date, meal_type, recipe_name, notes, cook_id, recipe_id, servings },
+        key,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store", ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) },
+      });
     }
 
     // Meal dates are date-only: stored as UTC midnight of the given day.

@@ -13,6 +13,9 @@ import { createPersonListItem, authorizePersonListItemReplay } from "@/lib/perso
 import { apiError, logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { personQueueOwner, queueOwnerMatches } from "@/lib/queue-owner-server";
+import { storageBackend } from "@/lib/storage-backend";
+import { addD1GroceryItem } from "@/lib/cloudflare/recipe-grocery";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
 
 export const dynamic = "force-dynamic";
 const schema = z
@@ -58,6 +61,24 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 },
       );
+    if (storageBackend() === "d1") {
+      const result = await addD1GroceryItem(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        { ...parsed.data, quantity: 1 },
+        key,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     const list = await prisma!.list.findUnique({
       where: { id: parsed.data.listId },
       select: { family_id: true, type: true },
@@ -93,6 +114,8 @@ export async function POST(request: NextRequest) {
       { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, parsed.data.listId, { groceryOnly: true }) },
     );
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
     logRouteError(
       "POST /api/lists/items/grocery-add",
       error,

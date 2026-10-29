@@ -25,6 +25,9 @@ import {
   scanFridgePhoto,
   type InventoryScanMime,
 } from "@/lib/inventory-scan";
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -258,7 +261,12 @@ export async function POST(request: NextRequest) {
 
     const userId = auth.user.id;
     const familyId = auth.user.family_id;
-    const perUser = await checkRateLimit(
+    const d1 = storageBackend() === "d1" ? await getD1Database() : null;
+    const checkScanRate = (key: string, max: number, window: number) =>
+      d1
+        ? checkD1RateLimit(d1, key, max, window, Date.now())
+        : checkRateLimit(key, max, window);
+    const perUser = await checkScanRate(
       `inventory-scan:user:${userId}`,
       INVENTORY_SCAN_USER_PER_HOUR,
       HOUR_MS,
@@ -271,7 +279,7 @@ export async function POST(request: NextRequest) {
         retryAfter(perUser.retryAfterMs),
       );
     }
-    const perFamily = await checkRateLimit(
+    const perFamily = await checkScanRate(
       `inventory-scan:family:${familyId}`,
       INVENTORY_SCAN_FAMILY_PER_HOUR,
       HOUR_MS,
@@ -290,7 +298,7 @@ export async function POST(request: NextRequest) {
     const daily =
       config.dailyLimit === 0
         ? { allowed: false, retryAfterMs: endOfDay - Date.now() }
-        : await checkRateLimit(
+        : await checkScanRate(
             `inventory-scan:day:${familyId}:${day}`,
             config.dailyLimit,
             DAY_MS,

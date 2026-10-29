@@ -7,6 +7,7 @@ import { parseDateOnly } from "@/lib/dates";
 import { getRequestId } from "@/lib/request-id";
 import { prisma } from "@/lib/prisma";
 import { requestedMemberProtocol } from "@/lib/chore-profile";
+import { storageBackend } from "@/lib/storage-backend";
 import {
   readParentRoutineStackCandidates,
   type RoutineStackCandidateDb,
@@ -41,12 +42,14 @@ function parseLimit(raw: string | null): number | null {
 function routineStackActor(
   request: NextRequest,
   user: { family_id: string; id: string; role: string },
+  tokenVersion?: number,
 ) {
   const memberProtocol = requestedMemberProtocol(request);
   return {
     familyId: user.family_id,
     userId: user.id,
     role: user.role,
+    ...(tokenVersion === undefined ? {} : { tokenVersion }),
     ...(memberProtocol === 2 ? { memberProtocol } : {}),
   };
 }
@@ -93,6 +96,11 @@ export async function GET(request: NextRequest) {
       return error(400, "INVALID_QUERY", "Invalid cursor.", requestId);
     }
 
+    if (storageBackend() === "d1") {
+      const result = await (await import("@/lib/cloudflare/routine-stack")).readD1RoutineStackCandidates(routineStackActor(request, auth.user, auth.payload.tv ?? 0), occurrenceDate, { limit, cursor });
+      if (!result) return error(404, "ROUTINE_CANDIDATES_NOT_FOUND", "Those routine candidates are not available.", requestId);
+      return NextResponse.json(result, { headers: NO_STORE });
+    }
     const result = await readParentRoutineStackCandidates(
       prisma! as unknown as RoutineStackCandidateDb,
       routineStackActor(request, auth.user),

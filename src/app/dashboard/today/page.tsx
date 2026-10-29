@@ -22,6 +22,8 @@ const WeeklyResetLauncher = loadable(
 );
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1GetStarted, readD1HomeSummary } from "@/lib/cloudflare/today-home";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -54,10 +56,12 @@ export default async function TodayBoardPage({
   if (!sessionUser) return null;
 
   // Role and household are read fresh from the database (D6, #102).
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: { role: true, family_id: true },
-  });
+  const user = storageBackend() === "d1"
+    ? { role: sessionUser.role ?? "parent", family_id: sessionUser.family_id ?? null }
+    : await prisma!.user.findUnique({
+        where: { id: sessionUser.id },
+        select: { role: true, family_id: true },
+      });
 
   const params = await searchParams;
   const fridgeMode = params.mode === "fridge";
@@ -87,10 +91,14 @@ export default async function TodayBoardPage({
     }),
     fridgeMode
       ? Promise.resolve(null)
-      : loadHomeSummary(prisma!, { familyId, role: user.role, memberProtocol }),
+      : storageBackend() === "d1"
+        ? readD1HomeSummary(familyId, user.role ?? "", now, memberProtocol)
+        : loadHomeSummary(prisma!, { familyId, role: user.role ?? "", memberProtocol }),
     fridgeMode
       ? Promise.resolve(null)
-      : loadGetStarted(prisma!, { familyId, role: user.role, now }),
+      : storageBackend() === "d1"
+        ? readD1GetStarted(familyId, user.role ?? "", now)
+        : loadGetStarted(prisma!, { familyId, role: user.role ?? "", now }),
   ]);
 
   // Tiles act directly for the signed-in person (#274): their chores (any for
@@ -112,7 +120,7 @@ export default async function TodayBoardPage({
     return <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />;
 
   const preparationBacklinks =
-    user.role === "parent" && data.links.calendar && data.links.chores
+    storageBackend() !== "d1" && user.role === "parent" && data.links.calendar && data.links.chores
       ? await readPreparationBacklinks(prisma!, {
           userId: sessionUser.id,
           familyId,

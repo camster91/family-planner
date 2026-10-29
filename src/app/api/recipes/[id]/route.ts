@@ -1,4 +1,8 @@
-import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import {
+  recipeExpectedReadOwnerRefusal,
+  recipeReadOwnerHeaders,
+  renewRecipeReadAuthority,
+} from "@/lib/recipe-read-authority";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { RECIPE_WRITE_MAX_BYTES } from "@/lib/recipe-input-contract";
 import { NextRequest, NextResponse } from "next/server";
@@ -15,8 +19,19 @@ import {
 } from "@/lib/recipes";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
-import { RECIPE_OWNER_PROTOCOL, sameRecipeOwner } from "@/lib/recipe-owner-contract";
+import {
+  RECIPE_OWNER_PROTOCOL,
+  sameRecipeOwner,
+} from "@/lib/recipe-owner-contract";
 import { recipeWriteAuthority, readCreatedRecipe } from "@/lib/recipe-write";
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  readD1Recipe,
+  updateD1Recipe,
+  deleteD1Recipe,
+} from "@/lib/cloudflare/recipe-library";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +55,12 @@ export async function GET(request: NextRequest, context: Context) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
-    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
-      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const original = Object.freeze({
+      actorId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload.tv ?? 0,
+    });
     const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
     if (ownerRefusal) return ownerRefusal;
 
@@ -49,6 +68,24 @@ export async function GET(request: NextRequest, context: Context) {
     if (gate) return gate;
 
     const { id } = await context.params;
+    if (storageBackend() === "d1") {
+      const native = await readD1Recipe(
+        {
+          userId: original.actorId,
+          familyId: original.familyId,
+          role: original.role,
+          generation: original.generation,
+        },
+        id,
+      );
+      return NextResponse.json(native.body, {
+        status: native.status,
+        headers:
+          native.status === 200
+            ? recipeReadOwnerHeaders(original)
+            : { "Cache-Control": "private, no-store" },
+      });
+    }
     const recipe = await prisma!.recipe.findFirst({
       where: { id, family_id: auth.user.family_id },
       select: RECIPE_DETAIL_SELECT,
@@ -59,7 +96,10 @@ export async function GET(request: NextRequest, context: Context) {
       return renewal;
     }
     if (!recipe) return notFound();
-    return NextResponse.json({ recipe }, { headers: recipeReadOwnerHeaders(original) });
+    return NextResponse.json(
+      { recipe },
+      { headers: recipeReadOwnerHeaders(original) },
+    );
   } catch (err) {
     logRouteError("GET /api/recipes/[id]", err, getRequestId(request));
     return NextResponse.json(
@@ -76,8 +116,12 @@ export async function PATCH(request: NextRequest, context: Context) {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
 
-    const original = Object.freeze({ actorId: auth.user.id, familyId: auth.user.family_id,
-      role: auth.user.role, generation: auth.payload.tv ?? 0 });
+    const original = Object.freeze({
+      actorId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload.tv ?? 0,
+    });
     const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
     if (ownerRefusal) return ownerRefusal;
 
@@ -109,15 +153,65 @@ export async function PATCH(request: NextRequest, context: Context) {
         { status: 400 },
       );
     }
-    const { ingredients, base_revision, base_updated_at, edit_protocol: _editProtocol, edit_owner, ...fields } =
-      parsed.data;
+    const {
+      ingredients,
+      base_revision,
+      base_updated_at,
+      edit_protocol: _editProtocol,
+      edit_owner,
+      ...fields
+    } = parsed.data;
     void _editProtocol; // Validated command metadata is never a Recipe column.
-    if (edit_owner && !sameRecipeOwner(edit_owner, { protocol: RECIPE_OWNER_PROTOCOL, ...original }))
-      return NextResponse.json({ error: { code: "RECIPE_OWNER_CHANGED" } }, {
-        status: 409, headers: { "Cache-Control": "private, no-store" },
-      });
+    if (
+      edit_owner &&
+      !sameRecipeOwner(edit_owner, {
+        protocol: RECIPE_OWNER_PROTOCOL,
+        ...original,
+      })
+    )
+      return NextResponse.json(
+        { error: { code: "RECIPE_OWNER_CHANGED" } },
+        {
+          status: 409,
+          headers: { "Cache-Control": "private, no-store" },
+        },
+      );
     const familyId = auth.user.family_id;
     const { id } = await context.params;
+
+    if (storageBackend() === "d1") {
+      const result = await updateD1Recipe(
+        {
+          userId: auth.user.id,
+          familyId,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        id,
+        parsed.data,
+      );
+      if (result.status !== 200)
+        return NextResponse.json(result.body, {
+          status: result.status,
+          headers: { "Cache-Control": "private, no-store" },
+        });
+      const detail = await readD1Recipe(
+        {
+          userId: auth.user.id,
+          familyId,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        id,
+      );
+      return NextResponse.json(detail.body, {
+        status: detail.status,
+        headers:
+          detail.status === 200
+            ? recipeReadOwnerHeaders(original)
+            : { "Cache-Control": "private, no-store" },
+      });
+    }
 
     const updated = await prisma!.$transaction(async (tx) => {
       const refused = await recipeWriteAuthority(tx, {
@@ -177,12 +271,20 @@ export async function PATCH(request: NextRequest, context: Context) {
       );
     const detail = await readCreatedRecipe(
       prisma!,
-      { userId: auth.user.id, familyId, tokenVersion: auth.payload.tv ?? 0, originalRole: original.role },
+      {
+        userId: auth.user.id,
+        familyId,
+        tokenVersion: auth.payload.tv ?? 0,
+        originalRole: original.role,
+      },
       id,
     );
     return NextResponse.json(detail.body, {
       status: detail.status,
-      headers: detail.status === 200 ? recipeReadOwnerHeaders(original) : { "Cache-Control": "private, no-store" },
+      headers:
+        detail.status === 200
+          ? recipeReadOwnerHeaders(original)
+          : { "Cache-Control": "private, no-store" },
     });
   } catch (err) {
     if (err instanceof RecipeInputError) {
@@ -222,6 +324,24 @@ export async function DELETE(request: NextRequest, context: Context) {
     }
 
     const { id } = await context.params;
+    if (storageBackend() === "d1") {
+      const result = await deleteD1Recipe(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        id,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: {
+          "Cache-Control": "private, no-store",
+          ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
+    }
     const outcome = await prisma!.$transaction(async (tx) => {
       const existing = await tx.recipe.findFirst({
         where: { id, family_id: auth.user.family_id },
@@ -252,6 +372,7 @@ export async function DELETE(request: NextRequest, context: Context) {
     }
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code);
     logRouteError("DELETE /api/recipes/[id]", err, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
