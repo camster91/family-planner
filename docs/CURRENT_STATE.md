@@ -1,3 +1,31 @@
+# Cloudflare source and release evidence — 2026-10-29
+
+The implementation uses Cloudflare Workers, a bounded compute-only Durable
+Object pool, native D1 and private R2. The old family hostname is preserved by
+an authenticated, stateless proxy in its existing Cloudflare account; it does
+not have a separate household database or auth model.
+
+**Live rollout and acceptance evidence:** [migration registry #604](https://github.com/camster91/family-planner/issues/604).
+That registry records the deployed source/version, domain and TLS checks,
+private household/media acceptance, scoped QA-data cleanup, rollback identity
+and VPS decommission state. Source being merged or built does not establish
+production acceptance. This file describes source architecture; the execution
+notes below are historical pre-cutover checkpoints, not a live health report.
+
+Source/runtime contract: [Cloudflare runtime](architecture/CLOUDFLARE_RUNTIME.md).
+Main configuration: `wrangler.jsonc`; native-host bridge:
+`wrangler.legacy-alias.jsonc`; private password compute:
+`wrangler.password-compute.jsonc`. Runtime storage is D1. PostgreSQL/Docker
+compatibility remains available for existing checks and approved recovery;
+it is not a second active household backend in this architecture.
+
+Focused compute/proxy tests, native profile/shell isolation checks and the
+onboarding SSR-to-hydrated interaction regression pass. The final build and
+current release gates are recorded in #604 rather than inferred from older
+checkpoint text. No paid-plan activation is part of this migration.
+
+## Historical migration execution notes
+
 # Cross-account hostname compatibility — 2026-10-29
 
 Exact candidate `6ad3a2872153e75859f53f35ed469a9fc4b6c536` passed required

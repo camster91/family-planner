@@ -37,7 +37,7 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
-- Active hosting migration (#604): `docs/plans/cloudflare-native-migration.md` — Workers, D1 and private R2 with a fresh database; public login and D1 session checks run locally in Workers; account writes and the remaining database conversion are incomplete, and production remains on the VPS.
+- Cloudflare hosting migration (#604): `docs/architecture/CLOUDFLARE_RUNTIME.md` defines the implemented Workers/D1/private-R2 runtime and cross-account native-host bridge. `docs/plans/cloudflare-native-migration.md` preserves implementation history. Live source/version, acceptance, rollback and decommission evidence belongs in GitHub issue #604.
 
 - Notification event/delivery follow-through (#141): `docs/plans/notification-delivery-v1.md` (source inventory plus N1–N5; generic dedupe/admission, recovery, exact destinations and provider/native rollout remain unfinished).
 

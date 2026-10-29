@@ -15,6 +15,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { readHouseholdProfiles } from "@/lib/household-profile-types";
 import { useOnboardingText } from "@/i18n/onboarding";
+import { useHydrated } from "@/components/ui/use-hydrated";
 
 const ProfileSetupPanel = dynamic(
   () =>
@@ -130,6 +131,10 @@ export default function OnboardingFlow({
   userId: _userId,
 }: OnboardingFlowProps) {
   const text = useOnboardingText();
+  // The server-rendered button has no React handler yet. Keep it inert until
+  // hydration owns the flow so a fast click cannot fall through to a native
+  // browser action or disappear before step two is mounted.
+  const hydrated = useHydrated();
   const [step, setStep] = useState(1);
   const [familyName, setFamilyName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -436,7 +441,10 @@ export default function OnboardingFlow({
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="inline-flex min-h-[44px] items-center rounded-xl bg-accent-fill px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-fill-hover"
+            disabled={!hydrated}
+            aria-busy={!hydrated ? "true" : undefined}
+            aria-disabled={!hydrated || undefined}
+            className="inline-flex min-h-[44px] items-center rounded-xl bg-accent-fill px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-fill-hover disabled:cursor-wait disabled:opacity-60"
           >
             {text("getStarted")}
             <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
