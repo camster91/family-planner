@@ -275,7 +275,7 @@ jobs:
 
       # Every recovery POST is intercepted; screenshots contain fabricated values only.
       - name: Preserve ordinary and expanded recovery reports and captures
-        if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true) }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: recovery-qa-${{ github.sha }}
@@ -638,7 +638,7 @@ jobs:
         profile_routine,
         review_documents,
       ]
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
