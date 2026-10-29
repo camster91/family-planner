@@ -4,7 +4,7 @@
 import { foodAiFeedbackInput, foodAiFeedbackReply } from "@/lib/food-planning/ai-contract";
 import { isAiUsageReady } from "@/lib/ai-usage-gates";
 import { readFoodAiFeedback } from "@/lib/food-planning/ai-feedback";
-import { retentionCutoffDay, utcDay } from "@/lib/beta-metrics";
+import { prepareD1BetaMetricEffects } from "@/lib/beta-metrics";
 import { executeD1PersonEffect, type NativePersonResult } from "./person-effect";
 import { d1WriteCheck } from "./write-check";
 import type { D1ReadClient } from "./read-client";
@@ -109,7 +109,6 @@ export async function recordD1FoodAiFeedback(
     plan: async (_db, _recordId) => {
       readFoodAiFeedback(input.ticket, actor, now.getTime());
       if (!isAiUsageReady()) throw new Error("Food feedback paused");
-      const day = utcDay(now);
       const metric = metricFor(input.decision);
       return {
         status: 200,
@@ -117,22 +116,7 @@ export async function recordD1FoodAiFeedback(
           protocol: "herewoven.food-ai-feedback.v1",
           state: "recorded",
         }),
-        effects: session => [
-          session
-            .prepare(
-              `INSERT INTO "BetaMetricDaily"(family_id,day,metric,count)
-               SELECT id,?1,?2,1 FROM "Family"
-               WHERE id=?3 AND beta_metrics_enabled=1
-               ON CONFLICT(family_id,day,metric) DO UPDATE SET count=count+1`,
-            )
-            .bind(day, metric, actor.familyId),
-          session
-            .prepare(
-              `DELETE FROM "BetaMetricDaily" WHERE family_id=?1 AND day<?2
-               AND EXISTS(SELECT 1 FROM "Family" WHERE id=?1 AND beta_metrics_enabled=1)`,
-            )
-            .bind(actor.familyId, retentionCutoffDay(now)),
-        ],
+        effects: session => prepareD1BetaMetricEffects(session, actor.familyId, metric, now),
       };
     },
     effectChecks: async _store => ({

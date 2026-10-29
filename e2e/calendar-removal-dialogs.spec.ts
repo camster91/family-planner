@@ -17,7 +17,7 @@ test.skip(
   "Requires guarded opted-in Settings QA server",
 );
 for (const locale of ["en", "es"] as const)
-  test(`${locale}: calendar removals cancel, wait, fail and retry in the app`, async ({
+  test(`${locale}: calendar removals cancel, wait, fail and recover in the app`, async ({
     page,
     context,
     baseURL,
@@ -139,6 +139,24 @@ for (const locale of ["en", "es"] as const)
         await page.keyboard.press("Escape");
         await expect(dialog).toBeVisible();
         release({ status: 503, body: { error: "Synthetic removal refusal" } });
+        if (item.action === "remove") {
+          // Subscription writes fail closed outside the dialog when the
+          // response is ambiguous. The recovery surface keeps the original
+          // request held and offers an explicit list check instead of
+          // retrying a potentially already-applied delete.
+          await expect(dialog).toHaveCount(0);
+          await expect(section.getByRole("alert")).toHaveText(
+            msg(locale, "calendarWriteUnconfirmed"),
+          );
+          const check = section.getByRole("button", {
+            name: msg(locale, "checkSubscriptions"),
+            exact: true,
+          });
+          await expect(check).toBeEnabled();
+          expect(s.count("DELETE", item.path)).toBe(1);
+          await capture(page, info, item.section + "-recovery", [], section);
+          continue;
+        }
         await expect(dialog.getByRole("alert")).toHaveText(
           "Synthetic removal refusal",
         );

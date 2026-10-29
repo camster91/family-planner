@@ -16,12 +16,13 @@ const mockPrisma = {
   project: { findFirst: jest.fn() },
   projectTask: { findMany: jest.fn(), groupBy: jest.fn() },
 };
+let mockServerRole: "parent" | "child" = "parent";
 jest.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 jest.mock("@/lib/supabase/server", () => ({
   getServerUser: async () => ({
     id: "u1",
     email: "parent@example.test",
-    role: "parent",
+    role: mockServerRole,
     family_id: "fam-a",
   }),
 }));
@@ -83,6 +84,7 @@ const task = (id: string, title: string, completed: boolean) => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockServerRole = "parent";
   mockPrisma.user.findUnique.mockResolvedValue({
     family_id: "fam-a",
     role: "parent",
@@ -193,6 +195,7 @@ it("renders the tasks as tickable checkboxes and the Send to Calendar button", a
 });
 
 it("a non-parent sees the tasks read-only (the task API is parent-only)", async () => {
+  mockServerRole = "child";
   mockPrisma.user.findUnique.mockResolvedValue({
     family_id: "fam-a",
     role: "child",

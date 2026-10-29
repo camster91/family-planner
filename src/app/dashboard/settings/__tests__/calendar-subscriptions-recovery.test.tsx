@@ -139,6 +139,7 @@ it("admits only bounded, unique subscription summaries and projects away extras"
   expect(readCalendarSubscriptionList({ subscriptions: [row, row] })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: Array.from({ length: 11 }, (_, index) => ({ ...row, id: String(index) })) })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, last_fetched_at: "invalid-date" }] })).toBeNull();
+  expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, last_status: "future" }] })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, name: null }] })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, url_enc: "fixture-private-extra" }] })).toEqual([row]);
 });

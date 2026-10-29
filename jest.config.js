@@ -6,6 +6,10 @@ module.exports = {
   modulePathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/.open-next/', '<rootDir>/.wrangler/', '<rootDir>/src/generated/cloudflare-read/'],
   moduleNameMapper: {
     '\\.module\\.css$': '<rootDir>/src/__tests__/helpers/css-module.js',
+    // Keep Jest on its CommonJS test boundary. The production OpenNext
+    // package is ESM-only and is loaded by the Worker runtime, not Node's
+    // ts-jest runner.
+    '^@opennextjs/cloudflare$': '<rootDir>/src/__tests__/helpers/opennext-cloudflare.js',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   setupFiles: ['<rootDir>/jest.setup.js'],

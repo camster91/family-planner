@@ -551,6 +551,9 @@ test.describe("parentA household controls", () => {
       ).toBeVisible();
       await section.locator("#calendarSubName").fill("  " + PROFILE + "  ");
       await section.locator("#calendarSubUrl").fill("  " + PRIVATE_URL + "  ");
+      // Colour choices are intentionally collapsed in the compact Settings
+      // form. Open the disclosure before exercising its keyboard radios.
+      await section.locator("details > summary").click();
       const blue = section.getByRole("radio", {
         name: msg(locale, "blue"),
         exact: true,
@@ -709,7 +712,7 @@ test.describe("parentA household controls", () => {
       expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
       await capture(page, info, "subscriptions-synthetic-removed");
     });
-    test(`${locale}: subscription failed clock raw large-feed future and invalid timestamps stay canonical`, async ({
+    test(`${locale}: subscription failed clock raw large-feed and old timestamps stay canonical`, async ({
       page,
       context,
       baseURL,
@@ -735,8 +738,10 @@ test.describe("parentA household controls", () => {
             subscription({
               id: "synthetic-future",
               name: PROFILE + " future",
-              last_status: "future",
-              last_fetched_at: "not-a-date",
+              last_status: "ok",
+              last_fetched_at: new Date(
+                +now - 2 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
             }),
           ],
         },

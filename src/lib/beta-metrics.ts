@@ -26,6 +26,7 @@
  */
 import { storageBackend } from '@/lib/storage-backend'
 import type { Prisma, PrismaClient } from '@prisma/client'
+import type { D1Statement, D1Store } from '@/lib/cloudflare/database'
 
 export const BETA_METRICS = [
   // Activation: family creation, invite (a member joined), first assignment.
@@ -73,6 +74,33 @@ export function retentionCutoffDay(now: Date): string {
   return utcDay(cutoff)
 }
 
+/**
+ * Build the native aggregate statements in one place.  The feedback receipt
+ * uses these same statements inside its idempotent batch, while ordinary D1
+ * callers use them after their domain write commits.  Keeping the SQL here
+ * preserves the single-writer boundary for BetaMetricDaily.
+ */
+export function prepareD1BetaMetricEffects(
+  db: Pick<D1Store, 'prepare'>,
+  familyId: string,
+  metric: DirectBetaMetric,
+  now: Date,
+): D1Statement[] {
+  if (!isBetaMetric(metric) || metric.startsWith('first_chore_'))
+    throw new Error('Beta metric unavailable')
+  if (typeof familyId !== 'string' || familyId.length === 0)
+    throw new Error('Beta metric household unavailable')
+  return [
+    db.prepare(`INSERT INTO "BetaMetricDaily" (family_id,day,metric,count)
+      SELECT id,?1,?2,1 FROM "Family" WHERE id=?3 AND beta_metrics_enabled=1
+      ON CONFLICT (family_id,day,metric) DO UPDATE SET count="BetaMetricDaily".count+1`)
+      .bind(utcDay(now), metric, familyId),
+    db.prepare(`DELETE FROM "BetaMetricDaily" WHERE family_id=?1 AND day<?2
+      AND EXISTS (SELECT 1 FROM "Family" WHERE id=?1 AND beta_metrics_enabled=1)`)
+      .bind(familyId, retentionCutoffDay(now)),
+  ]
+}
+
 type RecorderDb = Pick<PrismaClient, '$executeRaw'>
 
 function logFailure(error: unknown) {
@@ -102,15 +130,7 @@ export async function recordBetaMetric(
       const { getD1Database } = await import('@/lib/cloudflare/database')
       const store = await getD1Database()
       const now = options.now ?? new Date()
-      await store.batch([
-        store.prepare(`INSERT INTO "BetaMetricDaily" (family_id,day,metric,count)
-          SELECT id,?1,?2,1 FROM "Family" WHERE id=?3 AND beta_metrics_enabled=1
-          ON CONFLICT (family_id,day,metric) DO UPDATE SET count="BetaMetricDaily".count+1`)
-          .bind(utcDay(now), metric, familyId),
-        store.prepare(`DELETE FROM "BetaMetricDaily" WHERE family_id=?1 AND day<?2
-          AND EXISTS (SELECT 1 FROM "Family" WHERE id=?1 AND beta_metrics_enabled=1)`)
-          .bind(familyId, retentionCutoffDay(now)),
-      ])
+      await store.batch(prepareD1BetaMetricEffects(store, familyId, metric, now))
       return
     }
     await appendBetaMetric(db, familyId, metric, options.now ?? new Date())
