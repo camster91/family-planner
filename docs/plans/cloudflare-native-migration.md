@@ -1998,6 +1998,24 @@ success is claimed for the currently unverified deletion implementation.
 Production remains on the VPS. No Cloudflare resource creation, paid-plan
 activation, DNS cutover, production data wipe, or VPS retirement has occurred.
 
+### Import/export parity repair evidence (2026-10-29)
+
+Checkpoint `8e3dc164` commits the remaining feature migrations; `8bfb0fb5`
+commits complete native account export. Root observed native family import pass
+with profile subjects, stale-target handling and concurrent replay. Responsibility
+read/write/replay/recovery/isolation also passes after correcting the recovery
+fixture owner-scope hash. Native export passes archive/import jobs, complete
+export projection, role redaction, household isolation, and feature gating;
+its measured parent path uses 10 D1 requests. Log:
+`/tmp/herewoven-export-parity-native-oct29.log`.
+
+The local harness can now optionally seed verified fabricated parent/child
+accounts through private bcrypt computation. The parent starts without a family
+for onboarding; the child belongs to a separate fabricated household for role
+and cross-household refusal checks. This seeding was exercised against the tiny
+local harness fixture; full application browser execution is still pending.
+Account deletion remains under repair and is not covered by these pass claims.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
