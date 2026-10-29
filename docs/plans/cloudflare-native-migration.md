@@ -1974,6 +1974,30 @@ both the canonical herewoven.com host and the existing family.ashbi.ca origin
 before retiring only Herewoven's VPS application/storage. Existing scheduler
 configuration must remain explicit; no new cron triggers are added by this plan.
 
+### Runtime harness and independent parity review (2026-10-29)
+
+Checkpoint `6836cc85` adds opt-in seven-day CI runtime artifacts and a local
+Miniflare harness that verifies immutable source hashes, rejects unsafe archives,
+blocks external requests, and uses fabricated secrets. A tiny fabricated Worker
+proved migrated D1 tables, real local R2, assets, self service calls, private
+bcrypt12 computation, and external-egress refusal. This is harness evidence,
+not acceptance of the full OpenNext app. Two harness defects were corrected:
+Wrangler config placement for TypeScript resolution and the versioned local D1
+resource root. The full current snapshot also passed TypeScript with no emit.
+
+Independent reviews found import replay/profile-assignee gaps and missing or
+internal fields in the account export. The import repairs are implemented;
+export repairs and deletion parity repairs remain in progress. Deletion review
+also found invalid child-table household SQL, retained elevation hashes,
+missing device-session revocation, profile-identity conflicts and routine
+handover expansion. These are release blockers until repaired and exercised.
+The deletion fixture exposed a Next HTTP dependency in the pure native kernel
+import graph; separating that dependency is in progress. No native fixture
+success is claimed for the currently unverified deletion implementation.
+
+Production remains on the VPS. No Cloudflare resource creation, paid-plan
+activation, DNS cutover, production data wipe, or VPS retirement has occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
