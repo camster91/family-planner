@@ -1888,6 +1888,43 @@ Today prerequisites; it now enables/restores the full fabricated cohort.
 No application guard was weakened. New combined build/rendered acceptance
 remains pending while the parallel source work is active; no production change.
 
+
+## 2026-10-28 — Cloudflare domain implementation checkpoint (#604)
+
+Commit `1aa4d4bd` preserves native D1 implementations for Today/home/board
+settings, shared-device ticks, independent and stacked routines, ordinary and
+bulk meals/recovery, inventory, recipe library and recipe-to-grocery flows,
+and private upload/message-attachment lifecycle handling. Private objects use
+immutable generation keys; stale cleanup cannot delete a replacement upload.
+Read witnesses now compare REAL values without weakening typed source checks.
+
+Observed integration evidence: all 16 schema migrations pass the native schema
+check (84 models, 963 canonical plus 22 explicitly ported source-version columns,
+2 file-lifecycle columns, 153 unique keys, 208 relations). Four focused Jest
+suites pass (17 tests: mail transport, meal batches, recipe curation contract,
+independent routines). Full TypeScript was clean at the observed shared-worktree
+checkpoint; agents continue editing separate slices. Earlier native all-slice
+results remain scoped to their recorded source, not later worktree acceptance.
+
+The isolated GitHub build/dry-run passes at **3887c859**, run
+[40805145977](https://github.com/camster91/family-planner/actions/runs/40805145977).
+It builds source before the domain checkpoint, not the latest candidate. Bundle:
+44,641.78 KiB uncompressed; gzip 10,767.67 KiB. Cloudflare's current
+[limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size)
+and [September size-limit change](https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/)
+permit 64 MiB uncompressed on Free; gzip is informational. The old 3 MiB
+compressed limit does not apply. The 10 ms Free CPU and one-second startup
+limits still require actual edge evidence.
+
+Local Wrangler startup currently stalls before workerd: esbuild and an independent
+Node readdir probe both block opening the Mac's Documents ancestor directory.
+This is not a passed feature fixture. A disposable temporary runtime snapshot is
+being prepared to bypass that filesystem issue. New calendar, messaging,
+notes/projects, AI/food, wishlist and private bcrypt-compute work remains in the
+worktree for further integration; unverified domains and existing PostgreSQL-only
+routes still prevent a full cutover. No production migration/deployment, DNS
+change, paid-plan activation, data wipe or VPS retirement has occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
