@@ -44,6 +44,7 @@ const startupOut = path.resolve(
   ROOT,
   args.get("startup-out") ?? "cloudflare-readiness/startup-summary.json",
 );
+const runtimeArtifactRetained = args.get("runtime-artifact-retained") === "true";
 const wrangler = path.resolve(ROOT, "node_modules/wrangler/bin/wrangler.js");
 
 async function walk(directory) {
@@ -134,6 +135,13 @@ async function main() {
     deployment: false,
     contentsIncluded: false,
     compiledContentsRetained: false,
+    runtimeArtifact: {
+      retained: runtimeArtifactRetained,
+      retentionDays: runtimeArtifactRetained ? 7 : null,
+      contents: runtimeArtifactRetained
+        ? ["worker.bundle", ".open-next/assets", "source.json"]
+        : [],
+    },
     uploadModules: {
       count: uploadModules.length,
       bytes: uploadBytes,
