@@ -110,7 +110,7 @@ export function Region({
       tabIndex={area === 'groceries' ? -1 : 0}
       className={cn(regionClass, areaClass[area], className)}
     >
-      <div className="mb-3 flex min-h-[48px] items-center gap-2.5 2xl:mb-4 2xl:min-h-[56px]">
+      <div data-region-heading className="mb-3 flex min-h-[48px] items-center gap-2.5 2xl:mb-4 2xl:min-h-[56px]">
         <Glyph color={glyph} size="md">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </Glyph>
