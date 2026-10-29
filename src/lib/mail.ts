@@ -41,27 +41,36 @@ export async function sendMail(options: {
   // btoa is available in Workers and Node 22. Mailgun API keys are ASCII
   // tokens, so no Node Buffer/polyfill is needed in the edge bundle.
   const auth = globalThis.btoa(`api:${apiKey}`)
-  const response = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
-    method: 'POST',
-    ...(options.signal ? { signal: options.signal } : {}),
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      from,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
-    }),
-  })
+  const timeout = new AbortController()
+  const timer = setTimeout(() => timeout.abort(new DOMException('Mail delivery timed out', 'TimeoutError')), 10_000)
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout.signal]) : timeout.signal
 
-  if (!response.ok) {
+  try {
+    // A revoked membership/cancelled caller must not start a provider send.
+    signal.throwIfAborted()
+    const response = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
+      method: 'POST',
+      signal,
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        from,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      }),
+    })
+
     // Provider response bodies can contain recipient/message data. Keep the
-    // error identity useful to callers without exposing that data in logs.
+    // error identity useful without logging bodies; release successful bodies
+    // too, since callers do not consume the provider's message receipt.
     if (response.body) await response.body.cancel().catch(() => {})
-    throw new Error(`Mailgun failed (${response.status})`)
+    if (!response.ok) throw new Error(`Mailgun failed (${response.status})`)
+  } finally {
+    clearTimeout(timer)
   }
 }
 
