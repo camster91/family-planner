@@ -194,4 +194,3 @@ export function deleteD1Anniversary(actor: D1AnniversaryActor, id: string, key: 
     },
   })
 }
-
