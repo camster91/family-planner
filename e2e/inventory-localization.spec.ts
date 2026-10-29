@@ -1517,19 +1517,33 @@ test.describe("inventory localization synthetic server", () => {
           .getByRole("button", { name: msg(locale, "scanFridge"), exact: true })
           .click();
         const dialog = page.getByTestId("scan-dialog");
-        const scan = page.waitForResponse(
-          (response) =>
-            new URL(response.url()).pathname === "/api/inventory/scan" &&
-            response.request().method() === "POST",
-        );
+        const scanCapture: {
+          value: {
+            status: number;
+            body: { items: Array<{ name: string }> };
+          } | null;
+        } = { value: null };
+        // Capture the body at the route boundary. Reading a Playwright
+        // Response after the UI has consumed it can race a mobile navigation
+        // and produce "No data found for resource" even though the scan was
+        // successful. The UI assertions below still exercise the real client
+        // response delivered by this pass-through route.
+        await page.route("**/api/inventory/scan", async (route) => {
+          if (route.request().method() !== "POST") return route.continue();
+          const response = await route.fetch();
+          const body = (await response.json()) as {
+            items: Array<{ name: string }>;
+          };
+          scanCapture.value = { status: response.status(), body };
+          return route.fulfill({ response, json: body });
+        });
         await page.getByTestId("scan-file-input").setInputFiles({
           name: "synthetic.png",
           mimeType: "image/png",
           buffer: SYNTHETIC_PNG,
         });
-        const scanResponse = await scan;
-        expect(scanResponse.status()).toBe(200);
-        const suggestions = (await scanResponse.json()).items;
+        await expect.poll(() => scanCapture.value?.status ?? 0).toBe(200);
+        const suggestions = scanCapture.value?.body.items ?? [];
         expect(suggestions).toHaveLength(3);
         expect(suggestions[0].name).toBe(PREFIX + " scan {name} 李");
         const rows = page.getByTestId("scan-suggestion");

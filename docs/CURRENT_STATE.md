@@ -1,27 +1,42 @@
 # Latest migration checkpoint — 2026-10-29
 
-Candidate `c785d926ea710b6a1b3258ec16316a7fcb890dac` passed Cloudflare CI
-run [40863689234](https://github.com/camster91/family-planner/actions/runs/40863689234).
-The default native matrix (baseline plus 41 domains), TypeScript, targeted
-routine recovery, and the full local compiled-app browser household journey
-pass. Browser coverage includes authenticated root routing, family setup,
-explicitly local-enabled email-free child profile, grocery persistence,
-calendar duration edits, two-dish bulk prep with reload, child/cross-household
-refusal, logout, and phone/tablet/desktop Today captures.
+Cloudflare candidate `22c87b88bf634ad5a5295c45dac257b3dd65ebb0` passed
+[immutable build 40877597385](https://github.com/camster91/family-planner/actions/runs/40877597385).
+Prepared upload `/tmp/herewoven-deploy-22c87b88` has both module hashes matched
+byte-for-byte to CI and preserves the existing secret bindings. Private
+password-compute inputs also match the artifact manifest. No upload of this
+candidate has succeeded yet.
 
-Created isolated D1 `herewoven` (`cff38a6c-d2cb-4a5f-bed9-3c8f8a888590`) and
-private R2 `herewoven-uploads`. All 16 migrations are applied to the fresh D1;
-verified zero users/households and no foreign-key violations. R2 public access
-is disabled and it has no public custom domains. No paid plan was enabled.
+The temporary workers.dev app is still source
+`c785d926ea710b6a1b3258ec16316a7fcb890dac`. Its app Worker and private
+password-compute Worker are deployed; four existing secret bindings were copied
+without exposing their values. D1 `herewoven`
+(`cff38a6c-d2cb-4a5f-bed9-3c8f8a888590`) has all 16 migrations, and R2
+`herewoven-uploads` is private. Only fabricated QA records were added to the
+fresh database. No paid plan was enabled. Updating the existing app Worker
+requires Wrangler's separate `workers_scripts:write` OAuth scope; the device
+sign-in expired before approval. Existing granted scopes were rechecked and
+still lack that permission.
 
-The immutable artifact is prepared for deployment at
-`/tmp/herewoven-deploy-c785d926`; deployment dry-run module hashes match CI
-byte-for-byte (only leading `./` module-name normalization). Wrangler upload
-needs its separate Cloudflare OAuth login; a browser sign-in is open. The
-connected Cloudflare app applied storage/schema successfully, but cannot supply
-Wrangler's local credentials. Production DNS and the healthy VPS app remain
-unchanged. Actual edge validation, merge/cutover for both herewoven.com and
-family.ashbi.ca, and Herewoven-only VPS retirement remain open.
+The native matrix (baseline plus 41 domains), focused deletion/export/privacy
+checks, and compiled local household journey passed. The newer `30012eaf`
+compiled artifact also passed the full local journey after auth-navigation and
+HTTP-upload fixes: login/logout, fresh family setup, locally enabled email-free
+child profile, groceries with reload, event duration, multi-dish prep, role and
+household refusal, and phone/tablet/desktop Today. The subsequent `22c87b88`
+metrics refactor passed its targeted native replay/privacy test. Android CI on
+`22c87b88` passed; required Build & Test remains in progress. Updated Settings
+and calendar-removal browser assertions still require their CI results. An
+inventory response-capture race (63/64 browser journeys passed) has a test-only
+correction; its TypeScript and formatting checks pass, but it has not yet been
+rerun in a browser.
+
+Production DNS and the healthy VPS app remain unchanged. Actual updated edge
+household and private HTTP R2 verification, required CI, merge/cutover for
+herewoven.com and family.ashbi.ca, and Herewoven-only VPS retirement remain
+open. The old family host inherits the shared `*.ashbi.ca` DNS record; preserve
+that wildcard and create an exact app mapping during cutover. The scoped DNS
+recovery map is `/tmp/herewoven-dns-cutover-backup-20261029.json`.
 
 Detailed evidence and recovery steps: [migration plan](plans/cloudflare-native-migration.md).
 Earlier sections below are historical checkpoints.
