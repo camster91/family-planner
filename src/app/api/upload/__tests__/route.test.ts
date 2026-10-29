@@ -6,12 +6,14 @@
 
 const mockFiles = new Map<string, Buffer>();
 function mockFilePath(p: string): string { return require('node:path').resolve(p); }
+const mockMkdir = jest.fn(async () => undefined);
+const mockExistsSync = jest.fn((p: string) => mockFiles.has(mockFilePath(p)) || !/\.[a-z]+$/i.test(p));
 
 jest.mock("fs/promises", () => ({
   writeFile: async (p: string, buf: Buffer) => {
     mockFiles.set(mockFilePath(p), Buffer.from(buf));
   },
-  mkdir: async () => undefined,
+  mkdir: (...args: [string, { recursive?: boolean }]) => mockMkdir(...args),
   rename: async (from: string, to: string) => {
     const buf = mockFiles.get(mockFilePath(from));
     if (!buf) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
@@ -22,13 +24,36 @@ jest.mock("fs/promises", () => ({
     if (!mockFiles.delete(mockFilePath(p))) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
   },
 }));
-jest.mock("fs", () => ({ existsSync: (p: string) => mockFiles.has(mockFilePath(p)) || !/\.[a-z]+$/i.test(p) }));
+jest.mock("fs", () => ({ existsSync: (p: string) => mockExistsSync(p) }));
 
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);
 jest.mock("@/lib/session", () => require("@/__tests__/helpers/two-household").sessionMock);
 jest.mock("@/lib/prisma", () => ({ prisma: require("@/__tests__/helpers/two-household").fakePrisma }));
 jest.mock("@/lib/rate-limit-db", () => ({ checkRateLimit: jest.fn() }));
+const mockD1Bucket = {
+  head: jest.fn(async () => null),
+  get: jest.fn(async () => null),
+  put: jest.fn(async () => undefined),
+  delete: jest.fn(async () => undefined),
+};
+const mockGetPrivateObjectStore = jest.fn(async () => mockD1Bucket);
+const mockPruneD1UnreferencedUploads = jest.fn(async () => 0);
+const mockStoreD1ChoreUpload = jest.fn(async ({ filename, contentType, bytes }: { filename: string; contentType: string; bytes: Uint8Array }) => ({
+  kind: "ok" as const,
+  created: true,
+  row: { id: "d1-upload", family_id: "family-A", filename, content_type: contentType, size_bytes: bytes.byteLength },
+}));
+jest.mock("@/lib/cloudflare/storage", () => ({ getPrivateObjectStore: (...args: []) => mockGetPrivateObjectStore(...args) }));
+jest.mock("@/lib/cloudflare/uploads", () => ({
+  pruneD1UnreferencedUploads: (...args: unknown[]) => mockPruneD1UnreferencedUploads(...args),
+  storeD1ChoreUpload: (...args: unknown[]) => mockStoreD1ChoreUpload(...args as [{ filename: string; contentType: string; bytes: Uint8Array }]),
+}));
+jest.mock("@/lib/cloudflare/database", () => ({ getD1Database: jest.fn(async () => ({})) }));
+jest.mock("@/lib/cloudflare/accounts", () => ({
+  findD1AuthUser: jest.fn(async () => ({ id: "parent-a", family_id: "family-A", role: "parent", name: "Parent A", last_chore_date: null })),
+}));
+jest.mock("@/lib/device-session", () => ({ isPairedDeviceRequest: jest.fn(async () => false) }));
 
 import path from "path";
 import { POST as upload } from "@/app/api/upload/route";
@@ -175,6 +200,30 @@ describe("POST /api/upload — limits", () => {
     const again: any = await upload(uploadReq("parentA") as never);
 
     expect(again.status).toBe(200);
+  });
+
+  it("uses only the private R2 adapter on the native D1 path", async () => {
+    const previousStorage = process.env.HEREWOVEN_STORAGE;
+    process.env.HEREWOVEN_STORAGE = "d1";
+    mockMkdir.mockClear();
+    mockExistsSync.mockClear();
+    mockGetPrivateObjectStore.mockClear();
+    mockPruneD1UnreferencedUploads.mockClear();
+    mockStoreD1ChoreUpload.mockClear();
+    try {
+      const res: any = await upload(uploadReq("parentA") as never);
+
+      expect(res.status).toBe(200);
+      expect(mockGetPrivateObjectStore).toHaveBeenCalledTimes(1);
+      expect(mockPruneD1UnreferencedUploads).toHaveBeenCalledTimes(1);
+      expect(mockStoreD1ChoreUpload).toHaveBeenCalledTimes(1);
+      expect(mockMkdir).not.toHaveBeenCalled();
+      expect(mockExistsSync).not.toHaveBeenCalled();
+      expect(mockFiles.size).toBe(0);
+    } finally {
+      if (previousStorage === undefined) delete process.env.HEREWOVEN_STORAGE;
+      else process.env.HEREWOVEN_STORAGE = previousStorage;
+    }
   });
 });
 

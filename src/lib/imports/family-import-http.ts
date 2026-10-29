@@ -170,9 +170,13 @@ async function handleFamilyImport(
     const familyUserIds = new Set<string>();
     if (storageBackend() === "d1") {
       const db = await getD1Database();
-      const placeholders = mappedUserIds.map((_, index) => `?${index + 2}`).join(",");
+      const placeholders = mappedUserIds
+        .map((_, index) => `?${index + 2}`)
+        .join(",");
       const familyUsers = await db
-        .prepare(`SELECT id FROM "User" WHERE family_id=?1 AND id IN (${placeholders})`)
+        .prepare(
+          `SELECT id FROM "User" WHERE family_id=?1 AND id IN (${placeholders})`,
+        )
         .bind(auth.user.family_id, ...mappedUserIds)
         .all<{ id: string }>();
       for (const user of familyUsers.results) familyUserIds.add(user.id);
@@ -205,9 +209,10 @@ async function handleFamilyImport(
       startedBy: auth.user.id,
       sessionVersion: auth.payload.tv ?? 0,
     } as const;
-    const result = storageBackend() === "d1"
-      ? await runD1FamilyImport(importOptions)
-      : await runFamilyImport(importOptions);
+    const result =
+      storageBackend() === "d1"
+        ? await runD1FamilyImport(importOptions)
+        : await runFamilyImport(importOptions);
     if (requireOwner) {
       // Renew the same original actor before returning private preview/receipt.
       // A later refusal does not prove an earlier write rolled back.

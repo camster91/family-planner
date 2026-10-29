@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
       role: auth.user.role,
       generation: auth.payload.tv ?? 0,
     });
-    return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json(result.body, {
+      status: result.status,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
 
   const jobs = await prisma!.importJob.findMany({

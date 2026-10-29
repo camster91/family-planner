@@ -22,8 +22,9 @@ export async function GET() {
 
     if (backend === "d1") {
       try {
-        await getD1Database()
-          .then((db) => db.withSession("first-primary").prepare("SELECT 1").first());
+        await getD1Database().then((db) =>
+          db.withSession("first-primary").prepare("SELECT 1").first(),
+        );
         databaseReady = true;
       } catch {
         databaseReady = false;

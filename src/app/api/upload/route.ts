@@ -84,12 +84,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Ensure upload dir exists
-    const choreUploadDir = path.join(UPLOAD_DIR, 'chores')
-    if (!existsSync(choreUploadDir)) {
-      await mkdir(choreUploadDir, { recursive: true })
-    }
-
     const buf = Buffer.from(await file.arrayBuffer())
 
     // Validate type from the file's magic bytes, not the client-declared MIME
@@ -118,7 +112,6 @@ export async function POST(request: NextRequest) {
       .slice(0, 16)
     const ext = sniffed.ext
     const filename = `${hash}.${ext}`
-    const filepath = path.join(choreUploadDir, filename)
 
     if (storageBackend() === 'd1') {
       const [{ getPrivateObjectStore }, { pruneD1UnreferencedUploads, storeD1ChoreUpload }] = await Promise.all([
@@ -162,6 +155,15 @@ export async function POST(request: NextRequest) {
         type: stored.row.content_type,
       })
     }
+
+    // The PostgreSQL backend stores files on the local filesystem. Keep all
+    // filesystem setup below the D1/R2 branch: Workers have no local upload
+    // directory and must never execute these calls.
+    const choreUploadDir = path.join(UPLOAD_DIR, 'chores')
+    if (!existsSync(choreUploadDir)) {
+      await mkdir(choreUploadDir, { recursive: true })
+    }
+    const filepath = path.join(choreUploadDir, filename)
 
     // Opportunistic cleanup of this household's stale, unreferenced uploads
     // (src/lib/upload-housekeeping.ts). It runs before the quota check so a
