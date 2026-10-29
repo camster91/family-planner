@@ -2016,6 +2016,19 @@ and cross-household refusal checks. This seeding was exercised against the tiny
 local harness fixture; full application browser execution is still pending.
 Account deletion remains under repair and is not covered by these pass claims.
 
+### Combined native feature run (2026-10-29)
+
+Root ran all 40 registered non-deletion domain slices together against one
+fresh, disposable workerd/D1/R2 runtime. All requested slices passed, including
+private device-parent bcrypt, meals/bulk prep, recipes, inventory, routines,
+health, messaging, food/assistant effects, review, settings, responsibility,
+weekly reset, calendar import, family import, and export (10 requests).
+Authoritative output: `/tmp/herewoven-combined-native-domains-oct29.log`.
+The requested slice set was compared against the runner registry; no requested
+non-deletion slice was omitted. This combined domain run does not substitute
+for the baseline HTTP matrix, account deletion, rendered full-app journeys,
+actual edge CPU evidence, provider readiness, or production cutover.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
