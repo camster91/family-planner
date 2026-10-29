@@ -1925,6 +1925,55 @@ worktree for further integration; unverified domains and existing PostgreSQL-onl
 routes still prevent a full cutover. No production migration/deployment, DNS
 change, paid-plan activation, data wipe or VPS retirement has occurred.
 
+
+### Native integration follow-through (2026-10-28)
+
+Pushed checkpoints through `66ce8b9c` now include native private messaging,
+notes/projects/wishlists/allowance, finance/rewards/inventory recovery/logistics,
+and bcrypt12 password/PIN computation through a private Worker/Durable Object.
+Additional health/core SSR and calendar checkpoints are `b835cdc9` and `808ae8b6`.
+Local native verification found and fixed real regressions: epoch triggers made
+`meta.changes` misreport preference-write winners; personal queue reconciliation
+fell through to Prisma; several strict DTO/binding projections were incorrect.
+Logout now has a native generation CAS and legacy analytics keeps its no-op
+compatibility behavior with household-scoped retention cleanup (source verification
+in progress until its checkpoint is pushed).
+
+Native evidence now includes actual local R2 byte/metadata admission, deduplication,
+message claims, cross-household refusal and cleanup; the adversarial delayed-delete
+fixture remains a separate object-double race test. Real private bcrypt12/PIN,
+calendar OAuth PKCE/refresh/pull/push/feed/disconnect (mock providers), food planning
+including missing/foreign graph rejection, food source versions, health, analytics,
+search, review and archive/export kernels have passed bounded native runs. The
+combined release matrix and rendered app acceptance remain open; new deletion,
+responsibility and import/recovery slices are still being integrated. No actual
+provider mail/OAuth calls, production data changes or plan activation occurred.
+
+The exact pushed candidate `66ce8b9cc3cd4e0f0b6720759b0aff7ea4ca144e` passes
+[build, dry-run and local startup profiling](https://github.com/camster91/family-planner/actions/runs/40808792717):
+45,956,645 upload-module bytes (43.828 MiB), 545 static assets (9,131,735 bytes),
+45.3 ms sampled active local startup time. This is **local CPU evidence, not edge
+CPU acceptance**, and predates later worktree additions. The account's active
+Free Website zone and standard Worker usage setting do not establish its Workers
+billing tier; billing-read permission is unavailable. No billing/plan mutation is
+authorized or required by these build-only actions.
+
+Current runtime-workaround: a disposable source/dependency snapshot at
+`/tmp/herewoven-native-runtime-oct29` avoids the proven macOS Documents-ancestor
+readdir stall. An opt-in, seven-day private CI runtime artifact and loopback-only
+Miniflare harness are being prepared for actual bundled-app browser verification;
+all provider egress is denied and household data is fabricated.
+
+Compatibility requirement before VPS retirement: `capacitor.config.ts` still
+uses `https://family.ashbi.ca` and allows that origin only. Preserve that host as
+an application alias on the same Cloudflare Worker, rather than breaking installed
+clients by redirecting it to an origin their wrapper cannot open. The `ashbi.ca`
+zone is active under the same Cloudflare account (zone
+`3f3fa62a70d7ad71eb6f4ed89bf81e38`); no alias/DNS change has been applied. Verify
+both the canonical herewoven.com host and the existing family.ashbi.ca origin
+before retiring only Herewoven's VPS application/storage. Existing scheduler
+configuration must remain explicit; no new cron triggers are added by this plan.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
