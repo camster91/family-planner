@@ -373,7 +373,13 @@ function metadataBindings(bundle, scratch, overrides = {}) {
   };
 }
 
-async function makeWorkerOptions(bundle, name, scratch, overrides = {}) {
+async function makeWorkerOptions(
+  bundle,
+  name,
+  scratch,
+  overrides = {},
+  assetRouting = {},
+) {
   const bindingScratch = path.join(scratch, "binding-files");
   await mkdir(bindingScratch, { recursive: true });
   const configured = metadataBindings(bundle, bindingScratch, overrides);
@@ -407,7 +413,7 @@ async function makeWorkerOptions(bundle, name, scratch, overrides = {}) {
           directory: path.join(scratch, "runtime", ".open-next/assets"),
           binding: configured.assetsName,
           // Match deployed assets-first routing; OpenNext handles app routes.
-          run_worker_first: false,
+          run_worker_first: assetRouting.runWorkerFirst ?? false,
           routerConfig: { has_user_worker: true },
         }
       : undefined,
@@ -662,6 +668,18 @@ try {
     ? source.sha
     : null;
   await verifyPrivatePasswordCompute(source);
+  const assetRouting = source.runtimeArtifact?.assetRouting;
+  if (
+    !assetRouting ||
+    !(
+      typeof assetRouting.runWorkerFirst === "boolean" ||
+      (Array.isArray(assetRouting.runWorkerFirst) &&
+        assetRouting.runWorkerFirst.every(
+          (rule) => typeof rule === "string" && rule.startsWith("/"),
+        ))
+    )
+  )
+    throw new Error("Runtime archive is missing valid immutable asset routing");
 
   const databaseState = await applyMigrations(scratch);
   const appBundle = await parseMultipartBundle(
@@ -711,6 +729,7 @@ try {
       RELEASE_SHA: sourceSha ?? "local-runtime",
       NEXT_TELEMETRY_DISABLED: "1",
     },
+    assetRouting,
   );
   appConfigured.options.d1Databases = { DB: LOCAL_DATABASE_ID };
   appConfigured.options.r2Buckets = { UPLOADS: LOCAL_UPLOAD_BUCKET };

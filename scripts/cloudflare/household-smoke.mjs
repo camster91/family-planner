@@ -219,7 +219,7 @@ async function main() {
   const login = async (targetPage, credentials) => {
     await goto(targetPage, "/login");
     await targetPage
-      .getByLabel("Email", { exact: true })
+      .getByLabel(/^email(?: address)?$/i)
       .fill(credentials.email);
     await targetPage
       .getByLabel("Password", { exact: true })
@@ -267,12 +267,20 @@ async function main() {
 
   const setupFamilyIfNeeded = async () => {
     const familyInput = page.locator("#onboarding-family-name");
-    if (!(await familyInput.count())) {
+    const getStarted = page
+      .getByRole("button", { name: /get started/i })
+      .first();
+    if ((await getStarted.count()) && (await getStarted.isVisible())) {
+      // The fresh-household dashboard renders the welcome step first. The
+      // family form is intentionally not mounted until this action advances
+      // the onboarding flow, so checking the input before clicking would
+      // incorrectly classify a new account as already configured.
+      await getStarted.click();
+      await familyInput.waitFor({ state: "visible", timeout: 15_000 });
+    } else if (!(await familyInput.isVisible())) {
       record("family-setup", "already-family", { path: appPath() });
       return;
     }
-    const getStarted = page.getByRole("button", { name: /get started/i });
-    if (await getStarted.count()) await getStarted.click();
     await familyInput.fill(`${prefix} Household`);
     await page.getByRole("button", { name: /create family/i }).click();
     await page

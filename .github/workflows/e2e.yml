@@ -690,6 +690,7 @@ jobs:
           const fs = require('node:fs')
           const crypto = require('node:crypto')
           const requested = process.env.RUNTIME_ARTIFACT_REQUESTED === 'true'
+          const workerConfig = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'))
           const privatePasswordComputeFiles = [
             'src/cloudflare/password-compute-worker.ts',
             'src/lib/cloudflare/password-compute-do.ts',
@@ -711,6 +712,7 @@ jobs:
             runtimeArtifact: {
               requested,
               retentionDays: requested ? 7 : null,
+              assetRouting: { runWorkerFirst: workerConfig.assets?.run_worker_first ?? false },
               contents: requested ? ['worker.bundle', '.open-next/assets', 'source.json'] : [],
               privatePasswordCompute: {
                 algorithm: 'sha256',
