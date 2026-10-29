@@ -10,6 +10,8 @@ import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeMessageActorInTx, createMessageEffect } from '@/lib/message-mutations'
 import { messageExpectedOwnerMatches, messageSendWindowOpen, messageSendWindowRefusal } from '@/lib/message-owner-contract'
 import { boundedRequestText, RequestBodyTooLarge } from '@/lib/bounded-request-text'
+import { storageBackend } from '@/lib/storage-backend'
+import { sendD1Message } from '@/lib/cloudflare/messages'
 
 // POST - Send a message
 export async function postMessage(request: NextRequest, requireOwner = false) {
@@ -52,25 +54,39 @@ export async function postMessage(request: NextRequest, requireOwner = false) {
       return NextResponse.json(refusal.body, { status: refusal.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
-    const response = await withIdempotency(
-      prisma!,
-      key,
-      { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'message.create' },
-      parsed.data,
-      ({ recordId }) => createMessageEffect(
-        prisma!,
-        { id: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 },
-        parsed.data,
-        recordId,
-      ),
-      {
-        beforeReplay: () => prisma!.$transaction(async (tx) =>
-          authorizeMessageActorInTx(tx, { id: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }),
-        ),
-      },
-    )
-    response.headers.set('Cache-Control', 'private, no-store')
-    return response
+    const response = storageBackend() === 'd1'
+      ? await sendD1Message(
+          {
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          parsed.data,
+          key,
+        )
+      : await withIdempotency(
+          prisma!,
+          key,
+          { scope: `user:${auth.user.id}`, familyId: auth.user.family_id, userId: auth.user.id, action: 'message.create' },
+          parsed.data,
+          ({ recordId }) => createMessageEffect(
+            prisma!,
+            { id: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 },
+            parsed.data,
+            recordId,
+          ),
+          {
+            beforeReplay: () => prisma!.$transaction(async (tx) =>
+              authorizeMessageActorInTx(tx, { id: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }),
+            ),
+          },
+        )
+    if (response instanceof NextResponse) {
+      response.headers.set('Cache-Control', 'private, no-store')
+      return response
+    }
+    return NextResponse.json(response.body, { status: response.status, headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     logRouteError('POST /api/messages', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

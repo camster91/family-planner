@@ -9,6 +9,7 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { prisma } from '@/lib/prisma'
 import { messageAttachmentFilePath } from '@/lib/message-attachments'
+import { storageBackend } from '@/lib/storage-backend'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -27,6 +28,26 @@ export async function GET(
     if (gate) return gate
 
     const { id } = await params
+    if (storageBackend() === 'd1') {
+      const [{ getPrivateObjectStore, privateObjectGenerationKey, privateObjectKey }, { getD1MessageAttachment }] = await Promise.all([
+        import('@/lib/cloudflare/storage'),
+        import('@/lib/cloudflare/message-attachments'),
+      ])
+      const attachment = await getD1MessageAttachment(auth.user.family_id, id)
+      if (!attachment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const bucket = await getPrivateObjectStore()
+      const object = await bucket.get(privateObjectGenerationKey(auth.user.family_id, 'messages', attachment.filename, attachment.id))
+        ?? await bucket.get(privateObjectKey(auth.user.family_id, 'messages', attachment.filename))
+      if (!object) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return new NextResponse(object.body as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': object.httpMetadata?.contentType ?? attachment.content_type,
+          'Cache-Control': 'private, max-age=300',
+          ...(object.etag ? { ETag: `"${object.etag}"` } : {}),
+        },
+      })
+    }
     const attachment = await prisma!.messageAttachment.findFirst({
       // Draft rows have no message yet. Do not make an uploaded-but-unclaimed
       // file readable by every household member; serving starts after the
