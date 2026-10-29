@@ -2110,6 +2110,36 @@ not used for schema execution. Wrangler OAuth sign-in is now open for the
 compiled-file upload; actual edge/hostname acceptance remains pending. No
 Worker, production-secret, DNS, VPS-data or paid-plan change has occurred yet.
 
+### Cloudflare upload and edge validation in progress (2026-10-29)
+
+Wrangler OAuth completed through the user-approved device flow; credentials
+are held by Wrangler/keychain and were not printed. Uploaded private compute
+Worker `herewoven-password-compute`, version
+`624e8a10-d197-4621-b203-b44d46e3e3cd` (startup 4 ms), without public routes.
+Uploaded immutable app candidate `c785d926`, initial version
+`0e15d4a3-69b0-4096-9976-a8a62ca9a045` (startup 23 ms). Existing JWT/Mailgun
+settings were transferred by a direct SSH-to-Wrangler stdin pipe; four secret
+names are verified, and no secret values were logged or saved in the repo.
+
+Temporarily enabled only the app's workers.dev address for edge QA:
+`https://herewoven.ashbi-design-preview.workers.dev`. The password compute Worker
+stays private. Real edge health, marketing homepage, login, login mutation,
+family creation, grocery writes, and native D1 reads respond successfully.
+Fabricated verified QA users have strong temporary credentials held only in
+protected local scratch; no emails were sent. QA rows must be removed after
+edge verification. Disable the temporary workers.dev exposure after cutover.
+
+PR #605 is draft while edge verification and required CI are incomplete.
+Initial PR failures were pre-browser fixture import/format problems; those were
+repaired. The next run found upload-test TypeScript mock signatures; those are
+also repaired. The HTTP upload route now avoids local filesystem setup on D1.
+Edge tracing identified duplicate auth push/refresh requests and a React Flight
+connection-close error; the latest `30012eaf1` uses one full-document auth
+transition. Its affected 48 tests, upload 14 tests, TypeScript and format checks
+pass. A new immutable build is running before replacing the edge candidate and
+repeating the affected journey/R2 check. No custom domain/DNS cutover, VPS
+retirement, real-data wipe or paid-plan activation has occurred.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
