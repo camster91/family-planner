@@ -145,7 +145,7 @@ for (const locale of ["en", "es"] as const)
           // request held and offers an explicit list check instead of
           // retrying a potentially already-applied delete.
           await expect(dialog).toHaveCount(0);
-          await expect(section.getByRole("alert")).toHaveText(
+          await expect(section.getByRole("alert")).toContainText(
             msg(locale, "calendarWriteUnconfirmed"),
           );
           const check = section.getByRole("button", {

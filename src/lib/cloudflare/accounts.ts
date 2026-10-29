@@ -93,6 +93,93 @@ export async function findD1PublicUser(db: D1Store, userId: string): Promise<Pub
     .bind(userId).first<Record<string, unknown>>()
   return decodeUser<PublicUser>(row)
 }
+
+type AuthMeUser = Pick<PublicUser,
+  | 'id'
+  | 'email'
+  | 'name'
+  | 'role'
+  | 'age'
+  | 'family_id'
+  | 'avatar_url'
+  | 'created_at'
+  | 'xp'
+  | 'level'
+  | 'streak'
+  | 'best_streak'
+  | 'last_chore_date'
+> & {
+  family: { id: string; name: string; subscription_tier: string } | null
+}
+
+export type D1AuthMeUser = {
+  user: AuthMeUser
+  /** Raw Family.features, kept internal to the auth/me route. */
+  familyFeatures: unknown
+}
+
+/**
+ * Read the auth/me projection without the generated Prisma/WASM client.
+ *
+ * This is intentionally narrower than `findD1PublicUser`: auth/me needs the
+ * nested family card and the feature blob, while the token-version predicate
+ * must remain part of the same primary-session read. Keeping this direct also
+ * avoids opening a per-request Prisma query compiler just to render the shell.
+ */
+export async function findD1AuthMeUser(
+  db: D1Store,
+  userId: string,
+  tokenVersion: number,
+): Promise<D1AuthMeUser | null> {
+  const row = await db.withSession('first-primary').prepare(`
+    SELECT
+      u.id, u.email, u.name, u.role, u.age, u.family_id, u.avatar_url,
+      u.created_at, u.xp, u.level, u.streak, u.best_streak, u.last_chore_date,
+      f.id AS family_record_id, f.name AS family_name,
+      f.subscription_tier AS family_subscription_tier,
+      f.features AS family_features
+    FROM "User" u
+    LEFT JOIN "Family" f ON f.id = u.family_id
+    WHERE u.id=?1 AND u.token_version=?2
+  `).bind(userId, tokenVersion).first<Record<string, unknown>>()
+  if (!row) return null
+
+  const decoded = decodeUser<AuthMeUser & {
+    family_record_id?: unknown
+    family_name?: unknown
+    family_subscription_tier?: unknown
+    family_features?: unknown
+  }>(row)!
+  const familyId = typeof decoded.family_record_id === 'string'
+    ? decoded.family_record_id
+    : null
+  const family = familyId
+    ? {
+        id: familyId,
+        name: String(decoded.family_name ?? ''),
+        subscription_tier: String(decoded.family_subscription_tier ?? ''),
+      }
+    : null
+  const {
+    family_record_id: _familyRecordId,
+    family_name: _familyName,
+    family_subscription_tier: _familySubscriptionTier,
+    family_features: familyFeatures,
+    ...userFields
+  } = decoded
+
+  // D1 stores JSON columns as text. Match isGamificationOn's existing parse
+  // semantics: malformed JSON remains an error instead of silently changing a
+  // household's feature behavior.
+  const parsedFeatures = typeof familyFeatures === 'string'
+    ? JSON.parse(familyFeatures)
+    : familyFeatures
+  return {
+    user: { ...userFields, family } as AuthMeUser,
+    familyFeatures: parsedFeatures,
+  }
+}
+
 export async function findD1PasswordUser(db: D1Store, userId: string): Promise<Pick<User, 'id' | 'password'> | null> {
   return db.withSession('first-primary').prepare('SELECT id,password FROM "User" WHERE id=?1')
     .bind(userId).first<Pick<User, 'id' | 'password'>>()

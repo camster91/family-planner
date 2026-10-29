@@ -13,6 +13,8 @@ import {
   revokeD1UserSessions,
 } from "../../../src/lib/cloudflare/accounts";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
+import { readD1DashboardShell } from "../../../src/lib/cloudflare/dashboard-shell";
+import { findD1AuthMeUser } from "../../../src/lib/cloudflare/accounts";
 
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -41,6 +43,43 @@ export async function testAccountRecovery(db: D1Store) {
   ]);
 
   const resetHash = digest("auth-recovery-reset");
+  const shell = await readD1DashboardShell(
+    db,
+    "auth-recovery-user",
+    "auth-recovery-family",
+  );
+  check(
+    shell?.profile.role === "parent" &&
+      shell.familyFeatures?.features.calendar === true,
+    "native shell reads fresh role and owned family features",
+  );
+  check(
+    (await readD1DashboardShell(db, "auth-recovery-user", "read-family-b"))
+      ?.familyFeatures === null,
+    "native shell refuses a foreign session family",
+  );
+  check(
+    (await readD1DashboardShell(
+      db,
+      "auth-recovery-missing",
+      "auth-recovery-family",
+    )) === null,
+    "native shell refuses a missing account",
+  );
+  const me = await findD1AuthMeUser(db, "auth-recovery-user", 0);
+  check(
+    me?.user.family?.id === "auth-recovery-family" &&
+      me.user.name === "Recovery User",
+    "native profile preserves family card",
+  );
+  check(
+    me && !("family_features" in me.user) && !("password" in me.user),
+    "native profile excludes internal and credential fields",
+  );
+  check(
+    (await findD1AuthMeUser(db, "auth-recovery-user", 1)) === null,
+    "native profile refuses stale session generation",
+  );
   await storeD1ResetToken(db, "auth-recovery-user", resetHash, now + 5_000);
   check(
     await d1ResetTokenExists(db, resetHash, now),
@@ -246,6 +285,8 @@ export async function testAccountRecovery(db: D1Store) {
     "logout revokes exactly the prior generation",
   );
   return {
+    nativeDashboardShell: true,
+    nativeProfileGeneration: true,
     resetSingleUse: true,
     expiry: true,
     pinCleared: true,

@@ -486,7 +486,8 @@ async function preparePage(
 const assistantCopy = (locale: Locale) =>
   locale === "es"
     ? {
-        launcher: assistantSpanish.launcherAssistant,
+        launcher: "Añadir o preguntar",
+        ask: "Preguntar al asistente",
         message: assistantSpanish.yourMessage,
         send: assistantSpanish.send,
         working: assistantSpanish.working,
@@ -504,7 +505,8 @@ const assistantCopy = (locale: Locale) =>
         reportsLoadFailed: assistantSpanish.reportsLoadFailed,
       }
     : {
-        launcher: assistantEnglish.launcherAssistant,
+        launcher: "Add or ask",
+        ask: "Ask the assistant",
         message: assistantEnglish.yourMessage,
         send: assistantEnglish.send,
         working: assistantEnglish.working,
@@ -1176,6 +1178,9 @@ for (const locale of ["en", "es"] as const) {
     });
     await expect(launcher).toBeVisible();
     await launcher.click();
+    const quickAdd = page.getByTestId("quick-add-dialog");
+    await expect(quickAdd).toBeVisible();
+    await quickAdd.getByRole("button", { name: new RegExp(copy.ask) }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     const message = dialog.getByLabel(copy.message, { exact: true });
@@ -1246,6 +1251,8 @@ for (const locale of ["en", "es"] as const) {
       await route.abort("failed");
     });
     await launcher.click();
+    await expect(quickAdd).toBeVisible();
+    await quickAdd.getByRole("button", { name: new RegExp(copy.ask) }).click();
     const actionDialog = page.getByRole("dialog");
     const actionMessage = actionDialog.getByLabel(copy.message, {
       exact: true,

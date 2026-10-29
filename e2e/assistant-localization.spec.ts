@@ -137,7 +137,8 @@ for (const locale of ["en", "es"] as const) {
     const copy =
       locale === "es"
         ? {
-            launcher: "Asistente de IA",
+            launcher: "Añadir o preguntar",
+            ask: "Preguntar al asistente",
             message: "Tu mensaje",
             reportTab: "Informar / Sugerir",
             reportTitle: "Título",
@@ -146,7 +147,8 @@ for (const locale of ["en", "es"] as const) {
             close: "Cerrar",
           }
         : {
-            launcher: "AI assistant",
+            launcher: "Add or ask",
+            ask: "Ask the assistant",
             message: "Your message",
             reportTab: "Report / Suggest",
             reportTitle: "Title",
@@ -166,6 +168,9 @@ for (const locale of ["en", "es"] as const) {
     await launcher.scrollIntoViewIfNeeded();
     await expect(launcher).toBeVisible();
     await launcher.click();
+    const quickAdd = page.getByTestId("quick-add-dialog");
+    await expect(quickAdd).toBeVisible();
+    await quickAdd.getByRole("button", { name: new RegExp(copy.ask) }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(
@@ -192,6 +197,8 @@ for (const locale of ["en", "es"] as const) {
     await dialog.getByRole("button", { name: copy.close, exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await launcher.click();
+    await expect(quickAdd).toBeVisible();
+    await quickAdd.getByRole("button", { name: new RegExp(copy.ask) }).click();
     await expect(
       page.getByRole("dialog").getByLabel(copy.message, { exact: true }),
     ).toHaveValue("Fixture unsent chat draft");

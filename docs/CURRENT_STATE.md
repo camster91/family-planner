@@ -1,3 +1,36 @@
+# Edge CPU follow-through — 2026-10-29
+
+Cameron completed the fresh Wrangler device sign-in and the missing
+`workers_scripts:write` scope was verified. Immutable runtime candidate
+`22c87b88bf634ad5a5295c45dac257b3dd65ebb0` uploaded successfully to the
+temporary edge Worker, version `20a020f6-9963-4d1d-930c-eb478e460dfb`.
+Cloudflare reports the expected RELEASE_SHA and all four existing secret
+bindings. No paid plan was enabled. Current-head `2be0faccc` required Build &
+Test, fresh-runner checked image, and Android checks passed; inventory browser
+QA passed after the response-capture correction. Settings and other browser
+failures were triaged into bounded source/test corrections in this working
+change, and their rerun remains pending.
+
+Actual edge private-upload verification stopped before upload: profile reads
+intermittently returned 503. Safe tail evidence identifies `exceededCpu`
+(`Worker exceeded CPU time limit`) on `/api/auth/me`, including one failed
+384 ms invocation and a successful 776 ms invocation. The source constructs a
+fresh Prisma/WASM query compiler for this small profile read and twice for the
+dashboard shell. These paths now use direct, scoped D1 reads. Focused profile
+response tests and a real native D1 fixture covering shell household scoping
+and session-generation refusal pass. These CPU optimizations have not yet been
+built/deployed or accepted on the edge; broader dynamic-page compute remains
+under investigation.
+
+Fresh VPS recovery backup:
+`/opt/family-planner/backups/cloudflare-cutover-20261029T131309Z-df80c65e`.
+It restored into an isolated no-network database with all 84 table counts
+matching; production data was not modified and the temporary container was
+removed. Coolify application 11's auto-deploy setting was backed up there and
+disabled to prevent a main merge from rebuilding the old host. The VPS app
+remains healthy. Domain cutover and scoped retirement still require verified
+edge household/media behavior; no completion is claimed.
+
 # Latest migration checkpoint — 2026-10-29
 
 Cloudflare candidate `22c87b88bf634ad5a5295c45dac257b3dd65ebb0` passed

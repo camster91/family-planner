@@ -1,10 +1,12 @@
 import { storageBackend } from '@/lib/storage-backend'
-import { withD1ReadClient } from '@/lib/cloudflare/read-client'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1AuthMeUser } from '@/lib/cloudflare/accounts'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-refusal'
 import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
+import { normalizeFeatures } from '@/lib/features'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
@@ -40,8 +42,12 @@ export async function GET(request: NextRequest) {
         select: { id: true, name: true, subscription_tier: true },
       },
       } as const
-    const user = storageBackend() === 'd1'
-      ? await withD1ReadClient(db => db.user.findFirst({ where: { id: payload.userId, token_version: payload.tv ?? 0 }, select }))
+    const native = storageBackend() === 'd1'
+    const nativeResult = native
+      ? await findD1AuthMeUser(await getD1Database(), payload.userId, payload.tv ?? 0)
+      : null
+    const user = native
+      ? nativeResult?.user ?? null
       : await prisma!.user.findUnique({ where: { id: payload.userId }, select })
 
     if (!user) {
@@ -49,7 +55,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Points & streaks off for this family (#248): no XP/level/streak values.
-    if (!(await isGamificationOn(user.family_id))) {
+    const gamificationOn = native
+      ? normalizeFeatures(nativeResult?.familyFeatures ?? null).gamification
+      : await isGamificationOn(user.family_id)
+    if (!gamificationOn) {
       return NextResponse.json({ user: omitUserGamification(user) })
     }
 

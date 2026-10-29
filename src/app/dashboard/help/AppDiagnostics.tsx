@@ -122,6 +122,7 @@ export default function AppDiagnostics() {
             <pre
               className="overflow-x-auto rounded-lg bg-surface-grouped p-3 text-xs"
               data-testid="app-diagnostics-report"
+              tabIndex={0}
             >
               {JSON.stringify(report, null, 2)}
             </pre>

@@ -179,6 +179,33 @@ it("serializes add and keeps an unknown save held after an explicit list read", 
   expect(screen.getByRole("button", { name: settingsMessages.en.addCalendar })).toBeDisabled();
 });
 
+it("holds an unknown refresh result and exposes list inspection instead of retrying", async () => {
+  const row = {
+    id: "refresh-fixture",
+    name: "School fixture",
+    color: null,
+    last_fetched_at: null,
+    last_status: "pending",
+    last_error: null,
+  };
+  global.fetch = jest.fn(async (_path, init) => {
+    if (init?.method === "POST")
+      return {
+        ok: true,
+        json: async () => ({
+          subscription: row,
+          result: { status: "future_status", created: 0, updated: 0, deleted: 0 },
+        }),
+      };
+    return { ok: true, json: async () => ({ subscriptions: [row] }) };
+  }) as unknown as typeof fetch;
+  const user = await mount();
+  await user.click(screen.getByRole("button", { name: "Refresh School fixture" }));
+  expect(await screen.findByText(settingsMessages.en.calendarWriteUnconfirmed)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: settingsMessages.en.checkSubscriptions })).toBeEnabled();
+  expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+});
+
 // Authored UNRUN: persisted fixed-vocabulary errors relabel without replaying reads.
 it("localizes a saved feed failure on mounted locale change without another fetch", async () => {
   global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ subscriptions: [{

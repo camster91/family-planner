@@ -532,7 +532,7 @@ const conPath = `/api/calendar/sync-connections/${encodeURIComponent(CON_ID)}`;
 test.describe("parentA household controls", () => {
   test.use({ storageState: authFile("parentA") });
   for (const locale of ["en", "es"] as const) {
-    test(`${locale}: subscriptions loading empty add native colour rename refresh unknown states and confirm removal`, async ({
+    test(`${locale}: subscriptions loading empty add native colour rename refresh counts and confirm removal`, async ({
       page,
       context,
       baseURL,
@@ -631,8 +631,7 @@ test.describe("parentA household controls", () => {
         }),
       ).toBeVisible();
       for (const result of [
-        { status: "not_modified" },
-        { status: "future_status" },
+        { status: "not_modified", created: 0, updated: 0, deleted: 0 },
       ]) {
         s.reply("POST", subPath + "/refresh", {
           body: {
@@ -682,8 +681,10 @@ test.describe("parentA household controls", () => {
           exact: true,
         })
         .click();
-      await expect(section.getByText(RAW, { exact: true })).toBeVisible();
-      await capture(page, info, "subscriptions-refresh-raw-fallback");
+      await expect(
+        section.getByText(msg(next, "refreshFailed"), { exact: true }),
+      ).toBeVisible();
+      await capture(page, info, "subscriptions-refresh-semantic-fallback");
       const removeButton = section.getByRole("button", {
         name: msg(next, "removeLabel", { name: named }),
         exact: true,
@@ -712,7 +713,7 @@ test.describe("parentA household controls", () => {
       expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
       await capture(page, info, "subscriptions-synthetic-removed");
     });
-    test(`${locale}: subscription failed clock raw large-feed and old timestamps stay canonical`, async ({
+    test(`${locale}: subscription failed clock semantic large-feed and old timestamps stay canonical`, async ({
       page,
       context,
       baseURL,
@@ -752,7 +753,7 @@ test.describe("parentA household controls", () => {
         section.getByText(
           msg(locale, "problem") +
             msg(locale, "lastTried", {
-              message: RAW + ".",
+              message: msg(locale, "refreshLastFailed"),
               time: msg(locale, "minutesAgo", { count: 3 }),
             }),
           { exact: true },
