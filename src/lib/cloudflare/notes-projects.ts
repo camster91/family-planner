@@ -279,7 +279,9 @@ export async function readD1Projects(actor: D1NotesProjectsActor, scope: { statu
   for (const row of counts.results) { const count = countMap.get(row.project_id) ?? { total: 0, completed: 0 }; count.total += Number(row.total); if (Number(row.completed)) count.completed += Number(row.total); countMap.set(row.project_id, count); }
   const projects = page.map(row => ({ ...projectDto(row, creatorMap.get(row.created_by)), taskCount: countMap.get(row.id)?.total ?? 0, completedTaskCount: countMap.get(row.id)?.completed ?? 0 }));
   const body: any = { projects };
-  if (paging.ok && paging.paged) body.nextCursor = rows.results.length > paging.limit && page.length ? encodeProjectCursor({ familyId: actor.familyId, status: scope.status }, page[page.length - 1]) : null;
+  // D1 returns epoch milliseconds. Encode the mapped DTO so the cursor always
+  // receives a Date, matching the PostgreSQL route and the cursor contract.
+  if (paging.ok && paging.paged) body.nextCursor = rows.results.length > paging.limit && projects.length ? encodeProjectCursor({ familyId: actor.familyId, status: scope.status }, projects[projects.length - 1]) : null;
   return { status: 200, body };
 }
 
@@ -304,8 +306,12 @@ export async function readD1ProjectTasks(actor: D1NotesProjectsActor, projectId:
   if (paging.ok && paging.paged && paging.cursor) { values.push(paging.cursor.position, paging.cursor.createdAt.getTime(), paging.cursor.id); where += ` AND (t.position>?${values.length - 2} OR (t.position=?${values.length - 2} AND t.created_at>?${values.length - 1}) OR (t.position=?${values.length - 2} AND t.created_at=?${values.length - 1} AND t.id>?${values.length}))`; }
   const limit = paging.ok && paging.paged ? paging.limit + 1 : 10000;
   const rows = await db.prepare(`SELECT t.*,u.id AS assignee_id,u.name AS assignee_name,u.avatar_url AS assignee_avatar_url FROM "ProjectTask" t JOIN "Project" p ON p.id=t.project_id LEFT JOIN "User" u ON u.id=t.assigned_to AND u.family_id=?2 WHERE ${where} ORDER BY t.position ASC,t.created_at ASC,t.id ASC LIMIT ${limit}`).bind(...values).all<any>();
-  const page = rows.results.slice(0, paging.ok && paging.paged ? paging.limit : undefined); const body: any = { tasks: page.map(row => taskDto(row, row.assignee_id ? { id: row.assignee_id, name: row.assignee_name, avatar_url: row.assignee_avatar_url } : null)) };
-  if (paging.ok && paging.paged) body.nextCursor = rows.results.length > paging.limit && page.length ? encodeProjectTaskCursor({ familyId: actor.familyId, projectId, completed: filterCompleted }, page[page.length - 1]) : null;
+  const page = rows.results.slice(0, paging.ok && paging.paged ? paging.limit : undefined);
+  const tasks = page.map(row => taskDto(row, row.assignee_id ? { id: row.assignee_id, name: row.assignee_name, avatar_url: row.assignee_avatar_url } : null));
+  const body: any = { tasks };
+  // As with project cursors, use the mapped DTO because native D1 timestamps
+  // are numeric while encodeProjectTaskCursor requires a Date.
+  if (paging.ok && paging.paged) body.nextCursor = rows.results.length > paging.limit && tasks.length ? encodeProjectTaskCursor({ familyId: actor.familyId, projectId, completed: filterCompleted }, tasks[tasks.length - 1]) : null;
   return { status: 200, body };
 }
 

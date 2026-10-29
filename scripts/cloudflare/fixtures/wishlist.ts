@@ -7,6 +7,7 @@ import {
   updateD1WishlistStatus,
 } from '../../../src/lib/cloudflare/wishlist'
 import type { D1Store } from '../../../src/lib/cloudflare/database'
+import { parseWishlistPaging } from '../../../src/lib/wishlist-paging'
 
 function check(value: unknown, label: string): asserts value {
   if (!value) throw new Error(label)
@@ -33,6 +34,14 @@ export async function testWishlist(db: D1Store) {
   check(listed.status === 200 && (listed.body as any).items.length === 1, 'wishlist read stays in household')
   const mine = await readD1WishlistScoped(child, { requesterId: child.userId }, { ok: true, paged: true, limit: 10, cursor: null }, db)
   check(mine.status === 200 && (mine.body as any).items[0].requested_by === child.userId, 'mine filter')
+  await db.prepare(`INSERT INTO "WishlistItem" (id,family_id,requested_by,title,status,created_at,updated_at) VALUES ('wishlist-page-old',?1,?2,'Older wish','idle',?3,?3)`).bind(parent.familyId, child.userId, now - 1000).run()
+  const wishlistPage = await readD1WishlistScoped(parent, { requesterId: null }, { ok: true, paged: true, limit: 1, cursor: null }, db)
+  const wishlistCursor = (wishlistPage.body as any).nextCursor
+  check(wishlistPage.status === 200 && typeof wishlistCursor === 'string', 'wishlist cursor encodes native page')
+  const parsedWishlistPaging = parseWishlistPaging(new URLSearchParams({ limit: '1', cursor: wishlistCursor }), { familyId: parent.familyId, requesterId: null })
+  check(parsedWishlistPaging.ok && parsedWishlistPaging.paged, 'wishlist cursor parses')
+  const nextWishlistPage = await readD1WishlistScoped(parent, { requesterId: null }, parsedWishlistPaging, db)
+  check(nextWishlistPage.status === 200 && (nextWishlistPage.body as any).items[0].id === 'wishlist-page-old' && (nextWishlistPage.body as any).nextCursor === null, 'wishlist cursor advances over native epoch rows')
   check((await readD1WishlistItem(foreign, 'wishlist-existing', db)).status === 404, 'foreign item hidden')
 
   const input = { title: 'New headphones', link: 'https://example.test/headphones', description: 'Quiet pair', approx_price: 80 }

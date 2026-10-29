@@ -76,6 +76,14 @@ function itemDto(row: any, requester?: any, statusChanger?: any) {
   };
 }
 
+type WishlistCursorRow = { id: string; created_at: Date };
+
+/** Keep the nullable DTO timestamp out of the cursor encoder's contract. */
+function cursorRow(value: { id?: unknown; created_at?: unknown } | undefined): WishlistCursorRow | null {
+  if (!value || typeof value.id !== "string" || !(value.created_at instanceof Date)) return null;
+  return { id: value.id, created_at: value.created_at };
+}
+
 async function findItem(db: D1ReadClient, actor: D1WishlistActor, id: string) {
   return db.wishlistItem.findFirst({
     where: { id, family_id: actor.familyId },
@@ -137,8 +145,11 @@ export async function readD1WishlistScoped(
     row.status_changer_id ? { id: row.status_changer_id, name: row.status_changer_name } : null));
   const body: Record<string, unknown> = { items };
   if (paging.ok && paging.paged) {
-    body.nextCursor = rows.results.length > paging.limit && page.length
-      ? encodeWishlistCursor({ familyId: actor.familyId, requesterId: scope.requesterId }, page[page.length - 1] as any) : null;
+    const lastItem = cursorRow(items[items.length - 1]);
+    // D1 rows contain epoch milliseconds; itemDto normalizes created_at to a
+    // Date before the cursor encoder serializes it.
+    body.nextCursor = rows.results.length > paging.limit && lastItem
+      ? encodeWishlistCursor({ familyId: actor.familyId, requesterId: scope.requesterId }, lastItem) : null;
   }
   return { status: 200, body };
 }

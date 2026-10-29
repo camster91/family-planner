@@ -16,11 +16,12 @@ Family Planner is a private, role-aware household operations app. The fridge/wal
 
 ## Current baseline
 - Next.js App Router + TypeScript strict mode
-- PostgreSQL + Prisma
+- Cloudflare D1 for production data; Prisma-generated types and compatibility checks
 - Self-hosted JWT/session auth
 - Tailwind/design tokens and reusable React components
 - Capacitor Android shell
-- Docker deployment on the existing VPS, promoted through GitHub-hosted Actions
+- Cloudflare Workers + private R2, deployed from an immutable GitHub-built artifact
+- Historical PostgreSQL/container checks and recovery scripts remain for compatibility; the VPS deployment job is retired
 - Figma-first for significant tablet/mobile flows
 
 Use `package.json`, `prisma/schema.prisma` and `docs/CURRENT_STATE.md` for exact current versions/state. Do not trust stale version numbers in old prose.

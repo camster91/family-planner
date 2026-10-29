@@ -17,6 +17,8 @@ import {
   updateD1ProjectTask,
 } from "../../../src/lib/cloudflare/notes-projects";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
+import { parseProjectPaging } from "../../../src/lib/project-paging";
+import { parseProjectTaskPaging } from "../../../src/lib/project-task-paging";
 
 function check(value: unknown, label: string): asserts value {
   if (!value) throw new Error(label);
@@ -64,6 +66,14 @@ export async function testNotesProjects(db: D1Store) {
 
   const projects = await readD1Projects(parent, { status: null }, { ok: true, paged: false }, db);
   check(projects.status === 200 && (projects.body as any).projects.length === 1, "project list isolates household");
+  await db.prepare(`INSERT INTO "Project" (id,family_id,name,status,color,created_by,created_at,updated_at) VALUES ('notes-project-page-old',?1,'Older project','active','#64748B',?2,?3,?3)`).bind(parent.familyId, parent.userId, now - 1000).run();
+  const projectPage = await readD1Projects(parent, { status: null }, { ok: true, paged: true, limit: 1, cursor: null }, db);
+  const projectCursor = (projectPage.body as any).nextCursor;
+  check(projectPage.status === 200 && typeof projectCursor === "string", "project cursor encodes native page");
+  const parsedProjectPaging = parseProjectPaging(new URLSearchParams({ limit: "1", cursor: projectCursor }), { familyId: parent.familyId, status: null });
+  check(parsedProjectPaging.ok && parsedProjectPaging.paged, "project cursor parses");
+  const nextProjectPage = await readD1Projects(parent, { status: null }, parsedProjectPaging, db);
+  check(nextProjectPage.status === 200 && (nextProjectPage.body as any).projects[0].id === "notes-project-page-old" && (nextProjectPage.body as any).nextCursor === null, "project cursor advances over native epoch rows");
   const projectInput = { name: "Backyard", description: "Build a small deck", status: "active", color: "#22C55E" };
   const projectCreate = await createD1Project(parent, projectInput, "project-create-key", db);
   check(projectCreate.status === 201, "project create");
@@ -74,10 +84,18 @@ export async function testNotesProjects(db: D1Store) {
   const taskCreate = await createD1ProjectTask(child, projectId, taskInput, "task-create-key", db);
   check(taskCreate.status === 201, "child can create project task");
   const taskId = (taskCreate.body as any).task.id as string;
+  await db.prepare(`INSERT INTO "ProjectTask" (id,project_id,title,completed,position,created_at,updated_at) VALUES ('notes-task-page-old',?1,'Older task',0,1,?2,?2)`).bind(projectId, now - 1000).run();
   const taskReplay = await createD1ProjectTask(child, projectId, taskInput, "task-create-key", db);
   check(taskReplay.replayed && JSON.stringify(taskReplay.body) === JSON.stringify(taskCreate.body), "task create replay preserves body");
   const taskPage = await readD1ProjectTasks(parent, projectId, null, { ok: true, paged: false }, db);
-  check(taskPage.status === 200 && (taskPage.body as any).tasks.length === 1, "task read");
+  check(taskPage.status === 200 && (taskPage.body as any).tasks.length === 2, "task read");
+  const taskCursorPage = await readD1ProjectTasks(parent, projectId, null, { ok: true, paged: true, limit: 1, cursor: null }, db);
+  const taskCursor = (taskCursorPage.body as any).nextCursor;
+  check(taskCursorPage.status === 200 && typeof taskCursor === "string", "task cursor encodes native page");
+  const parsedTaskPaging = parseProjectTaskPaging(new URLSearchParams({ limit: "1", cursor: taskCursor }), { familyId: parent.familyId, projectId, completed: null });
+  check(parsedTaskPaging.ok && parsedTaskPaging.paged, "task cursor parses");
+  const nextTaskPage = await readD1ProjectTasks(parent, projectId, null, parsedTaskPaging, db);
+  check(nextTaskPage.status === 200 && (nextTaskPage.body as any).tasks[0].id === "notes-task-page-old" && (nextTaskPage.body as any).nextCursor === null, "task cursor advances over native epoch rows");
   const updatedTask = await updateD1ProjectTask(parent, projectId, taskId, { assigned_to: null, completed: true }, db);
   check(updatedTask.status === 200 && (updatedTask.body as any).task.assignee === null, "task unassign clears projected assignee");
   check((await updateD1Project(parent, projectId, { name: "Backyard updated" }, db)).status === 200, "project update");

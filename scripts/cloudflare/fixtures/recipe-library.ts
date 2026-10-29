@@ -63,6 +63,43 @@ export async function testRecipeLibrary(db: D1Store) {
     "recipe ingredient count",
   );
 
+  const titleSearch = await readD1Recipes(
+    actor,
+    { limit: 24, offset: 0, search: { q: "SOUP" } },
+    db,
+  );
+  check(
+    titleSearch.status === 200 &&
+      (titleSearch.body as any).recipes
+        .map((recipe: any) => recipe.id)
+        .join() === "recipe-library-existing",
+    "case-insensitive recipe title search",
+  );
+  const descriptionSearch = await readD1Recipes(
+    actor,
+    { limit: 24, offset: 0, search: { q: "HOUSE" } },
+    db,
+  );
+  check(
+    descriptionSearch.status === 200 &&
+      (descriptionSearch.body as any).recipes
+        .map((recipe: any) => recipe.id)
+        .join() === "recipe-library-existing",
+    "case-insensitive recipe description search",
+  );
+  const ingredientSearch = await readD1Recipes(
+    actor,
+    { limit: 24, offset: 0, search: { ingredient: "TOMATO" } },
+    db,
+  );
+  check(
+    ingredientSearch.status === 200 &&
+      (ingredientSearch.body as any).recipes
+        .map((recipe: any) => recipe.id)
+        .join() === "recipe-library-existing",
+    "case-insensitive recipe ingredient search",
+  );
+
   const input = {
     title: "Weeknight curry",
     description: "A fixture recipe",

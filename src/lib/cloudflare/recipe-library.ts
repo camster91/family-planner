@@ -136,8 +136,12 @@ function summaryWhere(
     ...(q
       ? {
           OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { description: { contains: q, mode: "insensitive" } },
+            // D1's generated Prisma client targets SQLite. `mode` is a
+            // PostgreSQL-only filter and makes the native query fail before
+            // it reaches SQLite. SQLite's LIKE-backed `contains` is the
+            // compatible case-insensitive path used by this read client.
+            { title: { contains: q } },
+            { description: { contains: q } },
           ],
         }
       : {}),
@@ -147,7 +151,7 @@ function summaryWhere(
             some: {
               ingredient: {
                 family_id: familyId,
-                name: { contains: ingredient, mode: "insensitive" },
+                name: { contains: ingredient },
               },
             },
           },

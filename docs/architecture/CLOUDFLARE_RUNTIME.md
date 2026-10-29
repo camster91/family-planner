@@ -84,5 +84,8 @@ and uploads are recovery archives, not another active runtime data source.
 Retain the named backup, verified restore and source image until cutover is
 verified. Retire only the Herewoven application/database resources; shared
 Coolify infrastructure and unrelated applications remain outside scope.
-The historical VPS release workflow is a manual recovery path, not the normal
-Cloudflare release mechanism.
+The historical VPS deployment job is removed from GitHub Actions so a manual
+workflow dispatch cannot recreate the retired runtime. Its recovery scripts and
+verified source image remain available for an explicitly approved rollback.
+The image checks continue to cover compatibility; Cloudflare releases use the
+immutable Worker artifact and the rollout registry above.
