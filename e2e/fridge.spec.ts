@@ -1087,7 +1087,7 @@ test.describe("Today board: empty household", () => {
     await expect(region(page, "groceries")).toContainText(
       "The grocery list is clear.",
     );
-    await expect(region(page, "chores")).toHaveCount(0);
+    await expect(region(page, "chores")).toContainText("No chores due today.");
     // The parent gets a next step instead of only empty regions.
     await expect(page.getByTestId("get-started")).toBeVisible();
     await expect(

@@ -137,6 +137,7 @@ for (const locale of ["en", "es"] as const) {
     const copy =
       locale === "es"
         ? {
+            quickActions: "Acciones rápidas de hoy",
             launcher: "Añadir o preguntar",
             ask: "Preguntar al asistente",
             message: "Tu mensaje",
@@ -147,6 +148,7 @@ for (const locale of ["en", "es"] as const) {
             close: "Cerrar",
           }
         : {
+            quickActions: "Today quick actions",
             launcher: "Add or ask",
             ask: "Ask the assistant",
             message: "Your message",
@@ -162,7 +164,7 @@ for (const locale of ["en", "es"] as const) {
         writes.push(request.url());
     });
     const launcher = page
-      .getByRole("navigation", { name: "Today quick actions" })
+      .getByRole("navigation", { name: copy.quickActions })
       .getByRole("button", { name: copy.launcher, exact: true });
     await launcher.scrollIntoViewIfNeeded();
     await expect(launcher).toBeVisible();

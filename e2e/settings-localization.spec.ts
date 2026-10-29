@@ -670,7 +670,9 @@ test.describe("parentA household controls", () => {
       // result case was removed when the response contract became strict).
       await s.arrived("POST", subPath + "/refresh", 3);
       await language(page, next);
-      refresh({ status: 503, body: {} });
+      // A definite rejection permits another user action. Ambiguous 5xx
+      // outcomes are covered separately and must never be retried here.
+      refresh({ status: 400, body: {} });
       await expect(
         section.getByText(msg(next, "refreshFailed"), { exact: true }),
       ).toBeVisible();
@@ -701,7 +703,7 @@ test.describe("parentA household controls", () => {
         .getByRole("button", { name: msg(next, "cancel"), exact: true })
         .click();
       expect(s.count("DELETE", subPath)).toBe(0);
-      s.reply("DELETE", subPath, { body: {} });
+      s.reply("DELETE", subPath, { body: { success: true, removedEvents: 0 } });
       await removeButton.click();
       removal = page.getByRole("alertdialog");
       await removal
@@ -715,6 +717,52 @@ test.describe("parentA household controls", () => {
       s.assertLast("DELETE", subPath);
       expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
       await capture(page, info, "subscriptions-synthetic-removed");
+    });
+    test(`${locale}: uncertain subscription refresh holds writes while list inspection stays available`, async ({
+      page,
+      context,
+      baseURL,
+      settings: s,
+    }, info) => {
+      s.reads.set("/api/calendar/subscriptions", {
+        body: { subscriptions: [subscription()] },
+      });
+      await begin(page, context, baseURL!, locale, s, info);
+      const section = await open(page, locale, "subscriptions");
+      s.reply("POST", subPath + "/refresh", { status: 503, body: {} });
+      const refresh = section.getByRole("button", {
+        name: msg(locale, "refreshLabel", { name: PROFILE }),
+        exact: true,
+      });
+      await refresh.click();
+      await expect(
+        section.getByText(msg(locale, "calendarWriteUnconfirmed"), {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(refresh).toBeDisabled();
+      await language(page, other(locale));
+      await expect(
+        section.getByText(msg(other(locale), "calendarWriteUnconfirmed"), {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await section
+        .getByRole("button", {
+          name: msg(other(locale), "checkSubscriptions"),
+          exact: true,
+        })
+        .click();
+      await s.arrived("GET", "/api/calendar/subscriptions", 2);
+      await expect(section.getByText(PROFILE, { exact: true })).toBeVisible();
+      await expect(
+        section.getByRole("button", {
+          name: msg(other(locale), "refreshLabel", { name: PROFILE }),
+          exact: true,
+        }),
+      ).toBeDisabled();
+      expect(s.count("POST", subPath + "/refresh")).toBe(1);
+      await capture(page, info, "subscriptions-uncertain-refresh-inspected");
     });
     test(`${locale}: subscription failed clock semantic large-feed and old timestamps stay canonical`, async ({
       page,
@@ -752,27 +800,28 @@ test.describe("parentA household controls", () => {
       });
       await begin(page, context, baseURL!, locale, s, info);
       const section = await open(page, locale, "subscriptions");
+      const failedRow = section
+        .getByText(PROFILE, { exact: true })
+        .locator("..")
+        .locator("..");
+      await expect(failedRow).toContainText(msg(locale, "problem"));
+      await expect(failedRow).toContainText(msg(locale, "refreshLastFailed"));
+      await expect(failedRow).toContainText(
+        msg(locale, "minutesAgo", { count: 3 }),
+      );
+      const notedRow = section
+        .getByText(PROFILE + " large", { exact: true })
+        .locator("..")
+        .locator("..");
+      await expect(notedRow).toContainText(
+        msg(locale, "lastUpdated", { time: msg(locale, "justNow") }),
+      );
+      await expect(notedRow).toContainText(msg(locale, "calendarStatusNote"));
       await expect(
         section.getByText(
-          msg(locale, "problem") +
-            msg(locale, "lastTried", {
-              message: msg(locale, "refreshLastFailed"),
-              time: msg(locale, "minutesAgo", { count: 3 }),
-            }),
-          { exact: true },
-        ),
-      ).toBeVisible();
-      await expect(
-        section.getByText(
-          msg(locale, "lastUpdated", { time: msg(locale, "justNow") }) +
-            " " +
-            msg(locale, "calendarStatusNote"),
-          { exact: true },
-        ),
-      ).toBeVisible();
-      await expect(
-        section.getByText(
-          msg(locale, "lastUpdated", { time: msg(locale, "aWhileAgo") }),
+          msg(locale, "lastUpdated", {
+            time: msg(locale, "daysAgo", { count: 2 }),
+          }),
           { exact: true },
         ),
       ).toBeVisible();
@@ -783,22 +832,20 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByText(
           msg(other(locale), "lastUpdated", {
-            time: msg(other(locale), "aWhileAgo"),
+            time: msg(other(locale), "daysAgo", { count: 2 }),
           }),
           { exact: true },
         ),
       ).toBeVisible();
       await page.clock.runFor(60001);
-      await expect(
-        section.getByText(
-          msg(other(locale), "lastUpdated", {
-            time: msg(other(locale), "minutesAgo", { count: 1 }),
-          }) +
-            " " +
-            msg(other(locale), "calendarStatusNote"),
-          { exact: true },
-        ),
-      ).toBeVisible();
+      await expect(notedRow).toContainText(
+        msg(other(locale), "lastUpdated", {
+          time: msg(other(locale), "minutesAgo", { count: 1 }),
+        }),
+      );
+      await expect(notedRow).toContainText(
+        msg(other(locale), "calendarStatusNote"),
+      );
       await capture(page, info, "subscriptions-clock-tick-current-locale");
     });
     test(`${locale}: beta optimistic pending authoritative off rollback both ways and offline`, async ({
