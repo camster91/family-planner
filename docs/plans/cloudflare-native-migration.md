@@ -2071,6 +2071,21 @@ dormant; local-only `--exercise-profile-setup` explicitly exercises that branch
 without activating a production rollout. Full browser acceptance of the latest
 corrected bundle remains pending; the earlier diagnostic is not acceptance.
 
+### Isolated Cloudflare storage provisioned (2026-10-29)
+
+Within the approved migration scope, created the empty D1 database `herewoven`
+(`cff38a6c-d2cb-4a5f-bed9-3c8f8a888590`, ENAM, read replication disabled) and
+R2 bucket `herewoven-uploads` (ENAM, Standard). Verified managed r2.dev access
+is disabled and no public custom domains are attached. No plan/subscription
+change was made. These are isolated replacement resources, not the live VPS
+database or uploads; no live data was wiped and no DNS/Worker cutover occurred.
+
+The target Wrangler config now names `herewoven`, binds DB/UPLOADS to those
+resources, selects native D1 storage, and retains private password service and
+self bindings. The pre-change config backup is
+`/tmp/herewoven-wrangler-before-storage-20261029.jsonc`. Account Workers subdomain
+is `ashbi-design-preview`; actual edge runtime acceptance remains unverified.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
