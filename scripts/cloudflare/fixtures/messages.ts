@@ -29,32 +29,36 @@ export async function testMessages(db: D1Store) {
     ('message-pickup-b','message-family-b','Foreign pickup',?1,'message-other','message-other',0,?2,?2)`).bind(now + 3600000, now).run()
   await db.prepare(`INSERT INTO "Message"(id,family_id,sender_id,content,type,attachments,read_by,pickup_id,created_at) VALUES
     ('message-old','message-family-a','message-child','Older note','text','[]','["message-child"]','message-pickup-a',?1),
-    ('message-new','message-family-a','message-parent','Newer note','announcement','[]','["message-parent"]',NULL,?2),
-    ('message-foreign','message-family-b','message-other','Private note','text','[]','[]',NULL,?2)`).bind(now - 2000, now - 1000).run()
+    ('message-middle','message-family-a','message-child','Middle note','text','[]','[]',NULL,?2),
+    ('message-new','message-family-a','message-parent','Newer note','announcement','[]','["message-parent"]',NULL,?3),
+    ('message-foreign','message-family-b','message-other','Private note','text','[]','[]',NULL,?3)`).bind(now - 2000, now - 1500, now - 1000).run()
   await db.prepare(`INSERT INTO "MessageAttachment"(id,family_id,uploaded_by,message_id,filename,content_type,size_bytes,created_at) VALUES
     ('message-draft-a','message-family-a','message-parent',NULL,'11111111111111111111111111111111.png','image/png',4,?1),
     ('message-draft-b','message-family-b','message-other',NULL,'22222222222222222222222222222222.png','image/png',4,?1)`).bind(now).run()
 
   const first = await readD1Messages(actor, {
     modern: true,
-    limit: 1,
+    limit: 2,
     cursor: null,
-    paging: { ok: true, limit: 1, cursor: null },
+    paging: { ok: true, limit: 2, cursor: null },
   }, db)
   const firstBody = first.body as any
-  check(first.status === 200 && firstBody.messages.length === 1 && firstBody.nextCursor, 'modern message page and continuation')
-  check(firstBody.messages[0].id === 'message-new' && firstBody.messages[0].sender.name === 'Message Parent', 'newest message projection')
+  check(first.status === 200 && firstBody.messages.length === 2 && firstBody.nextCursor, 'modern message page and continuation')
+  check(firstBody.messages.map((message: any) => message.id).join(',') === 'message-middle,message-new', 'chronological multi-row message page')
+  check(firstBody.messages[1].sender.name === 'Message Parent', 'newest message projection')
   check(firstBody.messages[0].family_id === actor.familyId && firstBody.members.length === 2, 'message household isolation')
 
-  const parsed = parseMessagePaging(new URLSearchParams({ paging: 'keyset-v1', limit: '1', cursor: firstBody.nextCursor }), actor.familyId)
+  const parsed = parseMessagePaging(new URLSearchParams({ paging: 'keyset-v1', limit: '2', cursor: firstBody.nextCursor }), actor.familyId)
   check(parsed.ok, 'message continuation parses')
   const second = await readD1Messages(actor, { modern: true, limit: parsed.limit, cursor: null, paging: parsed }, db)
   const secondBody = second.body as any
   check(second.status === 200 && secondBody.messages.length === 1 && secondBody.messages[0].id === 'message-old', 'message continuation advances')
   check(secondBody.messages[0].pickup.assignee.name === 'Message Child', 'pickup stays household-scoped')
+  const traversedIds = [...firstBody.messages, ...secondBody.messages].map((message: any) => message.id)
+  check(new Set(traversedIds).size === 3 && traversedIds.length === 3, 'message continuation has no repeats')
 
   const legacy = await readD1Messages(actor, { modern: false, limit: 10, cursor: null, paging: null }, db)
-  check(legacy.status === 200 && (legacy.body as any).messages.length === 2 && !(legacy.body as any).nextCursor, 'legacy message response remains compatible')
+  check(legacy.status === 200 && (legacy.body as any).messages.length === 3 && !(legacy.body as any).nextCursor, 'legacy message response remains compatible')
 
   const marked = await markD1MessagesRead(actor, { messageIds: ['message-old', 'message-old'] }, db)
   check(marked.status === 200, 'selected message read marker')

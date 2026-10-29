@@ -178,7 +178,10 @@ async function readMessagePage(
     select: { id: true, name: true, role: true, avatar_url: true },
     orderBy: { name: "asc" },
   });
-  const messages = page.reverse().map(row => messageDto(row, actor.familyId));
+  // Keep the descending page intact for the keyset pivot. Reversing `page`
+  // in place would make `page[page.length - 1]` the newest row and cause a
+  // multi-row continuation cursor to repeat messages on the next request.
+  const messages = [...page].reverse().map(row => messageDto(row, actor.familyId));
   const last = page[page.length - 1] as any;
   const nextCursor = options.modern && rows.length > options.limit && last
     ? encodeMessageCursor(actor.familyId, { created_at: last.created_at, id: last.id })
