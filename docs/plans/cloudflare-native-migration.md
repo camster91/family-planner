@@ -2046,6 +2046,31 @@ credentials are absent. Preserve the existing configured capability state at
 cutover; mocked provider tests are not evidence of live provider configuration.
 No production state was changed by this inspection.
 
+### Full-app browser findings and routing repair (2026-10-29)
+
+CI run `40858870357` succeeded at `029eb580`; its immutable bundle started
+locally with real disposable D1/R2 and private password computation. Browser
+checks proved login and, in an explicitly labelled diagnostic that excluded a
+known root-route failure, list create/check/refresh, calendar create/edit/duration,
+and rendered Today at phone/tablet/desktop sizes.
+
+The browser found a real migration defect: `public/index.html` is a Capacitor
+bootstrap that redirects to the former host. Cloudflare assets-first routing
+served it at `/`, and OpenNext's asset resolver could also serve it even after
+root worker-first routing. Checkpoint `5294880a` preserves the native source file
+while excluding it from web uploads with `public/.assetsignore`; `/` explicitly
+runs the session-aware Worker first. A real local Miniflare regression proved
+that ignoring this bootstrap restores the dynamic root and preserves normal
+static assets. Immutable CI artifacts now carry routing settings because raw
+Wrangler multipart output alone omits those settings.
+
+The browser harness was corrected to match rendered Email Address labels,
+wait for welcome-to-family setup, and verify bulk save receipts plus persistent
+visible dishes after the editor closes. Existing production has profile setup
+dormant; local-only `--exercise-profile-setup` explicitly exercises that branch
+without activating a production rollout. Full browser acceptance of the latest
+corrected bundle remains pending; the earlier diagnostic is not acceptance.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
