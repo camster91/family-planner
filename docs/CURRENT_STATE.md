@@ -11,8 +11,11 @@ focused local Worker evidence, including concurrent retry/default-list behavior
 and atomic failure rollback. Migration 0012 restores open recipe-source
 uniqueness. Grocery section move/clear and parent/teen sorting controls also use atomic
 D1 writes, with current authority, scoped ingredient updates and focused native
-checks. Container deletion, recipe grocery review/add/undo and full
-rendered/deployed acceptance remain unfinished. Uncommitted parallel
+checks. Container deletion and signed list target review now also use D1, with source
+and exact child snapshots checked in the atomic delete/receipt batch. Native
+concurrent replay, cascades, changed-child refusal and source-to-target review
+checks pass. Recipe grocery review/add/undo and full rendered/deployed acceptance
+remain unfinished. Uncommitted parallel
 board/device/routine/storage changes are not release evidence.
 
 Local Workers public login, D1 session authority, registration, verification,

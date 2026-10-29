@@ -1,3 +1,6 @@
+import { deleteD1List } from "@/lib/cloudflare/list-delete";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 import { storageBackend } from "@/lib/storage-backend";
 import { readD1ListIndex } from "@/lib/cloudflare/list-read";
 import {
@@ -149,6 +152,18 @@ export async function DELETE(request: NextRequest) {
       parsed.data.listId,
       Boolean(sourceGuard),
     );
+    if (storageBackend() === "d1") {
+      const result = await deleteD1List(actor, parsed.data.listId, key, {
+        sourceGuard,
+        targetGuard,
+      });
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -172,6 +187,8 @@ export async function DELETE(request: NextRequest) {
       { beforeReplay: () => authorizePersonDeleteReplay(prisma!, actor, kind) },
     );
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
     if (error instanceof AssistantSourceRefused) return error.response();
     logRouteError("DELETE /api/lists", error, getRequestId(request));
     return NextResponse.json(

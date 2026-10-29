@@ -38,6 +38,12 @@ export async function executeD1PersonEffect(args: {
     db: D1ReadClient,
     receiptId: string | null,
   ) => Promise<NativePersonPlan>;
+  /** Server-owned confirmation reads, checked atomically before a new effect. */
+  effectChecks?: (
+    database: D1Store,
+  ) => Promise<{
+    checks: (session: Pick<D1Store, "prepare">) => D1Statement[];
+  }>;
   sourceGuard?: AssistantSourceGuard;
   database?: D1Store;
   now?: Date;
@@ -121,6 +127,8 @@ export async function executeD1PersonEffect(args: {
             ).checks(session),
           );
         }
+        if (successful && args.effectChecks)
+          checks.push(...(await args.effectChecks(store)).checks(session));
       } catch (cause) {
         // An exact concurrent retry may have changed its own Today projection.
         // Recover only the matching committed key; ordinary stale plans still fail.

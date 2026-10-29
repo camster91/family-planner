@@ -1867,6 +1867,27 @@ TypeScript and scoped section-route ESLint pass. Full integrated rebuild and
 rendered UI for this additional slice remain pending; the earlier build evidence
 above belongs to the prior list slice. No production/DNS/paid-plan/VPS change.
 
+### List container deletion and exact confirmation — 2026-10-28
+
+Parent container deletion and list target review now use native D1. The exact
+snapshot covers the owned list, its items and owned shopping sessions, refusing
+foreign session references and bounded/oversized snapshots. Source and target
+checks precede cascade deletion and its exact successful retry receipt inside
+one native batch. Current authority is renewed before cached replay; expiration
+checks apply only to a new effect. The shared explicit effect coordinator now
+accepts server-owned confirmation read checks, including matching completed-key
+recovery if a concurrent retry changed its own source/target.
+
+The standalone local list Worker passes ordinary and exact-target same-key
+4-way deletion races, cascade removal, parent and foreign gates, completed
+replay after cascade, revoked-session replay refusal, changed child content
+without a timestamp update, expired target refusal, and complete signed source
+review → target review → deletion. Earlier list/section checks also pass. Scoped
+ESLint passes. A fixture initially enabled confirmation without its references/
+Today prerequisites; it now enables/restores the full fabricated cohort.
+No application guard was weakened. New combined build/rendered acceptance
+remains pending while the parallel source work is active; no production change.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

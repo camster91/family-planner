@@ -70,9 +70,14 @@ export async function POST(request: NextRequest) {
       command.kind,
     )!;
     if (storageBackend() === "d1") {
-      if (command.kind !== "event_delete" && command.kind !== "chore_delete") throw new AssistantSourceRefused();
-      const { reviewD1DeleteTarget } = await import("@/lib/cloudflare/assistant-delete-target");
-      const result = await reviewD1DeleteTarget(actor, command.kind, command.id, guard);
+      const { reviewD1DeleteTarget } =
+        await import("@/lib/cloudflare/assistant-delete-target");
+      const result = await reviewD1DeleteTarget(
+        actor,
+        command.kind,
+        command.id,
+        guard,
+      );
       return NextResponse.json(result.body, { status: result.status, headers });
     }
     const result = await prisma!.$transaction(async (tx) => {
