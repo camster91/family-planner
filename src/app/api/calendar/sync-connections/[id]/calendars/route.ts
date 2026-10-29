@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authParentForSync, json } from "@/lib/calendar-sync/route-helpers";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1CalendarConnectionSecret } from "@/lib/cloudflare/calendar-connections";
 import {
-  ConnectionNotReadyError,
-  listConnectionCalendars,
-} from "@/lib/calendar-sync/sync";
+  listD1ConnectionCalendars,
+  NativeConnectionNotReadyError,
+} from "@/lib/cloudflare/calendar-two-way-sync";
+import { authParentForSync, json } from "@/lib/calendar-sync/route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -19,24 +21,46 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const [auth, error] = await authParentForSync(request);
     if (error) return error;
     const { id } = await context.params;
+    const backend = storageBackend();
 
-    const conn = await prisma!.calendarConnection.findFirst({
-      where: { id, family_id: auth.user.family_id },
-      select: { id: true, user_id: true },
-    });
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload.tv ?? 0,
+    };
+    const conn =
+      backend === "d1"
+        ? await readD1CalendarConnectionSecret(actor, id)
+        : await prisma!.calendarConnection.findFirst({
+            where: { id, family_id: auth.user.family_id },
+            select: { id: true, user_id: true },
+          });
     if (!conn) return json({ error: "Connected calendar not found" }, 404);
     if (conn.user_id !== auth.user.id) {
       return json(
-        { error: "Only the member who connected this calendar can see its calendars" },
+        {
+          error:
+            "Only the member who connected this calendar can see its calendars",
+        },
         403,
       );
     }
 
     let calendars;
+    const NotReadyError =
+      backend === "d1"
+        ? NativeConnectionNotReadyError
+        : (await import("@/lib/calendar-sync/sync")).ConnectionNotReadyError;
     try {
-      calendars = await listConnectionCalendars(conn.id, auth.user.family_id);
+      calendars =
+        backend === "d1"
+          ? await listD1ConnectionCalendars(actor, conn.id)
+          : await (
+              await import("@/lib/calendar-sync/sync")
+            ).listConnectionCalendars(conn.id, auth.user.family_id);
     } catch (err) {
-      if (err instanceof ConnectionNotReadyError) {
+      if (err instanceof NotReadyError) {
         return json(
           {
             error:

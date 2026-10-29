@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { consumeD1OAuthState } from "@/lib/cloudflare/calendar-oauth-state";
+import { commitD1CalendarConnection } from "@/lib/cloudflare/calendar-connections";
+import { revokeD1ProviderGrant } from "@/lib/cloudflare/calendar-two-way-sync";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import {
   appOrigin,
@@ -7,11 +11,6 @@ import {
   isCalendarSyncEnabled,
   isProvider,
 } from "@/lib/calendar-sync/config";
-import {
-  commitConnection,
-  type CommitOutcome,
-} from "@/lib/calendar-sync/connections";
-import { revokeProviderGrant } from "@/lib/calendar-sync/sync";
 import { consumeOAuthState } from "@/lib/calendar-sync/oauth";
 import { oauthFor } from "@/lib/calendar-sync/providers";
 import { notFound } from "@/lib/calendar-sync/route-helpers";
@@ -30,6 +29,9 @@ type Outcome =
   | "limit"
   | "scope"
   | "error";
+
+type CommitOutcome =
+  "created" | "updated" | "no_refresh_token" | "limit" | "gone";
 
 function back(outcome: Outcome): NextResponse {
   // Redirect target comes from configuration, never from the request.
@@ -62,29 +64,36 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
     if (auth.user.role !== "parent") return back("forbidden");
+    const backend = storageBackend();
 
     const params = new URL(request.url).searchParams;
     const state = params.get("state") ?? "";
     const code = params.get("code") ?? "";
     const providerError = params.get("error");
 
-    const consumed = await consumeOAuthState(prisma, {
-      state,
-      familyId: auth.user.family_id,
-      userId: auth.user.id,
-      provider,
-    });
+    const consumed =
+      backend === "d1"
+        ? await consumeD1OAuthState(
+            {
+              userId: auth.user.id,
+              familyId: auth.user.family_id,
+              generation: auth.payload.tv ?? 0,
+            },
+            { state, provider },
+          )
+        : await consumeOAuthState(prisma, {
+            state,
+            familyId: auth.user.family_id,
+            userId: auth.user.id,
+            provider,
+          });
     if (!consumed.ok) return back("state");
     if (providerError || !code || code.length > 4096) return back("denied");
 
     const oauth = oauthFor(provider);
     let tokens;
     try {
-      tokens = await oauth.exchangeCode(
-        config,
-        code,
-        consumed.codeVerifier,
-      );
+      tokens = await oauth.exchangeCode(config, code, consumed.codeVerifier);
     } catch {
       console.warn("[calendar-sync] code exchange failed", { provider });
       return back("exchange");
@@ -94,17 +103,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!oauth.hasRequiredScopes(tokens.scope)) {
       // The member unticked a calendar permission on Google's consent screen.
       // Sync could not work, so store nothing and give the grant back.
-      await revokeProviderGrant(
-        {
-          id: "unsaved",
-          provider,
-          access_token_enc: encryptToken(tokens.accessToken, tokenAad.access(familyId)),
-          refresh_token_enc: tokens.refreshToken
-            ? encryptToken(tokens.refreshToken, tokenAad.refresh(familyId))
-            : null,
-        },
-        familyId,
-      );
+      const unsavedGrant = {
+        id: "unsaved",
+        provider,
+        access_token_enc: encryptToken(
+          tokens.accessToken,
+          tokenAad.access(familyId),
+        ),
+        refresh_token_enc: tokens.refreshToken
+          ? encryptToken(tokens.refreshToken, tokenAad.refresh(familyId))
+          : null,
+      };
+      if (backend === "d1") {
+        await revokeD1ProviderGrant(unsavedGrant, familyId);
+      } else {
+        const { revokeProviderGrant } =
+          await import("@/lib/calendar-sync/sync");
+        await revokeProviderGrant(unsavedGrant, familyId);
+      }
       return back("scope");
     }
     const data: Record<string, unknown> = {
@@ -131,30 +147,58 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // refuses ("gone") when the household or member was deleted meanwhile.
     let outcome: CommitOutcome | "failed";
     try {
-      outcome = await commitConnection(prisma, {
-        familyId,
-        userId: auth.user.id,
-        provider,
-        data,
-        hasRefreshToken: Boolean(tokens.refreshToken),
-      });
+      outcome =
+        backend === "d1"
+          ? await commitD1CalendarConnection(
+              {
+                userId: auth.user.id,
+                familyId,
+                role: auth.user.role,
+                generation: auth.payload.tv ?? 0,
+              },
+              provider,
+              {
+                access_token_enc: data.access_token_enc as string,
+                refresh_token_enc:
+                  data.refresh_token_enc as string | undefined,
+                token_expires_at: tokens.expiresAt,
+                sync_cursor: null,
+                status: "pending",
+                last_error: null,
+              },
+            )
+          : await (async () => {
+              const { commitConnection } =
+                await import("@/lib/calendar-sync/connections");
+              return commitConnection(prisma, {
+                familyId,
+                userId: auth.user.id,
+                provider,
+                data,
+                hasRefreshToken: Boolean(tokens.refreshToken),
+              });
+            })();
     } catch {
       outcome = "failed";
     }
-    if (outcome === "created" || outcome === "updated") return back("connected");
+    if (outcome === "created" || outcome === "updated")
+      return back("connected");
 
     // Not stored, for any reason: the provider already issued this grant and
     // nothing local will ever revoke it, so revoke it now (best effort, no
     // database writes).
-    await revokeProviderGrant(
-      {
-        id: "unsaved",
-        provider,
-        access_token_enc: data.access_token_enc as string,
-        refresh_token_enc: (data.refresh_token_enc as string | undefined) ?? null,
-      },
-      familyId,
-    );
+    const unsavedGrant = {
+      id: "unsaved",
+      provider,
+      access_token_enc: data.access_token_enc as string,
+      refresh_token_enc: (data.refresh_token_enc as string | undefined) ?? null,
+    };
+    if (backend === "d1") {
+      await revokeD1ProviderGrant(unsavedGrant, familyId);
+    } else {
+      const { revokeProviderGrant } = await import("@/lib/calendar-sync/sync");
+      await revokeProviderGrant(unsavedGrant, familyId);
+    }
     if (outcome === "no_refresh_token") return back("exchange");
     if (outcome === "limit") return back("limit");
     if (outcome === "gone") return back("forbidden");

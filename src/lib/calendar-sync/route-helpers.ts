@@ -7,14 +7,22 @@ import { isCalendarSyncEnabled } from "./config";
 
 export const NO_STORE = { "Cache-Control": "private, no-store" };
 
-export function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
-  return NextResponse.json(body, { status, headers: { ...NO_STORE, ...headers } });
+export function json(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: { ...NO_STORE, ...headers },
+  });
 }
 
 export const notFound = () => json({ error: "Not found" }, 404);
 
 type Auth = {
   user: { id: string; family_id: string; role: string; name: string };
+  payload: { tv?: number };
 };
 
 /**
