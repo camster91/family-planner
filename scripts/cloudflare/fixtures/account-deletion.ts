@@ -26,6 +26,24 @@ const historyAttachmentName = `${"d".repeat(32)}.jpg`;
  * database and object/provider callbacks, so this never deletes real data or
  * contacts a provider. Register `testAccountDeletion` in read-worker.ts. */
 export async function testAccountDeletion(db: D1Store) {
+  const previousRoutineEnabled = process.env.ROUTINE_SCHEDULE_ENABLED;
+  const previousRoutineReady = process.env.ROUTINE_SCHEDULE_ROLLBACK_READY;
+  const previousFairEnabled = process.env.FAIR_CHORE_TOP_UP_ENABLED;
+  const previousFairReady = process.env.FAIR_CHORE_TOP_UP_ROLLBACK_READY;
+  const restoreRollout = () => {
+    if (previousRoutineEnabled === undefined)
+      delete process.env.ROUTINE_SCHEDULE_ENABLED;
+    else process.env.ROUTINE_SCHEDULE_ENABLED = previousRoutineEnabled;
+    if (previousRoutineReady === undefined)
+      delete process.env.ROUTINE_SCHEDULE_ROLLBACK_READY;
+    else process.env.ROUTINE_SCHEDULE_ROLLBACK_READY = previousRoutineReady;
+    if (previousFairEnabled === undefined)
+      delete process.env.FAIR_CHORE_TOP_UP_ENABLED;
+    else process.env.FAIR_CHORE_TOP_UP_ENABLED = previousFairEnabled;
+    if (previousFairReady === undefined)
+      delete process.env.FAIR_CHORE_TOP_UP_ROLLBACK_READY;
+    else process.env.FAIR_CHORE_TOP_UP_ROLLBACK_READY = previousFairReady;
+  };
   // Model an edge interruption after the identity batch commits but before its
   // additive routine expansion. The successor foreground visit below turns
   // the rollout back on and exercises the durable retry path.
@@ -33,7 +51,8 @@ export async function testAccountDeletion(db: D1Store) {
   process.env.ROUTINE_SCHEDULE_ROLLBACK_READY = "0";
   process.env.FAIR_CHORE_TOP_UP_ENABLED = "0";
   process.env.FAIR_CHORE_TOP_UP_ROLLBACK_READY = "0";
-  const removedKeys: string[] = [];
+  try {
+    const removedKeys: string[] = [];
   const removeObject = async (key: string) => {
     removedKeys.push(key);
   };
@@ -57,7 +76,7 @@ export async function testAccountDeletion(db: D1Store) {
       description: null,
       subject: {
         kind: "account",
-        user_id: "deletion-native-other-parent",
+        user_id: "deletion-native-parent",
         member_id: null,
       },
       points: 5,
@@ -519,8 +538,10 @@ export async function testAccountDeletion(db: D1Store) {
   check(
     JSON.parse(handedRoutine.routine_series_config).anchor_retired === true &&
       JSON.parse(handedRoutine.routine_series_config).content.subject.kind ===
-        "erased",
-    "routine control root erases the departing subject",
+        "account" &&
+      JSON.parse(handedRoutine.routine_series_config).content.subject.user_id ===
+        "deletion-native-parent",
+    "routine control root preserves the surviving future subject",
   );
   check(
     (
@@ -597,9 +618,9 @@ export async function testAccountDeletion(db: D1Store) {
   );
   const historicalControl = await db
     .prepare(
-      'SELECT id FROM "Chore" WHERE family_id=?1 AND recurrence_id=id AND title=?2 AND assigned_to IS NULL AND member_subject_erased=1 ORDER BY id DESC LIMIT 1',
+      'SELECT id FROM "Chore" WHERE family_id=?1 AND recurrence_id=id AND assigned_to IS NULL AND member_subject_erased=1 AND routine_series_config IS NOT NULL ORDER BY id DESC LIMIT 1',
     )
-    .bind("deletion-native-family-history", "Historical routine")
+    .bind("deletion-native-family-history")
     .first<{ id: string }>();
   check(
     historicalControl?.id,
@@ -802,13 +823,16 @@ export async function testAccountDeletion(db: D1Store) {
     ),
     "legacy chore photo key is cleaned after household commit",
   );
-  return {
-    options: true,
-    otherParent: true,
-    memberRemoval: true,
-    accountDeletion: true,
-    householdDeletion: true,
-    lastParent: true,
-    rollback: true,
-  };
+    return {
+      options: true,
+      otherParent: true,
+      memberRemoval: true,
+      accountDeletion: true,
+      householdDeletion: true,
+      lastParent: true,
+      rollback: true,
+    };
+  } finally {
+    restoreRollout();
+  }
 }

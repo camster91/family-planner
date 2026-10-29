@@ -134,7 +134,7 @@ async function main() {
     sourceSha: sourceSha(),
     deployment: false,
     contentsIncluded: false,
-    compiledContentsRetained: false,
+    compiledContentsRetained: runtimeArtifactRetained,
     runtimeArtifact: {
       retained: runtimeArtifactRetained,
       retentionDays: runtimeArtifactRetained ? 7 : null,

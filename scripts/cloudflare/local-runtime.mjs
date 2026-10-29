@@ -406,7 +406,8 @@ async function makeWorkerOptions(bundle, name, scratch, overrides = {}) {
       ? {
           directory: path.join(scratch, "runtime", ".open-next/assets"),
           binding: configured.assetsName,
-          run_worker_first: true,
+          // Match deployed assets-first routing; OpenNext handles app routes.
+          run_worker_first: false,
           routerConfig: { has_user_worker: true },
         }
       : undefined,
