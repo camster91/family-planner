@@ -665,7 +665,10 @@ test.describe("parentA household controls", () => {
           exact: true,
         })
         .click();
-      await s.arrived("POST", subPath + "/refresh", 4);
+      // The add flow's refresh is the first request; the explicit not-modified
+      // check is the second.  This held refresh is the third (the old unknown
+      // result case was removed when the response contract became strict).
+      await s.arrived("POST", subPath + "/refresh", 3);
       await language(page, next);
       refresh({ status: 503, body: {} });
       await expect(
@@ -762,7 +765,8 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByText(
           msg(locale, "lastUpdated", { time: msg(locale, "justNow") }) +
-            " Synthetic large feed note.",
+            " " +
+            msg(locale, "calendarStatusNote"),
           { exact: true },
         ),
       ).toBeVisible();
@@ -789,7 +793,9 @@ test.describe("parentA household controls", () => {
         section.getByText(
           msg(other(locale), "lastUpdated", {
             time: msg(other(locale), "minutesAgo", { count: 1 }),
-          }) + " Synthetic large feed note.",
+          }) +
+            " " +
+            msg(other(locale), "calendarStatusNote"),
           { exact: true },
         ),
       ).toBeVisible();

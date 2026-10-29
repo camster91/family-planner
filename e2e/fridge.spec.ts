@@ -529,7 +529,7 @@ test.describe("Today board: Family A parent", () => {
     // #274: the tile heading opens the section (no "Open meals" button).
     await expect(
       dinner.getByRole("link", { name: /Dinner tonight\s*, open meals/ }),
-    ).toHaveAttribute("href", "/dashboard/meals");
+    ).toHaveAttribute("href", "/dashboard/meals?start=2026-01-05");
     await expect(page.getByRole("link", { name: /^Open / })).toHaveCount(0);
 
     // Groceries: oldest 5 open items, checked items excluded, overflow link.
@@ -590,7 +590,10 @@ test.describe("Today board: Family A parent", () => {
     await openBoard(page);
     const next = region(page, "today");
     await expect(
-      next.getByRole("heading", { name: "Next up", exact: true }),
+      next.getByRole("heading", {
+        name: "Today , open calendar",
+        exact: true,
+      }),
     ).toBeVisible();
     const events = next.getByTestId("today-event");
     await expect(events).toHaveCount(3);
@@ -1073,14 +1076,14 @@ test.describe("Today board: empty household", () => {
 
     await openBoard(page);
     await expect(region(page, "today")).toContainText(
-      "No more events or household chores to show here.",
+      "Nothing else on the calendar today.",
     );
     await expect(region(page, "dinner")).toContainText(
       "No dinner planned yet.",
     );
     await expect(
       region(page, "dinner").getByRole("link", { name: "Plan dinner" }),
-    ).toHaveAttribute("href", "/dashboard/meals");
+    ).toHaveAttribute("href", "/dashboard/meals?start=2026-01-05");
     await expect(region(page, "groceries")).toContainText(
       "The grocery list is clear.",
     );

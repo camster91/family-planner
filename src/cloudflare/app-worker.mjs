@@ -20,7 +20,8 @@ const appRouter = createAppWorkerRouter();
 /**
  * A stateless compute worker. It intentionally never reads or writes
  * `this.ctx.storage`, sets alarms, or caches responses. The application keeps
- * D1 as its canonical store and receives the original request unchanged.
+ * D1 as its canonical store and receives a header-sanitized request from the
+ * public ingress boundary.
  */
 export class HerewovenComputePool extends DurableObject {
   concurrencyGuard = createComputeConcurrencyGuard();

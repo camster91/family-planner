@@ -350,7 +350,7 @@ for (const locale of ["en", "es"] as const) {
     ).toHaveCount(0);
 
     await panel
-      .getByRole("button", { name: copy.changeNext, exact: true })
+      .getByRole("button", { name: copy.setNextDate, exact: true })
       .click();
     const nextDialog = page.getByTestId("meal-prep-action");
     await expect(nextDialog).toBeVisible();

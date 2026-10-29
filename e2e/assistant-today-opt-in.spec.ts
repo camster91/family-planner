@@ -287,10 +287,9 @@ for (const locale of ["en", "es"] as const) {
       await assertRuntimePerson(page, info, locale);
 
       const copy = COPY[locale];
-      const launcher = page.getByRole("button", {
-        name: copy.launcher,
-        exact: true,
-      });
+      const launcher = page
+        .getByRole("navigation", { name: "Today quick actions" })
+        .getByRole("button", { name: copy.launcher, exact: true });
       await expect(launcher).toBeVisible();
       await launcher.click();
       const quickAdd = page.getByTestId("quick-add-dialog");

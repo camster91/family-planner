@@ -161,10 +161,9 @@ for (const locale of ["en", "es"] as const) {
       if (!["GET", "HEAD"].includes(request.method()))
         writes.push(request.url());
     });
-    const launcher = page.getByRole("button", {
-      name: copy.launcher,
-      exact: true,
-    });
+    const launcher = page
+      .getByRole("navigation", { name: "Today quick actions" })
+      .getByRole("button", { name: copy.launcher, exact: true });
     await launcher.scrollIntoViewIfNeeded();
     await expect(launcher).toBeVisible();
     await launcher.click();

@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "herewoven-legacy-alias",
+  "main": "src/cloudflare/legacy-alias-worker.ts",
+  "compatibility_date": "2026-10-13",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "account_id": "1b2e351cbb39ab6b80efe36ca3577fe5",
+  "vars": {
+    "HEREWOVEN_UPSTREAM_ORIGIN": "https://herewoven.com"
+  }
+}

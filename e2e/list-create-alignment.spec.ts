@@ -357,7 +357,7 @@ for (const locale of ["en", "es"] as const) {
 
         modes.create = "failure";
         await page.getByRole("button", { name: copy.create }).click();
-        await expect(form.getByRole("alert")).toHaveText(copy.createError);
+        await expect(form.getByRole("alert")).toHaveText(copy.unknownError);
         await expect(form.getByRole("alert")).not.toContainText(
           "synthetic private create detail",
         );

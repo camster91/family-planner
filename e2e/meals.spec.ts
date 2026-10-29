@@ -443,7 +443,7 @@ test.describe("meals (parent)", () => {
     await slotRows(page, "lunch").click();
     await dialog(page).getByRole("link", { name: "View recipe" }).click();
     await expect(page).toHaveURL(
-      new RegExp(`/dashboard/meals/recipes/${L.recipeSoup}$`),
+      new RegExp(`/dashboard/meals/recipes/${L.recipeSoup}(?:\\?.*)?$`),
     );
     const detail = page.getByTestId("recipe-detail");
     await expect(

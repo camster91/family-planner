@@ -1,3 +1,35 @@
+# Cross-account hostname compatibility — 2026-10-29
+
+Exact candidate `6ad3a2872153e75859f53f35ed469a9fc4b6c536` passed required
+Build & Test and the fresh-runner image/security check. The compiled local
+journey (including locally enabled email-free child profile) and the actual
+primary-edge household journey both passed. Primary-edge private R2 upload,
+read, anonymous refusal, foreign-household refusal and replay passed. Source,
+compute binding and all four existing secrets were verified after upload;
+active edge version is `69766e95-37ea-4b30-b05d-c140c8cde5bd`. Safe primary
+tail captured 291 ok outcomes and 15 navigation cancellations, with no CPU or
+memory-limit failures in the observed journey.
+
+Cutover planning found that `ashbi.ca` belongs to Cloudflare account
+`1b2e351cbb39ab6b80efe36ca3577fe5`, whereas the main app and herewoven.com
+belong to account `1f5acce966c81fbe36ae06521414d0b8`. Cloudflare rejected a
+cross-account Custom Domain attach during its non-mutating changeset preview.
+The new legacy-alias Worker is a narrow, stateless HTTPS bridge in the old
+zone's account. It proxies only family.ashbi.ca and its explicit QA hostname,
+keeps browser-visible paths/cookies/owned redirects on that origin, and has no
+D1/R2/auth/session store. Shared-secret ingress attestation lets the main Worker
+accept the original client IP/host without trusting spoofed forwarding headers;
+the secret headers are removed before OpenNext. The bridge credential has not
+yet been provisioned and the new combined source is not yet accepted on edge.
+No paid plan was enabled. The shared ashbi wildcard, live DNS and healthy VPS
+are unchanged.
+
+Focused main/alias Worker tests and full TypeScript pass. The latest browser
+fixture repairs preserve current UI controls, semantic unknown-outcome messages,
+week context and canonical recipe-owner admission headers rather than weakening
+production boundaries. Exact combined build, alias/primary edge integration,
+required current-head CI, merge/cutover and scoped VPS retirement remain open.
+
 # Compute-budget release candidate — 2026-10-29
 
 The actual edge investigation reproduced strict 10 ms CPU failures on the

@@ -350,10 +350,9 @@ async function askForAnalytics(
   page: Page,
   expectProposal: boolean,
 ): Promise<void> {
-  const launcher = page.getByRole("button", {
-    name: "Add or ask",
-    exact: true,
-  });
+  const launcher = page
+    .getByRole("navigation", { name: "Today quick actions" })
+    .getByRole("button", { name: "Add or ask", exact: true });
   await expect(launcher).toBeVisible();
   await launcher.click();
   const quickAdd = page.getByTestId("quick-add-dialog");
