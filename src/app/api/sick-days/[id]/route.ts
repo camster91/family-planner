@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerUser } from '@/lib/supabase/server'
+import { getServerActor, getServerUser } from '@/lib/supabase/server'
+import { storageBackend } from '@/lib/storage-backend'
+import { updateD1SickDay, deleteD1SickDay } from '@/lib/cloudflare/health'
 import { refusePairedDevice } from '@/lib/device-route'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -18,12 +20,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (deviceRefusal) return deviceRefusal
 
     const { id } = await params
-    const user = (await getServerUser()) as SessionUser | null
+    const serverActor = storageBackend() === 'd1' ? await getServerActor() : null
+    const user = (serverActor ?? await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const gate = await featureGate(user.family_id, 'sick-days')
     if (gate) return gate
     if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
     const familyId = user.family_id
+
+    if (serverActor) {
+      let body: unknown
+      try {
+        body = await request.json()
+      } catch {
+        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      }
+      const result = await updateD1SickDay({
+        userId: serverActor.id,
+        familyId,
+        role: serverActor.role ?? user.role ?? '',
+        generation: serverActor.tokenVersion,
+      }, id, body)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     const existing = await prisma!.sickDay.findUnique({
       where: { id },
@@ -137,11 +156,22 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   if (deviceRefusal) return deviceRefusal
 
   const { id } = await params
-  const user = (await getServerUser()) as SessionUser | null
+  const serverActor = storageBackend() === 'd1' ? await getServerActor() : null
+  const user = (serverActor ?? await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await featureGate(user.family_id, 'sick-days')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
+
+  if (serverActor) {
+    const result = await deleteD1SickDay({
+      userId: serverActor.id,
+      familyId: user.family_id,
+      role: serverActor.role ?? user.role ?? '',
+      generation: serverActor.tokenVersion,
+    }, id)
+    return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+  }
 
   const existing = await prisma!.sickDay.findUnique({
     where: { id },

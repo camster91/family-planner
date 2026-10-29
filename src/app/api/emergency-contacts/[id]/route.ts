@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { updateD1EmergencyContact, deleteD1EmergencyContact } from '@/lib/cloudflare/health'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -37,6 +39,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const parsed = updateEmergencyContactSchema.safeParse(json)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    if (storageBackend() === 'd1') {
+      const result = await updateD1EmergencyContact({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, id, parsed.data)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     const existing = await prisma!.emergencyContact.findUnique({
@@ -94,6 +100,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (parentError) return parentError
 
     const { id } = await params
+
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1EmergencyContact({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, id)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     const existing = await prisma!.emergencyContact.findUnique({
       where: { id },

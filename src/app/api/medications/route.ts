@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerUser } from '@/lib/supabase/server'
+import { getServerActor, getServerUser } from '@/lib/supabase/server'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1Medications, createD1Medication } from '@/lib/cloudflare/health'
 import { refusePairedDevice } from '@/lib/device-refusal'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -13,11 +15,22 @@ export async function GET(request: NextRequest) {
   const deviceRefusal = await refusePairedDevice(request)
   if (deviceRefusal) return deviceRefusal
 
-  const user = (await getServerUser()) as SessionUser | null
+  const serverActor = storageBackend() === 'd1' ? await getServerActor() : null
+  const user = (serverActor ?? await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await featureGate(user.family_id, 'sick-days')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ medications: [] })
+
+  if (serverActor) {
+    const result = await readD1Medications({
+      userId: serverActor.id,
+      familyId: user.family_id,
+      role: serverActor.role ?? user.role ?? '',
+      generation: serverActor.tokenVersion,
+    })
+    return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+  }
 
   // D1 (#102): a teen or child sees only medications prescribed to them.
   const medications = await prisma!.medication.findMany({
@@ -52,7 +65,8 @@ export async function POST(request: Request) {
     const deviceRefusal = await refusePairedDevice(request as NextRequest)
     if (deviceRefusal) return deviceRefusal
 
-    const user = (await getServerUser()) as SessionUser | null
+    const serverActor = storageBackend() === 'd1' ? await getServerActor() : null
+    const user = (serverActor ?? await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const gate = await featureGate(user.family_id, 'sick-days')
     if (gate) return gate
@@ -91,6 +105,16 @@ export async function POST(request: Request) {
     }
     if (body.next_dose_at && (typeof body.next_dose_at !== 'string' || Number.isNaN(Date.parse(body.next_dose_at)))) {
       return NextResponse.json({ error: 'next_dose_at must be an ISO date-time' }, { status: 400 })
+    }
+
+    if (serverActor) {
+      const result = await createD1Medication({
+        userId: serverActor.id,
+        familyId: user.family_id,
+        role: serverActor.role ?? user.role ?? '',
+        generation: serverActor.tokenVersion,
+      }, body)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // The person and (optional) sick day must belong to the caller's family;
