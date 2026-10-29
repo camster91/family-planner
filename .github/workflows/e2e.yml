@@ -681,6 +681,10 @@ jobs:
         run: |
           mkdir -p cloudflare-readiness
           node -e "require('node:fs').writeFileSync('cloudflare-readiness/source.json', JSON.stringify({sha:process.env.GITHUB_SHA,ref:process.env.GITHUB_REF,storage:'d1',deployment:false},null,2))"
+      - name: Generate existing database client types
+        # Retained PostgreSQL modules still need their generated types while
+        # D1 routes are ported. Generation does not connect to a database.
+        run: npx prisma generate
       - name: Build Worker without deployment
         shell: bash
         run: |
