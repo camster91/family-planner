@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
+import { deleteD1BudgetTransaction, updateD1BudgetTransaction } from "@/lib/cloudflare/budget";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
 import { featureGate } from "@/lib/feature-gate-server";
@@ -64,6 +68,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
 
+    if (storageBackend() === "d1") {
+      const result = await updateD1BudgetTransaction(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+        parsed.data,
+        key,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { "Idempotency-Replayed": "true", "Cache-Control": "private, no-store" } : { "Cache-Control": "private, no-store" } });
+    }
+
     const response = await withIdempotency(
       prisma!,
       key,
@@ -96,6 +110,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code);
     logRouteError(
       "PATCH /api/budget/transactions/[id]",
       error,
@@ -135,6 +150,15 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
 
+    if (storageBackend() === "d1") {
+      const result = await deleteD1BudgetTransaction(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+        key,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { "Idempotency-Replayed": "true", "Cache-Control": "private, no-store" } : { "Cache-Control": "private, no-store" } });
+    }
+
     const response = await withIdempotency(
       prisma!,
       key,
@@ -166,6 +190,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code);
     logRouteError(
       "DELETE /api/budget/transactions/[id]",
       error,

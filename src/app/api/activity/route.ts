@@ -6,6 +6,8 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { legacyAnalyticsTypeFilter, pruneLegacyAnalytics } from '@/lib/legacy-analytics'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1Activity } from '@/lib/cloudflare/activity'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +50,19 @@ export async function GET(request: NextRequest) {
     if (paging?.ok && paging.cursor) where.AND = [afterActivityCursor(paging.cursor)]
     if (before) {
       where.created_at = { lt: before }
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await readD1Activity(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        { paged, paging, before, limit },
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // Housekeeping: drop this household's legacy analytics rows past retention (#136).

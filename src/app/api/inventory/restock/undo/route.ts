@@ -11,6 +11,10 @@ import { refuseInventoryRecoveryOwner } from "@/lib/inventory-recovery-server";
 import { undoInventoryRestock } from "@/lib/inventory-restock";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { undoD1InventoryRestock } from "@/lib/cloudflare/inventory-recovery";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string) =>
@@ -35,7 +39,7 @@ export async function POST(request: NextRequest) {
       auth.user,
     );
     if (refusal) return refusal;
-    if (
+    if (storageBackend() !== "d1" &&
       !(
         await checkRateLimit(
           `inventory-restock-undo:${auth.user.id}`,
@@ -61,6 +65,22 @@ export async function POST(request: NextRequest) {
       input.data.expected_family_id !== auth.user.family_id
     )
       return fail(403, "AUTH_CONTEXT_CHANGED");
+    if (storageBackend() === "d1") {
+      const database = await getD1Database();
+      if (!(await checkD1RateLimit(database, `inventory-restock-undo:${auth.user.id}`, 60, 60_000, Date.now())).allowed)
+        return fail(429, "RATE_LIMITED");
+      const result = await undoD1InventoryRestock(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        input.data.requestId,
+        database,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers });
+    }
     const result = await undoInventoryRestock(
       prisma!,
       {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1BudgetCategories, createD1BudgetCategory } from "@/lib/cloudflare/budget";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
 import { createCategorySchema } from "@/lib/validations";
@@ -26,6 +28,14 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") as "income" | "expense" | null;
+
+    if (storageBackend() === "d1") {
+      const result = await readD1BudgetCategories(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        type,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+    }
 
     const where: Record<string, unknown> = {
       family_id: auth.user.family_id,
@@ -85,6 +95,14 @@ export async function POST(request: NextRequest) {
         { error: parsed.error.issues[0].message },
         { status: 400 },
       );
+    }
+
+    if (storageBackend() === "d1") {
+      const result = await createD1BudgetCategory(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        parsed.data,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
     }
 
     const { name, icon, color, type, budget_limit } = parsed.data;

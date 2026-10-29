@@ -9,6 +9,8 @@ import { protectRewardResponse } from "@/lib/reward-response";
 import { rewardActionCommandsEnabled, rewardActionOwnerSchema } from "@/lib/reward-action-command";
 import { REWARD_ACTION_PROTOCOL, REWARD_ACTION_OWNER_HEADER, sameRewardActionOwner } from "@/lib/reward-action-shared";
 import { MEMBER_ID_PATTERN } from "@/lib/member-identity-schema";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1OwnedReward } from "@/lib/cloudflare/rewards";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string) => NextResponse.json({ error: code, code }, { status, headers });
 export async function readOwnedReward(request: NextRequest) {
@@ -26,6 +28,10 @@ export async function readOwnedReward(request: NextRequest) {
     const id = params.get("rewardId");
     if (!id || !MEMBER_ID_PATTERN.test(id) || params.getAll("rewardId").length !== 1 || [...params.keys()].some(key => key !== "rewardId")) return fail(400, "REWARD_COMMAND_INVALID");
     const actor = { userId: owner.userId, familyId: owner.familyId, role: owner.role, tokenVersion: owner.generation };
+    if (storageBackend() === "d1") {
+      const result = await readD1OwnedReward({ userId: actor.userId, familyId: actor.familyId, role: actor.role, generation: actor.tokenVersion }, owner, id);
+      return NextResponse.json(result.body, { status: result.status, headers });
+    }
     const result = await withRewardReadAccess(prisma!, actor, tx => tx.reward.findMany({
       where: { id, family_id: owner.familyId }, take: 1,
       select: { id: true, family_id: true, name: true, description: true, cost: true, icon: true, status: true,

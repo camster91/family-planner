@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
+import { createD1BudgetTransaction, readD1BudgetTransactions } from "@/lib/cloudflare/budget";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
 import { createTransactionSchema } from "@/lib/validations";
@@ -51,6 +55,14 @@ export async function GET(request: NextRequest) {
         );
       }
       offset = parseInt(rawOffset, 10);
+    }
+
+    if (storageBackend() === "d1") {
+      const result = await readD1BudgetTransactions(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        { type, categoryId, start: startDate ? new Date(startDate) : null, end: endDate ? new Date(endDate) : null, limit, offset },
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
     }
 
     const where: Record<string, unknown> = {
@@ -110,6 +122,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ transactions, total, limit, offset });
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code);
     logRouteError("GET /api/budget/transactions", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },
@@ -150,6 +163,15 @@ export async function POST(request: NextRequest) {
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
 
+    if (storageBackend() === "d1") {
+      const result = await createD1BudgetTransaction(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        parsed.data,
+        key,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { "Idempotency-Replayed": "true", "Cache-Control": "private, no-store" } : { "Cache-Control": "private, no-store" } });
+    }
+
     const response = await withIdempotency(
       prisma!,
       key,
@@ -181,6 +203,7 @@ export async function POST(request: NextRequest) {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code);
     logRouteError(
       "POST /api/budget/transactions",
       error,

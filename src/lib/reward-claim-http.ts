@@ -13,6 +13,9 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeRewardReplay, claimReward, InsufficientRewardXpError, type RewardActor } from '@/lib/reward-mutations'
+import { storageBackend } from '@/lib/storage-backend'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { claimD1Reward } from '@/lib/cloudflare/rewards'
 
 
 // POST - Claim a reward (children/teens)
@@ -67,6 +70,14 @@ export async function handleRewardClaimRequest(request: NextRequest, mode: "lega
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
     if (mode === "owned" && !key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED")
+
+    if (storageBackend() === 'd1') {
+      const result = await claimD1Reward(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        { rewardId }, key, originalCommand?.kind === 'claim' ? originalCommand : undefined,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
 
     const reward = await prisma!.reward.findUnique({
       where: { id: rewardId },
@@ -138,6 +149,7 @@ export async function handleRewardClaimRequest(request: NextRequest, mode: "lega
 
     return protectRewardResponse(prisma!, actor, false, response)
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
     if (error instanceof InsufficientRewardXpError) {
       return NextResponse.json({ error: 'Not enough points for this reward' }, { status: 400 })
     }

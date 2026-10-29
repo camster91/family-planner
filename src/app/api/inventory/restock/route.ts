@@ -29,6 +29,15 @@ import {
 } from "@/lib/inventory-restock";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
+import {
+  confirmD1InventoryRestock,
+  persistD1InventoryRestock,
+  reviewD1InventoryRestock,
+} from "@/lib/cloudflare/inventory-recovery";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string) =>
@@ -47,6 +56,8 @@ async function handle(request: NextRequest) {
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload.tv ?? 0,
       tokenVersion: auth.payload.tv ?? 0,
     };
     const ownerRefusal = refuseInventoryRecoveryOwner(
@@ -55,11 +66,53 @@ async function handle(request: NextRequest) {
       auth.user,
     );
     if (ownerRefusal) return ownerRefusal;
-    if (
+    if (storageBackend() !== "d1" &&
       !(await checkRateLimit(`inventory-restock:${actor.userId}`, 90, 60_000))
         .allowed
     )
       return fail(429, "RATE_LIMITED");
+    if (storageBackend() === "d1") {
+      const database = await getD1Database();
+      if (!(await checkD1RateLimit(database, `inventory-restock:${actor.userId}`, 90, 60_000, Date.now())).allowed)
+        return fail(429, "RATE_LIMITED");
+      if (request.method === "GET") {
+        const scope = { userId: actor.userId, familyId: actor.familyId };
+        const scopeRefusal = refuseInventoryReadScope(request, scope);
+        if (scopeRefusal) return scopeRefusal;
+        const params = new URL(request.url).searchParams;
+        if ([...params.keys()].some((key) => params.getAll(key).length !== 1))
+          return fail(400, "INVALID_RESTOCK_REVIEW");
+        const input = query.safeParse(Object.fromEntries(params));
+        if (!input.success) return fail(400, "INVALID_RESTOCK_REVIEW");
+        const result = await reviewD1InventoryRestock(actor, input.data, database);
+        const response = NextResponse.json(result.body, { status: result.status, headers });
+        return response.ok ? inventoryScopedResponse(response, scope) : response;
+      }
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      if (!key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
+      let body: unknown;
+      try {
+        body = JSON.parse(await boundedRequestText(request, 8192));
+      } catch (error) {
+        return fail(error instanceof RequestBodyTooLarge ? 413 : 400, "INVALID_RESTOCK");
+      }
+      const input = restockInput.safeParse(body);
+      if (!input.success) return fail(400, "INVALID_RESTOCK");
+      if (input.data.expected_user_id !== actor.userId || input.data.expected_family_id !== actor.familyId)
+        return fail(403, "AUTH_CONTEXT_CHANGED");
+      try {
+        const result = await persistD1InventoryRestock(actor, input.data, key, database);
+        const confirmed = await confirmD1InventoryRestock(actor, result, input.data, database);
+        return NextResponse.json(confirmed.body, {
+          status: confirmed.status,
+          headers: { ...headers, ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) },
+        });
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError) return idempotencyError(error.code);
+        throw error;
+      }
+    }
     if (request.method === "GET") {
       const scope = { userId: actor.userId, familyId: actor.familyId };
       const scopeRefusal = refuseInventoryReadScope(request, scope);

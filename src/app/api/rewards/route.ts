@@ -11,8 +11,11 @@ import { notificationServiceServer } from '@/lib/notifications-server'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
-import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
+import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeRewardReplay, createReward, updateReward, type RewardActor } from '@/lib/reward-mutations'
+import { storageBackend } from '@/lib/storage-backend'
+import { createD1Reward, readD1Rewards, updateD1Reward } from '@/lib/cloudflare/rewards'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +30,20 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    if (storageBackend() === 'd1') {
+      const actor = { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }
+      if (searchParams.has('rewardId')) {
+        const id = searchParams.get('rewardId')!
+        if (searchParams.getAll('rewardId').length !== 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(id) || ['limit', 'cursor', 'status'].some(key => searchParams.has(key)))
+          return NextResponse.json({ error: 'Invalid reward target', code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+        const result = await readD1Rewards(actor, { rewardId: id, status: null, paging: { ok: true, paged: false } })
+        return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+      }
+      const paging = parseRewardPaging(searchParams, auth.user.family_id)
+      if (!paging.ok) return NextResponse.json({ error: paging.error, code: 'REWARDS_INVALID_PAGE' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } })
+      const result = await readD1Rewards(actor, { status, paging })
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
     const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     const respond = async (result: Awaited<ReturnType<typeof withRewardReadAccess>>) => {
       const response = result.kind === 'held'
@@ -59,6 +76,7 @@ export async function GET(request: NextRequest) {
 
     return respond(result)
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
     logRouteError('GET /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -90,6 +108,10 @@ export async function POST(request: NextRequest) {
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
+    if (storageBackend() === 'd1') {
+      const result = await createD1Reward({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }, parsed.data, key)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
     const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     let applied = false
     let notificationHandled = false
@@ -130,6 +152,7 @@ export async function POST(request: NextRequest) {
 
     return protectRewardResponse(prisma!, actor, true, response)
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
     logRouteError('POST /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -159,6 +182,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
+    if (storageBackend() === 'd1') {
+      const { key, error: keyError } = readIdempotencyKey(request)
+      if (keyError) return keyError
+      const result = await updateD1Reward({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }, parsed.data, key)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
+
     const { rewardId } = parsed.data
 
     const reward = await prisma!.reward.findUnique({
@@ -186,6 +216,7 @@ export async function PATCH(request: NextRequest) {
     )
     return protectRewardResponse(prisma!, actor, true, response)
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
     logRouteError('PATCH /api/rewards', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

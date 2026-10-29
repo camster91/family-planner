@@ -11,6 +11,9 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { approveReward, authorizeRewardReplay, type RewardActor } from '@/lib/reward-mutations'
+import { storageBackend } from '@/lib/storage-backend'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { approveD1Reward } from '@/lib/cloudflare/rewards'
 
 
 // POST - Approve a claimed reward (parents only)
@@ -54,6 +57,14 @@ export async function handleRewardApprovalRequest(request: NextRequest, mode: "l
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
     if (mode === "owned" && !key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED")
+
+    if (storageBackend() === 'd1') {
+      const result = await approveD1Reward(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        { rewardId }, key, originalCommand?.kind === 'approve' ? originalCommand : undefined,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
 
     const reward = await prisma!.reward.findUnique({
       where: { id: rewardId },
@@ -107,6 +118,7 @@ export async function handleRewardApprovalRequest(request: NextRequest, mode: "l
 
     return protectRewardResponse(prisma!, actor, true, response)
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
     logRouteError('POST /api/rewards/approve', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
