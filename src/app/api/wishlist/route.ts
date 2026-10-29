@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { idempotencyError } from '@/lib/idempotency'
+import { createD1Wishlist, readD1WishlistScoped } from '@/lib/cloudflare/wishlist'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
@@ -17,6 +21,12 @@ import { parseWishlistPaging, encodeWishlistCursor, afterWishlistCursor } from '
 
 export const dynamic = 'force-dynamic'
 
+function responseHeaders(replayed?: boolean): Record<string, string> {
+  return replayed
+    ? { 'Idempotency-Replayed': 'true', 'Cache-Control': 'private, no-store' }
+    : { 'Cache-Control': 'private, no-store' }
+}
+
 // GET /api/wishlist - List wishlist items
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +43,14 @@ export async function GET(request: NextRequest) {
     }
     const paging = parseWishlistPaging(params, scope)
     if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
+    if (storageBackend() === 'd1') {
+      const result = await readD1WishlistScoped(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        { requesterId: scope.requesterId },
+        paging,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: responseHeaders() })
+    }
     const items = await prisma!.wishlistItem.findMany({
       where: {
         family_id: scope.familyId,
@@ -62,6 +80,7 @@ export async function GET(request: NextRequest) {
         ? encodeWishlistCursor(scope, page[page.length - 1]) : null } : {}),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code)
     logRouteError('GET /api/wishlist', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -89,6 +108,15 @@ export async function POST(request: NextRequest) {
     const input = normalizeWishlistCreate(parsed.data)
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
+
+    if (storageBackend() === 'd1') {
+      const result = await createD1Wishlist(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        input,
+        key,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: responseHeaders(result.replayed) })
+    }
 
     const response = await withIdempotency(
       prisma!,
@@ -118,6 +146,7 @@ export async function POST(request: NextRequest) {
     response.headers.set('Cache-Control', 'private, no-store')
     return response
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code)
     logRouteError('POST /api/wishlist', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { refusePairedDevice } from '@/lib/device-refusal'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { authenticateWithFamily } from '@/lib/api-auth'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { idempotencyError } from '@/lib/idempotency'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { createD1Allowance, readD1Allowance } from '@/lib/cloudflare/allowance'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -12,6 +18,14 @@ import { createPersonAllowance } from '@/lib/person-allowance-create'
 type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
 
 export async function GET(request: NextRequest) {
+  if (storageBackend() === 'd1') {
+    const [auth, error] = await authenticateWithFamily(request)
+    if (error) return error
+    const gate = await featureGate(auth.user.family_id, 'allowance')
+    if (gate) return gate
+    const result = await readD1Allowance({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 })
+    return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+  }
   const deviceRefusal = await refusePairedDevice(request)
   if (deviceRefusal) return deviceRefusal
 
@@ -54,6 +68,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
+    if (storageBackend() === 'd1') {
+      const [auth, error] = await authenticateWithFamily(request as NextRequest)
+      if (error) return error
+      const gate = await featureGate(auth.user.family_id, 'allowance')
+      if (gate) return gate
+      if (auth.user.role !== 'parent') return NextResponse.json({ error: 'Only parents can create allowance' }, { status: 403 })
+      const { key, error: keyError } = readIdempotencyKey(request)
+      if (keyError) return keyError
+      let json: unknown
+      try { json = await request.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+      const parsed = createAllowanceSchema.safeParse(json)
+      if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      const result = await createD1Allowance({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }, parsed.data, key, await getD1Database())
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
     const deviceRefusal = await refusePairedDevice(request as NextRequest)
     if (deviceRefusal) return deviceRefusal
 
@@ -101,6 +130,7 @@ export async function POST(request: Request) {
     response.headers.set('Cache-Control', 'private, no-store')
     return response
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
     logRouteError('POST /api/allowance', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -8,6 +8,8 @@ import { readIdempotencyKey, idempotencyError } from "@/lib/idempotency";
 import { inspectPersonNoteReceipt } from "@/lib/person-note-receipt";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { inspectD1NoteReceipt } from "@/lib/cloudflare/notes-projects";
 export const dynamic = "force-dynamic";
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 /** POST carries original private request bytes for hashing; this endpoint is read-only. */
@@ -27,6 +29,10 @@ export async function POST(request: NextRequest) {
     const parsed = createNoteSchema.safeParse(json);
     if (!parsed.success || !parsed.data.expected_user_id || !parsed.data.expected_family_id)
       return reply({ error: "Original owner-bound note request required" }, 400);
+    if (storageBackend() === "d1") {
+      const result = await inspectD1NoteReceipt({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, key, parsed.data);
+      return reply(result.body, result.status);
+    }
     const result = await inspectPersonNoteReceipt(prisma!, {
       userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0,
     }, key, parsed.data);

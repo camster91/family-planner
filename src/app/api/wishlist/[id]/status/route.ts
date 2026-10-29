@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { idempotencyError } from '@/lib/idempotency'
+import { updateD1WishlistStatus } from '@/lib/cloudflare/wishlist'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
@@ -47,6 +51,16 @@ export async function PATCH(
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
 
+    if (storageBackend() === 'd1') {
+      const result = await updateD1WishlistStatus(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+        input,
+        key,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { 'Idempotency-Replayed': 'true', 'Cache-Control': 'private, no-store' } : { 'Cache-Control': 'private, no-store' } })
+    }
+
     const response = await withIdempotency(
       prisma!,
       key,
@@ -79,6 +93,7 @@ export async function PATCH(
     response.headers.set('Cache-Control', 'private, no-store')
     return response
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code)
     logRouteError('PATCH /api/wishlist/[id]/status', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

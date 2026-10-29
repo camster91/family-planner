@@ -16,6 +16,8 @@ import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { createNoteSchema } from "@/lib/validations";
 import { refusePairedDevice } from "@/lib/device-route";
+import { storageBackend } from "@/lib/storage-backend";
+import { createD1Note, readD1Notes } from "@/lib/cloudflare/notes-projects";
 
 import { parseNotePaging, encodeNoteCursor, afterNoteCursor } from "@/lib/note-paging";
 
@@ -44,6 +46,10 @@ export async function GET(request: NextRequest) {
     if (!paging.ok) return NextResponse.json(
       { error: paging.error, code: "NOTES_INVALID_PAGE" }, { status: 400 },
     );
+    if (storageBackend() === "d1") {
+      const result = await readD1Notes({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, paging);
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+    }
     const notes = await prisma!.pinnedNote.findMany({
       where: {
         family_id: auth.user.family_id,
@@ -113,6 +119,10 @@ export async function POST(request: NextRequest) {
       generation: auth.payload?.tv ?? 0,
     };
     const sourceGuard = assistantSourceGuard(request, actor, "note_create");
+    if (storageBackend() === "d1") {
+      const result = await createD1Note(actor, parsed.data, key, sourceGuard);
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { "Idempotency-Replayed": "true", "Cache-Control": "private, no-store" } : { "Cache-Control": "private, no-store" } });
+    }
     return await withIdempotency(
       prisma!,
       key,
