@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     // Always one bcrypt compare (dummy hash when there is nothing to compare).
     const wellFormed = method === 'password' || isValidPinFormat(secret)
-    const matched = await verifyPassword(secret, secretHash ?? DUMMY_HASH)
+    const matched = await verifyPassword(secret, secretHash ?? DUMMY_HASH, target?.id ?? userId)
     const valid = Boolean(target && secretHash && wellFormed && matched)
 
     if (!valid || !target) {

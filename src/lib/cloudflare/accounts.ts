@@ -73,14 +73,14 @@ export async function createD1Registration(db: D1Store, input: D1RegistrationInp
 }
 
 export async function storeD1VerificationToken(db: D1Store, userId: string, tokenHash: string, expires: number): Promise<void> {
-  const result = await db.prepare('UPDATE "User" SET verify_token=?1, verify_token_expires=?2 WHERE id=?3')
-    .bind(tokenHash, expires, userId).run()
-  if (result.meta.changes !== 1) throw new Error('Verification account unavailable')
+  const row = await db.prepare('UPDATE "User" SET verify_token=?1, verify_token_expires=?2 WHERE id=?3 RETURNING id')
+    .bind(tokenHash, expires, userId).first<{ id: string }>()
+  if (!row) throw new Error('Verification account unavailable')
 }
 export async function consumeD1VerificationToken(db: D1Store, tokenHash: string, now: number): Promise<boolean> {
-  const result = await db.prepare('UPDATE "User" SET email_verified=1,verify_token_expires=NULL WHERE verify_token=?1 AND verify_token_expires>?2')
-    .bind(tokenHash, now).run()
-  return result.meta.changes === 1
+  const row = await db.prepare('UPDATE "User" SET email_verified=1,verify_token_expires=NULL WHERE verify_token=?1 AND verify_token_expires>?2 RETURNING id')
+    .bind(tokenHash, now).first<{ id: string }>()
+  return row !== null
 }
 export async function isD1VerificationTokenUsed(db: D1Store, tokenHash: string): Promise<boolean> {
   return (await db.withSession('first-primary').prepare('SELECT id FROM "User" WHERE verify_token=?1 AND verify_token_expires IS NULL AND email_verified=1')

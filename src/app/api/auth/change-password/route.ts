@@ -50,12 +50,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const isValid = await verifyPassword(currentPassword, user.password || '')
+    const isValid = await verifyPassword(currentPassword, user.password || '', user.id)
     if (!isValid) {
       return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
     }
 
-    const hashedPassword = await hashPassword(newPassword)
+    const hashedPassword = await hashPassword(newPassword, user.id)
 
     // Bumping token_version revokes every session issued before this change —
     // a stolen cookie stops working. The device making the change gets a fresh

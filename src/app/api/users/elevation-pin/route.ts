@@ -46,11 +46,11 @@ export async function PUT(request: NextRequest) {
     }
 
     const user = await prisma!.user.findUnique({ where: { id: userId }, select: { password: true } })
-    if (!user?.password || !(await verifyPassword(body.currentPassword, user.password))) {
+    if (!user?.password || !(await verifyPassword(body.currentPassword, user.password, userId))) {
       return deviceError(401, 'INVALID_PASSWORD')
     }
 
-    const pinHash = await hashPassword(pin)
+    const pinHash = await hashPassword(pin, userId)
     await prisma!.parentElevationPin.upsert({
       where: { user_id: userId },
       create: { user_id: userId, family_id: familyId, pin_hash: pinHash, locked_until: null },

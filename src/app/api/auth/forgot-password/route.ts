@@ -88,7 +88,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'If an account exists with that email, a reset link has been sent.',
-      ...(process.env.NODE_ENV !== 'production' && { resetToken: token }),
+      // Only an explicitly development runtime may expose the fabricated
+      // token for local UI testing. An unset NODE_ENV must stay private on a
+      // Worker; production deployments must never depend on this guard being
+      // populated by the host.
+      ...(process.env.NODE_ENV === 'development' && { resetToken: token }),
     })
   } catch (error) {
     logRouteError('POST /api/auth/forgot-password', error, getRequestId(request))

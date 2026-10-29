@@ -11,7 +11,11 @@
     "binding": "ASSETS"
   },
   "services": [
-    { "binding": "WORKER_SELF_REFERENCE", "service": "herewoven-migration" }
+    { "binding": "WORKER_SELF_REFERENCE", "service": "herewoven-migration" },
+    {
+      "binding": "PASSWORD_COMPUTE",
+      "service": "herewoven-password-compute"
+    }
   ],
   "vars": { "NEXT_PUBLIC_APP_URL": "https://herewoven.com" }
 }

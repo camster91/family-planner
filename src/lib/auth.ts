@@ -1,6 +1,11 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'node:crypto'
+import { storageBackend } from './storage-backend'
+import type {
+  LocalPasswordComputeAdapter,
+  PasswordComputeServiceBinding,
+} from './cloudflare/local-password-compute'
 
 let _jwtSecret: string | null = null
 
@@ -82,19 +87,52 @@ export interface TokenPayload {
   sid?: string
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 12)
+async function configuredPasswordCompute(): Promise<LocalPasswordComputeAdapter | null> {
+  // PostgreSQL/local test execution retains the existing in-process bcrypt
+  // behavior. Native D1 is the Cloudflare production path and must have the
+  // private compute service configured; it never silently falls back to HTTP
+  // bcrypt when that binding is absent.
+  if (storageBackend() !== 'd1') return null
+  const { getCloudflareContext } = await import('@opennextjs/cloudflare')
+  const { createPasswordComputeServiceAdapter } = await import('./cloudflare/local-password-compute')
+  const { env } = getCloudflareContext()
+  const binding = (env as typeof env & {
+    PASSWORD_COMPUTE?: PasswordComputeServiceBinding
+  }).PASSWORD_COMPUTE
+  return createPasswordComputeServiceAdapter(binding)
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash)
+export async function hashPassword(password: string, routingKey?: string): Promise<string> {
+  const compute = await configuredPasswordCompute()
+  return compute
+    ? compute.hashPassword(password, routingKey)
+    : bcrypt.hash(password, 12)
+}
+
+export async function verifyPassword(
+  password: string,
+  hash: string,
+  routingKey?: string,
+): Promise<boolean> {
+  const compute = await configuredPasswordCompute()
+  return compute
+    ? compute.verifyPassword(password, hash, routingKey)
+    : bcrypt.compare(password, hash)
 }
 
 /**
- * Always run bcrypt.compare even for non-existent users to prevent timing attacks.
+ * Always run a full bcrypt comparison (through the private compute service on
+ * native D1) even for non-existent users to prevent timing attacks.
  */
-export async function safeVerifyPassword(password: string, hash: string | null): Promise<boolean> {
-  return bcrypt.compare(password, hash || DUMMY_HASH)
+export async function safeVerifyPassword(
+  password: string,
+  hash: string | null,
+  routingKey?: string,
+): Promise<boolean> {
+  const compute = await configuredPasswordCompute()
+  return compute
+    ? compute.verifyPassword(password, hash || DUMMY_HASH, routingKey)
+    : bcrypt.compare(password, hash || DUMMY_HASH)
 }
 
 export function signToken(payload: TokenPayload): string {

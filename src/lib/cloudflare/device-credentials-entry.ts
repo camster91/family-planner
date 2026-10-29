@@ -170,7 +170,7 @@ export async function enterD1DeviceElevation(
         if (!proofs.has(observedHash))
           proofs.set(
             observedHash,
-            await verifyPassword(input.secret, observedHash),
+            await verifyPassword(input.secret, observedHash, target?.id ?? actor.familyId),
           );
         const valid =
           !!target &&
@@ -329,7 +329,7 @@ export async function setD1ParentPin(
         if (!proofs.has(user.password))
           proofs.set(
             user.password,
-            await verifyPassword(input.password, user.password),
+            await verifyPassword(input.password, user.password, actor.userId),
           );
         return proofs.get(user.password) === true;
       },
@@ -340,7 +340,7 @@ export async function setD1ParentPin(
         await session.batch(captured.checks(session));
         return denied(401, "INVALID_PASSWORD");
       }
-      pinHash ??= await hashPassword(input.pin);
+      pinHash ??= await hashPassword(input.pin, actor.userId);
       await session.batch([
         ...captured.checks(session),
         session

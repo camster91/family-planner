@@ -109,7 +109,7 @@ async function handlePOST(request: NextRequest) {
     }
 
     // Always run bcrypt to prevent timing-based email enumeration
-    const valid = await safeVerifyPassword(password, user?.password ?? null)
+    const valid = await safeVerifyPassword(password, user?.password ?? null, user?.id ?? undefined)
 
     if (!user || !valid) {
       await checkRateLimit(sourceKey, LOGIN_SOURCE_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS)
