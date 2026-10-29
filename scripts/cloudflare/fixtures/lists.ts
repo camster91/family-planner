@@ -1,3 +1,7 @@
+import {
+  setD1ListSectionSort,
+  moveD1ListItemSection,
+} from "../../../src/lib/cloudflare/list-sections";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
 import {
   createD1List,
@@ -189,6 +193,60 @@ export async function testLists(db: D1Store) {
     "concurrent add once",
   );
   const item = (adds[0].body as any).item;
+  check(
+    (
+      await setD1ListSectionSort(
+        child,
+        { listId: list.id, sortBySection: false },
+        db,
+      )
+    ).status === 403,
+    "section sort child gate",
+  );
+  check(
+    (
+      await setD1ListSectionSort(
+        actor,
+        { listId: list.id, sortBySection: false },
+        db,
+      )
+    ).status === 200,
+    "section sort off",
+  );
+  check(
+    (
+      await setD1ListSectionSort(
+        foreign,
+        { listId: list.id, sortBySection: true },
+        db,
+      )
+    ).status === 404,
+    "section sort foreign hidden",
+  );
+  const moved = await moveD1ListItemSection(
+    child,
+    { itemId: item.id, section: "pantry" },
+    db,
+  );
+  check(
+    moved.status === 200 && (moved.body as any).sections[item.id] === "pantry",
+    "member section move",
+  );
+  check(
+    (
+      await moveD1ListItemSection(
+        foreign,
+        { itemId: item.id, section: "frozen" },
+        db,
+      )
+    ).status === 404,
+    "foreign section hidden",
+  );
+  check(
+    (await moveD1ListItemSection(actor, { itemId: item.id, section: null }, db))
+      .status === 200,
+    "clear section",
+  );
   const tick = await updateD1ListItem(
     actor,
     { itemId: item.id, checked: true },
@@ -297,7 +355,9 @@ export async function testLists(db: D1Store) {
   );
   const api = await readD1ListItemsApi(actor, list.id, paging, db);
   check(
-    api.status === 200 && (api.body as any).items[0].section,
+    api.status === 200 &&
+      (api.body as any).items[0].section &&
+      (api.body as any).sectionSort.enabled === false,
     "legacy items section",
   );
   check(
@@ -335,6 +395,37 @@ export async function testLists(db: D1Store) {
     (await readD1ListDetail(actor, list.id, paging, db)).state === "available",
     "paged detail",
   );
+  const alias = await createD1ListItem(
+    actor,
+    {
+      listId: list.id,
+      content: "Milk for soup",
+      ingredient_id: "lists-ingredient",
+    },
+    null,
+    undefined,
+    db,
+  );
+  const aliasId = (alias.body as any).item.id;
+  const aliasMove = await moveD1ListItemSection(
+    actor,
+    { itemId: item.id, section: "pantry" },
+    db,
+  );
+  check(
+    aliasMove.status === 200 &&
+      (aliasMove.body as any).sections[aliasId] === "pantry",
+    "ingredient aliases follow section",
+  );
+  check(
+    (
+      await db
+        .prepare("SELECT section FROM Ingredient WHERE id=?1 AND family_id=?2")
+        .bind("lists-ingredient", actor.familyId)
+        .first<{ section: string }>()
+    )?.section === "pantry",
+    "ingredient section persisted",
+  );
   check(
     (await deleteD1ListItem(child, item.id, db)).status === 403,
     "parent delete gate",
@@ -363,5 +454,6 @@ export async function testLists(db: D1Store) {
     concurrency: true,
     receiptRecovery: true,
     walkingOrder: true,
+    sectionControls: true,
   };
 }

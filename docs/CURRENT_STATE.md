@@ -9,8 +9,10 @@ Personal list overview/detail/index/items/version reads, list/item creation,
 check/edit/delete and default grocery resolution now have native D1 source and
 focused local Worker evidence, including concurrent retry/default-list behavior
 and atomic failure rollback. Migration 0012 restores open recipe-source
-uniqueness. Container deletion, recipe grocery review/add/undo, section controls
-and full rendered/deployed acceptance remain unfinished. Uncommitted parallel
+uniqueness. Grocery section move/clear and parent/teen sorting controls also use atomic
+D1 writes, with current authority, scoped ingredient updates and focused native
+checks. Container deletion, recipe grocery review/add/undo and full
+rendered/deployed acceptance remain unfinished. Uncommitted parallel
 board/device/routine/storage changes are not release evidence.
 
 Local Workers public login, D1 session authority, registration, verification,

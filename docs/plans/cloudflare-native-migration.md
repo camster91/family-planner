@@ -1851,6 +1851,22 @@ recipe-to-grocery review/add/undo and section controls. Other parallel migration
 changes remain uncommitted and require their own verification. Production, DNS,
 paid plans and VPS resources are unchanged; the full migration goal stays active.
 
+### Grocery section controls — 2026-10-28
+
+Personal grocery section move/clear and the parent/teen sort switch now use
+native D1 effects. Override and owned ingredient section changes commit together;
+resolved sibling sections include the matching ingredient aliases. All target,
+role/session/feature reads are witnessed in the same atomic batch. Repeating a
+sort choice does not rewrite the list version. Both HTTP routes preserve paired
+device refusal and private/no-store responses.
+
+The expanded standalone list Worker fixture passes section move/clear, child
+sort refusal, parent sorting, foreign household refusal, matching ingredient
+alias propagation/persistence and the legacy section-sort metadata. Standalone
+TypeScript and scoped section-route ESLint pass. Full integrated rebuild and
+rendered UI for this additional slice remain pending; the earlier build evidence
+above belongs to the prior list slice. No production/DNS/paid-plan/VPS change.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

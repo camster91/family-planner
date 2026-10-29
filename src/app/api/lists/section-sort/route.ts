@@ -1,15 +1,23 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { featureGate } from '@/lib/feature-gate-server'
-import { refusePairedDevice } from '@/lib/device-route'
-import { canChangeListSectionSort } from '@/lib/role-capabilities'
-import { setListSectionSort } from '@/lib/grocery-section-store'
-import { readSectionJson, sectionError, sectionJson, sectionSortSchema } from '@/lib/grocery-section-http'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
+import { NextResponse } from "next/server";
+import { storageBackend } from "@/lib/storage-backend";
+import { setD1ListSectionSort } from "@/lib/cloudflare/list-sections";
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { featureGate } from "@/lib/feature-gate-server";
+import { refusePairedDevice } from "@/lib/device-route";
+import { canChangeListSectionSort } from "@/lib/role-capabilities";
+import { setListSectionSort } from "@/lib/grocery-section-store";
+import {
+  readSectionJson,
+  sectionError,
+  sectionJson,
+  sectionSortSchema,
+} from "@/lib/grocery-section-http";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 /**
  * PATCH /api/lists/section-sort (#273) — turn store-section sorting on or off
@@ -21,34 +29,62 @@ export const dynamic = 'force-dynamic'
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'lists')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "lists");
+    if (gate) return gate;
 
     if (!canChangeListSectionSort(auth.user.role)) {
-      return sectionError(403, 'SECTION_SORT_FORBIDDEN', 'Ask a parent or teen to change how this list is sorted.')
+      return sectionError(
+        403,
+        "SECTION_SORT_FORBIDDEN",
+        "Ask a parent or teen to change how this list is sorted.",
+      );
     }
 
-    const json = await readSectionJson(request)
-    if (!json.ok) return json.response
-    const parsed = sectionSortSchema.safeParse(json.body)
-    if (!parsed.success) return sectionError(400, 'VALIDATION_ERROR', parsed.error.issues[0].message)
+    const json = await readSectionJson(request);
+    if (!json.ok) return json.response;
+    const parsed = sectionSortSchema.safeParse(json.body);
+    if (!parsed.success)
+      return sectionError(
+        400,
+        "VALIDATION_ERROR",
+        parsed.error.issues[0].message,
+      );
 
+    if (storageBackend() === "d1") {
+      const result = await setD1ListSectionSort(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        parsed.data,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     // A foreign list and a missing one get the same 404.
     const result = await setListSectionSort(prisma!, {
       familyId: auth.user.family_id,
       listId: parsed.data.listId,
       sortBySection: parsed.data.sortBySection,
-    })
-    if (!result.ok) return sectionError(result.status, result.code, result.message)
-    return sectionJson({ listId: result.listId, sortBySection: result.sortBySection })
+    });
+    if (!result.ok)
+      return sectionError(result.status, result.code, result.message);
+    return sectionJson({
+      listId: result.listId,
+      sortBySection: result.sortBySection,
+    });
   } catch (err) {
-    logRouteError('PATCH /api/lists/section-sort', err, getRequestId(request))
-    return sectionError(500, 'INTERNAL_ERROR', 'Internal server error')
+    logRouteError("PATCH /api/lists/section-sort", err, getRequestId(request));
+    return sectionError(500, "INTERNAL_ERROR", "Internal server error");
   }
 }
