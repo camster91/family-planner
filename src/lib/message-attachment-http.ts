@@ -17,6 +17,7 @@ import {
   type MessageAttachmentMime,
 } from '@/lib/message-attachments'
 import { checkRateLimit } from '@/lib/rate-limit-db'
+import { storageBackend } from '@/lib/storage-backend'
 
 
 const MESSAGE_UPLOAD_RATE_LIMIT = 20
@@ -27,6 +28,24 @@ const MESSAGE_MIMES = new Set<MessageAttachmentMime>([
   'image/webp',
   'image/heic',
 ])
+
+function d1AttachmentFailure(error: unknown): NextResponse | null {
+  if (storageBackend() !== 'd1' || !(error instanceof Error)) return null
+  switch (error.message) {
+    case 'MESSAGE_FAMILY_NOT_FOUND':
+      return NextResponse.json({ error: 'Household not found' }, { status: 404 })
+    case 'MESSAGE_ATTACHMENT_COLLISION':
+      return NextResponse.json({ error: 'Upload failed, please try again' }, { status: 409 })
+    case 'MESSAGE_ATTACHMENT_TOO_LARGE':
+      return NextResponse.json({ error: 'Message attachment is too large.' }, { status: 400 })
+    case 'Message attachment ownership changed; retry upload':
+      return NextResponse.json({ error: 'Upload changed while it was being saved. Try again.' }, { status: 409 })
+    case 'Private R2 binding UPLOADS is required':
+      return NextResponse.json({ error: 'Message attachments are temporarily unavailable.' }, { status: 503 })
+    default:
+      return null
+  }
+}
 
 function isMessageAttachmentMime(mime: string): mime is MessageAttachmentMime {
   return MESSAGE_MIMES.has(mime as MessageAttachmentMime)
@@ -189,6 +208,8 @@ export async function postMessageAttachment(request: NextRequest, requireOwner =
     )
   } catch (error) {
     if (error instanceof MessageAuthorityRefusal) return NextResponse.json(error.result.body, { status: error.result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    const d1Response = d1AttachmentFailure(error)
+    if (d1Response) return d1Response
     logRouteError(
       'POST /api/messages/attachments',
       error,

@@ -1,0 +1,64 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "herewoven",
+  "main": "src/cloudflare/app-worker.mjs",
+  "compatibility_date": "2026-10-13",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/"
+    ]
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "herewoven"
+    },
+    {
+      "binding": "PASSWORD_COMPUTE",
+      "service": "herewoven-password-compute"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "APP_COMPUTE_POOL",
+        "class_name": "HerewovenComputePool"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "app-compute-pool-v1",
+      "new_sqlite_classes": [
+        "HerewovenComputePool"
+      ]
+    }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_APP_URL": "https://herewoven.com",
+    "HEREWOVEN_STORAGE": "d1"
+  },
+  "account_id": "1f5acce966c81fbe36ae06521414d0b8",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "herewoven",
+      "database_id": "cff38a6c-d2cb-4a5f-bed9-3c8f8a888590",
+      "migrations_dir": "database/cloudflare"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "herewoven-uploads"
+    }
+  ]
+}

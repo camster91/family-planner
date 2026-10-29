@@ -103,14 +103,14 @@ for (const locale of ["en", "es"] as const) {
       const headings =
         locale === "es"
           ? [
-              "A continuación",
+              "Hoy , abrir calendario",
               "Cena de esta noche , abrir comidas",
               "Tareas de hoy , abrir tareas",
               "Compras , abrir listas de compras",
               "Próximamente",
             ]
           : [
-              "Next up",
+              "Today , open calendar",
               "Dinner tonight , open meals",
               "Chores today , open chores",
               "Groceries , open grocery lists",

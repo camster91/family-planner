@@ -7,6 +7,9 @@ import { isRouteId, openDeviceWrite, runDeviceWrite } from '@/lib/device-writes'
 import { createListItem } from '@/lib/list-item-create'
 import { getRequestId } from '@/lib/request-id'
 import { deviceQueueOwner, queueOwnerMatches } from '@/lib/queue-owner-server'
+import { storageBackend } from '@/lib/storage-backend'
+import { runD1DeviceListAdd } from '@/lib/cloudflare/device-writes'
+import { deviceJson } from '@/lib/device-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +44,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       Object.keys(ctx.body).some((k) => k !== 'content' && k !== 'actingMemberId')
     ) {
       return deviceError(400, 'VALIDATION_ERROR', { message: `Use 1 to ${DEVICE_ITEM_MAX_CHARS} characters.` })
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await runD1DeviceListAdd(ctx.actor, { listId, content, memberId: ctx.member.id }, ctx.key)
+      return deviceJson(result.body, result.status, result.replayed ? { 'Idempotency-Replayed': 'true' } : {})
     }
 
     return await runDeviceWrite(ctx, ACTION, { listId, content, actingMemberId: ctx.member.id }, async ({ recordId }) => {

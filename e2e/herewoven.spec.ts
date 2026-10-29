@@ -204,7 +204,10 @@ test.describe("Herewoven dinner actions", () => {
         exact: true,
       });
       await expect(action).toBeVisible();
-      await expect(action).toHaveAttribute("href", "/dashboard/meals");
+      await expect(action).toHaveAttribute(
+        "href",
+        "/dashboard/meals?start=2026-01-05",
+      );
       await page.evaluate(() => document.fonts.ready);
       const paints = await action.evaluate((node) => ({
         foreground: getComputedStyle(node).color,

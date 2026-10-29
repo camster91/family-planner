@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1BudgetStats } from "@/lib/cloudflare/budget";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
 import { refusePairedDevice } from "@/lib/device-route";
 import { featureGate } from '@/lib/feature-gate-server';
@@ -58,6 +60,15 @@ export async function GET(request: NextRequest) {
       targetYear,
       targetMonth,
     );
+
+    if (storageBackend() === "d1") {
+      const result = await readD1BudgetStats(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        targetYear,
+        targetMonth,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+    }
 
     const familyId = auth.user.family_id;
 

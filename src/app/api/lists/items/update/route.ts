@@ -1,21 +1,25 @@
-import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
-import { featureGate } from '@/lib/feature-gate-server'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { updateListItemSchema } from '@/lib/validations'
-import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
-import { authorizePersonListItemInTx } from '@/lib/person-list-item-authority'
-import { authorizePersonListItemReplay } from '@/lib/person-list-item-create'
-import { updateListItemAndNoteTick } from '@/lib/list-item-update'
-import { apiError, logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
-import { personQueueOwner, queueOwnerMatches } from '@/lib/queue-owner-server'
-import { QUEUE_OWNER_HEADER } from '@/lib/queue-owner-contract'
+import { storageBackend } from "@/lib/storage-backend";
+import { updateD1ListItem } from "@/lib/cloudflare/list-write";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
+import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { featureGate } from "@/lib/feature-gate-server";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { updateListItemSchema } from "@/lib/validations";
+import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
+import { authorizePersonListItemInTx } from "@/lib/person-list-item-authority";
+import { authorizePersonListItemReplay } from "@/lib/person-list-item-create";
+import { updateListItemAndNoteTick } from "@/lib/list-item-update";
+import { apiError, logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { personQueueOwner, queueOwnerMatches } from "@/lib/queue-owner-server";
+import { QUEUE_OWNER_HEADER } from "@/lib/queue-owner-contract";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 /** Idempotency action name (#162); part of the stored request hash. */
-const LIST_ITEM_UPDATE_ACTION = 'list-item.update'
+const LIST_ITEM_UPDATE_ACTION = "list-item.update";
 
 /**
  * PATCH /api/lists/items/update
@@ -33,31 +37,69 @@ const LIST_ITEM_UPDATE_ACTION = 'list-item.update'
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
     // O-11 (ADR-0007): lists are feature-gated server-side like every other domain.
-    const gate = await featureGate(auth.user.family_id, 'lists')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "lists");
+    if (gate) return gate;
 
-    const { key, error: keyError } = readIdempotencyKey(request)
-    if (keyError) return keyError
-    if ((key || request.headers.has(QUEUE_OWNER_HEADER)) && !queueOwnerMatches(request, personQueueOwner(request, auth.payload))) {
-      return apiError(409, 'QUEUE_OWNER_CHANGED', 'Saved changes need a current compatible session. Keep them and review recovery before retrying.', { requestId: getRequestId(request), shape: 'nested', headers: { 'Cache-Control': 'private, no-store' } })
+    const { key, error: keyError } = readIdempotencyKey(request);
+    if (keyError) return keyError;
+    if (
+      (key || request.headers.has(QUEUE_OWNER_HEADER)) &&
+      !queueOwnerMatches(request, personQueueOwner(request, auth.payload))
+    ) {
+      return apiError(
+        409,
+        "QUEUE_OWNER_CHANGED",
+        "Saved changes need a current compatible session. Keep them and review recovery before retrying.",
+        {
+          requestId: getRequestId(request),
+          shape: "nested",
+          headers: { "Cache-Control": "private, no-store" },
+        },
+      );
     }
 
-    let body: any
+    let body: any;
     try {
-      body = await request.json()
+      body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const parsed = updateListItemSchema.safeParse(body)
+    const parsed = updateListItemSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
 
-    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }
+    const actor = {
+      familyId: auth.user.family_id,
+      addedBy: auth.user.id,
+      role: auth.user.role,
+      generation: auth.payload?.tv ?? 0,
+    };
+    if (storageBackend() === "d1") {
+      const result = await updateD1ListItem(
+        {
+          userId: actor.addedBy,
+          familyId: actor.familyId,
+          role: actor.role,
+          generation: actor.generation,
+        },
+        parsed.data,
+        key,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -68,12 +110,26 @@ export async function PATCH(request: NextRequest) {
         action: LIST_ITEM_UPDATE_ACTION,
       },
       parsed.data,
-      ({ recordId }) => updateListItemAndNoteTick(prisma!, parsed.data, auth.user, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}), receipt: { recordId, action: LIST_ITEM_UPDATE_ACTION } }),
-      { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null) },
-    )
+      ({ recordId }) =>
+        updateListItemAndNoteTick(prisma!, parsed.data, auth.user, {
+          authorize: (tx) => authorizePersonListItemInTx(tx, actor, {}),
+          receipt: { recordId, action: LIST_ITEM_UPDATE_ACTION },
+        }),
+      {
+        beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null),
+      },
+    );
   } catch (error) {
-    logRouteError('PATCH /api/lists/items/update', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
+    logRouteError(
+      "PATCH /api/lists/items/update",
+      error,
+      getRequestId(request),
+    );
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
-

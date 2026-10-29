@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { storageBackend } from '@/lib/storage-backend'
 import { prisma } from '@/lib/prisma'
 import { writeDeviceAudit } from '@/lib/device-audit'
 import { deviceError, deviceInternalError, deviceJson, killSwitch, readJson } from '@/lib/device-http'
@@ -13,6 +14,8 @@ import {
 } from '@/lib/board-settings'
 import { boardSettingsSummary, writeAuditLog } from '@/lib/household-audit'
 import { getRequestId } from '@/lib/request-id'
+import { DEVICE_ELEVATION_HEADER } from '@/lib/device-session'
+import { deviceClock } from '@/lib/device-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +43,16 @@ export async function GET(request: NextRequest) {
     if (!auth.ok) return auth.response
     const elevated = await requireElevation(request, auth)
     if (!elevated.ok) return elevated.response
+    if (storageBackend() === 'd1') {
+      const { readD1DeviceBoardSettings } = await import('@/lib/cloudflare/board-settings')
+      const result = await readD1DeviceBoardSettings(
+        elevated.actor,
+        request.headers.get(DEVICE_ELEVATION_HEADER),
+        deviceClock.now(),
+      )
+      if (result.status === 200) return deviceJson(result.body)
+      return deviceError(result.status, (result.code ?? 'INTERNAL_ERROR') as import('@/lib/device-http').DeviceErrorCode, { message: result.message })
+    }
     return deviceJson(await readBoardSettings(prisma!, elevated.actor.familyId, 'device'))
   } catch (error) {
     return deviceInternalError('device.board_settings_read', error, getRequestId(request))
@@ -58,6 +71,18 @@ export async function PATCH(request: NextRequest) {
 
     const parsed = parseBoardSettingsPatch(await readJson(request), 'device')
     if (!parsed.ok) return deviceError(400, 'VALIDATION_ERROR', { message: parsed.error })
+
+    if (storageBackend() === 'd1') {
+      const { updateD1DeviceBoardSettings } = await import('@/lib/cloudflare/board-settings')
+      const result = await updateD1DeviceBoardSettings(
+        actor,
+        request.headers.get(DEVICE_ELEVATION_HEADER),
+        parsed.patch,
+        deviceClock.now(),
+      )
+      if (result.status === 200) return deviceJson(result.body)
+      return deviceError(result.status, (result.code ?? 'INTERNAL_ERROR') as import('@/lib/device-http').DeviceErrorCode, { message: result.message })
+    }
 
     // The change and its household audit row (#285, actor: the elevated
     // parent on the tablet) commit together.

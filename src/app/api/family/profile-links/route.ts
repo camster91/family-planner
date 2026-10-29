@@ -6,6 +6,7 @@ import { apiError, logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { isProfileAccountLinkEnabled } from "@/lib/profile-account-link-gate";
+import { storageBackend } from "@/lib/storage-backend";
 import { profileLinkCommand } from "@/lib/profile-account-link-contract";
 import {
   manageProfileAccountLink,
@@ -39,6 +40,10 @@ async function handle(request: NextRequest, readOnly: boolean) {
     return authError;
   }
   if (!isProfileAccountLinkEnabled()) return fail(request, 409, "UNSUPPORTED");
+  // Profile/account linking still depends on the Prisma credential bridge.
+  // Keep the D1 path explicitly unavailable rather than falling through to a
+  // null Prisma client and reporting a misleading 500.
+  if (storageBackend() === "d1") return fail(request, 409, "UNSUPPORTED");
   try {
     let body: unknown = { action: "list" };
     if (!readOnly) {

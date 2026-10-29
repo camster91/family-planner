@@ -532,7 +532,7 @@ const conPath = `/api/calendar/sync-connections/${encodeURIComponent(CON_ID)}`;
 test.describe("parentA household controls", () => {
   test.use({ storageState: authFile("parentA") });
   for (const locale of ["en", "es"] as const) {
-    test(`${locale}: subscriptions loading empty add native colour rename refresh unknown states and confirm removal`, async ({
+    test(`${locale}: subscriptions loading empty add native colour rename refresh counts and confirm removal`, async ({
       page,
       context,
       baseURL,
@@ -551,6 +551,9 @@ test.describe("parentA household controls", () => {
       ).toBeVisible();
       await section.locator("#calendarSubName").fill("  " + PROFILE + "  ");
       await section.locator("#calendarSubUrl").fill("  " + PRIVATE_URL + "  ");
+      // Colour choices are intentionally collapsed in the compact Settings
+      // form. Open the disclosure before exercising its keyboard radios.
+      await section.locator("details > summary").click();
       const blue = section.getByRole("radio", {
         name: msg(locale, "blue"),
         exact: true,
@@ -628,8 +631,7 @@ test.describe("parentA household controls", () => {
         }),
       ).toBeVisible();
       for (const result of [
-        { status: "not_modified" },
-        { status: "future_status" },
+        { status: "not_modified", created: 0, updated: 0, deleted: 0 },
       ]) {
         s.reply("POST", subPath + "/refresh", {
           body: {
@@ -663,7 +665,10 @@ test.describe("parentA household controls", () => {
           exact: true,
         })
         .click();
-      await s.arrived("POST", subPath + "/refresh", 4);
+      // The add flow's refresh is the first request; the explicit not-modified
+      // check is the second.  This held refresh is the third (the old unknown
+      // result case was removed when the response contract became strict).
+      await s.arrived("POST", subPath + "/refresh", 3);
       await language(page, next);
       refresh({ status: 503, body: {} });
       await expect(
@@ -679,8 +684,10 @@ test.describe("parentA household controls", () => {
           exact: true,
         })
         .click();
-      await expect(section.getByText(RAW, { exact: true })).toBeVisible();
-      await capture(page, info, "subscriptions-refresh-raw-fallback");
+      await expect(
+        section.getByText(msg(next, "refreshFailed"), { exact: true }),
+      ).toBeVisible();
+      await capture(page, info, "subscriptions-refresh-semantic-fallback");
       const removeButton = section.getByRole("button", {
         name: msg(next, "removeLabel", { name: named }),
         exact: true,
@@ -709,7 +716,7 @@ test.describe("parentA household controls", () => {
       expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
       await capture(page, info, "subscriptions-synthetic-removed");
     });
-    test(`${locale}: subscription failed clock raw large-feed future and invalid timestamps stay canonical`, async ({
+    test(`${locale}: subscription failed clock semantic large-feed and old timestamps stay canonical`, async ({
       page,
       context,
       baseURL,
@@ -735,8 +742,10 @@ test.describe("parentA household controls", () => {
             subscription({
               id: "synthetic-future",
               name: PROFILE + " future",
-              last_status: "future",
-              last_fetched_at: "not-a-date",
+              last_status: "ok",
+              last_fetched_at: new Date(
+                +now - 2 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
             }),
           ],
         },
@@ -747,7 +756,7 @@ test.describe("parentA household controls", () => {
         section.getByText(
           msg(locale, "problem") +
             msg(locale, "lastTried", {
-              message: RAW + ".",
+              message: msg(locale, "refreshLastFailed"),
               time: msg(locale, "minutesAgo", { count: 3 }),
             }),
           { exact: true },
@@ -756,7 +765,8 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByText(
           msg(locale, "lastUpdated", { time: msg(locale, "justNow") }) +
-            " Synthetic large feed note.",
+            " " +
+            msg(locale, "calendarStatusNote"),
           { exact: true },
         ),
       ).toBeVisible();
@@ -783,7 +793,9 @@ test.describe("parentA household controls", () => {
         section.getByText(
           msg(other(locale), "lastUpdated", {
             time: msg(other(locale), "minutesAgo", { count: 1 }),
-          }) + " Synthetic large feed note.",
+          }) +
+            " " +
+            msg(other(locale), "calendarStatusNote"),
           { exact: true },
         ),
       ).toBeVisible();

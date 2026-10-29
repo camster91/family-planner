@@ -11,6 +11,10 @@ import { checkRateLimit } from "@/lib/rate-limit-db";
 import { foodRequestOwner } from "@/lib/food-planning/owner";
 import { FOOD_OWNER_HEADER } from "@/lib/food-planning/recovery-contract";
 import { recordFoodAiFeedback } from "@/lib/food-planning/ai-feedback";
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { recordD1FoodAiFeedback } from "@/lib/cloudflare/food-ai-feedback";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const refuse = (status: number) =>
@@ -30,7 +34,7 @@ export async function POST(request: NextRequest) {
       denied.headers.set("Cache-Control", "private, no-store");
       return denied;
     }
-    if (!prisma) return refuse(503);
+    if (storageBackend() !== "d1" && !prisma) return refuse(503);
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
@@ -44,14 +48,37 @@ export async function POST(request: NextRequest) {
       request.headers.get(FOOD_OWNER_HEADER) !== owner.scope
     )
       return refuse(403);
-    if (
-      !(await checkRateLimit(`food-ai-feedback:${actor.userId}`, 30, 3600000))
-        .allowed
-    )
-      return refuse(429);
+    if (storageBackend() !== "d1") {
+      if (
+        !(await checkRateLimit(`food-ai-feedback:${actor.userId}`, 30, 3600000))
+          .allowed
+      )
+        return refuse(429);
+    }
     const input: unknown = JSON.parse(await boundedRequestText(request, 1024));
-    const reply = await recordFoodAiFeedback(prisma, actor, input);
-    return NextResponse.json(reply, { headers });
+    let reply: unknown;
+    let replyStatus = 200;
+    if (storageBackend() === "d1") {
+      const database = await getD1Database();
+      if (
+        !(
+          await checkD1RateLimit(
+            database,
+            `food-ai-feedback:${actor.userId}`,
+            30,
+            3600000,
+            Date.now(),
+          )
+        ).allowed
+      )
+        return refuse(429);
+      const result = await recordD1FoodAiFeedback(actor, input, database);
+      reply = result.body;
+      replyStatus = result.status;
+    } else {
+      reply = await recordFoodAiFeedback(prisma!, actor, input);
+    }
+    return NextResponse.json(reply, { status: replyStatus, headers });
   } catch (error) {
     return refuse(error instanceof RequestBodyTooLarge ? 413 : 409);
   }

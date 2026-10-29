@@ -5,6 +5,8 @@ import { updateProjectTaskSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { updateD1ProjectTask, deleteD1ProjectTask } from '@/lib/cloudflare/notes-projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +47,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         { error: parsed.error.issues[0].message },
         { status: 400 }
       )
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await updateD1ProjectTask({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, projectId, taskId, parsed.data)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // Verify the task exists and fetch its project's family for scoping
@@ -159,6 +166,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         { error: 'Project ID and Task ID are required' },
         { status: 400 }
       )
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1ProjectTask({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, projectId, taskId)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // Verify the task exists and the project belongs to the family

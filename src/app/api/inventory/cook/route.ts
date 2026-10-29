@@ -14,6 +14,8 @@ import {
 import { inventoryError, inventoryJson, todayFrom } from "@/lib/inventory-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1CookSuggestions } from "@/lib/cloudflare/inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +53,20 @@ async function handle(request: NextRequest) {
       );
     }
 
-    const result = await getCookSuggestions(prisma!, auth.user.family_id, {
-      today,
-      limit,
-    });
-    return inventoryScopedResponse(inventoryJson(result), readScope);
+    const result = storageBackend() === "d1"
+      ? await readD1CookSuggestions(
+          {
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          { today, limit },
+        )
+      : { refusal: null, result: await getCookSuggestions(prisma!, auth.user.family_id, { today, limit }) };
+    if (result.refusal)
+      return NextResponse.json(result.refusal.body, { status: result.refusal.status });
+    return inventoryScopedResponse(inventoryJson(result.result), readScope);
   } catch (err) {
     logRouteError("GET /api/inventory/cook", err, getRequestId(request));
     return inventoryError(500, "INTERNAL_ERROR", "Internal server error");

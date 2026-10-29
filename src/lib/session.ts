@@ -1,11 +1,16 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { verifyToken, TokenPayload } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 
 /**
  * Read a user's current session generation. Returns null when the user does
  * not exist, so callers can distinguish "no such user" from "generation 0".
  */
 export async function getTokenVersion(userId: string): Promise<number | null> {
+  if (storageBackend() === 'd1') {
+    const { getD1SessionAuthority } = await import('@/lib/cloudflare/session-authority')
+    return (await getD1SessionAuthority(userId))?.token_version ?? null
+  }
+  const { prisma } = await import('@/lib/prisma')
   if (!prisma) return null
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -38,6 +43,20 @@ export async function isSessionCurrent(payload: TokenPayload): Promise<boolean> 
   return current !== null && current === (payload.tv ?? 0)
 }
 
+/** One backend per deployment; a D1 failure must never consult PostgreSQL. */
+async function readSessionAuthority(userId: string) {
+  if (storageBackend() === 'd1') {
+    const { getD1SessionAuthority } = await import('@/lib/cloudflare/session-authority')
+    return getD1SessionAuthority(userId)
+  }
+  const { prisma } = await import('@/lib/prisma')
+  if (!prisma) return null
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { token_version: true, role: true, family_id: true },
+  })
+}
+
 /**
  * Resolve a verified JWT payload against the database (D6, #102).
  *
@@ -50,11 +69,7 @@ export async function isSessionCurrent(payload: TokenPayload): Promise<boolean> 
  * state from authoritative server data).
  */
 export async function resolveSession(payload: TokenPayload): Promise<TokenPayload | null> {
-  if (!prisma) return null
-  const user = await prisma.user.findUnique({
-    where: { id: payload.userId },
-    select: { token_version: true, role: true, family_id: true },
-  })
+  const user = await readSessionAuthority(payload.userId)
   if (!user || user.token_version !== (payload.tv ?? 0)) return null
   return { ...payload, role: user.role, family_id: user.family_id ?? null }
 }

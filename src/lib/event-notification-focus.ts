@@ -1,3 +1,6 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { CALENDAR_OWNER_PROTOCOL } from "@/lib/calendar-read-owner";
+import { readD1EventNotificationFocus } from "@/lib/cloudflare/calendar-events";
 /** One concrete canonical event, independent of calendar range/paging. */
 import type { PrismaClient } from "@prisma/client";
 import { MEMBER_ID_PATTERN } from "@/lib/member-identity-schema";
@@ -12,6 +15,8 @@ export async function readEventNotificationFocus(
   const actor = Object.freeze({ ...owner });
   if (typeof target !== "string" || !MEMBER_ID_PATTERN.test(target) ||
     !["parent", "teen"].includes(actor.role) || !Number.isSafeInteger(actor.tokenVersion) || actor.tokenVersion < 0) return null;
+  if (storageBackend() === "d1") return readD1EventNotificationFocus({ protocol: CALENDAR_OWNER_PROTOCOL,
+    actorId: actor.userId, familyId: actor.familyId, role: actor.role, generation: actor.tokenVersion }, target);
   return db.$transaction(async tx => {
     await lockUser(tx, actor.userId);
     await lockHousehold(tx, actor.familyId);

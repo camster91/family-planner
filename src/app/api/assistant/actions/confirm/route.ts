@@ -17,7 +17,14 @@ import {
 import {
   readAssistantSourceProof,
   AssistantSourceRefused,
+  assistantSourceGuard,
 } from "@/lib/assistant-source-proof";
+import { assistantDeleteTargetGuard } from "@/lib/assistant-delete-target";
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  d1AssistantIdempotencyError,
+  executeD1AssistantAction,
+} from "@/lib/cloudflare/assistant-actions";
 import { DELETE as deleteEvent } from "@/app/api/events/route";
 import { DELETE as deleteChore } from "@/app/api/chores/route";
 import { DELETE as deleteList } from "@/app/api/lists/route";
@@ -125,6 +132,74 @@ export async function POST(request: NextRequest) {
         ASSISTANT_PROFILE_REVISION_HEADER,
         String(command.profileRevision),
       );
+
+    // Native D1 confirmations call the domain kernels directly. Keeping the
+    // route-delegation path below for PostgreSQL avoids a second Worker auth
+    // graph while preserving installed-client compatibility.
+    if (storageBackend() === "d1") {
+      const actor = {
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+        name: auth.user.name,
+      };
+      const sourceGuard = command.sourceProof
+        ? assistantSourceGuard(request, actor, command.kind)
+        : undefined;
+      let targetGuard;
+      const deleteKind =
+        command.kind === "event_delete" ||
+        command.kind === "chore_delete" ||
+        command.kind === "list_delete"
+          ? command.kind
+          : null;
+      if (deleteKind) {
+        const field =
+          deleteKind === "event_delete"
+            ? "eventId"
+            : deleteKind === "chore_delete"
+              ? "choreId"
+              : "listId";
+        const targetId = command.body[field];
+        if (typeof targetId !== "string" || !targetId)
+          throw new AssistantSourceRefused();
+        targetGuard = assistantDeleteTargetGuard(
+          request,
+          actor,
+          deleteKind,
+          targetId,
+          Boolean(sourceGuard),
+        );
+      }
+      try {
+        const result = await executeD1AssistantAction(
+          actor,
+          {
+            kind: command.kind,
+            body: command.body,
+            profileRevision: command.profileRevision,
+          },
+          key,
+          { sourceGuard, targetGuard },
+        );
+        return NextResponse.json(result.body, {
+          status: result.status,
+          headers: {
+            "Cache-Control": "private, no-store",
+            ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+          },
+        });
+      } catch (error) {
+        const idempotency = d1AssistantIdempotencyError(error);
+        if (idempotency)
+          return NextResponse.json(idempotency.body, {
+            status: idempotency.status,
+            headers: { "Cache-Control": "private, no-store" },
+          });
+        throw error;
+      }
+    }
     const canonical = new NextRequest(new URL(route.path, request.url), {
       method: route.method,
       headers,

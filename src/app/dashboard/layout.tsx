@@ -1,3 +1,6 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { readD1DashboardShell } from "@/lib/cloudflare/dashboard-shell";
 import { FoodPlanningAccess } from "@/components/meals/planning/FoodPlanningAccess";
 import { foodPlanningEnabled } from "@/lib/food-planning/server";
 import { isProfileChoreEnabled } from "@/lib/profile-chore-gates";
@@ -11,7 +14,11 @@ import ResponsibilityProvider from "@/components/responsibility/ResponsibilityPr
 import { responsibilityReady } from "@/lib/responsibility-owner";
 import AssistantHost from "@/components/assistant/AssistantHost";
 import { ReactNode } from "react";
-import { SignedOutDashboard, DashboardSkipLink, DashboardMainLabel } from "@/components/layout/DashboardRecoveryCopy";
+import {
+  SignedOutDashboard,
+  DashboardSkipLink,
+  DashboardMainLabel,
+} from "@/components/layout/DashboardRecoveryCopy";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import DashboardNav, { TabBar } from "@/components/layout/DashboardNav";
@@ -53,16 +60,29 @@ export default async function DashboardLayout({
   // never email, age, family id, XP, level or streak. These props are
   // serialised into every dashboard page, including
   // /dashboard/today?mode=fridge on a tablet signed in as a person.
-  const profile = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      avatar_url: true,
-      family_id: true,
-    },
-  });
+  const profileSelect = {
+    id: true,
+    name: true,
+    role: true,
+    avatar_url: true,
+    family_id: true,
+  } as const;
+  const nativeShell =
+    storageBackend() === "d1"
+      ? await readD1DashboardShell(
+          await getD1Database(),
+          sessionUser.id,
+          sessionUser.family_id ?? null,
+        )
+      : null;
+  const profile =
+    storageBackend() === "d1"
+      ? nativeShell?.profile
+      : await prisma!.user.findUnique({
+          where: { id: sessionUser.id },
+          select: profileSelect,
+        });
+  if (storageBackend() === "d1" && !profile) return <SignedOutDashboard />;
   const role = profile?.role || sessionUser.role || "parent";
 
   // Server-side role gate, second line of defence behind the middleware
@@ -99,10 +119,12 @@ export default async function DashboardLayout({
 
   // Get user's family features so the client can hydrate without a roundtrip
   const familyFeatures = sessionUser?.family_id
-    ? await prisma!.family.findUnique({
-        where: { id: sessionUser.family_id },
-        select: { features: true },
-      })
+    ? storageBackend() === "d1"
+      ? nativeShell?.familyFeatures
+      : await prisma!.family.findUnique({
+          where: { id: sessionUser.family_id },
+          select: { features: true },
+        })
     : null;
   const initialFeatures = familyFeatures?.features
     ? normalizeFeatures(familyFeatures.features)

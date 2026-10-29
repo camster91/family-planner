@@ -5,8 +5,21 @@ import { brandedEmailHtml, emailButton } from '@/lib/email-layout'
 const DEFAULT_FROM = `${PRODUCT_BRAND.wordmark} <noreply@ashbi.ca>`
 const DEFAULT_DOMAIN = 'ashbi.ca'
 
+export type MailTransportState = 'configured' | 'off' | 'unavailable'
+
+/**
+ * Mail is a provider integration, not a Cloudflare public endpoint.  The
+ * Worker-compatible transport uses fetch and a secret binding/env value; it
+ * never logs message bodies or treats an absent provider as successful send.
+ */
+export function mailTransportState(env: Record<string, string | undefined> = process.env): MailTransportState {
+  if (env.MAIL_TRANSPORT === 'off') return 'off'
+  if (env.MAIL_PROVIDER && env.MAIL_PROVIDER !== 'mailgun') return 'unavailable'
+  return env.MAILGUN_API_KEY ? 'configured' : 'off'
+}
+
 export function isMailConfigured(): boolean {
-  return Boolean(process.env.MAILGUN_API_KEY)
+  return mailTransportState() === 'configured'
 }
 
 export async function sendMail(options: {
@@ -21,15 +34,13 @@ export async function sendMail(options: {
   const domain = process.env.MAILGUN_DOMAIN || DEFAULT_DOMAIN
   const from = process.env.MAILGUN_FROM || process.env.FROM_EMAIL || DEFAULT_FROM
 
-  if (!apiKey) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('MAILGUN_API_KEY is not set')
-    }
-    console.log(`[DEV] Email to ${options.to}: ${options.subject}\n${options.text}`)
-    return
-  }
+  const state = mailTransportState()
+  if (state === 'off' || !apiKey) throw new Error('MAILGUN_API_KEY is not set')
+  if (state === 'unavailable') throw new Error('MAIL_TRANSPORT_UNAVAILABLE')
 
-  const auth = Buffer.from(`api:${apiKey}`).toString('base64')
+  // btoa is available in Workers and Node 22. Mailgun API keys are ASCII
+  // tokens, so no Node Buffer/polyfill is needed in the edge bundle.
+  const auth = globalThis.btoa(`api:${apiKey}`)
   const response = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
     method: 'POST',
     ...(options.signal ? { signal: options.signal } : {}),
@@ -47,8 +58,10 @@ export async function sendMail(options: {
   })
 
   if (!response.ok) {
-    const detail = await response.text()
-    throw new Error(`Mailgun failed (${response.status}): ${detail.slice(0, 200)}`)
+    // Provider response bodies can contain recipient/message data. Keep the
+    // error identity useful to callers without exposing that data in logs.
+    if (response.body) await response.body.cancel().catch(() => {})
+    throw new Error(`Mailgun failed (${response.status})`)
   }
 }
 

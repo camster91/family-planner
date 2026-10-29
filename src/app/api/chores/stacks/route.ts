@@ -25,6 +25,7 @@ import {
   RoutineStackMutationError,
   RoutineStackValidationError,
 } from "@/lib/routine-stack-mutation";
+import { storageBackend } from "@/lib/storage-backend";
 
 export const dynamic = "force-dynamic";
 
@@ -52,12 +53,14 @@ function validOccurrenceDate(value: string | null): value is string {
 function routineStackActor(
   request: NextRequest,
   user: { family_id: string; id: string; role: string },
+  tokenVersion?: number,
 ) {
   const memberProtocol = requestedMemberProtocol(request);
   return {
     familyId: user.family_id,
     userId: user.id,
     role: user.role,
+    ...(tokenVersion === undefined ? {} : { tokenVersion }),
     ...(memberProtocol === 2 ? { memberProtocol } : {}),
   };
 }
@@ -90,19 +93,30 @@ export async function GET(request: NextRequest) {
     }
 
     if (process.env[ROUTINE_SCHEDULE_READY_ENV] === "1") {
-      const href = await prisma!.$transaction(async (tx) => {
-        await routineScheduleAuthority(tx, {
-          userId: auth.user.id,
-          familyId: auth.user.family_id,
-          tokenVersion: auth.payload.tv ?? 0,
-        });
-        return readRoutineScheduleHandoff(
-          tx,
-          auth.user.family_id,
-          "stack",
-          stackId,
-        );
-      });
+      // Keep the schedule-editor handoff ahead of the stack snapshot on both
+      // backends. The D1 stack reader is native, but the handoff still needs
+      // to win with the same 409 response when a saved schedule exists.
+      const href =
+        storageBackend() === "d1"
+          ? await readRoutineScheduleHandoff(
+              undefined,
+              auth.user.family_id,
+              "stack",
+              stackId,
+            )
+          : await prisma!.$transaction(async (tx) => {
+              await routineScheduleAuthority(tx, {
+                userId: auth.user.id,
+                familyId: auth.user.family_id,
+                tokenVersion: auth.payload.tv ?? 0,
+              });
+              return readRoutineScheduleHandoff(
+                tx,
+                auth.user.family_id,
+                "stack",
+                stackId,
+              );
+            });
       if (href)
         return error(
           409,
@@ -110,6 +124,11 @@ export async function GET(request: NextRequest) {
           "Open routine plans to change this schedule.",
           requestId,
         );
+    }
+    if (storageBackend() === "d1") {
+      const result = await (await import("@/lib/cloudflare/routine-stack")).readD1RoutineStack(routineStackActor(request, auth.user, auth.payload.tv ?? 0), stackId, occurrenceDate);
+      if (!result) return error(404, "ROUTINE_STACK_NOT_FOUND", "That routine is not available.", requestId);
+      return NextResponse.json(result.body, { status: result.status, headers: NO_STORE });
     }
     const result = await readParentRoutineStack(
       prisma! as unknown as RoutineStackReadDb,
@@ -183,6 +202,12 @@ export async function POST(request: NextRequest) {
       return error(400, "INVALID_JSON", "Invalid JSON.", requestId);
     }
 
+    if (storageBackend() === "d1") {
+      const result = await (await import("@/lib/cloudflare/routine-stack")).saveD1RoutineStack(routineStackActor(request, auth.user, auth.payload.tv ?? 0), body, key);
+      const response = NextResponse.json(result.body, { status: result.status });
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
     const result = await saveParentRoutineStack(
       prisma! as unknown as RoutineStackWriteDb,
       body,

@@ -18,6 +18,8 @@ import { AUDIT_RETENTION_MS } from '@/lib/household-audit'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { isParentRole, shapeHandoffForRole } from '@/lib/role-capabilities'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1UserExport } from '@/lib/cloudflare/user-export'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +72,18 @@ export async function GET(request: NextRequest) {
     if (error) return error
 
     const userId = payload.userId
+
+    if (storageBackend() === 'd1') {
+      const result = await readD1UserExport({ userId, generation: payload.tv ?? 0 })
+      if (result.status !== 200) return NextResponse.json(result.body, { status: result.status })
+      return new NextResponse(JSON.stringify(result.body, null, 2), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="family-planner-export-${userId}-${Date.now()}.json"`,
+        },
+      })
+    }
 
     // Household and role for the per-person domains below: each of them is
     // filtered on the caller's current household as well as their own

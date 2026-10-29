@@ -4,7 +4,7 @@ import { normalizeFeatures, type FamilyFeatures } from "./features";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { getJwtSecret } from "./auth";
 import { lockUser, lockHousehold } from "./household-lock";
 import { memberIdentityIdSchema as id } from "./member-subject-contract";
@@ -66,7 +66,7 @@ export class AssistantSourceRefused extends Error {
     );
   }
   response() {
-    return NextResponse.json(
+    return Response.json(
       { error: this.message, code: this.code },
       { status: 409, headers: { "Cache-Control": "private, no-store" } },
     );
@@ -140,6 +140,30 @@ function leaseCurrent(payload: z.infer<typeof proofSchema>, now: number) {
     now,
   );
 }
+/** Shared authenticated payload checks for the native D1 effect guard. */
+export function assistantSourceSnapshotCurrent(
+  payload: ReturnType<typeof readAssistantSourceProof>,
+  snapshot: NonNullable<Awaited<ReturnType<typeof loadReferencedAssistantToday>>>,
+  features: unknown,
+  now = Date.now(),
+) {
+  const key = getJwtSecret();
+  return isAssistantConfirmationEnabled() && leaseCurrent(payload, now) &&
+    mac("assistant-features.v1", normalizeFeatures(features), key) === payload.features &&
+    mac("assistant-context.v1", snapshot.context, key) === payload.context &&
+    mac("assistant-catalog.v1", snapshot.catalog, key) === payload.catalog;
+}
+/** First millisecond outside the lease, including a local-midnight boundary. */
+export function assistantSourceLeaseEnd(payload: ReturnType<typeof readAssistantSourceProof>) {
+  let start = Date.parse(payload.issuedAt), end = Date.parse(payload.expiresAt);
+  if (!leaseCurrent(payload, start)) throw new AssistantSourceRefused();
+  while (end - start > 1) {
+    const middle = Math.floor((start + end) / 2);
+    if (leaseCurrent(payload, middle)) start = middle;
+    else end = middle;
+  }
+  return end;
+}
 /** Source IDs come only from the scoped server loader, never model/client URLs.
  * Lock parents before children, then reread. These are positive-record locks,
  * not predicate/range locks or a claim that a bounded Today window is complete. */
@@ -183,6 +207,8 @@ async function lockSources(
 }
 export type AssistantSourceGuard = {
   actor: AssistantProofActor;
+  /** Original signed context; only native D1 verification may consume it. */
+  d1?: { token: string; kind: AssistantConfirmationKind };
   /** Caller already holds actor and household membership locks. */
   authorize: (tx: Prisma.TransactionClient) => Promise<void>;
   /** Recheck gates/lease after any intervening canonical target-lock waits. */
@@ -215,6 +241,7 @@ export function assistantSourceGuard(
   };
   return {
     actor,
+    d1: { token, kind },
     authorize,
     assertCurrent() {
       if (

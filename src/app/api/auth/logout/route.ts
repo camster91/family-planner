@@ -4,6 +4,9 @@ import { verifySessionToken } from '@/lib/session'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import type { QueueRetirement } from '@/lib/queue-owner-contract'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { revokeD1UserSessions } from '@/lib/cloudflare/accounts'
 
 /**
  * Sign out. Besides clearing the cookie, bump `User.token_version` so the JWT
@@ -24,7 +27,9 @@ export async function POST(request: NextRequest) {
       const payload = await verifySessionToken(token)
       if (payload) {
         const generation = payload.tv ?? 0
-        const revoked = await prisma!.user.updateMany({
+        const revoked = storageBackend() === 'd1'
+          ? { count: await revokeD1UserSessions(await getD1Database(), payload.userId, generation) ? 1 : 0 }
+          : await prisma!.user.updateMany({
           where: { id: payload.userId, token_version: generation },
           data: { token_version: { increment: 1 } },
         })

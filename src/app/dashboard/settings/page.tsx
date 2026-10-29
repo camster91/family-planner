@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getServerActor } from '@/lib/supabase/server'
+import { readD1SettingsSeed } from '@/lib/cloudflare/family-preferences'
 import { isAiUsageAdopted } from '@/lib/ai-usage-server'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
@@ -32,6 +35,24 @@ export const dynamic = 'force-dynamic'
  *   home first; this check is a last line in case that gate is bypassed.
  */
 export default async function SettingsPage({ searchParams = Promise.resolve({}) }: { searchParams?: Promise<{ setup?: string }> }) {
+  if (storageBackend() === 'd1') {
+    const actor = await getServerActor()
+    if (!actor) redirect('/login')
+    const seed = await readD1SettingsSeed({ userId: actor.id, generation: actor.tokenVersion }, isSharedDeviceEnabled())
+    if (!seed) redirect('/login')
+    if (seed.role === 'child') redirect('/dashboard')
+    const viewerRole: SettingsViewerRole = isParentRole(seed.role) ? 'parent' : 'teen'
+    const parentFamilyId = viewerRole === 'parent' ? seed.familyId : null
+    return <SettingsClient
+      viewerRole={viewerRole}
+      calendarFeedReviewScope={parentFamilyId ?? undefined}
+      sharedDevice={seed.sharedDevice}
+      betaMetrics={seed.betaMetrics}
+      calendarSync={viewerRole === 'parent' && isCalendarSyncEnabled()}
+      aiCaptureSettings={Boolean(parentFamilyId && (isCaptureAiSettingsEnabled() || seed.aiKeyStored || (await searchParams).setup === 'ai'))}
+      aiUsage={parentFamilyId && isAiUsageAdopted() ? { userId: actor.id, familyId: parentFamilyId } : undefined}
+    />
+  }
   const sessionUser = await getServerUser()
   if (!sessionUser) redirect('/login')
   const profile = await prisma!.user.findUnique({

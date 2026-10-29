@@ -23,7 +23,7 @@ jest.mock("@/lib/prisma", () => ({
   },
 }));
 jest.mock("@/lib/supabase/server", () => ({
-  getServerUser: async () => ({ id: "kid" }),
+  getServerActor: async () => ({ id: "kid", role: "teen", family_id: "home", tokenVersion: 0 }),
 }));
 jest.mock("next/server", () => ({ after: jest.fn() }));
 jest.mock("next/navigation", () => ({ redirect: jest.fn() }));
@@ -45,6 +45,7 @@ it.each([
       due_date: new Date("2026-10-06"),
       status: "pending",
       points: 10,
+      routine_series_config: { title: "PRIVATE_FUTURE_DEFINITION" },
     }));
     findMany.mockResolvedValueOnce(near).mockResolvedValueOnce([]);
     const result = (await DashboardPage()) as React.ReactElement;
@@ -53,6 +54,7 @@ it.each([
       take: 61,
     });
     expect(result.props.chores).toHaveLength(60);
+    expect(JSON.stringify(result.props.chores)).not.toContain("PRIVATE_FUTURE_DEFINITION");
     expect(result.props.workPreviewLimited).toBe(limited);
     expect(rewardFindMany).toHaveBeenCalledWith(
       expect.objectContaining({

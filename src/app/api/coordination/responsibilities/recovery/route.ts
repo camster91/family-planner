@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import {
   boundedRequestText,
@@ -21,6 +23,11 @@ import {
   responsibilityRecoveryInput,
 } from "@/lib/responsibility-recovery";
 import { reviewResponsibilityRequest } from "@/lib/responsibility-recovery-server";
+import {
+  authorizeD1Responsibility,
+  d1ResponsibilityStorageAvailable,
+  reviewD1ResponsibilityRequest,
+} from "@/lib/cloudflare/responsibility";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 async function handle(request: NextRequest, review: boolean) {
@@ -30,7 +37,6 @@ async function handle(request: NextRequest, review: boolean) {
       refusal.headers.set("Cache-Control", "private, no-store");
       return refusal;
     }
-    if (!prisma) throw new ResponsibilityError("UNAVAILABLE");
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
@@ -38,6 +44,54 @@ async function handle(request: NextRequest, review: boolean) {
       tokenVersion: auth.payload.tv ?? 0,
     };
     const owner = responsibilityOwner(request, auth.payload, auth.user);
+    if (storageBackend() === "d1") {
+      const database = await getD1Database();
+      if (!review) {
+        await authorizeD1Responsibility(actor, database);
+        return NextResponse.json(
+          {
+            contract: RESPONSIBILITY_RECOVERY,
+            enabled:
+              responsibilityWritingEnabled() &&
+              owner !== null &&
+              (await d1ResponsibilityStorageAvailable(database)),
+            owner,
+            userId: actor.userId,
+            familyId: actor.familyId,
+            role: actor.role,
+          },
+          { headers },
+        );
+      }
+      if (
+        !owner ||
+        request.headers.get(RESPONSIBILITY_OWNER_HEADER) !== owner.scope
+      )
+        throw new ResponsibilityError("FORBIDDEN");
+      let raw: unknown;
+      try {
+        raw = JSON.parse(await boundedRequestText(request, 10000));
+      } catch (error) {
+        if (error instanceof RequestBodyTooLarge) throw error;
+        throw new ResponsibilityError("CONFLICT");
+      }
+      const body = responsibilityRecoveryInput.safeParse(raw);
+      if (!body.success)
+        return NextResponse.json(
+          { error: { code: "RESPONSIBILITY_INVALID_REQUEST" } },
+          { status: 400, headers },
+        );
+      return NextResponse.json(
+        await reviewD1ResponsibilityRequest(
+          actor,
+          body.data.entry,
+          owner.scope,
+          database,
+        ),
+        { headers },
+      );
+    }
+    if (!prisma) throw new ResponsibilityError("UNAVAILABLE");
     if (!review) {
       await authorizeResponsibilityReceipt(prisma, actor);
       return NextResponse.json(

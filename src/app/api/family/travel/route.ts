@@ -1,3 +1,7 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1Travel, updateD1Travel } from '@/lib/cloudflare/family-preferences'
+import { D1FamilySettingsError } from '@/lib/cloudflare/family-settings'
+import { getServerActor } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { refusePairedDevice } from '@/lib/device-refusal'
@@ -7,13 +11,13 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { updateTravelSchema } from '@/lib/validations'
 
-type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
+type SessionUser = { id: string; email: string; role?: string; family_id?: string | null; tokenVersion?: number }
 
 export async function GET(request: NextRequest) {
   const deviceRefusal = await refusePairedDevice(request)
   if (deviceRefusal) return deviceRefusal
 
-  const user = (await getServerUser()) as SessionUser | null
+  const user = (storageBackend() === 'd1' ? await getServerActor() : await getServerUser()) as SessionUser | null
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -27,6 +31,11 @@ export async function GET(request: NextRequest) {
   // travel page is not on the kid allowlist, so no kid surface reads this.
   if (user.role !== 'parent') {
     return NextResponse.json({ error: 'Parents only' }, { status: 403 })
+  }
+
+  if (storageBackend() === 'd1') {
+    try { return NextResponse.json(await readD1Travel({ userId: user.id, familyId: user.family_id, generation: user.tokenVersion ?? 0 })) }
+    catch (err) { if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status }); throw err }
   }
 
   const family = await prisma!.family.findUnique({
@@ -50,7 +59,7 @@ export async function PATCH(request: Request) {
     const deviceRefusal = await refusePairedDevice(request as NextRequest)
     if (deviceRefusal) return deviceRefusal
 
-    const user = (await getServerUser()) as SessionUser | null
+    const user = (storageBackend() === 'd1' ? await getServerActor() : await getServerUser()) as SessionUser | null
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -76,6 +85,8 @@ export async function PATCH(request: Request) {
     }
     const { travel_mode_active, travel_start_date, travel_end_date, travel_destination } = parsed.data
 
+    if (storageBackend() === 'd1') return NextResponse.json(await updateD1Travel({ userId: user.id, familyId: user.family_id, generation: user.tokenVersion ?? 0 }, parsed.data))
+
     const updated = await prisma!.family.update({
       where: { id: user.family_id },
       data: {
@@ -94,6 +105,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(updated)
   } catch (error) {
+    if (error instanceof D1FamilySettingsError) return NextResponse.json({ error: error.code }, { status: error.status })
     logRouteError('PATCH /api/family/travel', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

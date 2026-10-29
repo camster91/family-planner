@@ -33,7 +33,8 @@ const DELIVERY = path.join(SRC, 'lib', 'notification-delivery.ts')
 function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) return entry.name === '__tests__' ? [] : sourceFiles(full)
+    // Generated read-client types contain Prisma write examples, not app writes.
+    if (entry.isDirectory()) return entry.name === '__tests__' || full === path.join(SRC, 'generated', 'cloudflare-read') ? [] : sourceFiles(full)
     return /\.(ts|tsx)$/.test(entry.name) ? [full] : []
   })
 }

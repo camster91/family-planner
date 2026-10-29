@@ -10,6 +10,9 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { updateMealSchema } from '@/lib/validations'
 import { authorizeMealBatchInTx, batchJson } from '@/lib/meal-batch-api'
+import { storageBackend } from '@/lib/storage-backend'
+import { deleteD1Meal, readD1MealState, updateD1Meal } from '@/lib/cloudflare/meals'
+import { idempotencyError, readIdempotencyKey } from '@/lib/idempotency'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +40,15 @@ export async function GET(request: NextRequest) {
       userId: auth.user.id,
       familyId: auth.user.family_id,
       tokenVersion: auth.payload.tv ?? 0,
+    }
+
+    if (storageBackend() === 'd1') {
+      const expected = expectedUserId !== null || expectedFamilyId !== null || expectedGeneration !== null
+        ? { userId: expectedUserId ?? '', familyId: expectedFamilyId ?? '', generation: expectedGeneration === null ? NaN : Number(expectedGeneration) }
+        : undefined
+      const result = await readD1MealState({ userId: actor.userId, familyId: actor.familyId, generation: actor.tokenVersion, role: auth.user.role }, id, expected)
+      if (result.response) return NextResponse.json(result.response.body, { status: result.response.status, headers: { 'Cache-Control': 'private, no-store' } })
+      return NextResponse.json({ state: result.state, meal: { id: result.mealId }, context: { userId: actor.userId, familyId: actor.familyId, generation: actor.tokenVersion } }, { headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // The exact read renews the authenticated actor under the same ordered
@@ -138,6 +150,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: `meal_type must be one of: ${MEAL_TYPES.join(', ')}` }, { status: 400 })
     }
 
+    if (storageBackend() === 'd1') {
+      const { key, error: keyError } = readIdempotencyKey(request)
+      if (keyError) return keyError
+      const result = await updateD1Meal(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        { id, recipe_name, notes, cook_id, date, meal_type, recipe_id, servings },
+        key,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
+
     const meal = await prisma!.familyMeal.findUnique({
       where: { id },
       select: { family_id: true, batch_id: true },
@@ -234,6 +257,18 @@ export async function DELETE(request: NextRequest) {
         familyId: expectedFamilyId,
         generation,
       }
+    }
+
+    if (storageBackend() === 'd1') {
+      const { key, error: keyError } = readIdempotencyKey(request)
+      if (keyError) return keyError
+      const result = await deleteD1Meal(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        id,
+        key,
+        expectedOwner ? { userId: expectedOwner.userId, familyId: expectedOwner.familyId, generation: expectedOwner.generation } : undefined,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store', ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
     }
 
     // Recovery deletes carry the exact owner snapshot captured by the prior

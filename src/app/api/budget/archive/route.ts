@@ -6,6 +6,8 @@ import { FINANCE_ARCHIVE_OWNER_HEADER, financeArchiveOwner, type FinanceArchiveO
 import { readFinanceArchivePage, readFinanceArchiveDetails, parseArchivePaging, FinanceArchiveReadError, financeArchiveReviewEnabled } from '@/lib/finance-archive-read'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1FinanceArchiveDetails, readD1FinanceArchivePage } from '@/lib/cloudflare/finance-archive'
 export const dynamic = 'force-dynamic'
 const privateResponse = (response: NextResponse) => { response.headers.set('Cache-Control', 'private, no-store'); response.headers.set('Vary', 'Cookie, X-Herewoven-Finance-Owner'); return response }
 const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store', Vary: 'Cookie, X-Herewoven-Finance-Owner' } })
@@ -30,7 +32,17 @@ export async function GET(request: NextRequest) {
     if (params.has('recordId')) {
       const id = params.get('recordId')!
       if (params.getAll('recordId').length !== 1 || [...params.keys()].some(key => key !== 'recordId') || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return reply({ code: 'INVALID_PAGE' }, 400)
+      if (storageBackend() === 'd1') {
+        const result = await readD1FinanceArchiveDetails({ userId: owner.userId, familyId: owner.familyId, role: auth.user.role, generation: owner.generation }, id)
+        return reply(result.body, result.status)
+      }
       return reply(await readFinanceArchiveDetails(prisma!, owner, id))
+    }
+    if (storageBackend() === 'd1') {
+      const actor = { userId: owner.userId, familyId: owner.familyId, role: auth.user.role, generation: owner.generation }
+      const page = parseArchivePaging(params, owner.familyId)
+      const result = await readD1FinanceArchivePage(actor, page)
+      return reply(result.body, result.status)
     }
     const page = parseArchivePaging(params, owner.familyId)
     return reply(await readFinanceArchivePage(prisma!, owner, page))

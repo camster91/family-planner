@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 /**
  * Shared-device credentials (#157 contract, #240): tokens, per-request
  * resolution, refresh rotation with reuse detection, elevation and cookies.
@@ -14,7 +15,6 @@
  * Set-Cookie header or JSON body that hands it to the tablet.
  */
 import crypto from 'crypto'
-import type { NextResponse } from 'next/server'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { hashToken } from '@/lib/tokens'
 import { timingSafeEqualStr } from '@/lib/constant-time'
@@ -24,13 +24,16 @@ import { describeError, log } from '@/lib/logger'
 // ---------------------------------------------------------------------------
 // Constants (§4, §6.3; O-2 and O-8 confirmed/defaulted)
 
-export const DEVICE_ACCESS_COOKIE = 'fp_device'
-export const DEVICE_REFRESH_COOKIE = 'fp_device_refresh'
-export const DEVICE_ELEVATION_HEADER = 'x-device-elevation'
-export const PERSON_SESSION_COOKIE = 'session_token'
+// Preserve existing imports while keeping cookie-only middleware free of DB code.
+export {
+  DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE, DEVICE_ELEVATION_HEADER,
+  PERSON_SESSION_COOKIE, ACCESS_TTL_MS, REFRESH_TTL_MS,
+  setDeviceCookies, clearDeviceCookies, clearPersonSessionCookie,
+} from '@/lib/device-cookies'
+import {
+  DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE, ACCESS_TTL_MS, REFRESH_TTL_MS,
+} from '@/lib/device-cookies'
 
-export const ACCESS_TTL_MS = 60 * 60 * 1000
-export const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000
 /** Rule 3: a rotated refresh token replayed this soon, with an unused successor, is a lost response. */
 export const REFRESH_REUSE_GRACE_MS = 60 * 1000
 /** Rotated generations older than this are deleted on the device's next refresh (§3 notes). */
@@ -199,6 +202,10 @@ const unavailable = { ok: false, status: 503, code: 'SERVICE_UNAVAILABLE' } as c
  * database blip denies access without making the tablet purge itself.
  */
 export async function resolveDeviceAccess(db: Db, cookies: DeviceCookieValues, now: Date): Promise<DeviceAuthResult> {
+  if (storageBackend() === 'd1') {
+    const { resolveD1DeviceAccess } = await import('@/lib/cloudflare/device-sessions')
+    return resolveD1DeviceAccess(cookies, now)
+  }
   // No access cookie but a refresh cookie: the 1-hour cookie expired in the
   // browser; tell the client to refresh rather than purge.
   if (!cookies.access) return cookies.refresh ? accessExpired : invalid
@@ -269,6 +276,10 @@ const REFRESH_ROW_SELECT = {
 
 /** Look up a refresh cookie's row without changing anything (used for rate-limit keys). */
 export async function findRefreshDeviceId(db: Db, refreshToken: string): Promise<string | null> {
+  if (storageBackend() === 'd1') {
+    const { findD1RefreshDeviceId } = await import('@/lib/cloudflare/device-sessions')
+    return findD1RefreshDeviceId(refreshToken)
+  }
   const row = await db.deviceSession.findUnique({
     where: { refresh_token_hash: hashToken(refreshToken) },
     select: { device_id: true },
@@ -277,6 +288,10 @@ export async function findRefreshDeviceId(db: Db, refreshToken: string): Promise
 }
 
 export async function refreshDeviceSession(db: Db, refreshToken: string, now: Date): Promise<RefreshResult> {
+  if (storageBackend() === 'd1') {
+    const { refreshD1DeviceSession } = await import('@/lib/cloudflare/device-sessions')
+    return refreshD1DeviceSession(refreshToken, now)
+  }
   return refreshOnce(db, refreshToken, now, 0)
 }
 
@@ -383,6 +398,14 @@ async function afterRefresh(db: Db, deviceId: string, now: Date): Promise<void> 
  * whose session is live (looked up, never rotated here).
  */
 export async function hasLiveDeviceCredential(db: Db, cookies: DeviceCookieValues, now: Date): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { hasD1DeviceCredential } = await import('@/lib/cloudflare/device-credentials')
+    return hasD1DeviceCredential(await getD1Database(), {
+      access: cookies.access ? hashToken(cookies.access) : undefined,
+      refresh: cookies.refresh ? hashToken(cookies.refresh) : undefined,
+    }, now.getTime(), REFRESH_REUSE_GRACE_MS)
+  }
   if (cookies.access) {
     const row = await db.deviceSession.findUnique({
       where: { access_token_hash: hashToken(cookies.access) },
@@ -518,6 +541,10 @@ export function elevationState(device: DeviceRow, now: Date): ElevationState {
 
 /** Clear the elevation columns, only if they still hold `expectedHash` (a newer elevation is left alone). */
 export async function clearElevation(db: Db, deviceId: string, expectedHash: string): Promise<boolean> {
+  if (storageBackend() === 'd1') {
+    const { clearD1Elevation } = await import('@/lib/cloudflare/device-sessions')
+    return clearD1Elevation(deviceId, expectedHash)
+  }
   const { count } = await db.householdDevice.updateMany({
     where: { id: deviceId, elevation_token_hash: expectedHash },
     data: { ...CLEARED_ELEVATION },
@@ -564,6 +591,10 @@ export async function resolveElevation(
   header: string | null | undefined,
   now: Date
 ): Promise<ElevationResult> {
+  if (storageBackend() === 'd1') {
+    const { resolveD1Elevation } = await import('@/lib/cloudflare/device-sessions')
+    return resolveD1Elevation(resolved, header, now)
+  }
   const { actor, device } = resolved
   if (!elevationHeaderMatches(device, header)) return { ok: false, status: 403, code: 'ELEVATION_REQUIRED' }
 
@@ -605,6 +636,10 @@ export async function startElevation(
   db: Db,
   args: { deviceId: string; parentId: string; tokenVersion: number; method: 'pin' | 'password'; now: Date }
 ): Promise<{ token: string; expiresAt: Date } | null> {
+  if (storageBackend() === 'd1') {
+    const { startD1Elevation } = await import('@/lib/cloudflare/device-sessions')
+    return startD1Elevation(args)
+  }
   const token = generateDeviceToken('e')
   const expiresAt = new Date(args.now.getTime() + ELEVATION_MAX_MS)
   const { count } = await db.householdDevice.updateMany({
@@ -623,58 +658,7 @@ export async function startElevation(
 }
 
 // ---------------------------------------------------------------------------
-// Cookies (§4 table)
-
-function secureCookie(): boolean {
-  return process.env.NODE_ENV === 'production'
-}
-
-export function setDeviceCookies(response: NextResponse, tokens: Pick<IssuedDeviceTokens, 'accessToken' | 'refreshToken'>) {
-  response.cookies.set(DEVICE_ACCESS_COOKIE, tokens.accessToken, {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: ACCESS_TTL_MS / 1000,
-  })
-  // Path=/ so cold launch at `/` and the login guard can see it; it is only
-  // rotated by POST /api/device/session/refresh.
-  response.cookies.set(DEVICE_REFRESH_COOKIE, tokens.refreshToken, {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'strict',
-    path: '/',
-    maxAge: REFRESH_TTL_MS / 1000,
-  })
-}
-
-export function clearDeviceCookies(response: NextResponse) {
-  response.cookies.set(DEVICE_ACCESS_COOKIE, '', {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  })
-  response.cookies.set(DEVICE_REFRESH_COOKIE, '', {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'strict',
-    path: '/',
-    maxAge: 0,
-  })
-}
-
-/** Pairing completion drops the person cookie on the tablet (no token_version bump). */
-export function clearPersonSessionCookie(response: NextResponse) {
-  response.cookies.set(PERSON_SESSION_COOKIE, '', {
-    httpOnly: true,
-    secure: secureCookie(),
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  })
-}
+// Paired-device request authority
 
 /**
  * True when the request comes from a paired shared device: the kill switch is

@@ -1,12 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { timingSafeEqualStr } from '@/lib/constant-time'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
-import { isValidTimeZone } from '@/lib/quiet-hours'
-import { runMorningSummary } from '@/lib/morning-summary-server'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { timingSafeEqualStr } from "@/lib/constant-time";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { isValidTimeZone } from "@/lib/quiet-hours";
+import { runMorningSummary } from "@/lib/morning-summary-server";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { runD1MorningSummary } from "@/lib/cloudflare/morning-summary";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 // POST /api/cron/morning-summary[?tz=America/Toronto] — send today's morning
 // summary (O-40) to every member who turned it on. Protected exactly like
@@ -21,32 +24,54 @@ export const dynamic = 'force-dynamic'
 // who have none saved (else UTC); an unknown zone is 400.
 export async function POST(request: NextRequest) {
   try {
-    const cronSecret = process.env.CRON_SECRET
+    const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) {
-      return NextResponse.json({ error: 'Cron not configured' }, { status: 500 })
+      return NextResponse.json(
+        { error: "Cron not configured" },
+        { status: 500 },
+      );
     }
 
-    const providedSecret = request.headers.get('x-cron-secret')
+    const providedSecret = request.headers.get("x-cron-secret");
     if (!providedSecret || !timingSafeEqualStr(providedSecret, cronSecret)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let fallbackTimeZone: string | null = null
-    const tz = new URL(request.url).searchParams.get('tz')
-    if (tz !== null && tz !== '') {
+    let fallbackTimeZone: string | null = null;
+    const tz = new URL(request.url).searchParams.get("tz");
+    if (tz !== null && tz !== "") {
       if (!isValidTimeZone(tz)) {
-        return NextResponse.json({ error: 'Unknown time zone' }, { status: 400 })
+        return NextResponse.json(
+          { error: "Unknown time zone" },
+          { status: 400 },
+        );
       }
-      fallbackTimeZone = tz
+      fallbackTimeZone = tz;
     }
 
-    const result = await runMorningSummary(prisma!, {
-      fallbackTimeZone,
-      requestId: getRequestId(request),
-    })
-    return NextResponse.json(result)
+    const result =
+      storageBackend() === "d1"
+        ? await runD1MorningSummary(
+            {
+              fallbackTimeZone,
+              requestId: getRequestId(request),
+            },
+            await getD1Database(),
+          )
+        : await runMorningSummary(prisma!, {
+            fallbackTimeZone,
+            requestId: getRequestId(request),
+          });
+    return NextResponse.json(result);
   } catch (error) {
-    logRouteError('POST /api/cron/morning-summary', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError(
+      "POST /api/cron/morning-summary",
+      error,
+      getRequestId(request),
+    );
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

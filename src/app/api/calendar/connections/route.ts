@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1CalendarConnections } from "@/lib/cloudflare/calendar-connections";
 import { enabledProviders, PROVIDER_LABELS } from "@/lib/calendar-sync/config";
 import { authParentForSync, json } from "@/lib/calendar-sync/route-helpers";
-import {
-  CONNECTION_DTO_SELECT,
-  toConnectionDto,
-} from "@/lib/calendar-sync/sync";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +15,24 @@ export async function GET(request: NextRequest) {
   try {
     const [auth, error] = await authParentForSync(request);
     if (error) return error;
-
+    const backend = storageBackend();
+    if (backend === "d1") {
+      const nativeConnections = await readD1CalendarConnections({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload.tv ?? 0,
+      });
+      return json({
+        providers: enabledProviders().map((id) => ({
+          id,
+          label: PROVIDER_LABELS[id],
+        })),
+        connections: nativeConnections,
+      });
+    }
+    const { CONNECTION_DTO_SELECT, toConnectionDto } =
+      await import("@/lib/calendar-sync/sync");
     const rows = await prisma!.calendarConnection.findMany({
       where: { family_id: auth.user.family_id },
       select: CONNECTION_DTO_SELECT,

@@ -34,19 +34,16 @@
  * share of keyed requests deletes them); there is no cron (AGENTS.md).
  */
 import crypto from 'crypto'
-import { canonicalRequestJson } from '@/lib/idempotency-request-json'
+import { hashIdempotentRequest } from '@/lib/idempotency-hash'
+export { hashIdempotentRequest } from '@/lib/idempotency-hash'
 import { NextResponse } from 'next/server'
 import { logRouteError } from '@/lib/api-error'
 import type { PrismaClient } from '@prisma/client'
-import { IDEMPOTENCY_TTL_MS, IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
+import { IDEMPOTENCY_TTL_MS, IDEMPOTENCY_LOCK_TIMEOUT_MS, IDEMPOTENCY_PRUNE_PROBABILITY, IDEMPOTENCY_HEADER, IDEMPOTENCY_REPLAYED_HEADER, isValidIdempotencyKey } from '@/lib/idempotency-key'
 
-export { IDEMPOTENCY_TTL_MS } from '@/lib/idempotency-key'
-/** An in-progress row older than this is treated as abandoned (the first request died). */
-export const IDEMPOTENCY_LOCK_TIMEOUT_MS = 30 * 1000
+export { IDEMPOTENCY_TTL_MS, IDEMPOTENCY_LOCK_TIMEOUT_MS, IDEMPOTENCY_PRUNE_PROBABILITY } from '@/lib/idempotency-key'
 /** Stored response bodies larger than this (serialised) are replaced by `{ success: true }`. */
 export const IDEMPOTENCY_MAX_BODY_CHARS = 8 * 1024
-/** Share of keyed requests that also delete expired rows. */
-export const IDEMPOTENCY_PRUNE_PROBABILITY = 0.05
 
 /** Replaceable for tests; production uses the wall clock and Math.random. */
 export const idempotencyRuntime = {
@@ -108,10 +105,6 @@ export function readIdempotencyKey(request: { headers: Headers }): { key: string
   const value = raw.trim()
   if (!isValidIdempotencyKey(value)) return { key: null, error: idempotencyError('IDEMPOTENCY_KEY_INVALID') }
   return { key: value, error: null }
-}
-
-export function hashIdempotentRequest(action: string, body: unknown): string {
-  return crypto.createHash('sha256').update(`${action}\n${canonicalRequestJson(body)}`).digest('hex')
 }
 
 function isUniqueViolation(error: unknown): boolean {

@@ -14,6 +14,10 @@ import {
 import { reviewInventoryRestock } from "@/lib/inventory-restock";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { reviewD1InventoryRestock } from "@/lib/cloudflare/inventory-recovery";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string) =>
@@ -35,7 +39,7 @@ export async function POST(request: NextRequest) {
     const scope = { userId: auth.user.id, familyId: auth.user.family_id };
     const refusal = refuseInventoryReadScope(request, scope);
     if (refusal) return refusal;
-    if (
+    if (storageBackend() !== "d1" &&
       !(await checkRateLimit(`inventory-restock:${auth.user.id}`, 90, 60_000))
         .allowed
     )
@@ -51,6 +55,20 @@ export async function POST(request: NextRequest) {
     }
     const input = schema.safeParse(body);
     if (!input.success) return fail(400, "INVALID_RESTOCK_REVIEW");
+    if (storageBackend() === "d1") {
+      const actor = {
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload.tv ?? 0,
+      };
+      const database = await getD1Database();
+      if (!(await checkD1RateLimit(database, `inventory-restock:${actor.userId}`, 90, 60_000, Date.now())).allowed)
+        return fail(429, "RATE_LIMITED");
+      const result = await reviewD1InventoryRestock(actor, input.data, database);
+      const response = NextResponse.json(result.body, { status: result.status, headers });
+      return response.ok ? inventoryScopedResponse(response, scope) : response;
+    }
     const result = await reviewInventoryRestock(
       prisma!,
       { ...scope, tokenVersion: auth.payload.tv ?? 0 },

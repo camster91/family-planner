@@ -38,6 +38,9 @@ import { authenticateDevice } from '@/lib/device-route'
 import type { DeviceActor } from '@/lib/device-session'
 import { isProfileChoreEnabled } from '@/lib/chore-profile'
 import { memberIdentityIdSchema } from '@/lib/member-subject-contract'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { readD1DeviceWriteGate } from '@/lib/cloudflare/device-writes'
 
 /** Tablet writes per device per hour: a busy kitchen, not a script. */
 export const DEVICE_WRITE_LIMIT = 300
@@ -80,6 +83,34 @@ export async function openDeviceWrite(
   const auth = await authenticateDevice(request)
   if (!auth.ok) return auth
   const { actor } = auth
+
+  if (storageBackend() === 'd1') {
+    const db = await getD1Database()
+    const family = await db.prepare('SELECT device_writes_enabled,features FROM "Family" WHERE id=?1').bind(actor.familyId).first<{ device_writes_enabled: number | null; features: string | null }>()
+    if (!family?.device_writes_enabled) return { ok: false, response: deviceError(403, 'DEVICE_WRITES_OFF') }
+    if (!normalizeFeatures(family.features === null ? null : JSON.parse(family.features))[feature]) return { ok: false, response: deviceError(403, 'FEATURE_DISABLED') }
+    const limit = await checkRateLimit(`device-write:${actor.deviceId}`, DEVICE_WRITE_LIMIT, DEVICE_WRITE_WINDOW_MS)
+    if (!limit.allowed) return { ok: false, response: rateLimited(limit) }
+    const { key, error: keyError } = readIdempotencyKey(request)
+    if (keyError) return { ok: false, response: noStore(keyError) }
+    if (!key) return { ok: false, response: noStore(idempotencyError('IDEMPOTENCY_KEY_REQUIRED')) }
+    const raw = await readJson(request)
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, response: deviceError(400, 'VALIDATION_ERROR') }
+    const body = raw as Record<string, unknown>
+    if (options?.allowProfile && body.protocol === 2 && body.selection && typeof body.selection === 'object' && !Array.isArray(body.selection)) {
+      if (!isProfileChoreEnabled()) return { ok: false, response: deviceError(409, 'MEMBER_PROTOCOL_UNAVAILABLE') }
+      const selection = body.selection as Record<string, unknown>
+      const memberId = selection.memberId
+      if (Object.keys(body).length !== 2 || Object.keys(selection).length !== 1 || typeof memberId !== 'string' || !memberIdentityIdSchema.safeParse(memberId).success)
+        return { ok: false, response: deviceError(400, 'VALIDATION_ERROR') }
+      return { ok: true, ctx: { actor, key, body, profileMemberId: memberId } }
+    }
+    const memberId = body.actingMemberId
+    if (typeof memberId !== 'string' || !ID_PATTERN.test(memberId)) return { ok: false, response: deviceError(400, 'ACTING_MEMBER_INVALID') }
+    const gate = await readD1DeviceWriteGate(actor, feature, memberId, db)
+    if (!gate.ok) return { ok: false, response: deviceError(gate.status, gate.code as any) }
+    return { ok: true, ctx: { actor, key, body, member: gate.member } }
+  }
 
   const family = await prisma!.family.findUnique({
     where: { id: actor.familyId },

@@ -50,7 +50,6 @@ describe('POST /api/auth/login email normalisation', () => {
     expect(res.status).toBe(401)
   })
 })
-
 describe('POST /api/auth/login wrong-password lockout', () => {
   const attempt = (ip: string, password: string) =>
     login(
@@ -199,6 +198,19 @@ describe('POST /api/auth/forgot-password email lookup', () => {
     const res = await forgot('Nobody@Example.test', '203.0.113.62')
     expect(res.status).toBe(200)
     expect(db.rows('user').every((u: any) => !u.reset_token)).toBe(true)
+  })
+
+  it('does not expose a reset token when NODE_ENV is unset', async () => {
+    const { NODE_ENV: _ignoredNodeEnv, ...withoutNodeEnv } = process.env
+    // Jest's ProcessEnv declaration requires NODE_ENV even though Workers may omit it.
+    const env = jest.replaceProperty(process, 'env', withoutNodeEnv as NodeJS.ProcessEnv)
+    try {
+      const res = await forgot('parent-a@example.test', '203.0.113.63')
+      expect(res.status).toBe(200)
+      expect((await res.json()).resetToken).toBeUndefined()
+    } finally {
+      env.restore()
+    }
   })
 })
 

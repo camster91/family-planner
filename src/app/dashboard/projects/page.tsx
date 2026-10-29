@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import { readProjectOverview } from "@/lib/project-overview";
 import { parseProjectPaging, PROJECT_OVERVIEW_PAGE_SIZE } from "@/lib/project-paging";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor, getServerUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1Projects } from "@/lib/cloudflare/notes-projects";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import type { ProjectCardData } from "@/components/projects/ProjectCard";
 import { FeatureOffState } from "@/components/ui/feature-gate";
@@ -31,25 +33,55 @@ async function ProjectsContent({
   familyId: string;
   cursor?: string | string[];
 }) {
-  const sessionUser = await getServerUser();
-  if (!sessionUser || !canReadProjectRoute(sessionUser.role)) return null;
-  // Streaming can begin after the outer auth/gate read. Recheck its household
-  // before any project data is read; an old cursor cannot choose a household.
-  const current = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: { family_id: true, family: { select: { features: true } } },
-  });
-  if (current?.family_id !== familyId) return null;
-  if (!isFeatureEnabled(normalizeFeatures(current.family?.features), "projects")) {
-    return <FeatureOffState featureKey="projects" canManage={sessionUser.role === "parent"} />;
-  }
+  const backend = storageBackend();
+  const sessionUser = backend === "d1" ? await getServerActor() : await getServerUser();
+  if (!sessionUser || sessionUser.family_id !== familyId || !canReadProjectRoute(sessionUser.role)) return null;
   const params = new URLSearchParams({ limit: String(PROJECT_OVERVIEW_PAGE_SIZE) });
   if (Array.isArray(cursor)) return <ProjectPageState invalid />;
   if (cursor !== undefined) params.set("cursor", cursor);
   const paging = parseProjectPaging(params, { familyId, status: null });
   if (!paging.ok) return <ProjectPageState invalid />;
-  const result = await readProjectOverview(prisma!, { familyId, status: null }, paging);
-  const projectCards: ProjectCardData[] = result.projects.map(project => ({
+
+  let projects: any[];
+  let nextCursor: string | null = null;
+  if (backend === "d1") {
+    const actor = sessionUser as NonNullable<Awaited<ReturnType<typeof getServerActor>>>;
+    const native = await readD1Projects(
+      {
+        userId: actor.id,
+        familyId,
+        role: actor.role!,
+        generation: actor.tokenVersion,
+      },
+      { status: null },
+      paging,
+    );
+    if (native.status === 401) return null;
+    if (native.status === 403) {
+      return <FeatureOffState featureKey="projects" canManage={sessionUser.role === "parent"} />;
+    }
+    if (native.status !== 200) return <ProjectPageState invalid />;
+    const body = native.body as any;
+    projects = body.projects ?? [];
+    nextCursor = body.nextCursor ?? null;
+  } else {
+    // Streaming can begin after the outer auth/gate read. Recheck its
+    // household before any project data is read; an old cursor cannot choose
+    // a household.
+    const current = await prisma!.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { family_id: true, family: { select: { features: true } } },
+    });
+    if (current?.family_id !== familyId) return null;
+    if (!isFeatureEnabled(normalizeFeatures(current.family?.features), "projects")) {
+      return <FeatureOffState featureKey="projects" canManage={sessionUser.role === "parent"} />;
+    }
+    const result = await readProjectOverview(prisma!, { familyId, status: null }, paging);
+    projects = result.projects;
+    nextCursor = result.nextCursor ?? null;
+  }
+
+  const projectCards: ProjectCardData[] = projects.map(project => ({
     ...project,
     status: project.status as ProjectCardData["status"],
   }));
@@ -68,7 +100,7 @@ async function ProjectsContent({
       {projectCards.length === 0 && (cursor === undefined
         ? <ProjectsEmptyState />
         : <ProjectPageState invalid={false} />)}
-      <ProjectPageNavigation nextCursor={result.nextCursor ?? null} hasEarlierPage={cursor !== undefined} />
+      <ProjectPageNavigation nextCursor={nextCursor} hasEarlierPage={cursor !== undefined} />
     </div>
   );
 }
@@ -90,28 +122,32 @@ export default async function ProjectsPage({ searchParams }: {
   searchParams?: Promise<{ cursor?: string | string[] }>;
 }) {
   const params = await searchParams;
-  const sessionUser = await getServerUser();
+  const backend = storageBackend();
+  const sessionUser = backend === "d1" ? await getServerActor() : await getServerUser();
   if (!sessionUser || !canReadProjectRoute(sessionUser.role)) return null;
 
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: { family_id: true, family: { select: { features: true } } },
-  });
-
   // Server-side gate (route inventory F-2): with Projects off, no project is
-  // read, rendered or serialised. The APIs are gated the same way.
-  const familyId = user?.family_id;
+  // read, rendered or serialised. The native read authority repeats this
+  // check for D1; Postgres keeps the existing gate below.
+  let familyId = sessionUser.family_id;
   const isParent = sessionUser.role === "parent";
-  if (
-    familyId &&
-    !isFeatureEnabled(normalizeFeatures(user?.family?.features), "projects")
-  ) {
-    return (
-      <FeatureOffState
-        featureKey="projects"
-        canManage={sessionUser.role !== "teen" && sessionUser.role !== "child"}
-      />
-    );
+  if (backend !== "d1") {
+    const user = await prisma!.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { family_id: true, family: { select: { features: true } } },
+    });
+    familyId = user?.family_id;
+    if (
+      familyId &&
+      !isFeatureEnabled(normalizeFeatures(user?.family?.features), "projects")
+    ) {
+      return (
+        <FeatureOffState
+          featureKey="projects"
+          canManage={sessionUser.role !== "teen" && sessionUser.role !== "child"}
+        />
+      );
+    }
   }
 
   return (

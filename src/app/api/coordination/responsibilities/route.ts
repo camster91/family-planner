@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import {
+  readD1ResponsibilityView,
+  writeD1Responsibility,
+} from "@/lib/cloudflare/responsibility";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import {
   boundedRequestText,
@@ -45,7 +52,7 @@ async function handle(request: NextRequest, write: boolean) {
       refusal.headers.set("Cache-Control", "private, no-store");
       return refusal;
     }
-    if (!prisma || !responsibilityReady())
+    if (!responsibilityReady())
       throw new ResponsibilityError("UNAVAILABLE");
     const actor = {
       userId: auth.user.id,
@@ -65,6 +72,20 @@ async function handle(request: NextRequest, write: boolean) {
           { status: 400, headers },
         );
       const { q, ...target } = parsed.data;
+      if (storageBackend() === "d1") {
+        return NextResponse.json(
+          {
+            view: await readD1ResponsibilityView(
+              actor,
+              target,
+              q,
+              await getD1Database(),
+            ),
+          },
+          { headers },
+        );
+      }
+      if (!prisma) throw new ResponsibilityError("UNAVAILABLE");
       return NextResponse.json(
         { view: await readResponsibilityView(prisma, actor, target, q) },
         { headers },
@@ -93,6 +114,22 @@ async function handle(request: NextRequest, write: boolean) {
       command.data.familyId !== actor.familyId
     )
       throw new ResponsibilityError("FORBIDDEN");
+    if (storageBackend() === "d1") {
+      const result = await writeD1Responsibility(
+        actor,
+        command.data,
+        key,
+        await getD1Database(),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: {
+          ...headers,
+          ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
+    }
+    if (!prisma) throw new ResponsibilityError("UNAVAILABLE");
     const response = await withIdempotency(
       prisma,
       key,
@@ -136,6 +173,12 @@ async function handle(request: NextRequest, write: boolean) {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(
+        error.code === "IDEMPOTENCY_KEY_REUSED"
+          ? "IDEMPOTENCY_KEY_REUSED"
+          : "IDEMPOTENCY_IN_PROGRESS",
+      );
     if (error instanceof SyntaxError || error instanceof RequestBodyTooLarge)
       return NextResponse.json(
         { error: { code: "RESPONSIBILITY_INVALID_REQUEST" } },

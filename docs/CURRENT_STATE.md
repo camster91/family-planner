@@ -1,3 +1,310 @@
+# Cloudflare source and release evidence — 2026-10-29
+
+The implementation uses Cloudflare Workers, a bounded compute-only Durable
+Object pool, native D1 and private R2. The old family hostname is preserved by
+an authenticated, stateless proxy in its existing Cloudflare account; it does
+not have a separate household database or auth model.
+
+**Live rollout and acceptance evidence:** [migration registry #604](https://github.com/camster91/family-planner/issues/604).
+That registry records the deployed source/version, domain and TLS checks,
+private household/media acceptance, scoped QA-data cleanup, rollback identity
+and VPS decommission state. Source being merged or built does not establish
+production acceptance. This file describes source architecture; the execution
+notes below are historical pre-cutover checkpoints, not a live health report.
+
+Source/runtime contract: [Cloudflare runtime](architecture/CLOUDFLARE_RUNTIME.md).
+Main configuration: `wrangler.jsonc`; native-host bridge:
+`wrangler.legacy-alias.jsonc`; private password compute:
+`wrangler.password-compute.jsonc`. Runtime storage is D1. PostgreSQL/Docker
+compatibility remains available for existing checks and approved recovery;
+it is not a second active household backend in this architecture.
+
+Focused compute/proxy tests, native profile/shell isolation checks and the
+onboarding SSR-to-hydrated interaction regression pass. The final build and
+current release gates are recorded in #604 rather than inferred from older
+checkpoint text. No paid-plan activation is part of this migration.
+
+## Historical migration execution notes
+
+# Cross-account hostname compatibility — 2026-10-29
+
+Exact candidate `6ad3a2872153e75859f53f35ed469a9fc4b6c536` passed required
+Build & Test and the fresh-runner image/security check. The compiled local
+journey (including locally enabled email-free child profile) and the actual
+primary-edge household journey both passed. Primary-edge private R2 upload,
+read, anonymous refusal, foreign-household refusal and replay passed. Source,
+compute binding and all four existing secrets were verified after upload;
+active edge version is `69766e95-37ea-4b30-b05d-c140c8cde5bd`. Safe primary
+tail captured 291 ok outcomes and 15 navigation cancellations, with no CPU or
+memory-limit failures in the observed journey.
+
+Cutover planning found that `ashbi.ca` belongs to Cloudflare account
+`1b2e351cbb39ab6b80efe36ca3577fe5`, whereas the main app and herewoven.com
+belong to account `1f5acce966c81fbe36ae06521414d0b8`. Cloudflare rejected a
+cross-account Custom Domain attach during its non-mutating changeset preview.
+The new legacy-alias Worker is a narrow, stateless HTTPS bridge in the old
+zone's account. It proxies only family.ashbi.ca and its explicit QA hostname,
+keeps browser-visible paths/cookies/owned redirects on that origin, and has no
+D1/R2/auth/session store. Shared-secret ingress attestation lets the main Worker
+accept the original client IP/host without trusting spoofed forwarding headers;
+the secret headers are removed before OpenNext. The bridge credential has not
+yet been provisioned and the new combined source is not yet accepted on edge.
+No paid plan was enabled. The shared ashbi wildcard, live DNS and healthy VPS
+are unchanged.
+
+Focused main/alias Worker tests and full TypeScript pass. The latest browser
+fixture repairs preserve current UI controls, semantic unknown-outcome messages,
+week context and canonical recipe-owner admission headers rather than weakening
+production boundaries. Exact combined build, alias/primary edge integration,
+required current-head CI, merge/cutover and scoped VPS retirement remain open.
+
+# Compute-budget release candidate — 2026-10-29
+
+The actual edge investigation reproduced strict 10 ms CPU failures on the
+regular app Worker, including login before the profile query. Direct profile
+SQL reduces avoidable work but does not remove this platform constraint.
+An isolated compute-only Durable Object probe, using unchanged compiled
+`9026885d` application modules, passed the full actual edge household browser
+journey: new family setup, phone/tablet/desktop Today, grocery create/check and
+reload, event duration edits, multi-dish prep and reload, child/cross-household
+refusal, logout and session rejection. The production profile rollout remained
+dormant and returned its expected 409. Captured tail outcomes were 300 `ok`
+and 16 navigation cancellations, with no CPU-limit failure in that journey.
+Private HTTP R2 upload/read, anonymous refusal, foreign-household refusal and
+same-content replay also passed after the test client supplied the normal CSRF
+cookie/header pair. No app CSRF rule was weakened.
+
+The permanent source now wraps the generated OpenNext worker in a fixed
+four-object compute pool, preserves ASSETS/root routing and canonical D1/R2,
+and uses per-request context without DO storage, alarms, cron, auth changes or
+response caching. It refuses excess concurrent dispatches without replaying
+writes. Six focused tests, TypeScript and configuration parsing pass; the exact
+compiled candidate, local harness and main edge acceptance remain pending.
+No paid plan was enabled. The temporary probe is QA infrastructure, not the
+production release. Production DNS and the healthy VPS remain unchanged.
+
+# Edge CPU follow-through — 2026-10-29
+
+Cameron completed the fresh Wrangler device sign-in and the missing
+`workers_scripts:write` scope was verified. Immutable runtime candidate
+`22c87b88bf634ad5a5295c45dac257b3dd65ebb0` uploaded successfully to the
+temporary edge Worker, version `20a020f6-9963-4d1d-930c-eb478e460dfb`.
+Cloudflare reports the expected RELEASE_SHA and all four existing secret
+bindings. No paid plan was enabled. Current-head `2be0faccc` required Build &
+Test, fresh-runner checked image, and Android checks passed; inventory browser
+QA passed after the response-capture correction. Settings and other browser
+failures were triaged into bounded source/test corrections in this working
+change, and their rerun remains pending.
+
+Actual edge private-upload verification stopped before upload: profile reads
+intermittently returned 503. Safe tail evidence identifies `exceededCpu`
+(`Worker exceeded CPU time limit`) on `/api/auth/me`, including one failed
+384 ms invocation and a successful 776 ms invocation. The source constructs a
+fresh Prisma/WASM query compiler for this small profile read and twice for the
+dashboard shell. These paths now use direct, scoped D1 reads. Focused profile
+response tests and a real native D1 fixture covering shell household scoping
+and session-generation refusal pass. These CPU optimizations have not yet been
+built/deployed or accepted on the edge; broader dynamic-page compute remains
+under investigation.
+
+Fresh VPS recovery backup:
+`/opt/family-planner/backups/cloudflare-cutover-20261029T131309Z-df80c65e`.
+It restored into an isolated no-network database with all 84 table counts
+matching; production data was not modified and the temporary container was
+removed. Coolify application 11's auto-deploy setting was backed up there and
+disabled to prevent a main merge from rebuilding the old host. The VPS app
+remains healthy. Domain cutover and scoped retirement still require verified
+edge household/media behavior; no completion is claimed.
+
+# Latest migration checkpoint — 2026-10-29
+
+Cloudflare candidate `22c87b88bf634ad5a5295c45dac257b3dd65ebb0` passed
+[immutable build 40877597385](https://github.com/camster91/family-planner/actions/runs/40877597385).
+Prepared upload `/tmp/herewoven-deploy-22c87b88` has both module hashes matched
+byte-for-byte to CI and preserves the existing secret bindings. Private
+password-compute inputs also match the artifact manifest. No upload of this
+candidate has succeeded yet.
+
+The temporary workers.dev app is still source
+`c785d926ea710b6a1b3258ec16316a7fcb890dac`. Its app Worker and private
+password-compute Worker are deployed; four existing secret bindings were copied
+without exposing their values. D1 `herewoven`
+(`cff38a6c-d2cb-4a5f-bed9-3c8f8a888590`) has all 16 migrations, and R2
+`herewoven-uploads` is private. Only fabricated QA records were added to the
+fresh database. No paid plan was enabled. Updating the existing app Worker
+requires Wrangler's separate `workers_scripts:write` OAuth scope; the device
+sign-in expired before approval. Existing granted scopes were rechecked and
+still lack that permission.
+
+The native matrix (baseline plus 41 domains), focused deletion/export/privacy
+checks, and compiled local household journey passed. The newer `30012eaf`
+compiled artifact also passed the full local journey after auth-navigation and
+HTTP-upload fixes: login/logout, fresh family setup, locally enabled email-free
+child profile, groceries with reload, event duration, multi-dish prep, role and
+household refusal, and phone/tablet/desktop Today. The subsequent `22c87b88`
+metrics refactor passed its targeted native replay/privacy test. Android CI on
+`22c87b88` passed; required Build & Test remains in progress. Updated Settings
+and calendar-removal browser assertions still require their CI results. An
+inventory response-capture race (63/64 browser journeys passed) has a test-only
+correction; its TypeScript and formatting checks pass, but it has not yet been
+rerun in a browser.
+
+Production DNS and the healthy VPS app remain unchanged. Actual updated edge
+household and private HTTP R2 verification, required CI, merge/cutover for
+herewoven.com and family.ashbi.ca, and Herewoven-only VPS retirement remain
+open. The old family host inherits the shared `*.ashbi.ca` DNS record; preserve
+that wildcard and create an exact app mapping during cutover. The scoped DNS
+recovery map is `/tmp/herewoven-dns-cutover-backup-20261029.json`.
+
+Detailed evidence and recovery steps: [migration plan](plans/cloudflare-native-migration.md).
+Earlier sections below are historical checkpoints.
+
+# Active Cloudflare migration — 2026-10-28
+
+Cameron approved moving Herewoven entirely to Cloudflare with fresh app data.
+Execution is #604 on `codex/cloudflare-native-migration-20261028`, based on
+`df80c65e2ed61175fc41279244047ad520162d37`. The existing VPS app has not been
+replaced or removed. No production wipe or paid-plan activation has occurred.
+
+Personal list overview/detail/index/items/version reads, list/item creation,
+check/edit/delete and default grocery resolution now have native D1 source and
+focused local Worker evidence, including concurrent retry/default-list behavior
+and atomic failure rollback. Migration 0012 restores open recipe-source
+uniqueness. Grocery section move/clear and parent/teen sorting controls also use atomic
+D1 writes, with current authority, scoped ingredient updates and focused native
+checks. Container deletion and signed list target review now also use D1, with source
+and exact child snapshots checked in the atomic delete/receipt batch. Native
+concurrent replay, cascades, changed-child refusal and source-to-target review
+checks pass. Recipe grocery review/add/undo and full rendered/deployed acceptance
+remain unfinished. Uncommitted parallel
+board/device/routine/storage changes are not release evidence.
+
+Local Workers public login, D1 session authority, registration, verification,
+login, invited-child admission, atomic family creation and persistent rate limits
+have focused runtime evidence. Password recovery/change, safe profile reads/edits
+and paired-device person refusal also pass selected local Worker flows. Four
+D1 identity/device migrations apply locally, including audit erasure guards.
+Eleven migrations now define all 84 model tables, with 963 scalar columns, 153
+canonical unique keys and 208 relationships checked in local D1. This is schema
+foundation: remaining PostgreSQL-specific checks/triggers and feature writers
+are not yet converted. Profile family/erasure/chore/routine guards and
+responsibility lifecycle invalidation are ported with focused evidence. Name-only
+profile list/create/edit/archive now use one atomic D1 batch for the effect,
+routine revisions and retry receipt. The Family page can create a profile in
+phone/desktop local Workers; `/api/auth/me` now reads D1 safely as well. Account
+linking remains gated/unconverted.
+Membership joins, scoped family/member reads and
+invitation/code controls also pass selected local Worker checks. A request-scoped,
+read-only Prisma/D1 client now supports the dashboard shell and no-family
+onboarding in the built Worker; its runtime facade rejects writes, raw SQL and
+transactions. Phone/desktop onboarding renders without overflow or page errors,
+and its personal/household display-preferences APIs now use atomic D1 writes.
+Revision races, defaults inheritance, current authority and rollback have local
+Worker evidence; the prior onboarding preference-request failure is fixed.
+Household rename, concurrent feature switches, beta-metrics controls and Recent
+changes now use D1, with atomic audit/retention and phone/desktop browser evidence.
+Feed-token management, encrypted AI-provider settings, travel settings and the
+shared feature gate now use D1. Parent/teen Settings SSR has a scoped D1 seed;
+notification preferences now use atomic D1 updates/receipts and pass phone/desktop
+save/reload checks. Calendar subscription list/create/rename/recolour/removal now
+use native atomic D1 batches; the prior Settings list failure is fixed locally,
+with parent phone/desktop rename/reload evidence. Manual feed refresh and stale
+selection now use D1, retaining atomic reconciliation, source/account admission,
+bounded parsing and event schedule epochs. A built local Worker imported seven
+real holiday events through native public-network fetch; synthetic large-feed,
+rollback and authority-race checks also pass. Calendar Event single/range/recent/upcoming reads, server owner checks and exact
+notification focus now use D1. Parent/teen phone and desktop calendars render
+and open source-labelled details. Review-draft context and capture-status reads
+also use D1, fixing supporting-request errors found in that browser flow.
+Online Event PATCH now uses one native atomic D1 batch with current-parent,
+repeat-review, read-only and date-bound checks. Phone/desktop title and duration
+save/reload flows pass, preserving unsupported repeat rules. Manual Event creation
+and deletion now commit exact retry receipts atomically with their effects;
+creation includes Activity and nonfatal consent-aware beta counts. Phone/desktop
+create/open/confirm-delete flows pass. AI-proof-bearing Event writes are
+migrated for the Event HTTP create/delete paths: source and exact-target reads
+are checked inside the atomic effect/receipt batch. The target-review endpoint
+also reads D1. Other AI effects, canonical non-HTTP orchestration and complete
+chat execution remain unfinished and block release. AI capture execution and OAuth
+connections also remain unconverted. The bounded AI Today/reference read projection
+now runs against D1 with parent/teen privacy and feature-gate fixture evidence.
+Recurring-series expansion and foreground top-up now use native D1 batches,
+including rotations, profile-owned work, authored routines, once-only recovery
+and the gated fair cursor. The default AI Today context can materialize through
+D1; confirmation reloads stay read-only. This preserves bounded visits rather
+than promising every series is full. Chore list/detail reads, the parent board,
+routine visibility/profile hydration/streak reads and owned notification focus
+now use D1. Child/teen home reads also use D1 with bounded own work, shared event
+summaries and minimal owned preparation cues; the existing role-route gate is
+preserved. Future-definition metadata and disabled points stay out of public
+chore snapshots, and chore JSON is private/no-store. Account-session completion
+and Undo now use native atomic D1 batches, including recurrence effects, activity,
+photo ownership checks and monotonic completion epochs. Concurrent HTTP requests
+and parent/teen phone/desktop tick/Undo flows pass with stored-state readback.
+The shared in-app notification delivery boundary and private inbox now use D1;
+category/opt-in/quiet policy is shared with PostgreSQL. Sender/recipient membership,
+manual sender session evidence and recipient preferences commit with delivery.
+Inbox reads, paging, read/clear/delete and snooze renew the account generation.
+Retained occurrence/recipient evidence now has immutable/terminal D1 guards.
+Parent chore approval/send-back now uses D1 for legacy and reviewed commands,
+including account XP/streak/level, exact activity, profile reviews without User
+rewards, successor cleanup and current-state replies. The default-off check
+notification cohort commits its occurrence/terminal recipient/inbox effects in
+that same batch; deadlines and stale review epochs remain enforced. Default
+notices stay best-effort after a real transition. Parent/teen phone/desktop
+review/send-back/readback journeys pass; no cohort is enabled in production.
+Account occurrence deletion and exact retry receipts now use D1, including
+series-anchor/history guards, parent/assignee authority, scoped dependent cascades
+and AI exact-target review/confirmation. Eight-way manual/confirmed races and
+phone/desktop cancel/confirm/readback flows pass. Profile-only deletion retains
+its separate protocol refusal. Preparation step deletion intentionally leaves the
+parent plan revision unchanged, matching the canonical PostgreSQL rule.
+Account and gated email-free profile chore creation now use a native D1 batch
+for the root, repeat copies, activity and exact retry receipt. Rotations, selected
+weekdays and monthly anchors reuse the bounded expansion planner. The optional
+birth-notification cohort commits its occurrence/recipient/inbox state atomically;
+default notices and consent-aware beta counts follow only a real effect. Compact
+responses retain only the birth pointer; normal replies hydrate current scoped
+data, and receipt lookup discloses only current presence. Native races, rollback,
+profile revision and signed Today proofs pass; built HTTP creation and receipt
+flows and phone/desktop account/profile forms pass with fabricated households.
+No production flag is enabled.
+Account chore editing and legacy-series start/stop/retiming/rotation now have
+native D1 source and local Worker evidence. The edit planner witnesses all scoped
+occurrences before one atomic effect batch, preserves completed/today rows and
+manual rotation picks, and retains profile/authored-routine protocol refusals.
+Routine schedule editor handoff reads now use D1 with exact scoped identity.
+Built HTTP concurrency and phone/desktop weekday-save/reopen/stop flows pass.
+Shared-device access resolution and refresh now use native atomic D1 batches,
+including first-use/seen touches, unused-successor recovery, token-reuse
+revocation of all generations and elevation clearing. Current temporary-parent
+access checks/issuance primitives use device/session/family/parent-generation
+witnesses, with idle/max timeout and exact-hash clearing. `/api/device/me` reads
+only its admitted household's safe name-only identity. Native races/rollback,
+built HTTP and browser-cookie rotation/private access checks pass. Pairing code creation/claim/confirmation/cancellation/polling/issuance and the
+parent device list now use D1, with renewed manager generation, capacity
+reservation, scoped foreground retention and atomic replacement/session/audit.
+Eight-way claim/confirm/issue and cross-code capacity races pass. Built HTTP and
+phone/desktop parent UI plus tablet claim UI pass; issuance uses the same browser
+cookie jar, with admitted device identity readback. Tablet board acceptance was
+explicitly excluded from that evidence. PIN set/remove and device PIN/password entry now use witnessed D1 credentials
+and atomic failure counters/lockout/grant effects. Parent and elevated-device
+rename/removal, all-session/elevation revocation and private activity paging also
+use D1, including their canonical household audit facts. Native race/rollback,
+built HTTP and phone/desktop parent controls pass. Tablet board rendering,
+elevated board settings and full device/profile/routine commands remain separate
+unfinished paths. No shared-device production flag has been enabled.
+Dedicated device/profile/routine command writers,
+other-domain confirmation, canonical mutation
+orchestration and complete AI chat parity remain unfinished; deployed-plan
+query/CPU limits still need edge verification.
+Other settings, removal/deletion, full profile-link/device APIs, the remaining data domains/SSR,
+complete household flows, mail delivery, R2 and cutover remain unfinished. Detailed
+source boundaries and evidence: [Cloudflare migration](plans/cloudflare-native-migration.md).
+Earlier state sections below are historical and do not supersede this migration.
+
+---
+
 # Release and bounded follow-through — 2026-10-27
 
 PR #601 merged as `25957535e35f3448bcef10b21702fc908be8040b` and was
@@ -4679,3 +4986,89 @@ Original inventory/recovery artifacts11639866923/11639704461 also verify120inven
 The bounded repair changes only that original spec: typed Settings deletion-entry copy with exact matching, plus typed expanded accessible labels for its existing real-native teen sign-in fixture. The first local expanded rerun passes15/21 but fails all6teen cases at the old shared helper English Email selector; that regression evidence is retained. The scoped sign-in adaptation keeps actual native fields/button and canonical fixture credentials, dashboard/auth checks, all104original assertion ASTs and26guard/interception/capture/offline/cleanup ASTs; shared helper, app/API/schema/dependencies/fixtures/workflow/Playwright/pins/timeouts/retries/skip lists and visual baselines are unchanged. Corrected full original ENESparent/teen/child three-viewport expanded run passes21/21 (18owned+3setup),zero retries/skips,1.8min against explicitly historical484expanded compiled app with unchanged app inputs. Types/lint/format pass. No old compiled app or old-head hosted proof substitutes for final follow-up-head whole-source CI/review/normal merge.
 
 All3907gallery objects/pixels/current ZIPmetadata and CRC are verified; named444-gallery-before-3907 APFSclone preserves exact old archive bytes before any append. Gallery remains unchanged until final new-head source/artifact/rendered review and acceptance. Original443fivecriteria remainOPEN/unchecked; full broad provider/production/native/store/legal/human/household requirements remainOPEN.
+
+
+## 2026-10-28 — Cloudflare domain implementation checkpoint (#604)
+
+Commit `1aa4d4bd` preserves native D1 implementations for Today/home/board
+settings, shared-device ticks, independent and stacked routines, ordinary and
+bulk meals/recovery, inventory, recipe library and recipe-to-grocery flows,
+and private upload/message-attachment lifecycle handling. Private objects use
+immutable generation keys; stale cleanup cannot delete a replacement upload.
+Read witnesses now compare REAL values without weakening typed source checks.
+
+Observed integration evidence: all 16 schema migrations pass the native schema
+check (84 models, 963 canonical plus 22 explicitly ported source-version columns,
+2 file-lifecycle columns, 153 unique keys, 208 relations). Four focused Jest
+suites pass (17 tests: mail transport, meal batches, recipe curation contract,
+independent routines). Full TypeScript was clean at the observed shared-worktree
+checkpoint; agents continue editing separate slices. Earlier native all-slice
+results remain scoped to their recorded source, not later worktree acceptance.
+
+The isolated GitHub build/dry-run passes at **3887c859**, run
+[40805145977](https://github.com/camster91/family-planner/actions/runs/40805145977).
+It builds source before the domain checkpoint, not the latest candidate. Bundle:
+44,641.78 KiB uncompressed; gzip 10,767.67 KiB. Cloudflare's current
+[limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size)
+and [September size-limit change](https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/)
+permit 64 MiB uncompressed on Free; gzip is informational. The old 3 MiB
+compressed limit does not apply. The 10 ms Free CPU and one-second startup
+limits still require actual edge evidence.
+
+Local Wrangler startup currently stalls before workerd: esbuild and an independent
+Node readdir probe both block opening the Mac's Documents ancestor directory.
+This is not a passed feature fixture. A disposable temporary runtime snapshot is
+being prepared to bypass that filesystem issue. New calendar, messaging,
+notes/projects, AI/food, wishlist and private bcrypt-compute work remains in the
+worktree for further integration; unverified domains and existing PostgreSQL-only
+routes still prevent a full cutover. No production migration/deployment, DNS
+change, paid-plan activation, data wipe or VPS retirement has occurred.
+
+
+### Native integration follow-through (2026-10-28)
+
+Pushed checkpoints through `66ce8b9c` now include native private messaging,
+notes/projects/wishlists/allowance, finance/rewards/inventory recovery/logistics,
+and bcrypt12 password/PIN computation through a private Worker/Durable Object.
+Additional health/core SSR and calendar checkpoints are `b835cdc9` and `808ae8b6`.
+Local native verification found and fixed real regressions: epoch triggers made
+`meta.changes` misreport preference-write winners; personal queue reconciliation
+fell through to Prisma; several strict DTO/binding projections were incorrect.
+Logout now has a native generation CAS and legacy analytics keeps its no-op
+compatibility behavior with household-scoped retention cleanup (source verification
+in progress until its checkpoint is pushed).
+
+Native evidence now includes actual local R2 byte/metadata admission, deduplication,
+message claims, cross-household refusal and cleanup; the adversarial delayed-delete
+fixture remains a separate object-double race test. Real private bcrypt12/PIN,
+calendar OAuth PKCE/refresh/pull/push/feed/disconnect (mock providers), food planning
+including missing/foreign graph rejection, food source versions, health, analytics,
+search, review and archive/export kernels have passed bounded native runs. The
+combined release matrix and rendered app acceptance remain open; new deletion,
+responsibility and import/recovery slices are still being integrated. No actual
+provider mail/OAuth calls, production data changes or plan activation occurred.
+
+The exact pushed candidate `66ce8b9cc3cd4e0f0b6720759b0aff7ea4ca144e` passes
+[build, dry-run and local startup profiling](https://github.com/camster91/family-planner/actions/runs/40808792717):
+45,956,645 upload-module bytes (43.828 MiB), 545 static assets (9,131,735 bytes),
+45.3 ms sampled active local startup time. This is **local CPU evidence, not edge
+CPU acceptance**, and predates later worktree additions. The account's active
+Free Website zone and standard Worker usage setting do not establish its Workers
+billing tier; billing-read permission is unavailable. No billing/plan mutation is
+authorized or required by these build-only actions.
+
+Current runtime-workaround: a disposable source/dependency snapshot at
+`/tmp/herewoven-native-runtime-oct29` avoids the proven macOS Documents-ancestor
+readdir stall. An opt-in, seven-day private CI runtime artifact and loopback-only
+Miniflare harness are being prepared for actual bundled-app browser verification;
+all provider egress is denied and household data is fabricated.
+
+Compatibility requirement before VPS retirement: `capacitor.config.ts` still
+uses `https://family.ashbi.ca` and allows that origin only. Preserve that host as
+an application alias on the same Cloudflare Worker, rather than breaking installed
+clients by redirecting it to an origin their wrapper cannot open. The `ashbi.ca`
+zone is active under the same Cloudflare account (zone
+`3f3fa62a70d7ad71eb6f4ed89bf81e38`); no alias/DNS change has been applied. Verify
+both the canonical herewoven.com host and the existing family.ashbi.ca origin
+before retiring only Herewoven's VPS application/storage. Existing scheduler
+configuration must remain explicit; no new cron triggers are added by this plan.

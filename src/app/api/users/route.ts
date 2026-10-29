@@ -1,87 +1,140 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/api-auth'
-import { updateUserSchema } from '@/lib/validations'
-import { SAFE_USER_SELECT } from '@/lib/user-select'
-import { isGamificationOn, omitUserGamification } from '@/lib/gamification-visibility'
-import { refusePairedDevice } from '@/lib/device-route'
-import { readIdempotencyKey } from '@/lib/idempotency'
-import { deleteMemberAccount } from '@/lib/account-deletion'
-import { checkFreshAuthorization, deletionError, runDeletion } from '@/lib/account-deletion-http'
-import { ACCOUNT_DELETE_PHRASE } from '@/lib/account-deletion-shared'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { deletePrivateObject } from "@/lib/cloudflare/storage";
+import { findD1PublicUser, updateD1Profile } from "@/lib/cloudflare/accounts";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { authenticateRequest } from "@/lib/api-auth";
+import { updateUserSchema } from "@/lib/validations";
+import { SAFE_USER_SELECT } from "@/lib/user-select";
+import {
+  isGamificationOn,
+  omitUserGamification,
+} from "@/lib/gamification-visibility";
+import { refusePairedDevice } from "@/lib/device-route";
+import { readIdempotencyKey } from "@/lib/idempotency";
+import { deleteMemberAccount } from "@/lib/account-deletion";
+import {
+  checkFreshAuthorization,
+  deletionError,
+  runDeletion,
+} from "@/lib/account-deletion-http";
+import {
+  deleteD1MemberAccount,
+  NativeAccountDeletionError,
+} from "@/lib/cloudflare/account-deletion";
+import { nativeDeletionResponse } from "@/lib/account-deletion-http";
+import { ACCOUNT_DELETE_PHRASE } from "@/lib/account-deletion-shared";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 // GET - Get current user's full profile
 export async function GET(request: NextRequest) {
   try {
-    const [payload, error] = await authenticateRequest(request)
-    if (error) return error
+    const [payload, error] = await authenticateRequest(request);
+    if (error) return error;
 
-    const user = await prisma!.user.findUnique({
-      where: { id: payload.userId },
-      select: SAFE_USER_SELECT,
-    })
+    const user =
+      storageBackend() === "d1"
+        ? await findD1PublicUser(await getD1Database(), payload.userId)
+        : await prisma!.user.findUnique({
+            where: { id: payload.userId },
+            select: SAFE_USER_SELECT,
+          });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Points & streaks off for this family (#248): no XP/level/streak values.
     if (!(await isGamificationOn(user.family_id))) {
-      return NextResponse.json({ user: omitUserGamification(user) })
+      return NextResponse.json({ user: omitUserGamification(user) });
     }
 
-    return NextResponse.json({ user })
+    return NextResponse.json({ user });
   } catch (error) {
-    logRouteError('GET /api/users', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("GET /api/users", error, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 // PATCH - Update user profile (no family_id changes allowed)
 export async function PATCH(request: NextRequest) {
   try {
-    const [payload, error] = await authenticateRequest(request)
-    if (error) return error
+    const [payload, error] = await authenticateRequest(request);
+    if (error) return error;
 
-    let body: any
+    let body: any;
     try {
-      body = await request.json()
+      body = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const parsed = updateUserSchema.safeParse(body)
+    const parsed = updateUserSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
 
-    const updateData: Record<string, unknown> = {}
-    if (parsed.data.name !== undefined) updateData.name = parsed.data.name
+    const updateData: Record<string, unknown> = {};
+    if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
     if (parsed.data.age !== undefined) {
-      updateData.age = parsed.data.age ? parseInt(String(parsed.data.age)) : null
+      updateData.age = parsed.data.age
+        ? parseInt(String(parsed.data.age))
+        : null;
     }
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+      return NextResponse.json(
+        { error: "No fields to update" },
+        { status: 400 },
+      );
     }
 
-    const user = await prisma!.user.update({
-      where: { id: payload.userId },
-      data: updateData,
-      select: SAFE_USER_SELECT,
-    })
+    const user =
+      storageBackend() === "d1"
+        ? await updateD1Profile(
+            await getD1Database(),
+            payload.userId,
+            payload.tv ?? 0,
+            {
+              name:
+                typeof updateData.name === "string"
+                  ? updateData.name
+                  : undefined,
+              age:
+                "age" in updateData
+                  ? (updateData.age as number | null)
+                  : undefined,
+            },
+          )
+        : await prisma!.user.update({
+            where: { id: payload.userId },
+            data: updateData,
+            select: SAFE_USER_SELECT,
+          });
+
+    if (!user)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     if (!(await isGamificationOn(user.family_id))) {
-      return NextResponse.json({ user: omitUserGamification(user) })
+      return NextResponse.json({ user: omitUserGamification(user) });
     }
 
-    return NextResponse.json({ user })
+    return NextResponse.json({ user });
   } catch (error) {
-    logRouteError('PATCH /api/users', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("PATCH /api/users", error, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 // DELETE - Delete the caller's own account (GDPR Article 17, right to erasure;
@@ -98,35 +151,70 @@ export async function PATCH(request: NextRequest) {
 // the account is gone, so a retry is 401.
 export async function DELETE(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [payload, error] = await authenticateRequest(request)
-    if (error) return error
+    const [payload, error] = await authenticateRequest(request);
+    if (error) return error;
 
-    const idem = readIdempotencyKey(request)
-    if (idem.error) return idem.error
+    const idem = readIdempotencyKey(request);
+    if (idem.error) return idem.error;
 
-    let body: { password?: unknown; confirmation?: unknown }
+    let body: { password?: unknown; confirmation?: unknown };
     try {
-      body = (await request.json()) ?? {}
+      body = (await request.json()) ?? {};
     } catch {
-      return deletionError(400, 'PASSWORD_REQUIRED', 'Enter your password to continue.')
+      return deletionError(
+        400,
+        "PASSWORD_REQUIRED",
+        "Enter your password to continue.",
+      );
     }
 
-    const refused = await checkFreshAuthorization(payload.userId, body, ACCOUNT_DELETE_PHRASE)
-    if (refused) return refused
+    const refused = await checkFreshAuthorization(
+      payload.userId,
+      body,
+      ACCOUNT_DELETE_PHRASE,
+    );
+    if (refused) return refused;
+
+    if (storageBackend() === "d1") {
+      try {
+        const result = await deleteD1MemberAccount(payload.userId, {
+          database: await getD1Database(),
+          idempotencyKey: idem.key,
+          removeObject: deletePrivateObject,
+        });
+        return nativeDeletionResponse(
+          {
+            userId: payload.userId,
+            familyId: payload.family_id ?? null,
+            action: "account.delete",
+          },
+          {
+            success: true,
+            mode: result.mode,
+            filesRemoved: result.filesRemoved,
+            filesNotRemoved: result.filesNotRemoved,
+          },
+        );
+      } catch (error) {
+        if (error instanceof NativeAccountDeletionError)
+          return deletionError(error.status, error.code, error.message);
+        throw error;
+      }
+    }
 
     return await runDeletion(
       {
         key: idem.key,
         userId: payload.userId,
         familyId: payload.family_id ?? null,
-        action: 'account.delete',
-        hashBody: { mode: 'account' },
+        action: "account.delete",
+        hashBody: { mode: "account" },
       },
       async () => {
-        const result = await deleteMemberAccount(payload.userId)
+        const result = await deleteMemberAccount(payload.userId);
         return {
           status: 200,
           body: {
@@ -135,11 +223,14 @@ export async function DELETE(request: NextRequest) {
             filesRemoved: result.filesRemoved,
             filesNotRemoved: result.filesNotRemoved,
           },
-        }
-      }
-    )
+        };
+      },
+    );
   } catch (error) {
-    logRouteError('DELETE /api/users', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("DELETE /api/users", error, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

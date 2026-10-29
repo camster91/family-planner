@@ -1,3 +1,7 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { createD1List } from "@/lib/cloudflare/list-write";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 import {
   assistantSourceGuard,
   AssistantSourceRefused,
@@ -59,6 +63,15 @@ export async function POST(request: NextRequest) {
       generation: auth.payload?.tv ?? 0,
     };
     const sourceGuard = assistantSourceGuard(request, actor, "list_create");
+    if (storageBackend() === "d1") {
+      const result = await createD1List(actor, parsed.data, key, sourceGuard);
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -77,6 +90,8 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
     if (error instanceof AssistantSourceRefused) return error.response();
     logRouteError("POST /api/lists/create", error, getRequestId(request));
     return NextResponse.json(

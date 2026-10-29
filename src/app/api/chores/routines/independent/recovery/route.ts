@@ -24,14 +24,39 @@ import {
 } from "@/lib/routine-schedule-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const opened = await openRoutineSchedule(request, false, "independent");
     if (!opened.ok) return opened.response;
-    const capabilities = await prisma!.$transaction((tx) =>
-      routineScheduleAuthority(tx, opened.actor),
-    );
+    let pointsEnabled = false;
+    if (storageBackend() === "d1") {
+      const { readD1IndependentCatalog } = await import(
+        "@/lib/cloudflare/routine-independent"
+      );
+      const catalog = await readD1IndependentCatalog(opened.actor, null);
+      if (catalog.status !== 200) return routineResponse(catalog.body, catalog.status);
+      pointsEnabled = false;
+      // Detached routine catalog intentionally omits points. The draft
+      // contract only needs the capability bit, which is renewed by the
+      // native save/read authority; do not infer it from a client payload.
+      const { getD1Database } = await import("@/lib/cloudflare/database");
+      const family = await (await getD1Database()).withSession("first-primary")
+        .prepare(`SELECT features FROM "Family" WHERE id=?1`)
+        .bind(opened.actor.familyId)
+        .first<{ features: string | null }>();
+      try {
+        pointsEnabled = Boolean(JSON.parse(String(family?.features ?? "{}")).gamification);
+      } catch {
+        pointsEnabled = false;
+      }
+    } else {
+      const capabilities = await prisma!.$transaction((tx) =>
+        routineScheduleAuthority(tx, opened.actor),
+      );
+      pointsEnabled = capabilities.pointsEnabled;
+    }
     if (new URL(request.url).searchParams.get("draft") === "1") {
       const owner = routineDraftOwner(opened.owner);
       return routineResponse({
@@ -40,7 +65,7 @@ export async function GET(request: NextRequest) {
         enabled: routineRecoveryWritingEnabled() && owner !== null,
         userId: opened.actor.userId,
         familyId: opened.actor.familyId,
-        pointsEnabled: capabilities.pointsEnabled,
+        pointsEnabled,
       });
     }
     return routineResponse({
@@ -81,13 +106,20 @@ export async function POST(request: NextRequest) {
     }
     const parsed = independentRecoveryReviewInput.safeParse(raw);
     if (!parsed.success) return routineError(400, "INVALID_ROUTINE_REQUEST");
-    const result = await reviewIndependentRoutineStep(
-      prisma!,
-      opened.actor,
-      parsed.data.entry,
-      opened.owner!.scope,
-      routineRecoveryWritingEnabled(),
-    );
+    const result = storageBackend() === "d1"
+      ? await (await import("@/lib/cloudflare/routine-independent")).reviewD1IndependentRoutine(
+          opened.actor,
+          parsed.data.entry,
+          opened.owner!.scope,
+          routineRecoveryWritingEnabled(),
+        )
+      : await reviewIndependentRoutineStep(
+          prisma!,
+          opened.actor,
+          parsed.data.entry,
+          opened.owner!.scope,
+          routineRecoveryWritingEnabled(),
+        );
     return routineResponse(result.body, result.status);
   } catch (caught) {
     logRouteError(

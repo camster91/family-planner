@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 /**
  * Household audit history (#285, PR101 D-4; ADR-0008).
  *
@@ -79,6 +80,16 @@ export async function writeAuditLog(db: AuditDb, entries: AuditEntry | AuditEntr
     return
   }
   await db.auditLog.createMany({ data: list.map(toRow) })
+}
+
+/** Native callers put these effects after their current authority/source
+ * witnesses in the same D1 batch. The canonical vocabulary/clipping is shared. */
+export function prepareD1AuditLog(db: Pick<import('@/lib/cloudflare/database').D1Store,'prepare'>,entries:AuditEntry|AuditEntry[],now:Date){
+  return (Array.isArray(entries)?entries:[entries]).map(entry=>{
+    const row=toRow(entry)
+    return db.prepare(`INSERT INTO AuditLog(id,family_id,actor_user_id,actor_kind,action,target_type,target_id,summary,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`)
+      .bind(randomUUID(),row.family_id,row.actor_user_id,row.actor_kind,row.action,row.target_type,row.target_id,row.summary,now.getTime())
+  })
 }
 
 // ---------------------------------------------------------------------------

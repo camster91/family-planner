@@ -2,6 +2,8 @@ import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders } from "@/lib/re
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { withD1ReadClient } from "@/lib/cloudflare/read-client";
 import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
@@ -44,7 +46,9 @@ export async function GET(request: NextRequest) {
       });
       if (ownerRefusal) return ownerRefusal;
     }
-    const family = await prisma!.family.findUnique({
+    const family = storageBackend() === "d1"
+      ? await withD1ReadClient(db => db.family.findUnique({ where: { id: auth.user.family_id }, select: { features: true } }))
+      : await prisma!.family.findUnique({
       where: { id: auth.user.family_id },
       select: { features: true },
     });

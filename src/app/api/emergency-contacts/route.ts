@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1EmergencyContacts, createD1EmergencyContact } from '@/lib/cloudflare/health'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -20,6 +22,11 @@ export async function GET(request: NextRequest) {
 
     const gate = await featureGate(auth.user.family_id, 'emergency')
     if (gate) return gate
+
+    if (storageBackend() === 'd1') {
+      const result = await readD1EmergencyContacts({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 })
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     const contacts = await prisma!.emergencyContact.findMany({
       where: { family_id: auth.user.family_id },
@@ -58,6 +65,10 @@ export async function POST(request: NextRequest) {
     const parsed = createEmergencyContactSchema.safeParse(json)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    if (storageBackend() === 'd1') {
+      const result = await createD1EmergencyContact({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, parsed.data)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
     const {
       person_id, person_name, relationship,

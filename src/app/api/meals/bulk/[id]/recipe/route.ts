@@ -12,6 +12,8 @@ import {
 } from "@/lib/meal-recipe-history";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1BatchRecipeHistory } from "@/lib/cloudflare/meal-bulk";
 export const dynamic = "force-dynamic";
 export async function GET(
   request: NextRequest,
@@ -26,6 +28,13 @@ export async function GET(
     const { id } = await context.params;
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(id))
       return batchJson(batchFailure(404, "BATCH_UNAVAILABLE"));
+    if (storageBackend() === "d1") {
+      const result = await readD1BatchRecipeHistory(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 },
+        id,
+      );
+      return batchJson(result);
+    }
     return await prisma!.$transaction(async (tx) => {
       const refusal = await authorizeMealBatchInTx(tx, {
         userId: auth.user.id,

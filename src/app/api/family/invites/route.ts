@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -23,6 +24,14 @@ export async function GET(request: NextRequest) {
   if (error) return error
   const parentError = requireParent(auth.user.role)
   if (parentError) return parentError
+
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const { readD1Invites } = await import('@/lib/cloudflare/invites')
+    return NextResponse.json({ invites: await readD1Invites(await getD1Database(), {
+      userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0,
+    }, Date.now()) })
+  }
 
   const invites = await prisma!.familyInvite.findMany({
     where: {
@@ -72,6 +81,11 @@ export async function POST(request: NextRequest) {
     const email = normalizeEmail(parsed.data.email)
     if (!email) {
       return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
+    }
+
+    if (storageBackend() === 'd1') {
+      const { createD1InviteHttp } = await import('@/lib/cloudflare/invites-http')
+      return await createD1InviteHttp({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, email, parsed.data.role)
     }
 
     const existingMember = await prisma!.user.findFirst({

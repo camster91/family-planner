@@ -9,6 +9,10 @@ import {
   foodProductLookupConfig,
   lookupPublicFoodProduct,
 } from "@/lib/food-product-provider";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1FoodProduct } from "@/lib/cloudflare/inventory";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string) =>
   NextResponse.json({ error: { code } }, { status, headers });
@@ -41,6 +45,50 @@ export async function GET(request: NextRequest) {
     const code = foodGtin.safeParse(params.get("barcode"));
     if (!code.success) return fail(400, "INVALID_BARCODE");
     const config = foodProductLookupConfig();
+    if (storageBackend() === "d1") {
+      const nativeActor = {
+        userId: actor.userId,
+        familyId: actor.familyId,
+        role: auth.user.role,
+        generation: actor.tokenVersion,
+      };
+      const scoped = await readD1FoodProduct(nativeActor, code.data);
+      if (scoped.refusal)
+        return NextResponse.json(scoped.refusal.body, {
+          status: scoped.refusal.status,
+          headers,
+        });
+      let product: unknown = scoped.product ?? null;
+      if (params.get("lookup") === "1") {
+        if (!config) return fail(503, "PRODUCT_LOOKUP_DISABLED");
+        if (normalizeFoodBarcode(code.data, "gtin_14")?.restricted)
+          return fail(422, "LOCAL_OR_VARIABLE_CODE");
+        const reserved = await checkD1RateLimit(
+          await getD1Database(),
+          "food-product-public-read-v1",
+          1,
+          5100,
+          Date.now(),
+        );
+        if (!reserved.allowed) return fail(429, "PRODUCT_LOOKUP_WAIT");
+        product = await lookupPublicFoodProduct(code.data, config);
+        const current = await readD1FoodProduct(nativeActor, code.data);
+        if (current.refusal)
+          return NextResponse.json(current.refusal.body, {
+            status: current.refusal.status,
+            headers,
+          });
+      }
+      return NextResponse.json(
+        {
+          context: { userId: actor.userId, familyId: actor.familyId },
+          barcode: code.data,
+          product,
+          publicLookupAvailable: !!config,
+        },
+        { headers },
+      );
+    }
     const scoped = await prisma!.$transaction(async (tx) => {
       const refusal = await inventoryIntakeAuthority(tx, actor);
       if (refusal) return { refusal };

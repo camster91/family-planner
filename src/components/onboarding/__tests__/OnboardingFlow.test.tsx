@@ -5,9 +5,19 @@
 // parent who registered without their invite link must be able to reach the
 // join page from here, not only "Create Family".
 import * as React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
+import {
+  serverRenderThenHydrate,
+  type Hydrated,
+} from "@/components/ui/__tests__/ssr-hydration";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -37,6 +47,29 @@ describe("OnboardingFlow", () => {
         .getByRole("link", { name: /join an existing family/i })
         .getAttribute("href"),
     ).toBe("/join");
+  });
+
+  it("keeps the server button inert until hydration, then opens step two", () => {
+    jest.useFakeTimers();
+    let hydrated: Hydrated | null = null;
+    try {
+      hydrated = serverRenderThenHydrate(<OnboardingFlow userId="u1" />, {
+        serverNow: new Date("2026-10-29T12:00:00.000Z"),
+        clientNow: new Date("2026-10-29T12:00:01.000Z"),
+      });
+      expect(hydrated.html).toContain('aria-busy="true"');
+      expect(hydrated.html).toContain("disabled");
+
+      const getStarted = screen.getByRole("button", { name: /get started/i });
+      expect(getStarted).toBeEnabled();
+      fireEvent.click(getStarted);
+      expect(
+        screen.getByRole("button", { name: /create family/i }),
+      ).toBeTruthy();
+    } finally {
+      hydrated?.unmount();
+      jest.useRealTimers();
+    }
   });
 });
 
@@ -151,7 +184,9 @@ describe("family creation next step", () => {
         ).toBeNull();
       } finally {
         view.unmount();
-        await act(async () => { jest.runAllTimers(); });
+        await act(async () => {
+          jest.runAllTimers();
+        });
         jest.useRealTimers();
       }
     },
@@ -322,8 +357,12 @@ describe("family creation next step", () => {
     }) as unknown as typeof fetch;
 
     await enterFamily();
-    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
-    expect(await screen.findByRole("heading", { name: /add everyone/i })).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole("button", { name: /create family/i }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: /add everyone/i }),
+    ).toBeTruthy();
     expect(createAttempts).toBe(1);
     expect(calls.filter((url) => url === "/api/auth/me")).toHaveLength(1);
   });
@@ -332,15 +371,27 @@ describe("family creation next step", () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/family")
-        return { ok: true, status: 200, json: async () => ({ family: { name: "Our Family" } }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ family: { name: "Our Family" } }),
+        };
       if (url === "/api/auth/me")
-        return { ok: true, status: 200, json: async () => ({ user: { family_id: null } }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ user: { family_id: null } }),
+        };
       return { ok: true, status: 200, json: async () => ({}) };
     }) as unknown as typeof fetch;
 
     await enterFamily();
-    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/unexpected family response/i);
+    await userEvent.click(
+      screen.getByRole("button", { name: /create family/i }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /unexpected family response/i,
+    );
     expect(screen.queryByRole("heading", { name: /add everyone/i })).toBeNull();
     expect(screen.getByRole("textbox", { name: /family name/i })).toBeTruthy();
   });
@@ -354,12 +405,20 @@ describe("family creation next step", () => {
     }) as unknown as typeof fetch;
 
     await enterFamily();
-    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/could not confirm/i);
-    expect(screen.queryByRole("heading", { name: /add everyone/i })).toBeNull();
-    expect((screen.getByRole("textbox", { name: /family name/i }) as HTMLInputElement).value).toBe(
-      "Our Family",
+    await userEvent.click(
+      screen.getByRole("button", { name: /create family/i }),
     );
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /could not confirm/i,
+    );
+    expect(screen.queryByRole("heading", { name: /add everyone/i })).toBeNull();
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: /family name/i,
+        }) as HTMLInputElement
+      ).value,
+    ).toBe("Our Family");
   });
 
   it("advances after a malformed success only when auth reconciliation confirms the family", async () => {
@@ -368,46 +427,81 @@ describe("family creation next step", () => {
       if (url === "/api/family")
         return { ok: true, status: 200, json: async () => ({}) };
       if (url === "/api/auth/me")
-        return { ok: true, status: 200, json: async () => ({ user: { family_id: "f1" } }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ user: { family_id: "f1" } }),
+        };
       return { ok: true, status: 200, json: async () => ({}) };
     }) as unknown as typeof fetch;
 
     await enterFamily();
-    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
-    expect(await screen.findByRole("heading", { name: /add everyone/i })).toBeTruthy();
+    await userEvent.click(
+      screen.getByRole("button", { name: /create family/i }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: /add everyone/i }),
+    ).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("keeps the invite draft when a 2xx response lacks the confirmed invite envelope", async () => {
-    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url === "/api/family")
-        return { ok: true, status: 200, json: async () => ({ family: { id: "f1" } }) };
-      if (url === "/api/family/invites" && init?.method === "POST")
-        return { ok: true, status: 200, json: async () => ({ success: true }) };
-      return { ok: true, status: 200, json: async () => ({}) };
-    }) as unknown as typeof fetch;
+    global.fetch = jest.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/family")
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ family: { id: "f1" } }),
+          };
+        if (url === "/api/family/invites" && init?.method === "POST")
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ success: true }),
+          };
+        return { ok: true, status: 200, json: async () => ({}) };
+      },
+    ) as unknown as typeof fetch;
 
     await enterFamily();
-    await userEvent.click(screen.getByRole("button", { name: /create family/i }));
-    await userEvent.click(await screen.findByRole("button", { name: /invite an account/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /create family/i }),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: /invite an account/i }),
+    );
     const emailInput = screen.getByLabelText("Email") as HTMLInputElement;
     await userEvent.type(emailInput, "kid@example.com");
     await userEvent.click(screen.getByRole("button", { name: /send invite/i }));
 
-    expect((await screen.findByRole("alert")).textContent).toMatch(/could not send the invite/i);
-    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("kid@example.com");
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /could not send the invite/i,
+    );
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe(
+      "kid@example.com",
+    );
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("marks the roster stale when a committed invite body stalls and exposes a retry", async () => {
     const user = userEvent.setup();
-    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    global.fetch = jest.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         if (url === "/api/family")
-          return { ok: true, status: 200, json: async () => ({ family: { id: "f1" } }) };
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ family: { id: "f1" } }),
+          };
         if (url === "/api/family/profiles")
-          return { ok: false, status: 409, json: async () => ({ error: "unsupported" }) };
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({ error: "unsupported" }),
+          };
         if (url === "/api/family/invites" && init?.method === "POST")
           return {
             ok: true,
@@ -422,13 +516,20 @@ describe("family creation next step", () => {
             }),
           };
         if (url === "/api/family/members")
-          return { ok: true, status: 200, json: () => new Promise<never>(() => {}) };
+          return {
+            ok: true,
+            status: 200,
+            json: () => new Promise<never>(() => {}),
+          };
         return { ok: true, status: 200, json: async () => ({}) };
-    }) as unknown as typeof fetch;
+      },
+    ) as unknown as typeof fetch;
 
     await enterFamily();
     await user.click(screen.getByRole("button", { name: /create family/i }));
-    await user.click(await screen.findByRole("button", { name: /invite an account/i }));
+    await user.click(
+      await screen.findByRole("button", { name: /invite an account/i }),
+    );
     await user.type(screen.getByLabelText("Email"), "kid@example.com");
     await user.click(screen.getByRole("button", { name: /send invite/i }));
     expect(await screen.findByText(/invite sent/i)).toBeTruthy();
@@ -437,7 +538,9 @@ describe("family creation next step", () => {
       () => expect(screen.getByText(/roster is not current yet/i)).toBeTruthy(),
       { timeout: 4000 },
     );
-    expect(screen.getByRole("button", { name: /refresh roster/i })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /refresh roster/i }),
+    ).toBeTruthy();
   });
 
   it("reconciles an ambiguous family create without issuing a second create", async () => {

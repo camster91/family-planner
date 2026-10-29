@@ -1,3 +1,5 @@
+import { storageBackend } from "./storage-backend";
+import { readD1ListOverview } from "./cloudflare/list-read";
 /** Canonical list summaries only: counts, not hydrated item rows or content. */
 import type { PrismaClient } from "@prisma/client";
 import { canCreateList } from "./role-capabilities";
@@ -45,6 +47,11 @@ export async function readListOverview(
     actor.tokenVersion < 0
   )
     return null;
+  if (storageBackend() === "d1")
+    return readD1ListOverview(
+      { ...actor, generation: actor.tokenVersion },
+      options,
+    );
   return db.$transaction(
     async (tx) => {
       const user = await tx.user.findUnique({

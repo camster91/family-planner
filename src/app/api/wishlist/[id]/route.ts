@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { idempotencyError } from '@/lib/idempotency'
+import { readD1WishlistItem, updateD1Wishlist, deleteD1Wishlist } from '@/lib/cloudflare/wishlist'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
@@ -28,6 +32,13 @@ export async function GET(
     const gate = await featureGate(auth.user.family_id, 'wishlist')
     if (gate) return gate
     const { id } = await params
+    if (storageBackend() === 'd1') {
+      const result = await readD1WishlistItem(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
     const item = await prisma!.wishlistItem.findFirst({
       where: { id, family_id: auth.user.family_id },
       include: {
@@ -41,6 +52,7 @@ export async function GET(
       ...item, approx_price: item.approx_price == null ? null : item.approx_price.toString(),
     } }, { headers })
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code)
     logRouteError('GET /api/wishlist/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -74,6 +86,16 @@ export async function PATCH(
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
 
+    if (storageBackend() === 'd1') {
+      const result = await updateD1Wishlist(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+        input,
+        key,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { 'Idempotency-Replayed': 'true', 'Cache-Control': 'private, no-store' } : { 'Cache-Control': 'private, no-store' } })
+    }
+
     const response = await withIdempotency(
       prisma!,
       key,
@@ -106,6 +128,7 @@ export async function PATCH(
     response.headers.set('Cache-Control', 'private, no-store')
     return response
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code)
     logRouteError('PATCH /api/wishlist/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -127,6 +150,15 @@ export async function DELETE(
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
+
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1Wishlist(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+        key,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { 'Idempotency-Replayed': 'true', 'Cache-Control': 'private, no-store' } : { 'Cache-Control': 'private, no-store' } })
+    }
 
     const response = await withIdempotency(
       prisma!,
@@ -159,6 +191,7 @@ export async function DELETE(
     response.headers.set('Cache-Control', 'private, no-store')
     return response
   } catch (err) {
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code)
     logRouteError('DELETE /api/wishlist/[id]', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

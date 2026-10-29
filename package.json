@@ -8,28 +8,34 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build --webpack",
+    "dev": "npm run cloudflare:generate:reads && next dev",
+    "build": "npm run cloudflare:generate:reads && next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run cloudflare:generate:reads && tsc --noEmit",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
     "test:ai:contracts": "jest --runInBand src/lib/ai-evaluation/__tests__",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
-    "type-check": "tsc --noEmit",
+    "type-check": "npm run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .github/workflows/release.yml .github/workflows/e2e.yml playwright.config.ts \"e2e/**/*.{ts,mjs,cjs}\" docs/CONSOLIDATION_PLAN.md docs/ISSUE_TRIAGE.md prisma.config.ts \"src/lib/imports/**/*.ts\" \"src/app/api/admin/imports/**/*.ts\" \"src/app/dashboard/settings/imports/**/*.tsx\" src/app/api/health/route.ts src/__tests__/health.test.ts",
     "prepare": "husky install",
-    "validate": "npm run type-check && npx prisma validate",
+    "validate": "npm run typecheck && npx prisma validate",
     "verify:app": "prisma generate && npm run typecheck && npm run lint && npm test -- --runInBand && npm run build && npm audit --omit=dev --audit-level=high",
     "health": "curl -f http://localhost:3000/api/health || exit 1",
-    "fixtures:seed": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs seed",
-    "fixtures:reset": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs reset",
+    "fixtures:seed": "node --experimental-strip-types --experimental-loader=./scripts/node-ts-loader.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs seed",
+    "fixtures:reset": "node --experimental-strip-types --experimental-loader=./scripts/node-ts-loader.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/fixtures.mjs reset",
     "perf:baseline": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/perf-baseline.mjs",
     "backfill:meals-groceries": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/backfill-meals-groceries.mjs",
-    "beta:scorecard": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/beta-scorecard.mjs"
+    "beta:scorecard": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/beta-scorecard.mjs",
+    "cloudflare:inventory": "node scripts/cloudflare/inventory.mjs",
+    "cloudflare:test:schema": "node scripts/cloudflare/schema-smoke.mjs",
+    "cloudflare:test:identity": "node scripts/cloudflare/identity-smoke.mjs",
+    "cloudflare:test:reads": "npm run cloudflare:generate:reads && node scripts/cloudflare/read-smoke.mjs",
+    "cloudflare:generate:reads": "node scripts/cloudflare/generate-read-schema.mjs && prisma generate --config prisma/cloudflare-read.config.ts",
+    "cloudflare:build": "opennextjs-cloudflare build"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
@@ -38,6 +44,7 @@
     "@capacitor/ios": "^8.5.3",
     "@capacitor/network": "^8.0.1",
     "@capacitor/share": "^8.0.3",
+    "@prisma/adapter-d1": "7.10.1",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.3",
@@ -62,6 +69,7 @@
     "@capacitor/cli": "^8.5.3",
     "@eslint/eslintrc": "^3.3.7",
     "@hono/node-server": "^2.1.4",
+    "@opennextjs/cloudflare": "1.20.13",
     "@playwright/test": "1.64.0",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.1",
@@ -86,7 +94,8 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "ts-jest": "^29.4.14",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "wrangler": "4.148.0"
   },
   "overrides": {
     "@prisma/config": {

@@ -1,4 +1,9 @@
 import { authorizeMealBatchInTx } from "@/lib/meal-batch-api";
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  addD1RecipeToGroceries,
+  D1PersonReceiptError,
+} from "@/lib/cloudflare/recipe-grocery";
 import { prisma } from '@/lib/prisma'
 import { NextRequest, NextResponse } from 'next/server'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -56,6 +61,24 @@ export async function POST(request: NextRequest) {
     }
 
     const actor = { id: auth.user.id, family_id: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 }
+    if (storageBackend() === "d1") {
+      const result = await addD1RecipeToGroceries(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        parsed.data,
+        key,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -71,6 +94,8 @@ export async function POST(request: NextRequest) {
       { beforeReplay: () => prisma!.$transaction(tx => authorizeMealBatchInTx(tx, { userId: actor.id, familyId: actor.family_id, tokenVersion: actor.tokenVersion }, true)) }
     )
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
     logRouteError('POST /api/lists/items/from-recipe', error, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

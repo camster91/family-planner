@@ -8,6 +8,8 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeProjectReplay, createProjectTaskWithReceipt, projectAction } from '@/lib/project-mutations'
+import { storageBackend } from '@/lib/storage-backend'
+import { createD1ProjectTask, readD1ProjectTasks } from '@/lib/cloudflare/notes-projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,8 +37,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
       )
     }
 
+    const { searchParams } = new URL(request.url)
+    const filterCompleted = searchParams.get('completed')
+
+    const scope = { familyId: auth.user.family_id, projectId, completed:
+      filterCompleted === 'true' ? true : filterCompleted === 'false' ? false : null }
+    const paging = parseProjectTaskPaging(searchParams, scope)
+    if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
+    if (storageBackend() === 'd1') {
+      const result = await readD1ProjectTasks({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, projectId, scope.completed, paging)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
     // The project is looked up with the caller's household: another
-    // household's project is the same 404 as a missing one (#289).
+    // household's project is the same 404 as a missing one (#289). Keep this
+    // PostgreSQL-only existence check after the native branch; Prisma is
+    // intentionally unavailable when storageBackend() is D1.
     const project = await prisma!.project.findFirst({
       where: { id: projectId, family_id: auth.user.family_id },
       select: { id: true },
@@ -49,13 +65,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
       )
     }
 
-    const { searchParams } = new URL(request.url)
-    const filterCompleted = searchParams.get('completed')
-
-    const scope = { familyId: auth.user.family_id, projectId, completed:
-      filterCompleted === 'true' ? true : filterCompleted === 'false' ? false : null }
-    const paging = parseProjectTaskPaging(searchParams, scope)
-    if (!paging.ok) return NextResponse.json({ error: paging.error }, { status: 400 })
     const where: Record<string, unknown> = { project_id: projectId, project: { family_id: auth.user.family_id } }
     if (paging.paged && paging.cursor) where.AND = [afterProjectTaskCursor(paging.cursor)]
 
@@ -126,6 +135,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
+
+    if (storageBackend() === 'd1') {
+      const result = await createD1ProjectTask({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, projectId, parsed.data, key)
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { 'Idempotency-Replayed': 'true', 'Cache-Control': 'private, no-store' } : { 'Cache-Control': 'private, no-store' } })
+    }
 
     const response = await withIdempotency(
       prisma!,

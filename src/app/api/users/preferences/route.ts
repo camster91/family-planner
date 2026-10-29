@@ -1,24 +1,22 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { D1NotificationPreferenceError, readD1NotificationPreferences, updateD1NotificationPreferences } from '@/lib/cloudflare/notification-preferences'
+import { notificationPreferencesBody as body, notificationPreferencesColumns } from '@/lib/notification-preferences-values'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithUser } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
-import { readIdempotencyKey, withIdempotency, type EffectResult } from '@/lib/idempotency'
+import { readIdempotencyKey, withIdempotency, idempotencyError, type EffectResult } from '@/lib/idempotency'
 import {
   MORNING_SUMMARY_SELECT,
   NOTIFICATION_PREFERENCES_ACTION,
   NOTIFICATION_PREFERENCE_SELECT,
-  morningSummaryFromRow,
-  preferencesFromRow,
-  preferencesToColumns,
 } from '@/lib/notification-policy'
 import { isClockTime } from '@/lib/ambient'
 import {
   MAX_TIME_ZONE_LENGTH,
   QUIET_HOURS_SELECT,
   isValidTimeZone,
-  quietHoursFromRow,
-  quietHoursToColumns,
 } from '@/lib/quiet-hours'
 import { apiError, logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
@@ -83,31 +81,6 @@ const patchSchema = z
 
 const SELECT = { ...NOTIFICATION_PREFERENCE_SELECT, ...QUIET_HOURS_SELECT, ...MORNING_SUMMARY_SELECT } as const
 
-function body(
-  row: Parameters<typeof preferencesFromRow>[0] &
-    Parameters<typeof quietHoursFromRow>[0] &
-    Parameters<typeof morningSummaryFromRow>[0]
-) {
-  return {
-    preferences: preferencesFromRow(row),
-    quietHours: quietHoursFromRow(row),
-    morningSummary: morningSummaryFromRow(row),
-  }
-}
-
-/**
- * Columns for the morning summary switch. Turning it on saves the browser's
- * zone; turning it off keeps the saved zone (it is used only while on) unless
- * a new one is sent. The last-sent day is never touched here, so switching
- * off and on again the same morning cannot send a second summary.
- */
-function morningSummaryColumns(m: { enabled: boolean; timeZone?: string | null }) {
-  return {
-    morning_summary_enabled: m.enabled,
-    ...(m.timeZone !== undefined ? { morning_summary_time_zone: m.timeZone } : {}),
-  }
-}
-
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
 // This route was already on the nested API_CONTRACTS.md shape; #161 adds
@@ -128,12 +101,15 @@ async function getPreferences(request: NextRequest) {
     const [auth, authError] = await authenticateWithUser(request)
     if (authError) return authError
 
+    if (storageBackend() === 'd1') return NextResponse.json(await readD1NotificationPreferences({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }), { headers: NO_STORE })
+
     const row = await prisma!.user.findUnique({
       where: { id: auth.user.id },
       select: SELECT,
     })
     return NextResponse.json(body(row), { headers: NO_STORE })
   } catch (err) {
+    if (err instanceof D1NotificationPreferenceError) return error(err.code === 'UNAUTHORIZED' ? 401 : 403, err.code, 'Access changed. Sign in again.', requestId)
     logRouteError('GET /api/users/preferences', err, requestId)
     return error(500, 'INTERNAL_ERROR', 'Internal server error', requestId)
   }
@@ -167,16 +143,15 @@ async function patchPreferences(request: NextRequest) {
     const parsed = patchSchema.safeParse(input)
     if (!parsed.success) return error(400, 'VALIDATION_ERROR', parsed.error.issues[0].message, requestId)
 
+    if (storageBackend() === 'd1') {
+      const result = await updateD1NotificationPreferences({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, parsed.data, key)
+      return NextResponse.json(result.body, { headers: { ...NO_STORE, ...(result.replayed ? { 'Idempotency-Replayed': 'true' } : {}) } })
+    }
     const userId = auth.user.id
     const effect = async (): Promise<EffectResult> => {
-      const { quietHours, morningSummary, ...switches } = parsed.data
       const row = await prisma!.user.update({
         where: { id: userId },
-        data: {
-          ...preferencesToColumns(switches),
-          ...(quietHours ? quietHoursToColumns({ ...quietHours, timeZone: quietHours.timeZone ?? null }) : {}),
-          ...(morningSummary ? morningSummaryColumns(morningSummary) : {}),
-        },
+        data: notificationPreferencesColumns(parsed.data),
         select: SELECT,
       })
       return { status: 200, body: body(row) }
@@ -195,6 +170,10 @@ async function patchPreferences(request: NextRequest) {
     for (const [name, value] of Object.entries(NO_STORE)) res.headers.set(name, value)
     return res
   } catch (err) {
+    if (err instanceof D1NotificationPreferenceError) {
+      if (err.code === 'IDEMPOTENCY_KEY_REUSED' || err.code === 'IDEMPOTENCY_IN_PROGRESS') return idempotencyError(err.code)
+      return error(err.code === 'UNAUTHORIZED' ? 401 : 403, err.code, 'Access changed. Sign in again.', requestId)
+    }
     logRouteError('PATCH /api/users/preferences', err, requestId)
     return error(500, 'INTERNAL_ERROR', 'Internal server error', requestId)
   }

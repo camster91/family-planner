@@ -8,6 +8,10 @@
 
 /** Canonical receipt retention, shared without importing server-only code. */
 export const IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** An incomplete legacy receipt becomes reclaimable after this interval. */
+export const IDEMPOTENCY_LOCK_TIMEOUT_MS = 30 * 1000
+/** Bounded housekeeping sample used by keyed mutation handlers. */
+export const IDEMPOTENCY_PRUNE_PROBABILITY = 0.05
 
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 /** Set on a response that was replayed from a stored idempotency record. */

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { LogIn, Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import {
@@ -16,6 +15,7 @@ import { clearAllPersonQueues } from "@/lib/offline-queue-browser";
 import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import { loginNoticeFor, safeRedirectPath } from "@/lib/safe-redirect";
+import { replaceWithFreshDocument } from "@/lib/auth-navigation";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -37,8 +37,6 @@ export default function LoginPage() {
     kind: "success" | "error";
     text: string;
   } | null>(null);
-  const router = useRouter();
-
   useEffect(() => {
     // Keep native submission disabled until React owns the form. Before
     // hydration there is no onSubmit handler, so the browser would otherwise
@@ -92,14 +90,10 @@ export default function LoginPage() {
       // Same-origin paths only: `//host` would leave the app (open redirect).
       const redirect = safeRedirectPath(params.get("redirect"));
       const token = params.get("token");
-      if (redirect) {
-        router.push(redirect);
-      } else if (token) {
-        router.push(`/join?token=${encodeURIComponent(token)}`);
-      } else {
-        router.push("/dashboard");
-      }
-      router.refresh();
+      const destination =
+        redirect ??
+        (token ? `/join?token=${encodeURIComponent(token)}` : "/dashboard");
+      replaceWithFreshDocument(destination);
     } catch {
       setError({ shared: "auth.unexpectedError" });
     } finally {

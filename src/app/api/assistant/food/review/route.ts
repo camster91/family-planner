@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { reviewD1FoodPlanWrite } from "@/lib/cloudflare/food-planning";
 import {
   boundedRequestText,
   RequestBodyTooLarge,
@@ -36,16 +39,27 @@ export async function POST(request: NextRequest) {
         { status: error instanceof RequestBodyTooLarge ? 413 : 400, headers },
       );
     }
-    const result = await reviewFoodPlanWrite(
-      prisma!,
-      {
-        userId: auth.user.id,
-        familyId: auth.user.family_id,
-        role: auth.user.role,
-        generation: auth.payload.tv ?? 0,
-      },
-      body,
-    );
+    const result = await (storageBackend() === "d1"
+      ? reviewD1FoodPlanWrite(
+          await getD1Database(),
+          {
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          body,
+        )
+      : reviewFoodPlanWrite(
+          prisma!,
+          {
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          body,
+        ));
     if (Buffer.byteLength(JSON.stringify(result), "utf8") > 262144)
       throw new FoodPlanningUnavailable("SOURCE_LIMIT");
     return NextResponse.json(result, { headers });

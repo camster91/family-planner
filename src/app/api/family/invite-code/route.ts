@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { rotateD1FamilyCode } from '@/lib/cloudflare/membership'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
@@ -53,7 +57,9 @@ export async function POST(request: NextRequest) {
     // A unique collision with another household's code aborts the
     // transaction; retry the whole transaction with a fresh code.
     const rotateOnce = (inviteCode: string) =>
-      prisma!.$transaction(async (tx) => {
+      storageBackend() === 'd1'
+        ? getD1Database().then(db => rotateD1FamilyCode(db, { userId: auth.user.id, familyId, generation: auth.payload.tv ?? 0 }, inviteCode, randomUUID(), auditSummary.inviteCodeRotated(), Date.now()))
+        : prisma!.$transaction(async (tx) => {
         const { count } = await tx.family.updateMany({ where: { id: familyId }, data: { invite_code: inviteCode } })
         if (count !== 1) return false
         await writeAuditLog(tx, {
@@ -74,7 +80,8 @@ export async function POST(request: NextRequest) {
       try {
         updated = await rotateOnce(inviteCode)
       } catch (err) {
-        if (!isInviteCodeCollision(err)) throw err
+        const d1Collision = storageBackend() === 'd1' && err instanceof Error && err.message.includes('UNIQUE constraint failed: Family.invite_code')
+        if (!d1Collision && !isInviteCodeCollision(err)) throw err
         if (attempt >= INVITE_CODE_ATTEMPTS) {
           logRouteError('POST /api/family/invite-code', err, getRequestId(request))
           return NextResponse.json(

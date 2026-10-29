@@ -1,3 +1,5 @@
+import { storageBackend } from "./storage-backend";
+import { updateD1PersonEvent } from "./cloudflare/event-update";
 /** Canonical online event PATCH. Absolute fields, no recurrence expansion or delete. */
 import type { PrismaClient } from "@prisma/client";
 import type { z } from "zod";
@@ -10,6 +12,7 @@ export async function updatePersonEvent(
   actor: PersonEventActor,
   input: z.infer<typeof updateEventSchema>,
 ): Promise<EffectResult> {
+  if (storageBackend() === "d1") return updateD1PersonEvent(actor, input);
   return db.$transaction(async tx => {
     const refused = await authorizePersonEventInTx(tx, actor, "edit");
     if (refused) return refused;

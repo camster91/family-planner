@@ -5,6 +5,8 @@ import { updateProjectSchema } from '@/lib/validations'
 import { featureGate } from '@/lib/feature-gate-server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1Project, updateD1Project, deleteD1Project } from '@/lib/cloudflare/notes-projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +30,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
         { error: 'Project ID is required' },
         { status: 400 }
       )
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await readD1Project({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, id)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     const project = await prisma!.project.findUnique({
@@ -123,6 +130,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       )
     }
 
+    if (storageBackend() === 'd1') {
+      const result = await updateD1Project({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, id, parsed.data)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
     // Verify the project exists and belongs to the user's family
     const existing = await prisma!.project.findUnique({
       where: { id },
@@ -192,6 +204,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         { error: 'Project ID is required' },
         { status: 400 }
       )
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1Project({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, id)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // Verify the project exists and belongs to the user's family

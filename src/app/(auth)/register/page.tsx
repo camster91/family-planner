@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { UserPlus, CheckCircle } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import {
@@ -11,12 +10,12 @@ import {
   type AuthEntryMessage,
   type AuthEntryFeedback,
 } from "@/i18n/auth-entry";
+import { replaceWithFreshDocument } from "@/lib/auth-navigation";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
   const copy = (key: AuthEntryMessage, params?: Record<string, string>) =>
     t(key, params, authEntryMessages);
-  const router = useRouter();
   const [showVerificationNotice, setShowVerificationNotice] = useState(false);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
     "idle",
@@ -109,8 +108,7 @@ export default function RegisterPage() {
 
       setError(null);
       if (data.joinedFamily) {
-        router.push("/dashboard");
-        router.refresh();
+        replaceWithFreshDocument("/dashboard");
         return;
       }
       setShowVerificationNotice(true);

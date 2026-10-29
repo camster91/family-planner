@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { updateD1BetaMetrics, D1FamilySettingsError } from '@/lib/cloudflare/family-settings'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
@@ -59,6 +61,10 @@ export async function PATCH(request: NextRequest) {
 
     const familyId = auth.user.family_id
     const enabled = parsed.data.enabled
+    if (storageBackend() === 'd1') {
+      const result = await updateD1BetaMetrics({ userId: auth.user.id, familyId, generation: auth.payload.tv ?? 0 }, enabled)
+      return NextResponse.json({ betaMetrics: result }, { headers: NO_STORE })
+    }
     const result = await prisma!.$transaction(async (tx) => {
       const changed = await setBetaMetricsEnabled(tx, familyId, enabled)
       if (!changed) return null
@@ -79,6 +85,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ betaMetrics: result }, { headers: NO_STORE })
   } catch (err) {
+    if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status, headers: NO_STORE })
     logRouteError('PATCH /api/family/beta-metrics', err, getRequestId(request))
     return NextResponse.json({ error: 'Could not save this setting' }, { status: 500, headers: NO_STORE })
   }

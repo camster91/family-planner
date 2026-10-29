@@ -15,13 +15,15 @@ import { OfflineBanner, BACK_ONLINE_MS } from "@/components/ui/offline-banner";
 import { I18nProvider, useTranslation } from "@/i18n";
 import { defaultFeatures, type FamilyFeatures } from "@/lib/features";
 import type { NavUser } from "@/types";
+import { replaceWithFreshDocument } from "@/lib/auth-navigation";
 let mockFeatures: FamilyFeatures = defaultFeatures();
-const mockPush = jest.fn(),
-  mockRefresh = jest.fn(),
+const mockReplace = replaceWithFreshDocument as jest.Mock,
   mockClearQueues = jest.fn();
 jest.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/calendar",
-  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
+}));
+jest.mock("@/lib/auth-navigation", () => ({
+  replaceWithFreshDocument: jest.fn(),
 }));
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatures: () => ({ features: mockFeatures }),
@@ -65,8 +67,7 @@ function network(state: boolean) {
 }
 beforeEach(() => {
   mockFeatures = defaultFeatures();
-  mockPush.mockClear();
-  mockRefresh.mockClear();
+  mockReplace.mockClear();
   mockClearQueues.mockClear();
   online = true;
   onlineSpy.mockImplementation(() => online);
@@ -115,8 +116,7 @@ it("updates open parent menu and both tab bars without changing private identity
   expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
   expect(global.fetch).not.toHaveBeenCalled();
   expect(mockClearQueues).not.toHaveBeenCalled();
-  expect(mockPush).not.toHaveBeenCalled();
-  expect(mockRefresh).not.toHaveBeenCalled();
+  expect(mockReplace).not.toHaveBeenCalled();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(opener).toHaveAttribute("aria-expanded", "false");
   expect(opener).toHaveFocus();
@@ -201,7 +201,7 @@ it("keeps an in-flight sign-out single across a mounted locale switch", async ()
   act(() => changeLocale("es"));
   await waitFor(() => expect(mockClearQueues).toHaveBeenCalledTimes(1));
   expect(global.fetch).not.toHaveBeenCalled();
-  expect(mockPush).not.toHaveBeenCalled();
+  expect(mockReplace).not.toHaveBeenCalled();
   await act(async () => {
     finish();
     await Promise.resolve();
@@ -210,9 +210,8 @@ it("keeps an in-flight sign-out single across a mounted locale switch", async ()
   expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", {
     method: "POST",
   });
-  expect(mockPush).toHaveBeenCalledTimes(1);
-  expect(mockPush).toHaveBeenCalledWith("/login");
-  expect(mockRefresh).toHaveBeenCalledTimes(1);
+  expect(mockReplace).toHaveBeenCalledTimes(1);
+  expect(mockReplace).toHaveBeenCalledWith("/login");
 });
 it("still logs out on the server when queue loading or clearing fails", async () => {
   mockClearQueues.mockRejectedValueOnce(new Error("Queue unavailable"));
@@ -220,7 +219,7 @@ it("still logs out on the server when queue loading or clearing fails", async ()
   localized(<DashboardNav user={person("parent")} />, "en");
   fireEvent.click(screen.getByRole("button", { name: "User menu" }));
   fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
-  await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/login"));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
   expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", {
     method: "POST",
   });

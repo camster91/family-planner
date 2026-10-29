@@ -7,6 +7,11 @@ import {
 /** Scoped read-only foundation for grounded food plans. No provider or apply path. */
 import { createHmac } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import type { D1Store } from "../cloudflare/database";
+import {
+  D1FoodPlanningUnavailable,
+  previewD1FoodPlan,
+} from "../cloudflare/food-planning";
 import { z } from "zod";
 import { getJwtSecret } from "../auth";
 import { lockUser, lockHousehold } from "../household-lock";
@@ -100,11 +105,11 @@ export type FoodPlanActor = {
   generation: number;
 };
 export async function previewFoodPlan(
-  db: Pick<PrismaClient, "$transaction">,
+  db: Pick<PrismaClient, "$transaction"> | D1Store,
   actor: FoodPlanActor,
   raw: z.infer<typeof foodPreviewRequest>,
   now = new Date(),
-) {
+): Promise<Awaited<ReturnType<typeof previewFoodPlanInTx>>> {
   const input = foodPreviewRequest.parse(raw);
   if (!foodPlanningEnabled()) throw new FoodPlanningUnavailable();
   if (!["parent", "teen"].includes(actor.role))
@@ -117,9 +122,27 @@ export async function previewFoodPlan(
     )
   )
     throw new FoodPlanningUnavailable("INVALID_DATES");
-  return db.$transaction((tx) => previewFoodPlanInTx(tx, actor, input, now), {
-    isolationLevel: "RepeatableRead",
-  });
+  if (
+    typeof (db as D1Store).prepare === "function" &&
+    typeof (db as D1Store).withSession === "function"
+  ) {
+    try {
+      return await previewD1FoodPlan(db as D1Store, actor, input, now);
+    } catch (error) {
+      if (error instanceof FoodPlanningUnavailable) throw error;
+      if (error instanceof D1FoodPlanningUnavailable)
+        throw new FoodPlanningUnavailable(error.code);
+      if (error instanceof Error && error.name === "ZodError") throw error;
+      throw new FoodPlanningUnavailable();
+    }
+  }
+  const postgresDb = db as Pick<PrismaClient, "$transaction">;
+  return postgresDb.$transaction(
+    (tx) => previewFoodPlanInTx(tx, actor, input, now),
+    {
+      isolationLevel: "RepeatableRead",
+    },
+  );
 }
 /** Caller owns a repeatable-read or serializable transaction. This renews the
  * same scoped source graph without nesting an independently committed read. */

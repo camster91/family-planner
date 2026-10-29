@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { listD1CalendarSubscriptions, createD1CalendarSubscription } from "@/lib/cloudflare/calendar-subscriptions";
 import { CALENDAR_OWNER_HEADER, CALENDAR_OWNER_PROTOCOL, readCalendarOwner, sameCalendarOwner, type CalendarReadOwner } from "@/lib/calendar-read-owner";
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import {
@@ -78,7 +80,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Your account or household changed. Reload the calendar.", code: "EVENT_SCOPE_CHANGED" },
         { status: 409, headers: { "Cache-Control": "private, no-store" } });
     const actor: CalendarSubscriptionActor = { userId: auth.user.id, familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0 };
-    const result = await withCalendarSubscriptionAccess(prisma!, actor, "read", async tx => {
+    const result = storageBackend() === "d1" ? await listD1CalendarSubscriptions(actor)
+      : await withCalendarSubscriptionAccess(prisma!, actor, "read", async tx => {
       const subs = await tx.calendarSubscription.findMany({
         where: { family_id: actor.familyId },
         select: SUB_SELECT,
@@ -164,7 +167,9 @@ export async function POST(request: NextRequest) {
       userId: auth.user.id, familyId: auth.user.family_id,
       role: auth.user.role, generation: auth.payload.tv ?? 0,
     };
-    const result = await withCalendarSubscriptionAccess(prisma!, actor, "create", async tx => {
+    const result = storageBackend() === "d1"
+      ? await createD1CalendarSubscription(actor, { name: parsed.data.name, color: parsed.data.color ?? null, url_enc: encryptSecret(url) })
+      : await withCalendarSubscriptionAccess(prisma!, actor, "create", async tx => {
       const count = await tx.calendarSubscription.count({ where: { family_id: actor.familyId } });
       if (count >= MAX_SUBSCRIPTIONS_PER_FAMILY) return { kind: "full" as const };
       const created = await tx.calendarSubscription.create({

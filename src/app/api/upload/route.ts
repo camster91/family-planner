@@ -14,6 +14,7 @@ import { chorePhotoPath } from '@/lib/chore-photos'
 import { lockHouseholdForJoin } from '@/lib/household-lock'
 import { checkRateLimit } from '@/lib/rate-limit-db'
 import { resolveUploadDir } from '@/lib/upload-dir'
+import { storageBackend } from '@/lib/storage-backend'
 import {
   FAMILY_UPLOAD_QUOTA_BYTES,
   FAMILY_UPLOAD_QUOTA_MESSAGE,
@@ -83,12 +84,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Ensure upload dir exists
-    const choreUploadDir = path.join(UPLOAD_DIR, 'chores')
-    if (!existsSync(choreUploadDir)) {
-      await mkdir(choreUploadDir, { recursive: true })
-    }
-
     const buf = Buffer.from(await file.arrayBuffer())
 
     // Validate type from the file's magic bytes, not the client-declared MIME
@@ -117,6 +112,57 @@ export async function POST(request: NextRequest) {
       .slice(0, 16)
     const ext = sniffed.ext
     const filename = `${hash}.${ext}`
+
+    if (storageBackend() === 'd1') {
+      const [{ getPrivateObjectStore }, { pruneD1UnreferencedUploads, storeD1ChoreUpload }] = await Promise.all([
+        import('@/lib/cloudflare/storage'),
+        import('@/lib/cloudflare/uploads'),
+      ])
+      const bucket = await getPrivateObjectStore()
+      // R2 has no scheduler or transaction. Prune only this household's stale
+      // unreferenced rows before admission; the helper rechecks every reference
+      // in its native D1 delete batch and removes objects after commit.
+      await pruneD1UnreferencedUploads({
+        familyId: auth.user.family_id,
+        bucket,
+        keepFilename: filename,
+      }).catch(() => {})
+      const stored = await storeD1ChoreUpload({
+        actor: {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          generation: auth.payload.tv ?? 0,
+        },
+        bytes: buf,
+        filename,
+        contentType: sniffed.mime,
+        bucket,
+      })
+      if (stored.kind === 'gone') return NextResponse.json({ error: 'Household not found' }, { status: 404 })
+      if (stored.kind === 'quota') {
+        log.warn('upload.photo.quota_exceeded')
+        return NextResponse.json({ error: FAMILY_UPLOAD_QUOTA_MESSAGE }, { status: 413 })
+      }
+      if (stored.kind === 'collision') {
+        log.warn('upload.photo.collision')
+        return NextResponse.json({ error: 'Upload failed, please try again' }, { status: 409 })
+      }
+      log.info('upload.photo', { size: buf.length, type: sniffed.mime })
+      return NextResponse.json({
+        url: chorePhotoPath(filename),
+        filename,
+        size: stored.row.size_bytes,
+        type: stored.row.content_type,
+      })
+    }
+
+    // The PostgreSQL backend stores files on the local filesystem. Keep all
+    // filesystem setup below the D1/R2 branch: Workers have no local upload
+    // directory and must never execute these calls.
+    const choreUploadDir = path.join(UPLOAD_DIR, 'chores')
+    if (!existsSync(choreUploadDir)) {
+      await mkdir(choreUploadDir, { recursive: true })
+    }
     const filepath = path.join(choreUploadDir, filename)
 
     // Opportunistic cleanup of this household's stale, unreferenced uploads

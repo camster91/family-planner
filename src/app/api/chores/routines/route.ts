@@ -18,6 +18,7 @@ import {
 } from "@/lib/routine-schedule-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +26,11 @@ export async function GET(request: NextRequest) {
     if (!opened.ok) return opened.response;
     const stackId = new URL(request.url).searchParams.get("stack_id");
     if (stackId === null) {
+      if (storageBackend() === "d1") {
+        const { readD1RoutineScheduleCatalog } = await import("@/lib/cloudflare/routine-schedule");
+        const result = await readD1RoutineScheduleCatalog(opened.actor, new URL(request.url).searchParams.get("cursor"));
+        return routineResponse(result.body, result.status);
+      }
       const result = await readRoutineScheduleCatalog(
         prisma!,
         opened.actor,
@@ -34,6 +40,11 @@ export async function GET(request: NextRequest) {
     }
     if (!stackId || stackId.length > 128)
       return routineError(400, "INVALID_QUERY");
+    if (storageBackend() === "d1") {
+      const { readD1RoutineSchedule } = await import("@/lib/cloudflare/routine-schedule");
+      const result = await readD1RoutineSchedule(opened.actor, stackId);
+      return routineResponse(result.body, result.status);
+    }
     const result = await readRoutineSchedule(prisma!, opened.actor, stackId);
     return routineResponse(result.body, result.status);
   } catch (caught) {
@@ -62,14 +73,9 @@ export async function POST(request: NextRequest) {
         "INVALID_ROUTINE_REQUEST",
       );
     }
-    const result = await saveRoutineSchedule(
-      prisma!,
-      opened.actor,
-      body,
-      key,
-      new Date(),
-      routineRecoveryWritingEnabled(),
-    );
+    const result = storageBackend() === "d1"
+      ? await (await import("@/lib/cloudflare/routine-schedule")).saveD1RoutineSchedule(opened.actor, body, key, new Date(), undefined, routineRecoveryWritingEnabled())
+      : await saveRoutineSchedule(prisma!, opened.actor, body, key, new Date(), routineRecoveryWritingEnabled());
     return routineResponse(result.body, result.status);
   } catch (caught) {
     if (caught instanceof ZodError)

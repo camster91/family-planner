@@ -9,6 +9,10 @@ import { toAdjustmentDto, undoInventoryAdjustment } from '@/lib/inventory-adjust
 import { effectError, inventoryError, todayFrom, writeForbidden } from '@/lib/inventory-http'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { undoD1InventoryAdjustment } from '@/lib/cloudflare/inventory'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
+import { idempotencyError } from '@/lib/idempotency'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +47,30 @@ export async function POST(request: NextRequest, context: Context) {
 
     const familyId = auth.user.family_id
     const { id } = await context.params
+    if (storageBackend() === 'd1') {
+      try {
+        const result = await undoD1InventoryAdjustment(
+          {
+            userId: auth.user.id,
+            familyId,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          id,
+          today,
+          key,
+        )
+        const response = NextResponse.json(result.body, {
+          status: result.status,
+          headers: result.replayed ? { 'Idempotency-Replayed': 'true' } : undefined,
+        })
+        response.headers.set('Cache-Control', 'private, no-store')
+        return response
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError) return idempotencyError(error.code)
+        throw error
+      }
+    }
     const res = await withIdempotency(
       prisma!,
       key,

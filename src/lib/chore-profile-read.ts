@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 /** Read-only canonical chore subject hydration. Action eligibility remains separate. */
 import type { PrismaClient } from "@prisma/client";
 export const CHORE_PROFILE_READ_BATCH = 200;
@@ -23,6 +24,10 @@ export async function hydrateChoreProfileMembers<T extends { assigned_member_id?
   familyId: string,
   rows: readonly T[],
 ): Promise<ProfileHydrated<T>[]> {
+  if (storageBackend() === "d1") {
+    const { hydrateD1ChoreProfileMembers } = await import("@/lib/cloudflare/chore-read-policy");
+    return hydrateD1ChoreProfileMembers(familyId, rows);
+  }
   const ids = [...new Set(rows.flatMap(row => row.assigned_member_id != null ? [row.assigned_member_id] : []))];
   const byId = new Map<string, HydratedProfileMember>();
   for (let offset = 0; offset < ids.length; offset += CHORE_PROFILE_READ_BATCH) {

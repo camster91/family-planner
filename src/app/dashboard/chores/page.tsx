@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { withChoreReads, type ChoreReadDb } from "@/lib/chore-read-scope";
 import { choreCheckCommandsEnabled } from "@/lib/chore-check-command";
 import { renewChoreCheckOwner } from "@/lib/chore-check-owner";
 import type { ChoreCheckOwner } from "@/lib/chore-check-command-shared";
@@ -35,16 +37,26 @@ import {
   readChoreSubject,
 } from "@/lib/chore-profile";
 
-export default async function ChoresPage({ searchParams }: {
+export default async function ChoresPage({
+  searchParams,
+}: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  return withChoreReads((db) => renderChoresPage({ searchParams }, db));
+}
+async function renderChoresPage(
+  {
+    searchParams,
+  }: { searchParams?: Promise<Record<string, string | string[] | undefined>> },
+  db: ChoreReadDb,
+) {
   const sessionUser = await getServerActor();
 
   if (!sessionUser) {
     return null;
   }
 
-  const user = await prisma!.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: sessionUser.id },
     select: { family_id: true, role: true },
   });
@@ -70,7 +82,7 @@ export default async function ChoresPage({ searchParams }: {
   // `historyCursor`.
   const include = {
     ...choreSubjectInclude,
-    creator: { select: { name: true } },
+    creator: { select: { name: true, family_id: true } },
   } as const;
   const queries = familyId ? currentChoreQueries(familyId) : null;
   const [open, awaitingCheck, history] = queries
@@ -78,18 +90,20 @@ export default async function ChoresPage({ searchParams }: {
         readVisibleChoreRows({
           take: queries.open.take,
           order: "desc",
-          read: (after, batchSize) => prisma!.chore.findMany({
-            where: after
-              ? { AND: [queries.open.where, afterChoreCursor(after, "desc")] }
-              : queries.open.where,
-            include,
-            orderBy: queries.open.orderBy,
-            take: batchSize,
-          }),
-          hidden: (ids) => hiddenRoutineOccurrenceIds(prisma!, familyId!, { ids }),
+          read: (after, batchSize) =>
+            db.chore.findMany({
+              where: after
+                ? { AND: [queries.open.where, afterChoreCursor(after, "desc")] }
+                : queries.open.where,
+              include,
+              orderBy: queries.open.orderBy,
+              take: batchSize,
+            }),
+          hidden: (ids) =>
+            hiddenRoutineOccurrenceIds(prisma!, familyId!, { ids }),
         }),
-        prisma!.chore.findMany({ ...queries.awaitingCheck, include }),
-        prisma!.chore.findMany({
+        db.chore.findMany({ ...queries.awaitingCheck, include }),
+        db.chore.findMany({
           where: {
             family_id: familyId,
             status: "verified",
@@ -113,13 +127,18 @@ export default async function ChoresPage({ searchParams }: {
 
   // Badge-only projection for displayed account assignees; no full completion history.
   // Profiles retain their own subject policy and never inherit an account streak.
-  const streakMap = familyId && gamification
-    ? await readChoreStreaks(prisma!, familyId, chores.map(chore => chore.assigned_to))
-    : {};
+  const streakMap =
+    familyId && gamification
+      ? await readChoreStreaks(
+          prisma!,
+          familyId,
+          chores.map((chore) => chore.assigned_to),
+        )
+      : {};
 
   // Get family members for assignment
   const familyMembers = familyId
-    ? await prisma!.user.findMany({
+    ? await db.user.findMany({
         where: { family_id: familyId },
         select: { id: true, name: true, role: true, age: true },
         orderBy: { role: "desc" },
@@ -145,21 +164,27 @@ export default async function ChoresPage({ searchParams }: {
   >();
   const rotations = new Map<string, string[]>();
   if (familyId && seriesIds.length > 0) {
-    const templates = await prisma!.chore.findMany({
-      where: { family_id: familyId, id: { in: seriesIds }, is_template: true },
-      select: {
-        id: true,
-        rotation_member_ids: true,
-        frequency: true,
-        weekly_days: true,
-      },
-    });
-    for (const t of templates) {
-      rotations.set(t.id, t.rotation_member_ids);
-      schedules.set(t.id, {
-        frequency: t.frequency,
-        weekly_days: t.weekly_days,
+    for (let offset = 0; offset < seriesIds.length; offset += 50) {
+      const templates = await db.chore.findMany({
+        where: {
+          family_id: familyId,
+          id: { in: seriesIds.slice(offset, offset + 50) },
+          is_template: true,
+        },
+        select: {
+          id: true,
+          rotation_member_ids: true,
+          frequency: true,
+          weekly_days: true,
+        },
       });
+      for (const t of templates) {
+        rotations.set(t.id, t.rotation_member_ids);
+        schedules.set(t.id, {
+          frequency: t.frequency,
+          weekly_days: t.weekly_days,
+        });
+      }
     }
   }
   const memberNames = new Map(familyMembers.map((m) => [m.id, m.name]));
@@ -212,6 +237,8 @@ export default async function ChoresPage({ searchParams }: {
     };
     const row = {
       ...publicChoreData(safeChore),
+      creator:
+        c.creator?.family_id === familyId ? { name: c.creator.name } : null,
       // Keep account/profile subjects display-only on this board. In
       // particular, never manufacture a User for an email-free member.
       assignee: subject ? { name: subject.name } : null,
@@ -239,14 +266,28 @@ export default async function ChoresPage({ searchParams }: {
   });
 
   const params = (await searchParams) ?? {};
-  let notificationFocus: { target: Awaited<ReturnType<typeof readChoreNotificationFocus>> } | undefined;
+  let notificationFocus:
+    | { target: Awaited<ReturnType<typeof readChoreNotificationFocus>> }
+    | undefined;
   if (params.focus !== undefined) {
     const actor = await getServerActor();
-    const target = actor && actor.id === sessionUser.id && actor.family_id === familyId && actor.role === user?.role && familyId
-      ? await readChoreNotificationFocus(prisma!, {
-          userId: actor.id, familyId, role: actor.role!, tokenVersion: actor.tokenVersion,
-        }, params.focus).catch(() => null)
-      : null;
+    const target =
+      actor &&
+      actor.id === sessionUser.id &&
+      actor.family_id === familyId &&
+      actor.role === user?.role &&
+      familyId
+        ? await readChoreNotificationFocus(
+            prisma!,
+            {
+              userId: actor.id,
+              familyId,
+              role: actor.role!,
+              tokenVersion: actor.tokenVersion,
+            },
+            params.focus,
+          ).catch(() => null)
+        : null;
     notificationFocus = { target };
   }
 
@@ -255,12 +296,39 @@ export default async function ChoresPage({ searchParams }: {
   // fails, so a new client cannot silently fall back to an unversioned write.
   let ownedCheck: { owner: ChoreCheckOwner | null } | undefined;
   if (choreCheckCommandsEnabled() && sessionUser.role === "parent") {
-    const candidate: ChoreCheckOwner | null = familyId && user?.role === "parent"
-      && sessionUser.family_id === familyId
-      ? { userId: sessionUser.id, familyId, role: "parent", generation: sessionUser.tokenVersion } : null;
-    ownedCheck = { owner: candidate && await renewChoreCheckOwner(prisma!, candidate).catch(() => false) ? candidate : null };
+    const candidate: ChoreCheckOwner | null =
+      familyId && user?.role === "parent" && sessionUser.family_id === familyId
+        ? {
+            userId: sessionUser.id,
+            familyId,
+            role: "parent",
+            generation: sessionUser.tokenVersion,
+          }
+        : null;
+    ownedCheck = {
+      owner:
+        candidate &&
+        (await renewChoreCheckOwner(prisma!, candidate).catch(() => false))
+          ? candidate
+          : null,
+    };
   }
 
+  if (storageBackend() === "d1" && familyId) {
+    const { renewD1ChoreReadOwner } =
+      await import("@/lib/cloudflare/chore-read-owner");
+    if (
+      sessionUser.family_id !== familyId ||
+      sessionUser.role !== user?.role ||
+      !(await renewD1ChoreReadOwner({
+        userId: sessionUser.id,
+        familyId,
+        role: user!.role,
+        generation: sessionUser.tokenVersion,
+      }))
+    )
+      return null;
+  }
   return (
     <ChoresContent
       ownedCheck={ownedCheck}

@@ -1,5 +1,11 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { createD1OAuthState } from "@/lib/cloudflare/calendar-oauth-state";
+import {
+  MAX_CALENDAR_CONNECTIONS,
+  readD1CalendarConnections,
+} from "@/lib/cloudflare/calendar-connections";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { getProviderConfig, isProvider } from "@/lib/calendar-sync/config";
 import { createOAuthState } from "@/lib/calendar-sync/oauth";
@@ -9,7 +15,6 @@ import {
   json,
   notFound,
 } from "@/lib/calendar-sync/route-helpers";
-import { MAX_CONNECTIONS_PER_FAMILY } from "@/lib/calendar-sync/sync";
 
 export const dynamic = "force-dynamic";
 
@@ -42,33 +47,65 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const existing = await prisma!.calendarConnection.findFirst({
-      where: {
-        family_id: auth.user.family_id,
-        user_id: auth.user.id,
-        provider,
-      },
-      select: { id: true },
-    });
+    const backend = storageBackend();
+    const nativeConnections =
+      backend === "d1"
+        ? await readD1CalendarConnections({
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          })
+        : null;
+    const existing =
+      backend === "d1"
+        ? nativeConnections?.find(
+            (connection) =>
+              connection.provider === provider && connection.is_mine,
+          )
+        : await prisma!.calendarConnection.findFirst({
+            where: {
+              family_id: auth.user.family_id,
+              user_id: auth.user.id,
+              provider,
+            },
+            select: { id: true },
+          });
     if (!existing) {
-      const count = await prisma!.calendarConnection.count({
-        where: { family_id: auth.user.family_id },
-      });
-      if (count >= MAX_CONNECTIONS_PER_FAMILY) {
+      const count =
+        backend === "d1"
+          ? (nativeConnections?.length ?? 0)
+          : await prisma!.calendarConnection.count({
+              where: { family_id: auth.user.family_id },
+            });
+      if (count >= MAX_CALENDAR_CONNECTIONS) {
         return json(
           {
-            error: `A household can connect at most ${MAX_CONNECTIONS_PER_FAMILY} calendars`,
+            error: `A household can connect at most ${MAX_CALENDAR_CONNECTIONS} calendars`,
           },
           409,
         );
       }
     }
 
-    const { state, codeChallenge } = await createOAuthState(prisma, {
-      familyId: auth.user.family_id,
-      userId: auth.user.id,
-      provider,
-    });
+    const nativeState =
+      backend === "d1"
+        ? await createD1OAuthState(
+            {
+              userId: auth.user.id,
+              familyId: auth.user.family_id,
+              generation: auth.payload.tv ?? 0,
+            },
+            provider,
+          )
+        : null;
+    const { state, codeChallenge } =
+      nativeState ??
+      (await createOAuthState(prisma, {
+        familyId: auth.user.family_id,
+        userId: auth.user.id,
+        provider,
+      }));
     return json({
       authorize_url: oauthFor(provider).authorizeUrl(
         config,

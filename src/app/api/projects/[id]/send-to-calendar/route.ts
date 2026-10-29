@@ -9,6 +9,8 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { DEFAULT_FAMILY_TIMEZONE, isValidTimeZone } from '@/lib/calendar-import/timezone'
 import { allDayRange, lockProjectRow, projectTaskUid, readProjectCalendarTaskBatch, PROJECT_CALENDAR_TASK_BATCH } from '@/lib/project-calendar'
+import { storageBackend } from '@/lib/storage-backend'
+import { sendD1ProjectToCalendar } from '@/lib/cloudflare/notes-projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +59,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (unsupportedResponse) return NextResponse.json({
       code: 'PROJECT_CALENDAR_RESPONSE_UNSUPPORTED', error: 'Refresh this app before sending project tasks.',
     }, { status: 400 })
+
+    if (storageBackend() === 'd1') {
+      const result = await sendD1ProjectToCalendar({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, projectId, timeZone, summaryMode)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     // Verify the project exists and belongs to the user's family
     const project = await prisma!.project.findUnique({

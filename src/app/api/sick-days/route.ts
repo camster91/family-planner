@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerUser } from '@/lib/supabase/server'
+import { getServerActor, getServerUser } from '@/lib/supabase/server'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1SickDays, createD1SickDay } from '@/lib/cloudflare/health'
 import { refusePairedDevice } from '@/lib/device-route'
 import { prisma } from '@/lib/prisma'
 import { featureGate } from '@/lib/feature-gate-server'
@@ -14,11 +16,22 @@ export async function GET(request: NextRequest) {
   const deviceRefusal = await refusePairedDevice(request)
   if (deviceRefusal) return deviceRefusal
 
-  const user = (await getServerUser()) as SessionUser | null
+  const serverActor = storageBackend() === 'd1' ? await getServerActor() : null
+  const user = (serverActor ?? await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const gate = await featureGate(user.family_id, 'sick-days')
   if (gate) return gate
   if (!user.family_id) return NextResponse.json({ sickDays: [] })
+
+  if (serverActor) {
+    const result = await readD1SickDays({
+      userId: serverActor.id,
+      familyId: user.family_id,
+      role: serverActor.role ?? user.role ?? '',
+      generation: serverActor.tokenVersion,
+    })
+    return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+  }
 
   // D1 (#102): a teen or child sees only their own sick days, and only their
   // own medications inside them.
@@ -64,7 +77,8 @@ export async function POST(request: NextRequest) {
     const deviceRefusal = await refusePairedDevice(request)
     if (deviceRefusal) return deviceRefusal
 
-    const user = (await getServerUser()) as SessionUser | null
+    const serverActor = storageBackend() === 'd1' ? await getServerActor() : null
+    const user = (serverActor ?? await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const gate = await featureGate(user.family_id, 'sick-days')
     if (gate) return gate
@@ -81,6 +95,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
     const body = parsed.data
+
+    if (serverActor) {
+      const result = await createD1SickDay({
+        userId: serverActor.id,
+        familyId: user.family_id,
+        role: serverActor.role ?? user.role ?? '',
+        generation: serverActor.tokenVersion,
+      }, body)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     // The sick person must be a member of the caller's family.
     const person = await prisma!.user.findFirst({

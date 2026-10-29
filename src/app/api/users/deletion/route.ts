@@ -4,6 +4,9 @@ import { getDeletionOptions } from '@/lib/account-deletion'
 import { refusePairedDevice } from '@/lib/device-route'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { readD1DeletionOptions } from '@/lib/cloudflare/account-deletion'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +25,9 @@ export async function GET(request: NextRequest) {
     const [payload, error] = await authenticateRequest(request)
     if (error) return error
 
-    const options = await getDeletionOptions(payload.userId)
+    const options = storageBackend() === 'd1'
+      ? await readD1DeletionOptions(payload.userId, await getD1Database())
+      : await getDeletionOptions(payload.userId)
     if (!options) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
     return NextResponse.json(options, { headers: { 'Cache-Control': 'private, no-store' } })

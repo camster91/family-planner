@@ -9,6 +9,8 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { authorizeProjectReplay, createProjectWithReceipt, projectAction } from '@/lib/project-mutations'
+import { storageBackend } from '@/lib/storage-backend'
+import { createD1Project, readD1Projects } from '@/lib/cloudflare/notes-projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +31,10 @@ export async function GET(request: NextRequest) {
     const paging = parseProjectPaging(searchParams, scope)
     if (!paging.ok || (paging.paged && requestedStatus !== null && status === null)) {
       return NextResponse.json({ error: paging.ok ? 'Invalid project status filter' : paging.error }, { status: 400 })
+    }
+    if (storageBackend() === 'd1') {
+      const result = await readD1Projects({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, scope, paging)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
     const result = await readProjectOverview(prisma!, scope, paging)
     return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -66,6 +72,11 @@ export async function POST(request: NextRequest) {
 
     const { key, error: keyError } = readIdempotencyKey(request)
     if (keyError) return keyError
+
+    if (storageBackend() === 'd1') {
+      const result = await createD1Project({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, parsed.data, key)
+      return NextResponse.json(result.body, { status: result.status, headers: result.replayed ? { 'Idempotency-Replayed': 'true', 'Cache-Control': 'private, no-store' } : { 'Cache-Control': 'private, no-store' } })
+    }
 
     const response = await withIdempotency(
       prisma!,

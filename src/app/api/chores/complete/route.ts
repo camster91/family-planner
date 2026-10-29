@@ -1,3 +1,6 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { transitionD1AccountChore } from "@/lib/cloudflare/chore-state";
+import { recordBetaMetric } from "@/lib/beta-metrics";
 import { choreJson } from "@/lib/chore-json";
 import { prisma } from '@/lib/prisma'
 import { NextRequest } from 'next/server'
@@ -15,11 +18,10 @@ import { RoutineOccurrenceUnavailableError } from '@/lib/routine-occurrence-poli
 export const dynamic = 'force-dynamic'
 
 /**
- * POST /api/chores/complete. The write itself is `completeChore`
- * (src/lib/chore-complete.ts), shared with the paired tablet's
- * POST /api/device/chores/:id/complete (#274), so the rules cannot drift:
- * only an open chore completes, a repeat is a no-op, and only a parent's
- * verify awards XP.
+ * POST /api/chores/complete. PostgreSQL uses `completeChore`, shared with
+ * the paired tablet. The D1 account adapter preserves its open-state, repeat
+ * no-op and recurrence rules in one native batch. Device credentials retain
+ * their separate protocol; only a parent's verification awards XP.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +40,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { choreId, photoUrl } = parsed.data
+
+    if (storageBackend() === 'd1') {
+      const result = await transitionD1AccountChore({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload.tv ?? 0 }, { kind: 'complete', choreId, photoUrl })
+      if (result.completed) await recordBetaMetric(prisma!, auth.user.family_id, 'chore_completed', { now: result.completedAt })
+      return choreJson(result.body, { status: result.status })
+    }
 
     const chore = await prisma!.chore.findUnique({ where: { id: choreId }, select: COMPLETABLE_CHORE_SELECT })
     if (!chore) {

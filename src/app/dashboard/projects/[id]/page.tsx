@@ -2,8 +2,11 @@ import { PROJECT_TASK_PAGE_SIZE, parseProjectTaskPaging, afterProjectTaskCursor,
 import { ProjectTaskPageNav } from "./ProjectTaskPageNav";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor, getServerUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1Project, readD1ProjectTasks } from "@/lib/cloudflare/notes-projects";
+import { withD1ReadClient } from "@/lib/cloudflare/read-client";
 import { LargeHeader } from "@/components/ui/large-header";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { FeatureOffState } from "@/components/ui/feature-gate";
@@ -31,77 +34,122 @@ interface ProjectDetailPageProps {
 }
 
 async function ProjectDetailContent({ id, taskCursors = [] }: { id: string; taskCursors?: string[] }) {
-  const sessionUser = await getServerUser();
+  const backend = storageBackend();
+  const sessionUser = backend === "d1" ? await getServerActor() : await getServerUser();
   if (!sessionUser) return null;
-
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      family_id: true,
-      role: true,
-      family: { select: { features: true } },
-    },
-  });
-
-  const familyId = user?.family_id;
+  const familyId = sessionUser.family_id;
   if (!familyId) return null;
-
-  // Same server-side gate as the projects list (route inventory F-2).
-  if (
-    !isFeatureEnabled(normalizeFeatures(user?.family?.features), "projects")
-  ) {
-    return (
-      <FeatureOffState
-        featureKey="projects"
-        canManage={sessionUser.role !== "teen" && sessionUser.role !== "child"}
-      />
-    );
-  }
-
-  const project = await prisma!.project.findFirst({
-    where: { id, family_id: familyId },
-    include: {
-      creator: {
-        select: { id: true, name: true, avatar_url: true },
-      },
-    },
-  });
-
-  if (!project || project.family_id !== familyId) {
-    notFound();
-  }
 
   const taskScope = { familyId, projectId: id, completed: null };
   const taskParams = new URLSearchParams({ limit: String(PROJECT_TASK_PAGE_SIZE) });
   for (const cursor of taskCursors) taskParams.append("cursor", cursor);
   const taskPaging = parseProjectTaskPaging(taskParams, taskScope);
-  const [taskRows, counts] = await Promise.all([
-    taskPaging.ok && taskPaging.paged
-      ? prisma!.projectTask.findMany({
-          where: { project_id: id, project: { family_id: familyId },
-            ...(taskPaging.cursor ? afterProjectTaskCursor(taskPaging.cursor) : {}) },
-          include: { assignee: { select: { id: true, name: true, avatar_url: true } } },
-          orderBy: projectTaskPageOrder, take: PROJECT_TASK_PAGE_SIZE + 1,
-        })
-      : Promise.resolve([]),
-    prisma!.projectTask.groupBy({
-      by: ["completed"], where: { project_id: id, project: { family_id: familyId } },
-      _count: { _all: true },
-    }),
-  ]);
-  const tasks = taskRows.slice(0, PROJECT_TASK_PAGE_SIZE);
-  const nextTaskCursor = taskRows.length > PROJECT_TASK_PAGE_SIZE
-    ? encodeProjectTaskCursor(taskScope, tasks[tasks.length - 1]) : null;
-  const totalTasks = counts.reduce((total, row) => total + row._count._all, 0);
-  const completedTasks = counts.filter((row) => row.completed).reduce((total, row) => total + row._count._all, 0);
-  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  let project: any;
+  let tasks: any[] = [];
+  let nextTaskCursor: string | null = null;
+  let totalTasks = 0;
+  let completedTasks = 0;
+  let familyMembers: Array<{ id: string; name: string }> = [];
 
-  // Get family members for assignment dropdown
-  const familyMembers = await prisma!.user.findMany({
-    where: { family_id: familyId },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  if (backend === "d1") {
+    const actor = sessionUser as NonNullable<Awaited<ReturnType<typeof getServerActor>>>;
+    const native = await readD1Project({
+      userId: actor.id,
+      familyId,
+      role: actor.role!,
+      generation: actor.tokenVersion,
+    }, id);
+    if (native.status === 401) return null;
+    if (native.status === 403) {
+      return <FeatureOffState featureKey="projects" canManage={sessionUser.role === "parent"} />;
+    }
+    if (native.status === 404) notFound();
+    if (native.status !== 200) return null;
+    project = (native.body as any).project;
+    totalTasks = Number(project.taskCount ?? 0);
+    completedTasks = Number(project.completedTaskCount ?? 0);
+
+    if (taskPaging.ok && taskPaging.paged) {
+      const page = await readD1ProjectTasks({
+        userId: actor.id,
+        familyId,
+        role: actor.role!,
+        generation: actor.tokenVersion,
+      }, id, null, taskPaging);
+      if (page.status === 401) return null;
+      if (page.status === 403) {
+        return <FeatureOffState featureKey="projects" canManage={sessionUser.role === "parent"} />;
+      }
+      if (page.status === 404) notFound();
+      if (page.status !== 200) return null;
+      const body = page.body as any;
+      tasks = body.tasks ?? [];
+      nextTaskCursor = body.nextCursor ?? null;
+    }
+    familyMembers = await withD1ReadClient((db) => db.user.findMany({
+      where: { family_id: familyId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }));
+  } else {
+    const user = await prisma!.user.findUnique({
+      where: { id: sessionUser.id },
+      select: {
+        family_id: true,
+        role: true,
+        family: { select: { features: true } },
+      },
+    });
+    if (!user || user.family_id !== familyId) return null;
+
+    // Same server-side gate as the projects list (route inventory F-2).
+    if (!isFeatureEnabled(normalizeFeatures(user.family?.features), "projects")) {
+      return (
+        <FeatureOffState
+          featureKey="projects"
+          canManage={sessionUser.role !== "teen" && sessionUser.role !== "child"}
+        />
+      );
+    }
+
+    project = await prisma!.project.findFirst({
+      where: { id, family_id: familyId },
+      include: {
+        creator: {
+          select: { id: true, name: true, avatar_url: true },
+        },
+      },
+    });
+    if (!project || project.family_id !== familyId) notFound();
+
+    const [taskRows, counts] = await Promise.all([
+      taskPaging.ok && taskPaging.paged
+        ? prisma!.projectTask.findMany({
+            where: { project_id: id, project: { family_id: familyId },
+              ...(taskPaging.cursor ? afterProjectTaskCursor(taskPaging.cursor) : {}) },
+            include: { assignee: { select: { id: true, name: true, avatar_url: true } } },
+            orderBy: projectTaskPageOrder, take: PROJECT_TASK_PAGE_SIZE + 1,
+          })
+        : Promise.resolve([]),
+      prisma!.projectTask.groupBy({
+        by: ["completed"], where: { project_id: id, project: { family_id: familyId } },
+        _count: { _all: true },
+      }),
+    ]);
+    tasks = taskRows.slice(0, PROJECT_TASK_PAGE_SIZE);
+    nextTaskCursor = taskRows.length > PROJECT_TASK_PAGE_SIZE
+      ? encodeProjectTaskCursor(taskScope, tasks[tasks.length - 1]) : null;
+    totalTasks = counts.reduce((total, row) => total + row._count._all, 0);
+    completedTasks = counts.filter((row) => row.completed).reduce((total, row) => total + row._count._all, 0);
+
+    // Get family members for assignment dropdown.
+    familyMembers = await prisma!.user.findMany({
+      where: { family_id: familyId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  }
+  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Plain data only: this is a server component, so nothing it passes to the
   // client components below may be a function.
@@ -114,7 +162,7 @@ async function ProjectDetailContent({ id, taskCursors = [] }: { id: string; task
     due_date: t.due_date ? t.due_date.toISOString() : null,
   }));
 
-  const isParent = user.role === "parent";
+  const isParent = sessionUser.role === "parent";
   const isComplete = project.status === "completed" || progress === 100;
 
   return (

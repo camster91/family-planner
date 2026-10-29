@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { storageBackend } from '@/lib/storage-backend'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
 import {
@@ -43,6 +44,15 @@ export async function GET(request: NextRequest) {
     if (error) return error
     const parentError = requireParent(auth.user.role)
     if (parentError) return parentError
+    if (storageBackend() === 'd1') {
+      const { readD1BoardSettings } = await import('@/lib/cloudflare/board-settings')
+      const result = await readD1BoardSettings({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        tokenVersion: auth.payload.tv ?? 0,
+      })
+      return NextResponse.json(result.body, { status: result.status })
+    }
     return NextResponse.json(await readBoardSettings(prisma!, auth.user.family_id, 'person'))
   } catch (error) {
     logRouteError('GET /api/family/board-settings', error, getRequestId(request))
@@ -66,6 +76,16 @@ export async function PATCH(request: NextRequest) {
     }
     const parsed = parseBoardSettingsPatch(body, 'person')
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
+    if (storageBackend() === 'd1') {
+      const { updateD1BoardSettings } = await import('@/lib/cloudflare/board-settings')
+      const result = await updateD1BoardSettings({
+        userId: auth.user.id,
+        familyId,
+        tokenVersion: auth.payload.tv ?? 0,
+      }, body)
+      return NextResponse.json(result.body, { status: result.status })
+    }
 
     // The change and its household audit row (#285) commit together. A
     // refused patch has written nothing (every check runs before a write).

@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1RegistrationInvite } from '@/lib/cloudflare/accounts'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/rate-limit-db'
@@ -18,7 +21,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invite not found' }, { status: 404 })
   }
 
-  const invite = await prisma!.familyInvite.findUnique({
+  const invite = storageBackend() === 'd1'
+    ? await findD1RegistrationInvite(await getD1Database(), hashInviteToken(token))
+    : await prisma!.familyInvite.findUnique({
     where: { token_hash: hashInviteToken(token) },
     select: {
       email: true,

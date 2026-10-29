@@ -595,8 +595,11 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
+  /* Keep the source filter available on phones. Editable households also
+     render the connection menu in the header, but hiding this aside removes
+     the only compact way to choose a source. */
   .sources[data-menu-source="true"] {
-    display: none;
+    display: block;
   }
   .planner .sourceToggle {
     display: flex;

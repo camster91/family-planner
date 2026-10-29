@@ -7,6 +7,8 @@ import { parseSearchQuery, searchHousehold } from '@/lib/household-search'
 import { apiError, logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { withRouteTelemetry } from '@/lib/route-telemetry'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1HouseholdSearch } from '@/lib/cloudflare/search'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +38,19 @@ async function getSearch(request: NextRequest) {
     const parsed = parseSearchQuery(new URL(request.url).searchParams.get('q'))
     if (!parsed.ok) {
       return apiError(400, parsed.code, parsed.message, { requestId })
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await readD1HouseholdSearch({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload.tv ?? 0,
+      }, parsed.q)
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { 'Cache-Control': 'private, no-store' },
+      })
     }
 
     const family = await prisma!.family.findUnique({

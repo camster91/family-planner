@@ -24,7 +24,9 @@
  * This file is the only writer of the table (source-scan test in
  * src/lib/__tests__/beta-metrics.test.ts).
  */
+import { storageBackend } from '@/lib/storage-backend'
 import type { Prisma, PrismaClient } from '@prisma/client'
+import type { D1Statement, D1Store } from '@/lib/cloudflare/database'
 
 export const BETA_METRICS = [
   // Activation: family creation, invite (a member joined), first assignment.
@@ -72,6 +74,33 @@ export function retentionCutoffDay(now: Date): string {
   return utcDay(cutoff)
 }
 
+/**
+ * Build the native aggregate statements in one place.  The feedback receipt
+ * uses these same statements inside its idempotent batch, while ordinary D1
+ * callers use them after their domain write commits.  Keeping the SQL here
+ * preserves the single-writer boundary for BetaMetricDaily.
+ */
+export function prepareD1BetaMetricEffects(
+  db: Pick<D1Store, 'prepare'>,
+  familyId: string,
+  metric: DirectBetaMetric,
+  now: Date,
+): D1Statement[] {
+  if (!isBetaMetric(metric) || metric.startsWith('first_chore_'))
+    throw new Error('Beta metric unavailable')
+  if (typeof familyId !== 'string' || familyId.length === 0)
+    throw new Error('Beta metric household unavailable')
+  return [
+    db.prepare(`INSERT INTO "BetaMetricDaily" (family_id,day,metric,count)
+      SELECT id,?1,?2,1 FROM "Family" WHERE id=?3 AND beta_metrics_enabled=1
+      ON CONFLICT (family_id,day,metric) DO UPDATE SET count="BetaMetricDaily".count+1`)
+      .bind(utcDay(now), metric, familyId),
+    db.prepare(`DELETE FROM "BetaMetricDaily" WHERE family_id=?1 AND day<?2
+      AND EXISTS (SELECT 1 FROM "Family" WHERE id=?1 AND beta_metrics_enabled=1)`)
+      .bind(familyId, retentionCutoffDay(now)),
+  ]
+}
+
 type RecorderDb = Pick<PrismaClient, '$executeRaw'>
 
 function logFailure(error: unknown) {
@@ -97,6 +126,13 @@ export async function recordBetaMetric(
       return
     }
     if (typeof familyId !== 'string' || familyId.length === 0) return
+    if (storageBackend() === 'd1') {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      const store = await getD1Database()
+      const now = options.now ?? new Date()
+      await store.batch(prepareD1BetaMetricEffects(store, familyId, metric, now))
+      return
+    }
     await appendBetaMetric(db, familyId, metric, options.now ?? new Date())
   } catch (error) {
     logFailure(error)
@@ -146,6 +182,20 @@ export async function recordChoreAssigned(
   options: { now?: Date } = {}
 ): Promise<void> {
   await recordBetaMetric(db, familyId, 'chore_assigned', options)
+  if (storageBackend() === 'd1') {
+    try {
+      const { getD1Database } = await import('@/lib/cloudflare/database')
+      await (await getD1Database()).withSession('first-primary').prepare(`INSERT INTO "BetaMetricDaily"(family_id,day,metric,count)
+        SELECT f.id,?1,CASE WHEN c.created_at-(SELECT MIN(u.created_at) FROM "User" u WHERE u.family_id=f.id)<=600000
+          THEN 'first_chore_within_10m' ELSE 'first_chore_after_10m' END,1
+        FROM "Family" f JOIN "Chore" c ON c.id=?2 AND c.family_id=f.id WHERE f.id=?3 AND f.beta_metrics_enabled=1
+        AND NOT EXISTS(SELECT 1 FROM "Chore" e WHERE e.family_id=f.id AND e.id<>c.id AND e.created_at<=c.created_at)
+        AND NOT EXISTS(SELECT 1 FROM "BetaMetricDaily" b WHERE b.family_id=f.id AND b.metric IN ('first_chore_within_10m','first_chore_after_10m'))
+        ON CONFLICT(family_id,day,metric) DO UPDATE SET count=count+1`)
+        .bind(new Date(utcDay(options.now ?? new Date())+'T00:00:00Z').getTime(),chore.id,familyId).run()
+    } catch (error) { logFailure(error) }
+    return
+  }
   try {
     if (typeof familyId !== 'string' || familyId.length === 0) return
     const day = utcDay(options.now ?? new Date())
@@ -201,4 +251,15 @@ export async function setBetaMetricsEnabled(
   }
   if (!enabled) await tx.betaMetricDaily.deleteMany({ where: { family_id: familyId } })
   return { before }
+}
+
+/** Internal native consent erasure. The settings owner commits this statement
+ * with its current-parent audit/switch batch; no separate unguarded writer. */
+export function prepareD1BetaMetricConsentErasure(
+  db: Pick<import('@/lib/cloudflare/database').D1Store, 'prepare'>,
+  actor: { userId: string; familyId: string; generation: number }, enabled: boolean,
+) {
+  return db.prepare(`DELETE FROM "BetaMetricDaily" WHERE family_id=?2 AND ?4=0
+    AND EXISTS(SELECT 1 FROM "User" a WHERE a.id=?1 AND a.family_id=?2 AND a.role='parent' AND a.token_version=?3)`)
+    .bind(actor.userId,actor.familyId,actor.generation,Number(enabled))
 }

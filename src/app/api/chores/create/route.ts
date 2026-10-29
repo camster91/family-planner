@@ -1,3 +1,6 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { handleD1ChoreCreation } from "@/lib/cloudflare/chore-create-http";
+import { D1ChoreCreateReceiptError } from "@/lib/cloudflare/chore-create";
 import { readCreatedProfileChore } from "@/lib/chore-profile";
 import { readChoreCreateReceiptIdentity } from "@/lib/chore-create-receipt-identity";
 import { ASSISTANT_PROFILE_REVISION_HEADER } from "@/lib/assistant-reference-contract";
@@ -74,6 +77,7 @@ export async function POST(request: NextRequest) {
     } catch {
       return choreJson({ error: "Invalid JSON" }, { status: 400 });
     }
+    if (storageBackend() === "d1") return await handleD1ChoreCreation(request, auth, body, sourceGuard);
     // Profile assignment is an explicit, gated protocol-2 branch. Do not pass
     // it through the legacy schema: that would either reject a valid profile
     // target or, worse, infer an account from a member id.
@@ -372,6 +376,7 @@ export async function POST(request: NextRequest) {
     if (disclosureDenied) return choreJson(disclosureDenied.body, { status: disclosureDenied.status, headers: response.headers });
     return choreJson({ chore }, { headers: response.headers });
   } catch (error) {
+    if (error instanceof D1ChoreCreateReceiptError) return idempotencyError(error.code);
     if (error instanceof AssistantSourceRefused) return error.response();
     if (error instanceof ProfileChoreError) {
       const status =

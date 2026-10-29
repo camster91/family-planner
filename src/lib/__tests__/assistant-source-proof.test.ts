@@ -19,6 +19,7 @@ import {
   readAssistantSourceProof,
   assistantSourceGuard,
   AssistantSourceRefused,
+  assistantSourceLeaseEnd,
 } from "../assistant-source-proof";
 import { loadReferencedAssistantToday } from "../assistant-references";
 import { defaultFeatures } from "../features";
@@ -149,4 +150,20 @@ it("rereads the protected source basis without materializing recurring tasks and
   await expect(guard.verify(tx as never)).rejects.toBeInstanceOf(
     AssistantSourceRefused,
   );
+});
+
+it("bounds native batch admission at the first expired millisecond or local midnight", () => {
+  const regular = readAssistantSourceProof(token(), owner, "event_create");
+  expect(assistantSourceLeaseEnd(regular)).toBe(Date.parse(context.expiresAt));
+  const midnightContext = {
+    ...context,
+    generatedAt: "2026-10-23T03:59:40.000Z",
+    expiresAt: "2026-10-23T04:00:40.000Z",
+    viewer: { role: "parent" as const, localDate: "2026-10-22", timeZone: "America/Toronto" },
+  };
+  const midnight = readAssistantSourceProof(
+    issueAssistantSourceProof(owner, "event_create", midnightContext, [], features), owner, "event_create",
+  );
+  expect(assistantSourceLeaseEnd(midnight)).toBe(Date.parse("2026-10-23T04:00:00Z"));
+  expect(() => assistantSourceLeaseEnd({ ...midnight, localDate: "2026-10-21" })).toThrow(AssistantSourceRefused);
 });

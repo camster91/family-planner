@@ -6,6 +6,10 @@ const config = [
   {
     ignores: [
       '.next/**',
+      // Generated Cloudflare bundles and local runtime state
+      '.open-next/**',
+      '.wrangler/**',
+      'src/generated/cloudflare-read/**',
       'node_modules/**',
       'out/**',
       'coverage/**',

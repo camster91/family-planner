@@ -1,25 +1,31 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  changeD1CalendarConnection,
+  clearD1CalendarConnection,
+  d1ConnectionDto,
+  readD1CalendarConnectionSecret,
+  updateD1CalendarPushMode,
+} from "@/lib/cloudflare/calendar-connections";
+import {
+  listD1ConnectionCalendars,
+  NativeConnectionNotReadyError,
+  revokeD1ProviderGrant,
+} from "@/lib/cloudflare/calendar-two-way-sync";
 import { getProviderConfig, isProvider } from "@/lib/calendar-sync/config";
 import {
   authParentForSync,
   json,
   notFound,
 } from "@/lib/calendar-sync/route-helpers";
-import {
-  changeCalendar,
-  CONNECTION_DTO_SELECT,
-  ConnectionNotReadyError,
-  listConnectionCalendars,
-  PUSH_MODES,
-  removeConnection,
-  toConnectionDto,
-} from "@/lib/calendar-sync/sync";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+const PUSH_MODES = ["linked", "all"] as const;
 
 const patchSchema = z
   .object({
@@ -43,11 +49,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (error) return error;
     const { id } = await context.params;
     const familyId = auth.user.family_id;
+    const backend = storageBackend();
 
-    const conn = await prisma!.calendarConnection.findFirst({
-      where: { id, family_id: familyId },
-      select: { id: true, user_id: true, provider: true, calendar_id: true },
-    });
+    const nativeActor = {
+      userId: auth.user.id,
+      familyId,
+      role: auth.user.role,
+      generation: auth.payload.tv ?? 0,
+    };
+    const conn =
+      backend === "d1"
+        ? await readD1CalendarConnectionSecret(nativeActor, id)
+        : await prisma!.calendarConnection.findFirst({
+            where: { id, family_id: familyId },
+            select: {
+              id: true,
+              user_id: true,
+              provider: true,
+              calendar_id: true,
+            },
+          });
     if (!conn) return json(NOT_FOUND, 404);
     if (conn.user_id !== auth.user.id) {
       return json(
@@ -72,10 +93,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (wanted !== undefined && wanted !== conn.calendar_id) {
       // Only a calendar this account can write to may be chosen.
       let calendars;
+      const NotReadyError =
+        backend === "d1"
+          ? NativeConnectionNotReadyError
+          : (await import("@/lib/calendar-sync/sync")).ConnectionNotReadyError;
       try {
-        calendars = await listConnectionCalendars(conn.id, familyId);
+        calendars =
+          backend === "d1"
+            ? await listD1ConnectionCalendars(nativeActor, conn.id)
+            : await (
+                await import("@/lib/calendar-sync/sync")
+              ).listConnectionCalendars(conn.id, familyId);
       } catch (err) {
-        if (err instanceof ConnectionNotReadyError)
+        if (err instanceof NotReadyError)
           return json({ error: "Reconnect this calendar first" }, 409);
         return json(
           { error: "Could not load calendars from the provider" },
@@ -87,25 +117,51 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
       if (!chosen)
         return json({ error: "Choose one of your writable calendars" }, 400);
-      await changeCalendar(prisma, conn.id, familyId, {
-        id: chosen.id,
-        name: chosen.name.slice(0, 120),
-      });
+      if (backend === "d1")
+        await changeD1CalendarConnection(nativeActor, conn.id, {
+          id: chosen.id,
+          name: chosen.name.slice(0, 120),
+        });
+      else
+        await (
+          await import("@/lib/calendar-sync/sync")
+        ).changeCalendar(prisma, conn.id, familyId, {
+          id: chosen.id,
+          name: chosen.name.slice(0, 120),
+        });
     }
 
     if (parsed.data.push_mode !== undefined) {
-      await prisma!.calendarConnection.updateMany({
-        where: { id: conn.id, family_id: familyId },
-        data: { push_mode: parsed.data.push_mode },
-      });
+      if (backend === "d1")
+        await updateD1CalendarPushMode(
+          nativeActor,
+          conn.id,
+          parsed.data.push_mode,
+        );
+      else
+        await prisma!.calendarConnection.updateMany({
+          where: { id: conn.id, family_id: familyId },
+          data: { push_mode: parsed.data.push_mode },
+        });
     }
 
-    const row = await prisma!.calendarConnection.findFirst({
-      where: { id: conn.id, family_id: familyId },
-      select: CONNECTION_DTO_SELECT,
-    });
+    const row =
+      backend === "d1"
+        ? await readD1CalendarConnectionSecret(nativeActor, conn.id)
+        : await prisma!.calendarConnection.findFirst({
+            where: { id: conn.id, family_id: familyId },
+            select: (await import("@/lib/calendar-sync/sync"))
+              .CONNECTION_DTO_SELECT,
+          });
     return json({
-      connection: row ? toConnectionDto(row, auth.user.id) : null,
+      connection: row
+        ? backend === "d1"
+          ? d1ConnectionDto(row as any, auth.user.id)
+          : (await import("@/lib/calendar-sync/sync")).toConnectionDto(
+              row,
+              auth.user.id,
+            )
+        : null,
     });
   } catch {
     console.error("Error updating calendar connection");
@@ -121,6 +177,22 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const [auth, error] = await authParentForSync(request);
     if (error) return error;
     const { id } = await context.params;
+    const backend = storageBackend();
+    if (backend === "d1") {
+      const actor = {
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload.tv ?? 0,
+      };
+      const conn = await readD1CalendarConnectionSecret(actor, id);
+      if (!conn) return json(NOT_FOUND, 404);
+      await revokeD1ProviderGrant(conn, auth.user.family_id);
+      const removedEvents = await clearD1CalendarConnection(actor, id);
+      if (removedEvents === null) return json(NOT_FOUND, 404);
+      return json({ success: true, removed_events: removedEvents });
+    }
+    const { removeConnection } = await import("@/lib/calendar-sync/sync");
     const result = await removeConnection(id, auth.user.family_id);
     if (!result) return json(NOT_FOUND, 404);
     return json({ success: true, removed_events: result.removedEvents });

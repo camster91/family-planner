@@ -1,3 +1,6 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { updateD1ListItem } from "@/lib/cloudflare/list-write";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -49,6 +52,25 @@ export async function PATCH(request: NextRequest) {
         },
         { status: 400 },
       );
+    if (storageBackend() === "d1") {
+      const result = await updateD1ListItem(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        parsed.data,
+        key,
+        "list-item.edit",
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     // Live ownership must precede replay, as well as the transactional writer.
     const item = await prisma!.listItem.findUnique({
       where: { id: parsed.data.itemId },
@@ -58,7 +80,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     if (item.list.family_id !== auth.user.family_id)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 };
+    const actor = {
+      familyId: auth.user.family_id,
+      addedBy: auth.user.id,
+      role: auth.user.role,
+      generation: auth.payload?.tv ?? 0,
+    };
     return await withIdempotency(
       prisma!,
       key,
@@ -69,10 +96,18 @@ export async function PATCH(request: NextRequest) {
         action: "list-item.edit",
       },
       parsed.data,
-      ({ recordId }) => updateListItem(prisma!, parsed.data, auth.user, undefined, { authorize: tx => authorizePersonListItemInTx(tx, actor, {}), receipt: { recordId, action: "list-item.edit" } }),
-      { beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null) },
+      ({ recordId }) =>
+        updateListItem(prisma!, parsed.data, auth.user, undefined, {
+          authorize: (tx) => authorizePersonListItemInTx(tx, actor, {}),
+          receipt: { recordId, action: "list-item.edit" },
+        }),
+      {
+        beforeReplay: () => authorizePersonListItemReplay(prisma!, actor, null),
+      },
     );
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
     logRouteError("PATCH /api/lists/items/edit", error, getRequestId(request));
     return NextResponse.json(
       { error: "Internal server error" },

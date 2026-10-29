@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ListVersion } from "@/lib/cloudflare/list-read";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -64,6 +66,22 @@ export async function GET(
         { error: paging.error },
         { status: 400, headers: HEADERS },
       );
+    if (storageBackend() === "d1") {
+      const result = await readD1ListVersion(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        id,
+        paging,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: HEADERS,
+      });
+    }
     const list = await prisma!.list.findFirst({
       where: { id, family_id: auth.user.family_id },
       select: {

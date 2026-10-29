@@ -4,11 +4,16 @@ import { randomBytes } from "crypto";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import LoginPage from "../page";
 import ResetPasswordPage from "../../reset-password/page";
+import { replaceWithFreshDocument } from "@/lib/auth-navigation";
 
 const push = jest.fn();
+const replace = replaceWithFreshDocument as jest.Mock;
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: jest.fn() }),
   useSearchParams: () => new URLSearchParams("token=synthetic-reset"),
+}));
+jest.mock("@/lib/auth-navigation", () => ({
+  replaceWithFreshDocument: jest.fn(),
 }));
 jest.mock("@/i18n", () => ({
   useTranslation: () => ({
@@ -34,6 +39,7 @@ function autofill(container: HTMLElement, values: Record<string, string>) {
 
 beforeEach(() => {
   push.mockReset();
+  replace.mockReset();
   window.history.replaceState({}, "", "/login");
   global.fetch = jest
     .fn()
@@ -52,7 +58,7 @@ test("submits saved login credentials without input events and preserves them on
     container.querySelector<HTMLFormElement>("form")!.checkValidity(),
   ).toBe(true);
   fireEvent.submit(container.querySelector("form")!);
-  await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard"));
+  await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   expect(JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)).toEqual(
     { email: "autofill@example.test", password: secret },
   );

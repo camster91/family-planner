@@ -2,7 +2,7 @@ import {
   refuseInventoryReadScope,
   inventoryScopedResponse,
 } from "@/lib/inventory-read-http";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { featureGate } from "@/lib/feature-gate-server";
@@ -14,6 +14,8 @@ import {
 import { inventoryError, inventoryJson } from "@/lib/inventory-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1InventoryAdjustments } from "@/lib/cloudflare/inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,29 @@ async function handleInventoryRead(request: NextRequest) {
         400,
         "VALIDATION_ERROR",
         `limit must be 1-${ADJUSTMENTS_MAX_LIMIT} and offset >= 0`,
+      );
+    }
+
+    if (storageBackend() === "d1") {
+      const native = await readD1InventoryAdjustments(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        { itemId, limit, offset },
+      );
+      if (native.refusal)
+        return NextResponse.json(native.refusal.body, {
+          status: native.refusal.status,
+        });
+      return inventoryScopedResponse(
+        inventoryJson({
+          adjustments: native.adjustments,
+          nextOffset: native.nextOffset,
+        }),
+        readScope,
       );
     }
 

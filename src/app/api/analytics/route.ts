@@ -11,6 +11,8 @@ import { getRequestId } from '@/lib/request-id'
 import { legacyAnalyticsTypeFilter } from '@/lib/legacy-analytics'
 import { addDaysToKey, dayKeyFor, parseLocalZone, weekdayOfKey } from '@/lib/local-day-key'
 import { isGamificationOn } from '@/lib/gamification-visibility'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1Analytics } from '@/lib/cloudflare/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +70,19 @@ export async function GET(request: NextRequest) {
     const oneMonthAgo = new Date(now.getTime() - 30 * DAY_MS)
     // Bounded window: the last 90 days, never the future.
     const windowStart = new Date(now.getTime() - ANALYTICS_WINDOW_DAYS * DAY_MS)
+
+    if (storageBackend() === 'd1') {
+      const native = await readD1Analytics(
+        {
+          userId: original.actorId,
+          familyId: original.familyId,
+          role: original.role,
+          generation: original.generation,
+        },
+        { zone, summaryOnly, now },
+      )
+      return await reply(native.body, native.status)
+    }
 
     // Parallel queries for efficiency
     const [familyMembers, allChores, recentCompletedChores, recentActivities] = await Promise.all([

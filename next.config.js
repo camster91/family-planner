@@ -1,3 +1,5 @@
+const path = require('node:path')
+
 // Baseline security headers applied to every route, including paths that
 // src/middleware.ts does not reach (its matcher skips /_next/static,
 // /_next/image and favicon.ico) and responses the middleware returns early
@@ -86,6 +88,19 @@ const nextConfig = {
     remotePatterns: [],
   },
   webpack(config, { dev, isServer }) {
+    if (isServer) {
+      // Keep this precompiled Workers module for Wrangler/OpenNext to bundle.
+      // Webpack must not parse or dynamically compile the Prisma Wasm binary.
+      // Native .wasm imports let Wrangler resolve the static file correctly;
+      // keeping ?module on an absolute import breaks its module collector.
+      config.externals.push(({ context, request }, callback) => {
+        if (context?.endsWith(path.join('generated', 'cloudflare-read', 'internal')) && request?.endsWith('.wasm?module')) {
+          return callback(null, `import ${path.resolve(context, request.replace(/\?module$/, ''))}`)
+        }
+        callback()
+      })
+    }
+
     // Production runs are cold, reproducible builds. Do not retain Webpack's
     // large filesystem cache alongside the standalone release artifact.
     if (!dev) config.cache = false

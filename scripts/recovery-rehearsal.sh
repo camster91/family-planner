@@ -387,6 +387,7 @@ step_migrate_restored() {
 
 step_smoke() {
   (cd "$REPO_ROOT" && DATABASE_URL="$RESTORE_URL" node --experimental-strip-types \
+    --experimental-loader=./scripts/node-ts-loader.mjs \
     --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning \
     scripts/recovery-rehearsal-smoke.mjs "$WORK_DIR/smoke.json")
 }

@@ -19,11 +19,7 @@ import {
   type ProviderConfig,
 } from "./config";
 import { ProviderHttpError } from "./http";
-import {
-  fieldsHash,
-  isLocalMidnightSpan,
-  type SyncedFields,
-} from "./mapping";
+import { fieldsHash, isLocalMidnightSpan, type SyncedFields } from "./mapping";
 import { adapterFor, oauthFor } from "./providers";
 import {
   decryptToken,
@@ -41,6 +37,8 @@ import {
   type RemoteCalendar,
   type RemoteEvent,
 } from "./types";
+import { revokeProviderGrant } from "./revoke";
+export { revokeProviderGrant } from "./revoke";
 
 export const OPPORTUNISTIC_SYNC_MS = 5 * 60 * 1000;
 export const MAX_PUSH_PER_RUN = 100;
@@ -64,12 +62,18 @@ export const CURSOR_MAX_AGE_MS = 7 * DAY_MS;
 // idempotent.
 const CURSOR_RE = /^c1\.(\d{1,15})\.([\s\S]+)$/;
 
-export function packCursor(cursor: string | null, issuedAt: Date): string | null {
+export function packCursor(
+  cursor: string | null,
+  issuedAt: Date,
+): string | null {
   return cursor ? `c1.${issuedAt.getTime()}.${cursor}` : null;
 }
 
 /** The provider cursor to resume from, or null when a full listing is due. */
-export function usableCursor(stored: string | null | undefined, now: Date): string | null {
+export function usableCursor(
+  stored: string | null | undefined,
+  now: Date,
+): string | null {
   if (!stored) return null;
   const m = CURSOR_RE.exec(stored);
   if (!m) return null;
@@ -399,12 +403,19 @@ export class SupersededRunError extends Error {
  * either commits before the switch (whose cleanup then removes its rows) or
  * sees the new generation and aborts.
  */
-async function inGeneration<T>(ctx: Ctx, fn: (tx: any) => Promise<T>): Promise<T> {
+async function inGeneration<T>(
+  ctx: Ctx,
+  fn: (tx: any) => Promise<T>,
+): Promise<T> {
   const { conn } = ctx;
   return ctx.db.$transaction(async (tx: any) => {
     // A no-op UPDATE takes the row lock and tells us whether we still own it.
     const held = await tx.calendarConnection.updateMany({
-      where: { id: conn.id, family_id: conn.family_id, generation: conn.generation },
+      where: {
+        id: conn.id,
+        family_id: conn.family_id,
+        generation: conn.generation,
+      },
       data: { generation: conn.generation },
     });
     if (held.count !== 1) throw new SupersededRunError();
@@ -522,17 +533,17 @@ async function applyRemote(
         try {
           await inGeneration(ctx, (tx) =>
             tx.calendarEventLink.create({
-            data: {
-              family_id: conn.family_id,
-              connection_id: conn.id,
-              event_id: own.id,
-              external_id: r.id,
-              external_etag: r.etag,
-              external_updated_at: r.updated,
-              synced_hash: fieldsHash(remoteFields(r)),
-              all_day: r.allDay,
-              synced_at: now,
-            },
+              data: {
+                family_id: conn.family_id,
+                connection_id: conn.id,
+                event_id: own.id,
+                external_id: r.id,
+                external_etag: r.etag,
+                external_updated_at: r.updated,
+                synced_hash: fieldsHash(remoteFields(r)),
+                all_day: r.allDay,
+                synced_at: now,
+              },
             }),
           );
           linkedEventIds.add(own.id);
@@ -685,21 +696,23 @@ async function pushLocal(
     if (budget <= 0) break;
     budget--;
     const input = inputFor(ctx, ev, null);
-    const res = await withAuth(ctx, (t) => adapter.create(t, calendarId, input));
+    const res = await withAuth(ctx, (t) =>
+      adapter.create(t, calendarId, input),
+    );
     try {
       await inGeneration(ctx, (tx) =>
         tx.calendarEventLink.create({
-        data: {
-          family_id: conn.family_id,
-          connection_id: conn.id,
-          event_id: ev.id,
-          external_id: res.id,
-          external_etag: res.etag,
-          external_updated_at: res.updated,
-          synced_hash: fieldsHash(ev),
-          all_day: false,
-          synced_at: now,
-        },
+          data: {
+            family_id: conn.family_id,
+            connection_id: conn.id,
+            event_id: ev.id,
+            external_id: res.id,
+            external_etag: res.etag,
+            external_updated_at: res.updated,
+            synced_hash: fieldsHash(ev),
+            all_day: false,
+            synced_at: now,
+          },
         }),
       );
       summary.pushed.created++;
@@ -741,7 +754,7 @@ export async function syncConnection(
     const data: Record<string, unknown> = {
       last_synced_at: now,
       status: status === "not_ready" ? "pending" : status,
-      last_error: code ? MESSAGES[code] ?? MESSAGES.unknown : null,
+      last_error: code ? (MESSAGES[code] ?? MESSAGES.unknown) : null,
     };
     if (summary.conflicts > 0) {
       data.conflicts_count = { increment: summary.conflicts };
@@ -802,7 +815,11 @@ export async function syncConnection(
     // pull. Conditional on the generation: never restore an old calendar's cursor.
     await inGeneration(ctx, (tx) =>
       tx.calendarConnection.updateMany({
-        where: { id: conn.id, family_id: familyId, generation: conn.generation },
+        where: {
+          id: conn.id,
+          family_id: familyId,
+          generation: conn.generation,
+        },
         data: { sync_cursor: packCursor(pulled.nextCursor, issuedAt) },
       }),
     );
@@ -812,7 +829,8 @@ export async function syncConnection(
       console.warn("[calendar-sync] run superseded", { connectionId: conn.id });
       return { ...summary, status: "superseded" };
     }
-    if (err instanceof OAuthGrantError) return finish("reauth_required", "reauth");
+    if (err instanceof OAuthGrantError)
+      return finish("reauth_required", "reauth");
     if (err instanceof ProviderHttpError && err.code === "unauthorized")
       return finish("reauth_required", "reauth");
     if (err instanceof ProviderHttpError && err.code === "insufficient_scope")
@@ -939,7 +957,8 @@ export async function listConnectionCalendars(
         data: {
           status: "reauth_required",
           last_error:
-            err instanceof ProviderHttpError && err.code === "insufficient_scope"
+            err instanceof ProviderHttpError &&
+            err.code === "insufficient_scope"
               ? MESSAGES.reauth_scope
               : MESSAGES.reauth,
           access_token_enc: null,
@@ -957,7 +976,11 @@ export async function listConnectionCalendars(
  * connection row). Exported for account deletion, which runs it inside its
  * own transaction (src/lib/account-deletion.ts).
  */
-export async function clearConnectionData(tx: any, connectionId: string, familyId: string) {
+export async function clearConnectionData(
+  tx: any,
+  connectionId: string,
+  familyId: string,
+) {
   await tx.calendarEventLink.deleteMany({
     where: { connection_id: connectionId, family_id: familyId },
   });
@@ -1004,26 +1027,6 @@ export async function changeCalendar(
  * (after its transaction committed, so a failed deletion never leaves a
  * connection whose grant is already gone).
  */
-export async function revokeProviderGrant(
-  conn: { id: string; provider: string; access_token_enc: string | null; refresh_token_enc: string | null },
-  familyId: string,
-  deps: Pick<EngineDeps, "configFor" | "oauthFor"> = {},
-): Promise<boolean> {
-  if (!isProvider(conn.provider)) return false;
-  const config = (deps.configFor ?? getProviderConfig)(conn.provider);
-  const token =
-    decryptToken(conn.refresh_token_enc, tokenAad.refresh(familyId)) ??
-    decryptToken(conn.access_token_enc, tokenAad.access(familyId));
-  if (!config || !token) return false;
-  try {
-    await (deps.oauthFor ?? ((p) => oauthFor(p)))(conn.provider).revoke(config, token);
-    return true;
-  } catch {
-    console.warn("[calendar-sync] revoke failed", { connectionId: conn.id });
-    return false;
-  }
-}
-
 /**
  * Disconnect: revoke at the provider (best effort), then delete the tokens,
  * the links, the events imported from this connection, and the connection.

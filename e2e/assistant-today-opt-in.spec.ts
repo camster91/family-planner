@@ -42,7 +42,8 @@ test.use({ storageState: authFile("parentA") });
 
 const COPY = {
   en: {
-    launcher: "AI assistant",
+    launcher: "Add or ask",
+    ask: "Ask the assistant",
     close: "Close",
     message: "Your message",
     send: "Send",
@@ -52,7 +53,8 @@ const COPY = {
     refresh: "Refresh Today context",
   },
   es: {
-    launcher: "Asistente de IA",
+    launcher: "Añadir o preguntar",
+    ask: "Preguntar al asistente",
     close: "Cerrar",
     message: "Tu mensaje",
     send: "Enviar",
@@ -285,12 +287,16 @@ for (const locale of ["en", "es"] as const) {
       await assertRuntimePerson(page, info, locale);
 
       const copy = COPY[locale];
-      const launcher = page.getByRole("button", {
-        name: copy.launcher,
-        exact: true,
-      });
+      const launcher = page
+        .getByRole("navigation", { name: "Today quick actions" })
+        .getByRole("button", { name: copy.launcher, exact: true });
       await expect(launcher).toBeVisible();
       await launcher.click();
+      const quickAdd = page.getByTestId("quick-add-dialog");
+      await expect(quickAdd).toBeVisible();
+      await quickAdd
+        .getByRole("button", { name: new RegExp(copy.ask) })
+        .click();
       const dialog = page.getByRole("dialog");
       await expect(dialog).toBeVisible();
       const checkbox = dialog.getByRole("checkbox", {
@@ -452,7 +458,7 @@ test("child person session never receives Today assistant capability", async ({
     expect(current.family_id).toBe(FIXTURE_IDS.familyA.family);
     expect(current.role).toBe("child");
     await expect(
-      page.getByRole("button", { name: "AI assistant", exact: true }),
+      page.getByRole("button", { name: "Add or ask", exact: true }),
     ).toHaveCount(0);
     await expect(page.getByText("Include Today", { exact: true })).toHaveCount(
       0,

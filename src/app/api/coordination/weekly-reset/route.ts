@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import {
+  readD1WeeklyReset,
+  writeD1WeeklyReset,
+  authorizeD1WeeklyReset,
+} from "@/lib/cloudflare/weekly-reset";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import {
   boundedRequestText,
@@ -63,11 +70,12 @@ async function handle(request: NextRequest, write: boolean) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
-    if (!weeklyResetReady() || !prisma)
+    if (!weeklyResetReady())
       throw new WeeklyResetError("UNAVAILABLE");
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
+      role: auth.user.role,
       tokenVersion: auth.payload.tv ?? 0,
     };
     const owner = weeklyResetOwner(request, auth.payload, auth.user);
@@ -91,6 +99,19 @@ async function handle(request: NextRequest, write: boolean) {
           { error: "Invalid review scope" },
           { status: 400, headers },
         );
+      if (storageBackend() === "d1") {
+        return NextResponse.json(
+          {
+            review: await readD1WeeklyReset(
+              actor,
+              scope.data,
+              await getD1Database(),
+            ),
+          },
+          { headers },
+        );
+      }
+      if (!prisma) throw new WeeklyResetError("UNAVAILABLE");
       return NextResponse.json(
         { review: await readWeeklyReset(prisma, actor, scope.data) },
         { headers },
@@ -120,6 +141,22 @@ async function handle(request: NextRequest, write: boolean) {
       parsed.data.userId !== actor.userId
     )
       throw new WeeklyResetError("FORBIDDEN");
+    if (storageBackend() === "d1") {
+      const result = await writeD1WeeklyReset(
+        actor,
+        parsed.data,
+        key,
+        await getD1Database(),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: {
+          ...headers,
+          ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
+    }
+    if (!prisma) throw new WeeklyResetError("UNAVAILABLE");
     return await withIdempotency(
       prisma,
       key,

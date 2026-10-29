@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { notificationDeliverySelect, notificationDeliveryDecision } from '@/lib/notification-delivery-policy'
 // The ONE place the app creates a notification or sends account email
 // (#286, PR101 D-5). Policy: src/lib/notification-policy.ts.
 //
@@ -21,19 +23,15 @@ import { isMailConfigured, sendMail } from '@/lib/mail'
 import {
   ACCOUNT_MAIL_POLICY,
   ALWAYS_SEND,
-  CATEGORY_COLUMN,
-  IN_APP_NOTIFICATION_POLICY,
   OPT_IN_COLUMN,
   OPT_IN_MAIL_POLICY,
-  isOptInPolicy,
-  preferencesFromRow,
   type AccountMailKind,
   type InAppNotificationType,
-  type NotificationPolicy,
   type OptInMailKind,
 } from '@/lib/notification-policy'
 import { QUIET_HOURS_SELECT, isInQuietHours, quietHoursFromRow } from '@/lib/quiet-hours'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
+import type { D1Store } from '@/lib/cloudflare/database'
 
 export interface SummaryRecipientContext {
   role: string
@@ -48,6 +46,8 @@ export interface NotificationInput {
   recipientContext?: SummaryRecipientContext
   /** Manual parent sends revalidate their sender under the same locks. */
   senderId?: string
+  /** Optional current session evidence for manual senders, never a credential. */
+  senderContext?: SummaryRecipientContext
   title: string
   message: string
   type: InAppNotificationType
@@ -62,6 +62,10 @@ export interface NotificationInput {
  * `now` is for tests; it decides whether the recipient is in quiet hours.
  */
 export async function deliverNotification(input: NotificationInput, now: Date = new Date()) {
+  if (storageBackend() === 'd1') {
+    const { deliverD1Notification } = await import('@/lib/cloudflare/notification-delivery')
+    return deliverD1Notification(input, now)
+  }
   const familyId = input.familyId
   if (familyId) {
     return prisma!.$transaction(async tx => {
@@ -76,8 +80,9 @@ export async function deliverNotification(input: NotificationInput, now: Date = 
         return { delivered: false, notification: null } as const
       }
       if (input.senderId) {
-        const sender = await tx.user.findUnique({ where: { id: input.senderId }, select: { family_id: true, role: true } })
-        if (sender?.family_id !== familyId || sender?.role !== 'parent') {
+        const sender = await tx.user.findUnique({ where: { id: input.senderId }, select: { family_id: true, role: true, token_version: true } })
+        if (sender?.family_id !== familyId || sender?.role !== 'parent' ||
+          (input.senderContext && (sender.role !== input.senderContext.role || sender.token_version !== input.senderContext.tokenVersion))) {
           return { delivered: false, notification: null } as const
         }
       }
@@ -91,26 +96,10 @@ export async function deliverNotification(input: NotificationInput, now: Date = 
  * freshly authorize sender/recipient/source; this does not authenticate callers.
  */
 export async function deliverNotificationInTx(db: Pick<NonNullable<typeof prisma>, 'user' | 'notification'>, input: NotificationInput, now: Date) {
-  const policy: NotificationPolicy = IN_APP_NOTIFICATION_POLICY[input.type]
-  // One read of the recipient's own row: their category switch (unless ALWAYS)
-  // and their quiet hours.
-  const select: Record<string, true> = { ...QUIET_HOURS_SELECT }
-  if (isOptInPolicy(policy)) select[OPT_IN_COLUMN[policy]] = true
-  else if (policy !== ALWAYS_SEND) select[CATEGORY_COLUMN[policy]] = true
-  const row = (await db.user.findUnique({ where: { id: input.userId }, select })) as Record<
-    string,
-    boolean | string | null
-  > | null
-  if (isOptInPolicy(policy)) {
-    // Opt-in (O-40): only an explicit `true` lets it through.
-    if (row?.[OPT_IN_COLUMN[policy]] !== true) return { delivered: false, notification: null } as const
-  } else if (policy !== ALWAYS_SEND && !preferencesFromRow(row as Record<string, boolean> | null)[policy]) {
-    return { delivered: false, notification: null } as const
-  }
-  // Quiet hours never drop a notification: the row is stored, so nothing is
-  // lost. They only mark it as not to interrupt (applies to every in-app type,
-  // including `system` notices; account mail is not in-app and always sent).
-  const quiet = isInQuietHours(now, quietHoursFromRow(row))
+  const row = await db.user.findUnique({ where: { id: input.userId }, select: notificationDeliverySelect(input.type) })
+  const decision = notificationDeliveryDecision(row as Record<string, boolean | string | null> | null, input.type, now)
+  if (!decision.deliver) return { delivered: false, notification: null } as const
+  const quiet = decision.quiet
   const notification = await db.notification.create({
     data: {
       user_id: input.userId,
@@ -188,4 +177,61 @@ export async function sendOptInMail(
     })
     return { sent: true }
   }, { timeout: OPT_IN_MAIL_TRANSACTION_MS })
+}
+
+/**
+ * Native D1 counterpart to sendOptInMail. D1 cannot hold an interactive SQL
+ * lock over a provider fetch, so the primary read immediately before sending
+ * is the membership/preference/quiet-hours boundary. The caller's daily claim
+ * is consumed before this call and therefore remains the dedupe boundary if a
+ * provider response is lost or the member changes during the fetch.
+ */
+export async function sendD1OptInMail(
+  database: D1Store,
+  options: { userId: string; familyId: string; recipientContext: SummaryRecipientContext; subject: string; html: string; text: string },
+  now: Date = new Date(),
+): Promise<OptInMailResult> {
+  const deadline = Date.now() + OPT_IN_MAIL_TRANSACTION_MS - OPT_IN_MAIL_MARGIN_MS
+  const row = await database
+    .withSession('first-primary')
+    .prepare(`SELECT family_id,role,token_version,email,email_verified,morning_summary_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,quiet_hours_time_zone FROM "User" WHERE id=?1`)
+    .bind(options.userId)
+    .first<{
+      family_id: string | null
+      role: string
+      token_version: number
+      email: string | null
+      email_verified: number | boolean
+      morning_summary_enabled: number | boolean
+      quiet_hours_enabled: number | boolean
+      quiet_hours_start: string | null
+      quiet_hours_end: string | null
+      quiet_hours_time_zone: string | null
+    }>()
+  if (!row || row.family_id !== options.familyId || row.role !== options.recipientContext.role || row.token_version !== options.recipientContext.tokenVersion) {
+    return { sent: false, reason: 'membership_changed' }
+  }
+  if (row.morning_summary_enabled !== true && row.morning_summary_enabled !== 1) {
+    return { sent: false, reason: 'opted_out' }
+  }
+  if ((row.email_verified !== true && row.email_verified !== 1) || !row.email) {
+    return { sent: false, reason: 'unverified' }
+  }
+  if (isInQuietHours(now, quietHoursFromRow({
+    ...row,
+    quiet_hours_enabled: row.quiet_hours_enabled === true || row.quiet_hours_enabled === 1,
+  }))) {
+    return { sent: false, reason: 'quiet_hours' }
+  }
+  if (!isMailConfigured()) return { sent: false, reason: 'mail_not_configured' }
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new Error('Opt-in mail authorization deadline expired')
+  await sendMail({
+    to: row.email,
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    signal: AbortSignal.timeout(Math.min(OPT_IN_MAIL_PROVIDER_MS, remaining)),
+  })
+  return { sent: true }
 }

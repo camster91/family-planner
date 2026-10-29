@@ -59,6 +59,13 @@ function projectAssignee(userId: string, accountPresent: boolean, memberId: stri
   return { assigned_to: userId, assigned_member_id: memberId };
 }
 
+/** Source-owned eligibility reads; callers own locking or native atomic witnesses. */
+export type ChoreAssigneeReadDb = {
+  user: Pick<Prisma.TransactionClient["user"], "findFirst">;
+  householdMemberLegacyMapping: Pick<Prisma.TransactionClient["householdMemberLegacyMapping"], "findMany" | "count">;
+  householdMemberAccountLink: Pick<Prisma.TransactionClient["householdMemberAccountLink"], "findMany" | "count">;
+  householdMember: Pick<Prisma.TransactionClient["householdMember"], "findFirst">;
+};
 /** For automatic series top-up only: an inactive participant is skipped, a contradictory identity is refused. */
 export async function eligibleChoreAssigneeInTx(
   tx: Prisma.TransactionClient,
@@ -67,6 +74,12 @@ export async function eligibleChoreAssigneeInTx(
   options: { requireCanonical?: boolean; historical?: boolean } = {},
 ): Promise<{ assigned_to: string; assigned_member_id?: string } | null> {
   await lockHousehold(tx, familyId);
+  return eligibleChoreAssigneeFromReads(tx, familyId, userId, options);
+}
+export async function eligibleChoreAssigneeFromReads(
+  tx: ChoreAssigneeReadDb, familyId: string, userId: string,
+  options: { requireCanonical?: boolean; historical?: boolean } = {},
+): Promise<{ assigned_to: string; assigned_member_id?: string } | null> {
   const [account, mappings, links] = await Promise.all([
     tx.user.findFirst({
       where: { id: userId, family_id: familyId },

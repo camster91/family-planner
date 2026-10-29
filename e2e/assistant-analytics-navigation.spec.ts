@@ -350,12 +350,14 @@ async function askForAnalytics(
   page: Page,
   expectProposal: boolean,
 ): Promise<void> {
-  const launcher = page.getByRole("button", {
-    name: "AI assistant",
-    exact: true,
-  });
+  const launcher = page
+    .getByRole("navigation", { name: "Today quick actions" })
+    .getByRole("button", { name: "Add or ask", exact: true });
   await expect(launcher).toBeVisible();
   await launcher.click();
+  const quickAdd = page.getByTestId("quick-add-dialog");
+  await expect(quickAdd).toBeVisible();
+  await quickAdd.getByRole("button", { name: /Ask the assistant/ }).click();
   const dialog = page.getByRole("dialog", {
     name: "AI assistant",
     exact: true,
@@ -499,7 +501,7 @@ test("parent, teen and child Analytics assistant discovery obey effective role g
     await child.page.goto("/dashboard/today");
     await runtimeIdentity(child.page, info, "child");
     await expect(
-      child.page.getByRole("button", { name: "AI assistant", exact: true }),
+      child.page.getByRole("button", { name: "Add or ask", exact: true }),
     ).toHaveCount(0);
     const refusal = await child.page.evaluate(async () => {
       const response = await fetch("/api/assistant", {

@@ -14,6 +14,7 @@ import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { recipeEditorMessages } from "../src/i18n/recipe-editor";
 import { recipeExploreMessages } from "../src/i18n/recipe-explore";
+import { RECIPE_OWNER_HEADER } from "../src/lib/recipe-owner-contract";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
@@ -211,6 +212,19 @@ for (const locale of ["en", "es"] as const) {
       );
       const externalRequests: string[] = [];
       await installGuard(context, locale, externalRequests);
+      // The mounted Explore page admits its library and online responses only
+      // after the server has established the current private owner. Capture
+      // that canonical envelope from the authorized fixture read and carry it
+      // through every synthetic response below; the fixture remains provider-
+      // free while exercising the same ownership boundary as production.
+      const ownerResponse = await page.request.get(
+        "/api/recipes?limit=100&offset=0",
+      );
+      expect(ownerResponse.status(), await ownerResponse.text()).toBe(200);
+      const ownerHeader =
+        ownerResponse.headers()[RECIPE_OWNER_HEADER.toLowerCase()];
+      expect(ownerHeader).toBeTruthy();
+      const ownerHeaders = { [RECIPE_OWNER_HEADER]: ownerHeader };
 
       let discoverCalls = 0;
       let previewCalls = 0;
@@ -233,6 +247,7 @@ for (const locale of ["en", "es"] as const) {
           await route.fulfill({
             status: 200,
             contentType: "application/json",
+            headers: ownerHeaders,
             body: JSON.stringify({
               recipes: [],
               nextOffset: null,
@@ -253,6 +268,7 @@ for (const locale of ["en", "es"] as const) {
           await route.fulfill({
             status: 200,
             contentType: "application/json",
+            headers: ownerHeaders,
             body: JSON.stringify({
               results: [{ title: "Synthetic Provider Soup", url: sourceUrl }],
             }),
@@ -269,6 +285,7 @@ for (const locale of ["en", "es"] as const) {
             await route.fulfill({
               status: 503,
               contentType: "application/json",
+              headers: ownerHeaders,
               body: JSON.stringify({
                 error: "Synthetic provider token detail must stay private",
               }),
@@ -277,6 +294,7 @@ for (const locale of ["en", "es"] as const) {
             await route.fulfill({
               status: 200,
               contentType: "application/json",
+              headers: ownerHeaders,
               body: JSON.stringify({
                 recipe: preview,
                 synthetic: "provider preview response; no external request",
@@ -297,6 +315,7 @@ for (const locale of ["en", "es"] as const) {
               await route.fulfill({
                 status: 422,
                 contentType: "application/json",
+                headers: ownerHeaders,
                 body: JSON.stringify({
                   error: "Synthetic private save detail must stay private",
                   synthetic: "save refusal response; no database write",
@@ -309,6 +328,7 @@ for (const locale of ["en", "es"] as const) {
             await route.fulfill({
               status: 201,
               contentType: "application/json",
+              headers: ownerHeaders,
               body: JSON.stringify({
                 recipe: {
                   id: "synthetic-recipe-saved",

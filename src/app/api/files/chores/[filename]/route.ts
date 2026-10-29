@@ -7,6 +7,7 @@ import { authenticateWithFamily } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-refusal'
 import { CHORE_PHOTO_FILENAME_RE, canFamilyReadChorePhoto } from '@/lib/chore-photos'
 import { resolveUploadDir } from '@/lib/upload-dir'
+import { storageBackend } from '@/lib/storage-backend'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -50,6 +51,30 @@ export async function GET(
   // learns nothing — not even whether the file exists.
   const [auth, authError] = await authenticateWithFamily(request)
   if (authError) return authError
+
+  if (storageBackend() === 'd1') {
+    const [{ getPrivateObjectStore, privateObjectGenerationKey, privateObjectKey }, { canD1FamilyReadChorePhoto, d1GetChoreUpload }] = await Promise.all([
+      import('@/lib/cloudflare/storage'),
+      import('@/lib/cloudflare/uploads'),
+    ])
+    if (!(await canD1FamilyReadChorePhoto(auth.user.family_id, filename))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+    const bucket = await getPrivateObjectStore()
+    const upload = await d1GetChoreUpload(auth.user.family_id, filename)
+    const object = upload
+      ? await bucket.get(privateObjectGenerationKey(auth.user.family_id, 'chores', filename, upload.id)) ?? await bucket.get(privateObjectKey(auth.user.family_id, 'chores', filename))
+      : await bucket.get(privateObjectKey(auth.user.family_id, 'chores', filename))
+    if (!object) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return new NextResponse(object.body as unknown as BodyInit, {
+      status: 200,
+      headers: {
+        'Content-Type': object.httpMetadata?.contentType ?? contentTypeFor(filename),
+        'Cache-Control': 'private, max-age=300',
+        ...(object.etag ? { ETag: `"${object.etag}"` } : {}),
+      },
+    })
+  }
 
   const filepath = path.join(UPLOAD_DIR, CHORES_SUBDIR, filename)
 

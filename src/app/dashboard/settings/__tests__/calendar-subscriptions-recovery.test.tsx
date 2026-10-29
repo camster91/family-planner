@@ -139,6 +139,7 @@ it("admits only bounded, unique subscription summaries and projects away extras"
   expect(readCalendarSubscriptionList({ subscriptions: [row, row] })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: Array.from({ length: 11 }, (_, index) => ({ ...row, id: String(index) })) })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, last_fetched_at: "invalid-date" }] })).toBeNull();
+  expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, last_status: "future" }] })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, name: null }] })).toBeNull();
   expect(readCalendarSubscriptionList({ subscriptions: [{ ...row, url_enc: "fixture-private-extra" }] })).toEqual([row]);
 });
@@ -176,6 +177,33 @@ it("serializes add and keeps an unknown save held after an explicit list read", 
   fireEvent.submit(name.closest("form")!);
   expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
   expect(screen.getByRole("button", { name: settingsMessages.en.addCalendar })).toBeDisabled();
+});
+
+it("holds an unknown refresh result and exposes list inspection instead of retrying", async () => {
+  const row = {
+    id: "refresh-fixture",
+    name: "School fixture",
+    color: null,
+    last_fetched_at: null,
+    last_status: "pending",
+    last_error: null,
+  };
+  global.fetch = jest.fn(async (_path, init) => {
+    if (init?.method === "POST")
+      return {
+        ok: true,
+        json: async () => ({
+          subscription: row,
+          result: { status: "future_status", created: 0, updated: 0, deleted: 0 },
+        }),
+      };
+    return { ok: true, json: async () => ({ subscriptions: [row] }) };
+  }) as unknown as typeof fetch;
+  const user = await mount();
+  await user.click(screen.getByRole("button", { name: "Refresh School fixture" }));
+  expect(await screen.findByText(settingsMessages.en.calendarWriteUnconfirmed)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: settingsMessages.en.checkSubscriptions })).toBeEnabled();
+  expect((fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
 });
 
 // Authored UNRUN: persisted fixed-vocabulary errors relabel without replaying reads.

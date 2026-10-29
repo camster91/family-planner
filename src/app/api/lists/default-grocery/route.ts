@@ -1,13 +1,15 @@
-import { prisma } from '@/lib/prisma'
-import { NextRequest, NextResponse } from 'next/server'
-import { featureGate } from '@/lib/feature-gate-server'
-import { authenticateWithFamily } from '@/lib/api-auth'
-import { canCreateList } from '@/lib/role-capabilities'
-import { resolveDefaultGroceryList } from '@/lib/grocery-from-recipe'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from "@/lib/storage-backend";
+import { resolveD1DefaultGrocery } from "@/lib/cloudflare/list-write";
+import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
+import { featureGate } from "@/lib/feature-gate-server";
+import { authenticateWithFamily } from "@/lib/api-auth";
+import { canCreateList } from "@/lib/role-capabilities";
+import { resolveDefaultGroceryList } from "@/lib/grocery-from-recipe";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 /**
  * POST /api/lists/default-grocery (ADR-0007 O-4, #253)
@@ -20,20 +22,40 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'lists')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "lists");
+    if (gate) return gate;
 
     if (!canCreateList(auth.user.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { created, ...list } = await resolveDefaultGroceryList(prisma!, auth.user.family_id, auth.user.id)
-    return NextResponse.json({ list, created })
+    if (storageBackend() === "d1") {
+      const result = await resolveD1DefaultGrocery({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+      });
+      return NextResponse.json(result.body, { status: result.status });
+    }
+    const { created, ...list } = await resolveDefaultGroceryList(
+      prisma!,
+      auth.user.family_id,
+      auth.user.id,
+    );
+    return NextResponse.json({ list, created });
   } catch (error) {
-    logRouteError('POST /api/lists/default-grocery', error, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError(
+      "POST /api/lists/default-grocery",
+      error,
+      getRequestId(request),
+    );
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

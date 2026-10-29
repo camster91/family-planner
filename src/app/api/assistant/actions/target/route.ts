@@ -25,6 +25,7 @@ import {
   authorizePersonDelete,
   deletionEligibility,
 } from "@/lib/person-record-delete";
+import { storageBackend } from "@/lib/storage-backend";
 import { RoutineScheduleLegacyWriteError } from "@/lib/routine-schedule-legacy";
 export const dynamic = "force-dynamic";
 const input = z
@@ -68,6 +69,17 @@ export async function POST(request: NextRequest) {
       actor,
       command.kind,
     )!;
+    if (storageBackend() === "d1") {
+      const { reviewD1DeleteTarget } =
+        await import("@/lib/cloudflare/assistant-delete-target");
+      const result = await reviewD1DeleteTarget(
+        actor,
+        command.kind,
+        command.id,
+        guard,
+      );
+      return NextResponse.json(result.body, { status: result.status, headers });
+    }
     const result = await prisma!.$transaction(async (tx) => {
       const denied = await authorizePersonDelete(tx, actor, command.kind);
       if (denied) return denied;

@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { attachQueryTiming, queryTimingConfig } from '@/lib/db-query-timing'
@@ -33,7 +34,11 @@ function initializePrisma(): PrismaClient | undefined {
   }
 }
 
-export const prisma = globalForPrisma.prisma ?? initializePrisma()
+// During the D1 conversion, unconverted routes must fail closed instead of
+// mixing D1 account authority with records from the former PostgreSQL database.
+export const prisma = storageBackend() === 'd1'
+  ? undefined
+  : globalForPrisma.prisma ?? initializePrisma()
 
 // Cache per process, not only in dev.
 //

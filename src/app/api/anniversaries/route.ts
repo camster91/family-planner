@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1Anniversaries, createD1Anniversary } from "@/lib/cloudflare/anniversaries";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { featureGate } from "@/lib/feature-gate-server";
 import { refusePairedDevice } from "@/lib/device-route";
@@ -39,6 +41,16 @@ export async function GET(request: NextRequest) {
 
     const gate = await featureGate(auth.user.family_id, "anniversaries");
     if (gate) return gate;
+
+    if (storageBackend() === "d1") {
+      const result = await readD1Anniversaries({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+      });
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+    }
 
     const anniversaries = await prisma!.anniversary.findMany({
       where: { family_id: auth.user.family_id },
@@ -104,6 +116,20 @@ export async function POST(request: NextRequest) {
       );
     }
     const { person_id } = parsed.data;
+
+    if (storageBackend() === "d1") {
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await createD1Anniversary({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+      }, parsed.data, key);
+      const response = NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+      if (result.replayed) response.headers.set("Idempotency-Replayed", "true");
+      return response;
+    }
 
     // A linked person must be a member of the caller's family (#102).
     if (person_id) {

@@ -9,6 +9,9 @@ import { getRequestId } from '@/lib/request-id'
 
 import { HouseholdMemberIdentityConflict } from '@/lib/household-member-lifecycle'
 import { RoutineOccurrenceUnavailableError } from '@/lib/routine-occurrence-policy'
+import { storageBackend } from '@/lib/storage-backend'
+import { runD1DeviceChore } from '@/lib/cloudflare/device-writes'
+import { deviceJson } from '@/lib/device-http'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +45,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const profileWrite = isProfileDeviceWrite(ctx) ? ctx : null
     const accountMember = 'member' in ctx ? ctx.member : null
     if (!profileWrite && Object.keys(ctx.body).some((k) => k !== 'actingMemberId')) return deviceError(400, 'VALIDATION_ERROR')
+
+    if (storageBackend() === 'd1') {
+      const result = await runD1DeviceChore(ctx.actor, { kind: 'complete', choreId: id, memberId: profileWrite?.profileMemberId ?? accountMember!.id, profile: Boolean(profileWrite) }, ctx.key)
+      return deviceJson(result.body, result.status, result.replayed ? { 'Idempotency-Replayed': 'true' } : {})
+    }
 
     return await runDeviceWrite(ctx, ACTION, profileWrite ? { choreId: id, protocol: 2, memberId: profileWrite.profileMemberId } : { choreId: id, actingMemberId: accountMember!.id }, async () => {
       const chore = await findHouseholdChore(prisma!, id, ctx.actor.familyId)

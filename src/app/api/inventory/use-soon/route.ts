@@ -15,6 +15,8 @@ import {
 import { inventoryError, inventoryJson, todayFrom } from "@/lib/inventory-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1UseSoon } from "@/lib/cloudflare/inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +58,20 @@ async function handleInventoryRead(request: NextRequest) {
       );
     }
 
-    const items = await getUseSoonItems(prisma!, auth.user.family_id, {
-      today,
-      days,
-      limit,
-    });
-    return inventoryScopedResponse(inventoryJson({ days, items }), readScope);
+    const items = storageBackend() === "d1"
+      ? await readD1UseSoon(
+          {
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          { today, days, limit },
+        )
+      : { refusal: null, items: await getUseSoonItems(prisma!, auth.user.family_id, { today, days, limit }) };
+    if (items.refusal)
+      return NextResponse.json(items.refusal.body, { status: items.refusal.status });
+    return inventoryScopedResponse(inventoryJson({ days, items: items.items }), readScope);
   } catch (err) {
     logRouteError("GET /api/inventory/use-soon", err, getRequestId(request));
     return inventoryError(500, "INTERNAL_ERROR", "Internal server error");

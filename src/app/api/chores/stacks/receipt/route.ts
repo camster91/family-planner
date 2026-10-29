@@ -6,6 +6,7 @@ import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body";
 import { prisma } from "@/lib/prisma";
 import { inspectParentRoutineStack, type RoutineStackWriteDb } from "@/lib/routine-stack-api";
 import { RoutineStackValidationError } from "@/lib/routine-stack-mutation";
+import { storageBackend } from "@/lib/storage-backend";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 async function inspect(request: NextRequest) {
@@ -21,8 +22,10 @@ async function inspect(request: NextRequest) {
   let body: unknown;
   try { body = await readBoundedJson(request, 2 * 1024 * 1024); }
   catch (error) { return NextResponse.json({ error: { code: "INVALID_REQUEST" } }, { status: error instanceof RequestBodyTooLargeError ? 413 : 400 }); }
-  const result = await inspectParentRoutineStack(prisma! as unknown as RoutineStackWriteDb, body,
-    { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }, key);
+  const actor = { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 };
+  const result = storageBackend() === "d1"
+    ? await (await import("@/lib/cloudflare/routine-stack")).inspectD1RoutineStack(actor, body, key)
+    : await inspectParentRoutineStack(prisma! as unknown as RoutineStackWriteDb, body, actor, key);
   return NextResponse.json(result.body, { status: result.status });
 }
 /** POST carries the exact draft privately, but performs no domain/receipt writes. */

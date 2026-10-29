@@ -27,7 +27,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 jest.mock("@/lib/supabase/server", () => ({
-  getServerUser: async () => ({ id: "kid" }),
+  getServerActor: async () => ({ id: "kid", role: "teen", family_id: "home", tokenVersion: 0 }),
 }));
 
 jest.mock("next/server", () => ({ after: jest.fn() }));

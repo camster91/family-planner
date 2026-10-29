@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { updateD1BudgetCategory, deleteD1BudgetCategory } from '@/lib/cloudflare/budget'
 import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
 import { refusePairedDevice } from '@/lib/device-route'
 import { updateCategorySchema, deleteCategorySchema } from '@/lib/validations'
@@ -49,6 +51,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         { error: parsed.error.issues[0].message },
         { status: 400 }
       )
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await updateD1BudgetCategory(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+        parsed.data,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // Verify the category exists and belongs to the user's family
@@ -140,6 +151,14 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
         { error: 'Category ID is required' },
         { status: 400 }
       )
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1BudgetCategory(
+        { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },
+        id,
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     // Verify the category exists and belongs to the user's family

@@ -4,6 +4,12 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { memberIdentityIdSchema as id } from "../member-subject-contract";
+import type { D1Store } from "../cloudflare/database";
+import {
+  d1FoodSourceStorageAvailable,
+  readD1FoodSourceVersions,
+  type D1FoodSourceSelection,
+} from "../cloudflare/food-source-versions";
 export const FOOD_SOURCE_KINDS = [
   "Family",
   "User",
@@ -22,6 +28,7 @@ export type FoodSourceSelection = Partial<
   Record<FoodSourceKind, readonly string[]>
 >;
 type Reader = Pick<Prisma.TransactionClient, "$queryRaw">;
+type SourceReader = Reader | D1Store;
 const version = z
   .object({
     kind: z.enum(FOOD_SOURCE_KINDS),
@@ -37,7 +44,8 @@ export class FoodSourceVersionsUnavailable extends Error {
     super("Food source continuity could not be checked.");
   }
 }
-export async function foodSourceStorageAvailable(tx: Reader) {
+export async function foodSourceStorageAvailable(tx: SourceReader) {
+  if (isD1SourceReader(tx)) return d1FoodSourceStorageAvailable(tx);
   const rows = await tx.$queryRaw<Array<{ ready: boolean }>>`
     SELECT COUNT(*) = 11 AND bool_and(
       (SELECT COUNT(*) = 2 FROM pg_attribute a WHERE a.attrelid = to_regclass(format('public.%I', expected.name))
@@ -75,10 +83,17 @@ function normalizedSelection(raw: FoodSourceSelection) {
 /** Content is intentionally not selected. Row IDs must exactly equal the known
  * source selection; foreign/missing/duplicated/incomplete versions all refuse. */
 export async function readFoodSourceVersions(
-  tx: Reader,
+  tx: SourceReader,
   familyId: string,
   raw: FoodSourceSelection,
 ): Promise<FoodSourceVersion[]> {
+  if (isD1SourceReader(tx)) {
+    return readD1FoodSourceVersions(
+      tx,
+      familyId,
+      raw as D1FoodSourceSelection,
+    ) as Promise<FoodSourceVersion[]>;
+  }
   if (!id.safeParse(familyId).success)
     throw new FoodSourceVersionsUnavailable();
   const selected = normalizedSelection(raw);
@@ -117,5 +132,12 @@ export async function readFoodSourceVersions(
   if (expected.size) throw new FoodSourceVersionsUnavailable();
   return versions.sort(
     (a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id),
+  );
+}
+
+function isD1SourceReader(value: SourceReader): value is D1Store {
+  return (
+    typeof (value as D1Store).prepare === "function" &&
+    typeof (value as D1Store).withSession === "function"
   );
 }

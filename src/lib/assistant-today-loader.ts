@@ -41,10 +41,10 @@ export type AssistantTodayLoaderFeatures = Pick<
   "calendar" | "chores" | "lists" | "meals" | "inventory"
 >;
 
-export type AssistantTodayLoaderDb = Pick<
-  PrismaClient,
-  "user" | "event" | "chore" | "familyMeal" | "listItem" | "inventoryItem"
->;
+/** Only the read operations used by this bounded projection are exposed. */
+export type AssistantTodayLoaderDb = {
+  [K in "user" | "event" | "chore" | "familyMeal" | "listItem" | "inventoryItem"]: Pick<PrismaClient[K], "findMany">
+};
 
 export interface AssistantTodayLoadedRows {
   events: AssistantTodayEvent[];

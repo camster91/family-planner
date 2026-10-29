@@ -12,6 +12,8 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { MESSAGE_INCLUDE, toMessageResponse } from '@/lib/message-mutations'
 import { readBoundedJson, RequestBodyTooLargeError } from '@/lib/bounded-body'
+import { storageBackend } from '@/lib/storage-backend'
+import { markD1MessagesRead, readD1Messages } from '@/lib/cloudflare/messages'
 
 export const dynamic = 'force-dynamic'
 const MESSAGE_READ_BODY_MAX_BYTES = 256 * 1024
@@ -44,6 +46,25 @@ export async function GET(request: NextRequest) {
     }
 
     if (paging?.ok) limit = paging.limit
+    if (storageBackend() === 'd1') {
+      let legacyCursor: Date | null = null
+      if (!modern && cursor) {
+        legacyCursor = new Date(cursor)
+        if (Number.isNaN(legacyCursor.getTime())) {
+          return NextResponse.json({ error: 'cursor must be a valid date-time' }, { status: 400 })
+        }
+      }
+      const result = await readD1Messages(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        { modern, limit, cursor: legacyCursor, paging },
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
     const where: Record<string, unknown> = { family_id: auth.user.family_id }
     if (paging?.ok && paging.cursor) where.AND = [afterMessageCursor(paging.cursor)]
     if (cursor) {
@@ -119,6 +140,19 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { messageIds, markAll } = parsed.data
+
+    if (storageBackend() === 'd1') {
+      const result = await markD1MessagesRead(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        { messageIds, markAll },
+      )
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     const result = await prisma!.$transaction(async tx => {
       // Match erasure's user -> household order before appending a plain

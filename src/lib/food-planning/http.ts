@@ -14,6 +14,21 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "../api-auth";
 import { prisma } from "../prisma";
+import { storageBackend } from "../storage-backend";
+import { getD1Database } from "../cloudflare/database";
+import {
+  D1FoodPlanningUnavailable,
+  applyD1FoodPlan,
+} from "../cloudflare/food-planning";
+import {
+  readD1FoodGroceryOutcomes,
+  readD1FoodOptions,
+  readD1FoodRecoveryContext,
+  inspectD1FoodRequest,
+  undoD1FoodGroceryAdd,
+  D1FoodGroceryUnavailable,
+} from "../cloudflare/food-recovery";
+import { D1PersonReceiptError } from "../cloudflare/person-effect";
 import {
   boundedRequestText,
   RequestBodyTooLarge,
@@ -66,6 +81,11 @@ function knownFailure(error: unknown): EffectResult | null {
   if (error instanceof FoodReviewRefused) return failure(409, error.code);
   if (error instanceof FoodPlanningUnavailable)
     return failure(error.code === "FORBIDDEN" ? 403 : 409, error.code);
+  if (error instanceof D1PersonReceiptError) return failure(409, error.code);
+  if (error instanceof D1FoodPlanningUnavailable)
+    return failure(error.code === "FORBIDDEN" ? 403 : 409, error.code);
+  if (error instanceof D1FoodGroceryUnavailable)
+    return failure(409, error.code);
   if (error instanceof RequestBodyTooLarge)
     return failure(413, "INVALID_REQUEST");
   if (error instanceof z.ZodError || error instanceof SyntaxError)
@@ -90,13 +110,118 @@ export async function handleFoodHttp(
       error.headers.set("Cache-Control", "private, no-store");
       return error;
     }
-    if (!prisma) return json(failure(409, "UNAVAILABLE"));
     const actor: FoodPlanActor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
       role: auth.user.role,
       generation: auth.payload.tv ?? 0,
     };
+    if (storageBackend() === "d1") {
+      const db = await getD1Database();
+      const owner = foodRequestOwner(request, auth.payload, actor);
+      if (
+        !(
+          await checkRateLimit(
+            `food-${mode}:${actor.userId}`,
+            mode === "context"
+              ? 120
+              : mode === "inspect" || mode === "options" || mode === "outcomes"
+                ? 60
+                : 20,
+            60000,
+          )
+        ).allowed
+      )
+        return json(failure(429, "RATE_LIMITED"));
+      if (mode === "context")
+        return NextResponse.json(
+          await readD1FoodRecoveryContext(db, actor, owner),
+          { headers },
+        );
+      if (!owner || request.headers.get(FOOD_OWNER_HEADER) !== owner.scope)
+        return json(failure(403, "AUTH_CONTEXT_CHANGED"));
+      if (mode === "outcomes" || mode === "undo-grocery") {
+        const raw: unknown = JSON.parse(
+          await boundedRequestText(request, 196608),
+        );
+        const result =
+          mode === "outcomes"
+            ? await (() => {
+                const input = foodGroceryOutcomeInput.parse(raw);
+                return readD1FoodGroceryOutcomes(
+                  db,
+                  actor,
+                  input.entry,
+                  owner.scope,
+                );
+              })()
+            : await (() => {
+                const input = foodGroceryUndoInput.parse(raw);
+                return undoD1FoodGroceryAdd(
+                  db,
+                  actor,
+                  input.entry,
+                  input.requestId,
+                  owner.scope,
+                );
+              })();
+        if (Buffer.byteLength(JSON.stringify(result), "utf8") > 131072)
+          return json(failure(409, "UNAVAILABLE"));
+        return NextResponse.json(result, { headers });
+      }
+      if (mode === "options") {
+        const query = foodOptionsQuery.parse(
+          JSON.parse(await boundedRequestText(request, 16384)),
+        );
+        const result = await readD1FoodOptions(db, actor, query);
+        if (Buffer.byteLength(JSON.stringify(result), "utf8") > 131072)
+          return json(failure(409, "UNAVAILABLE"));
+        return NextResponse.json(result, { headers });
+      }
+      if (mode === "inspect") {
+        const input = foodRecoveryInput.parse(
+          JSON.parse(await boundedRequestText(request, 196608)),
+        );
+        const result = await inspectD1FoodRequest(
+          db,
+          actor,
+          input.entry,
+          owner.scope,
+        );
+        if (Buffer.byteLength(JSON.stringify(result), "utf8") > 262144)
+          return json(failure(409, "UNAVAILABLE"));
+        return NextResponse.json(result, { headers });
+      }
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) {
+        keyError.headers.set("Cache-Control", "private, no-store");
+        return keyError;
+      }
+      if (!key) {
+        const response = idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
+        response.headers.set("Cache-Control", "private, no-store");
+        return response;
+      }
+      if (!foodRecoveryKey.safeParse(key).success)
+        return json(failure(400, "INVALID_REQUEST"));
+      const command = reviewedFoodWrite.parse(
+        JSON.parse(await boundedRequestText(request, FOOD_BODY_MAX_BYTES)),
+      );
+      const result = await applyD1FoodPlan(
+        await getD1Database(),
+        actor,
+        command,
+        key,
+      );
+      if (
+        result.status === 201 &&
+        (!foodApplyReceipt.safeParse(result.body).success ||
+          !foodApplyReceiptMatches(result.body, command))
+      )
+        return json(failure(409, "RECEIPT_UNAVAILABLE"));
+      return json({ status: result.status, body: result.body });
+    }
+    if (!prisma) return json(failure(409, "UNAVAILABLE"));
     // Do not reserve keys, read receipts or return private pointers first.
     const current = await authorize(actor);
     const owner = foodRequestOwner(request, auth.payload, actor);

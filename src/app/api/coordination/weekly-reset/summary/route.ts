@@ -1,9 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { WeeklyResetError, weeklyResetReady } from "@/lib/weekly-reset";
 import { weeklyResetSummaryQuery } from "@/lib/weekly-reset-summary";
 import { readWeeklyResetSummary } from "@/lib/weekly-reset-server";
+import { readD1WeeklyResetSummary } from "@/lib/cloudflare/weekly-reset";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
@@ -14,7 +17,7 @@ export async function GET(request: NextRequest) {
       refusal.headers.set("Cache-Control", "private, no-store");
       return refusal;
     }
-    if (!weeklyResetReady() || !prisma)
+    if (!weeklyResetReady())
       throw new WeeklyResetError("UNAVAILABLE");
     const params = request.nextUrl.searchParams;
     const parsed = weeklyResetSummaryQuery.safeParse(
@@ -29,6 +32,22 @@ export async function GET(request: NextRequest) {
         { status: 400, headers },
       );
     const { step, ...scope } = parsed.data;
+    if (storageBackend() === "d1") {
+      const summary = await readD1WeeklyResetSummary(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          tokenVersion: auth.payload.tv ?? 0,
+        },
+        scope,
+        step,
+        new Date(),
+        await getD1Database(),
+      );
+      return NextResponse.json({ summary }, { headers });
+    }
+    if (!prisma) throw new WeeklyResetError("UNAVAILABLE");
     const summary = await readWeeklyResetSummary(
       prisma,
       {

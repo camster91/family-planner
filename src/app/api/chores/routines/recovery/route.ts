@@ -26,21 +26,33 @@ import {
 } from "@/lib/routine-schedule-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const opened = await openRoutineSchedule(request);
     if (!opened.ok) return opened.response;
-    const capabilities = await prisma!.$transaction((tx) =>
-      routineScheduleAuthority(tx, opened.actor),
-    );
+    let pointsEnabled = false;
+    if (storageBackend() === "d1") {
+      const { readD1RoutineScheduleCatalog } = await import(
+        "@/lib/cloudflare/routine-schedule"
+      );
+      const catalog = await readD1RoutineScheduleCatalog(opened.actor, null);
+      if (catalog.status !== 200) return routineResponse(catalog.body, catalog.status);
+      pointsEnabled = Boolean((catalog.body as { pointsEnabled?: unknown }).pointsEnabled);
+    } else {
+      const capabilities = await prisma!.$transaction((tx) =>
+        routineScheduleAuthority(tx, opened.actor),
+      );
+      pointsEnabled = capabilities.pointsEnabled;
+    }
     if (new URL(request.url).searchParams.get("draft") === "1") {
       const owner = routineDraftOwner(opened.owner);
       return routineResponse({
         contract: ROUTINE_DRAFT_CONTRACT,
         enabled: routineRecoveryWritingEnabled() && owner !== null,
         owner,
-        pointsEnabled: capabilities.pointsEnabled,
+        pointsEnabled,
         userId: opened.actor.userId,
         familyId: opened.actor.familyId,
       });
@@ -79,13 +91,20 @@ export async function POST(request: NextRequest) {
     }
     const parsed = routineRecoveryReviewInput.safeParse(raw);
     if (!parsed.success) return routineError(400, "INVALID_ROUTINE_REQUEST");
-    const result = await reviewRoutineSchedule(
-      prisma!,
-      opened.actor,
-      parsed.data.entry,
-      opened.owner!.scope,
-      routineRecoveryWritingEnabled(),
-    );
+    const result = storageBackend() === "d1"
+      ? await (await import("@/lib/cloudflare/routine-schedule")).reviewD1RoutineSchedule(
+          opened.actor,
+          parsed.data.entry,
+          opened.owner!.scope,
+          routineRecoveryWritingEnabled(),
+        )
+      : await reviewRoutineSchedule(
+          prisma!,
+          opened.actor,
+          parsed.data.entry,
+          opened.owner!.scope,
+          routineRecoveryWritingEnabled(),
+        );
     return routineResponse(result.body, result.status);
   } catch (caught) {
     logRouteError("POST routine recovery", caught, getRequestId(request));

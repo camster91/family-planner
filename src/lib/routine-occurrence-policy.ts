@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 /** Private read/action guards survive rollout rollback; never a public DTO. */
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { routineStepSeriesConfig } from "@/lib/routine-schedule";
@@ -83,6 +84,10 @@ export async function hiddenRoutineOccurrenceIds(
   familyId: string,
   scope: RoutineVisibilityReadScope = {},
 ): Promise<string[]> {
+  if (storageBackend() === "d1") {
+    const { hiddenD1RoutineOccurrenceIds } = await import("@/lib/cloudflare/chore-read-policy");
+    return hiddenD1RoutineOccurrenceIds(familyId, scope);
+  }
   if (scope.ids?.length === 0) return [];
   const selected = scope.ids ? [...new Set(scope.ids)] : null;
   const from = scope.from ?? null;
@@ -133,6 +138,10 @@ export async function scheduledOnceRoutineOccurrenceIds(
   familyId: string,
   ids: readonly string[],
 ): Promise<Set<string>> {
+  if (storageBackend() === "d1") {
+    const { scheduledOnceD1RoutineOccurrenceIds } = await import("@/lib/cloudflare/chore-read-policy");
+    return scheduledOnceD1RoutineOccurrenceIds(familyId, ids);
+  }
   if (ids.length === 0) return new Set();
   const selected = [...new Set(ids)];
   const rows = await db.$queryRaw<RoutineOccurrenceSnapshot[]>`

@@ -1,6 +1,10 @@
+import { publicChoreData } from "@/lib/chore-public-data";
+import { topUpHouseholdSeries } from "@/lib/recurringChores";
+import { storageBackend } from "@/lib/storage-backend";
+import { withD1ReadClient } from "@/lib/cloudflare/read-client";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
 import {
@@ -40,25 +44,34 @@ type KidDashboardEvent = {
  *   the user menu. See docs/product/NAVIGATION.md.
  */
 export default async function DashboardPage() {
-  const sessionUser = await getServerUser();
+  const sessionUser = await getServerActor();
 
   if (!sessionUser) {
     return null;
   }
 
-  const user = await prisma!.user.findUnique({
-    where: { id: sessionUser.id },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      family_id: true,
-      avatar_url: true,
-      xp: true,
-      level: true,
-      family: { select: { features: true } },
-    },
-  });
+  const userSelect = {
+    id: true,
+    name: true,
+    role: true,
+    family_id: true,
+    avatar_url: true,
+    xp: true,
+    level: true,
+    family: { select: { features: true } },
+  } as const;
+  const user =
+    storageBackend() === "d1"
+      ? await withD1ReadClient((db) =>
+          db.user.findUnique({
+            where: { id: sessionUser.id },
+            select: userSelect,
+          }),
+        )
+      : await prisma!.user.findUnique({
+          where: { id: sessionUser.id },
+          select: userSelect,
+        });
 
   // Show onboarding if user has no family
   if (!user?.family_id) {
@@ -92,50 +105,61 @@ export default async function DashboardPage() {
   const windowStart = addUTCDays(todayUTC, -1);
   const windowEnd = addUTCDays(todayUTC, 2);
 
-  const [windowChores, olderOpenChores, events, rewards] = await Promise.all([
-    // Own chores only. Explicit, total order (#155).
-    prisma!.chore.findMany({
-      where: {
-        family_id: familyId,
-        assigned_to: sessionUser.id,
-        due_date: { gte: windowStart, lte: windowEnd },
-      },
-      orderBy: [{ due_date: "asc" }, { id: "asc" }],
-      take: MAX_WINDOW_CHORES + 1,
-    }),
-    // Still-open own work before the window, newest first. One extra row
-    // detects truncation; the child home discloses this bounded preview.
-    prisma!.chore.findMany({
-      where: {
-        family_id: familyId,
-        assigned_to: sessionUser.id,
-        due_date: { lt: windowStart },
-        status: { in: ["pending", "in_progress", "overdue"] },
-      },
-      orderBy: [{ due_date: "desc" }, { id: "desc" }],
-      take: MAX_OLDER_CHORES + 1,
-    }),
-    prisma!.event.findMany({
-      where: { family_id: familyId, start_time: { gte: now } },
-      orderBy: { start_time: "asc" },
-      take: 5,
-      select: {
-        id: true,
-        title: true,
-        start_time: true,
-        location: true,
-      },
-    }),
-    // With Rewards off (or Points & streaks off, which it needs) the claim
-    // endpoint 403s, so no card is offered.
-    rewardsOn
-      ? prisma!.reward.findMany({
-          where: { family_id: familyId, status: "available", is_active: true },
-          orderBy: { created_at: "desc" },
-          take: 5,
-        })
-      : Promise.resolve([]),
-  ]);
+  if (storageBackend() === "d1" && isFeatureEnabled(features, "chores"))
+    await topUpHouseholdSeries(familyId, now);
+  const [windowChores, olderOpenChores, events, rewards] =
+    storageBackend() === "d1"
+      ? await (
+          await import("@/lib/cloudflare/kid-dashboard")
+        ).readD1KidDashboardData(familyId, sessionUser.id, now, rewardsOn)
+      : await Promise.all([
+          // Own chores only. Explicit, total order (#155).
+          prisma!.chore.findMany({
+            where: {
+              family_id: familyId,
+              assigned_to: sessionUser.id,
+              due_date: { gte: windowStart, lte: windowEnd },
+            },
+            orderBy: [{ due_date: "asc" }, { id: "asc" }],
+            take: MAX_WINDOW_CHORES + 1,
+          }),
+          // Still-open own work before the window, newest first. One extra row
+          // detects truncation; the child home discloses this bounded preview.
+          prisma!.chore.findMany({
+            where: {
+              family_id: familyId,
+              assigned_to: sessionUser.id,
+              due_date: { lt: windowStart },
+              status: { in: ["pending", "in_progress", "overdue"] },
+            },
+            orderBy: [{ due_date: "desc" }, { id: "desc" }],
+            take: MAX_OLDER_CHORES + 1,
+          }),
+          prisma!.event.findMany({
+            where: { family_id: familyId, start_time: { gte: now } },
+            orderBy: { start_time: "asc" },
+            take: 5,
+            select: {
+              id: true,
+              title: true,
+              start_time: true,
+              location: true,
+            },
+          }),
+          // With Rewards off (or Points & streaks off, which it needs) the claim
+          // endpoint 403s, so no card is offered.
+          rewardsOn
+            ? prisma!.reward.findMany({
+                where: {
+                  family_id: familyId,
+                  status: "available",
+                  is_active: true,
+                },
+                orderBy: { created_at: "desc" },
+                take: 5,
+              })
+            : Promise.resolve([]),
+        ]);
 
   // Only what KidHome draws; the household's feature blob stays on the server.
   const kid = {
@@ -155,7 +179,10 @@ export default async function DashboardPage() {
     ...olderOpenChores.slice(0, MAX_OLDER_CHORES).reverse(),
     ...windowChores.slice(0, MAX_WINDOW_CHORES),
   ];
-  const visibleChores = gamification ? chores : chores.map(omitChorePoints);
+  const publicChores = publicChoreData(chores);
+  const visibleChores = gamification
+    ? publicChores
+    : publicChores.map(omitChorePoints);
   const visibleEvents: KidDashboardEvent[] = events.map((event) => ({
     id: event.id,
     title: event.title,
@@ -169,6 +196,17 @@ export default async function DashboardPage() {
     role: user.role,
     choreIds: chores.map((c) => c.id),
   });
+  if (storageBackend() === "d1") {
+    const current = await getServerActor();
+    if (
+      !current ||
+      current.id !== sessionUser.id ||
+      current.family_id !== familyId ||
+      current.role !== user.role ||
+      current.tokenVersion !== sessionUser.tokenVersion
+    )
+      return null;
+  }
   return (
     <KidHome
       preparationContext={preparationContext}

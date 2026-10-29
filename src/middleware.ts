@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { resolveSession } from '@/lib/session'
 import { generateCsrfToken, setCsrfCookie, validateCsrf } from '@/lib/csrf'
 import { KID_ALLOWED_PREFIXES, canRoleAccessPath } from '@/lib/kid-access'
-import { isSharedDeviceEnabled } from '@/lib/device-http'
-import { clearDeviceCookies, DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE } from '@/lib/device-session'
+import { isSharedDeviceEnabled, clearDeviceCookies, DEVICE_ACCESS_COOKIE, DEVICE_REFRESH_COOKIE } from '@/lib/device-cookies'
 import { REQUEST_ID_HEADER, resolveRequestId } from '@/lib/request-id'
 
 // Shared-device pages that need no device cookie (SHARED_DEVICE.md §12).
@@ -229,6 +227,11 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   if (payload) {
     if (isProtectedRoute || isAuthRoute || isHomeRoute) {
       try {
+        // Load the database-backed resolver only when a route needs authority.
+        // A static import pulls pg's async module into the middleware entry,
+        // which OpenNext cannot initialize in Workers. Keep the import inside
+        // this fail-closed boundary: loading failure must never admit a session.
+        const { resolveSession } = await import('@/lib/session')
         const resolved = await resolveSession(payload)
         isAuthenticated = resolved !== null
         currentRole = resolved?.role

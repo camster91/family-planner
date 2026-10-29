@@ -92,7 +92,14 @@ test("private report and AI dialogs close back to Today without submitting", asy
     page.getByLabel("What happened or what would help?", { exact: true }),
   ).toHaveValue("Fixture details remain private and unsent.");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "AI assistant", exact: true }).click();
+  const assistantEntry = page
+    .getByRole("navigation", { name: "Today quick actions" })
+    .getByRole("button", { name: "Add or ask", exact: true });
+  await assistantEntry.click();
+  await page
+    .getByTestId("quick-add-dialog")
+    .getByRole("button", { name: /Ask the assistant/ })
+    .click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.locator("#assistant-message").fill("Fixture unsent chat draft");
   await expect(
@@ -104,12 +111,15 @@ test("private report and AI dialogs close back to Today without submitting", asy
   });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const assistant = page.getByRole("button", {
-    name: "AI assistant",
-    exact: true,
-  });
+  const assistant = page
+    .getByRole("navigation", { name: "Today quick actions" })
+    .getByRole("button", { name: "Add or ask", exact: true });
   await expect(assistant).toBeFocused();
   await assistant.click();
+  await page
+    .getByTestId("quick-add-dialog")
+    .getByRole("button", { name: /Ask the assistant/ })
+    .click();
   await expect(page.locator("#assistant-message")).toHaveValue(
     "Fixture unsent chat draft",
   );

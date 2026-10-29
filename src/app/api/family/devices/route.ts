@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logRouteWarning } from '@/lib/api-error'
@@ -23,6 +24,11 @@ export async function GET(request: NextRequest) {
     if (!manager.ok) return manager.response
     const { familyId } = manager
     const now = deviceClock.now()
+    if (storageBackend() === 'd1') {
+      const { readD1DeviceList } = await import('@/lib/cloudflare/device-list')
+      return deviceJson(await readD1DeviceList(manager,now))
+    }
+
 
     try {
       await prisma!.devicePairing.deleteMany({

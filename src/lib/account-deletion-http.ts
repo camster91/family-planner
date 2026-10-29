@@ -13,6 +13,9 @@ import { AccountDeletionError } from '@/lib/account-deletion'
 import { confirmationMatches, type AccountDeletionCode } from '@/lib/account-deletion-shared'
 import { QUEUE_RETIREMENT_HEADER } from '@/lib/queue-owner-contract'
 import { queueHouseholdScope } from '@/lib/queue-owner-server'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1PasswordUser } from '@/lib/cloudflare/accounts'
 
 /** Password attempts per member per window, across both deletion routes. */
 const ATTEMPTS = 5
@@ -43,11 +46,28 @@ export async function checkFreshAuthorization(
     res.headers.set('Retry-After', String(Math.max(1, Math.ceil(limit.retryAfterMs / 1000))))
     return res
   }
-  const user = await prisma!.user.findUnique({ where: { id: userId }, select: { password: true } })
+  const user = storageBackend() === 'd1'
+    ? await findD1PasswordUser(await getD1Database(), userId)
+    : await prisma!.user.findUnique({ where: { id: userId }, select: { password: true } })
   if (!user?.password || !(await verifyPassword(body.password, user.password))) {
     return deletionError(400, 'INVALID_PASSWORD', 'That password is not right.')
   }
   return null
+}
+
+/** Common successful destructive-response headers/cookie for the native path.
+ * Native D1 cannot use the Prisma idempotency wrapper because the User and
+ * household rows are removed by the same batch. */
+export function nativeDeletionResponse(opts: { userId: string; familyId: string | null; action: 'account.delete' | 'household.delete' }, body: unknown, status = 200): NextResponse {
+  const response = NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } })
+  if (status >= 200 && status < 300) {
+    response.headers.set(QUEUE_RETIREMENT_HEADER, JSON.stringify([
+      { mode: 'generation', ownerId: opts.userId, throughGeneration: Number.MAX_SAFE_INTEGER },
+      ...(opts.action === 'household.delete' && opts.familyId ? [{ mode: 'household', householdScope: queueHouseholdScope(opts.familyId) }] : []),
+    ]))
+    response.cookies.set('session_token', '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 0 })
+  }
+  return response
 }
 
 /**

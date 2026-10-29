@@ -1,3 +1,5 @@
+import { storageBackend } from "./storage-backend";
+import { readD1ListDetail } from "./cloudflare/list-read";
 /** Personal list page: current actor, bounded rows and section metadata in one snapshot. */
 import type { PrismaClient } from "@prisma/client";
 import { listVersion } from "./list-version";
@@ -33,6 +35,12 @@ export async function readListDetailPage(
     actor.tokenVersion < 0
   )
     return { state: "forbidden" } as const;
+  if (storageBackend() === "d1")
+    return readD1ListDetail(
+      { ...actor, generation: actor.tokenVersion },
+      listId,
+      paging,
+    );
   return db.$transaction(
     async (tx) => {
       const user = await tx.user.findUnique({

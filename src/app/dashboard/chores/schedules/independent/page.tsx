@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { getServerUser } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 import IndependentRoutineManager from "@/components/chores/IndependentRoutineManager";
 export const dynamic = "force-dynamic";
@@ -13,19 +12,16 @@ export default async function IndependentRoutinePage({
   if (process.env[ROUTINE_SCHEDULE_READY_ENV] !== "1") notFound();
   const session = await getServerUser();
   if (!session) return null;
-  const user = await prisma!.user.findUnique({
-    where: { id: session.id },
-    select: { family_id: true, role: true },
-  });
-  if (!user?.family_id || user.role !== "parent") return null;
+  const familyId = session.family_id;
+  if (!familyId || session.role !== "parent") return null;
   const query = await searchParams;
   const rootId = typeof query.root_id === "string" ? query.root_id : undefined;
   if (rootId && rootId.length > 128) notFound();
   return (
     <IndependentRoutineManager
-      key={`${session.id}:${user.family_id}`}
+      key={`${session.id}:${familyId}`}
       userId={session.id}
-      familyId={user.family_id}
+      familyId={familyId}
       initialRootId={rootId}
     />
   );

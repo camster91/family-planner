@@ -6,6 +6,8 @@ import { refusePairedDevice } from '@/lib/device-route'
 import { undoAddSchema, undoRecipeAdd } from '@/lib/grocery-from-recipe'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { undoD1RecipeAdd } from '@/lib/cloudflare/recipe-grocery'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,19 @@ export async function POST(request: NextRequest) {
     const parsed = undoAddSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await undoD1RecipeAdd(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        parsed.data.requestId,
+      )
+      return NextResponse.json(result.body, { status: result.status })
     }
 
     const result = await undoRecipeAdd(prisma!, parsed.data.requestId, {

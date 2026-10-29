@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { findD1Account } from '@/lib/cloudflare/accounts'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -39,10 +42,13 @@ export async function POST(request: NextRequest) {
     // Same lookup as login: the lower-cased form first, then the address as
     // typed (trimmed) so an older account stored with capitals can still
     // reset its password.
-    let user = await prisma!.user.findUnique({ where: { email } })
+    const lookupUser = async (address: string) => storageBackend() === 'd1'
+      ? findD1Account(await getD1Database(), address)
+      : prisma!.user.findUnique({ where: { email: address } })
+    let user = await lookupUser(email)
     const typed = String(payload.email).trim()
     if (!user && typed !== email) {
-      user = await prisma!.user.findUnique({ where: { email: typed } })
+      user = await lookupUser(typed)
     }
 
     // Always return success to prevent email enumeration
@@ -82,7 +88,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'If an account exists with that email, a reset link has been sent.',
-      ...(process.env.NODE_ENV !== 'production' && { resetToken: token }),
+      // Only an explicitly development runtime may expose the fabricated
+      // token for local UI testing. An unset NODE_ENV must stay private on a
+      // Worker; production deployments must never depend on this guard being
+      // populated by the host.
+      ...(process.env.NODE_ENV === 'development' && { resetToken: token }),
     })
   } catch (error) {
     logRouteError('POST /api/auth/forgot-password', error, getRequestId(request))

@@ -1,0 +1,2 @@
+# Keep the Capacitor bootstrap in native bundles, outside web asset routing.
+/index.html

@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { undoD1ImportedEvents } from '@/lib/cloudflare/calendar-import'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { refusePairedDevice } from '@/lib/device-route'
@@ -34,8 +37,10 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const gate = await featureGate(auth.user.family_id, 'calendar')
-    if (gate) return gate
+    if (storageBackend() !== 'd1') {
+      const gate = await featureGate(auth.user.family_id, 'calendar')
+      if (gate) return gate
+    }
 
     if (!canImportEvents(auth.user.role)) {
       return importError(403, 'EVENT_IMPORT_FORBIDDEN', EVENT_IMPORT_FORBIDDEN_MESSAGE)
@@ -57,6 +62,21 @@ export async function POST(request: NextRequest) {
       return check.reason === 'expired'
         ? importError(409, 'UNDO_WINDOW_EXPIRED', 'It is too late to undo this import. Delete the events one by one instead.')
         : importError(403, 'UNDO_TOKEN_INVALID', 'This undo is not valid.')
+    }
+
+    if (storageBackend() === 'd1') {
+      const result = await undoD1ImportedEvents(
+        {
+          userId,
+          familyId,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+          name: auth.user.name,
+        },
+        parsed.data.token,
+        await getD1Database(),
+      )
+      return importJson(result.body, result.status)
     }
 
     const removed = await prisma!.event.deleteMany({

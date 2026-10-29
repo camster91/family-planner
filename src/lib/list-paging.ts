@@ -1,6 +1,5 @@
 /** Additive list-summary paging. A cursor is a read position, never authority. */
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
 export const LIST_PAGE_MAX = 200;
 export const LIST_OVERVIEW_PAGE_SIZE = 100;
 type Scope = { familyId: string; type: string | null };
@@ -76,7 +75,7 @@ export function parseListPaging(
   }
   return { ok: true, paged: true, limit: Number(limit), cursor: position };
 }
-export function afterListCursor(cursor: Cursor): Prisma.ListWhereInput {
+export function afterListCursor(cursor: Cursor) {
   return {
     OR: [
       { created_at: { lt: cursor.createdAt } },

@@ -1,3 +1,4 @@
+import { storageBackend } from "@/lib/storage-backend";
 /** Read-only badge projection; never materialize every completion or its title. */
 import { Prisma, type PrismaClient } from "@prisma/client";
 export const CHORE_STREAK_ASSIGNEE_BATCH = 200;
@@ -24,6 +25,10 @@ export async function readChoreStreaks(
   visibleAssignees: readonly (string | null | undefined)[],
   now = new Date(),
 ): Promise<Record<string, number>> {
+  if (storageBackend() === "d1") {
+    const { readD1ChoreStreaks } = await import("@/lib/cloudflare/chore-read-policy");
+    return readD1ChoreStreaks(familyId, visibleAssignees, now);
+  }
   const ids = [...new Set(visibleAssignees.filter((id): id is string => typeof id === "string" && id.length > 0))];
   const streaks: Record<string, number> = Object.create(null);
   if (!ids.length) return streaks;

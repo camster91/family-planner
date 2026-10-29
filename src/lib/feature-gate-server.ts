@@ -1,3 +1,5 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { withD1ReadClient } from '@/lib/cloudflare/read-client'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled, normalizeFeatures, type FeatureKey } from '@/lib/features'
@@ -26,12 +28,12 @@ export async function featureGate(
 ): Promise<NextResponse | null> {
   if (!familyId) return null
 
-  const family = await prisma!.family.findUnique({
-    where: { id: familyId },
-    select: { features: true },
-  })
+  const query = { where: { id: familyId }, select: { features: true } } as const
+  const family = storageBackend() === 'd1'
+    ? await withD1ReadClient(db => db.family.findUnique(query))
+    : await prisma!.family.findUnique(query)
   const features = normalizeFeatures(family?.features)
-  if (isFeatureEnabled(features, key)) return null
+  if ((family || storageBackend() !== 'd1') && isFeatureEnabled(features, key)) return null
 
   return NextResponse.json(
     { error: 'This feature is turned off for your family' },

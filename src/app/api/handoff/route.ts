@@ -1,16 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { randomBytes } from 'crypto'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireParent } from '@/lib/api-auth'
-import { refusePairedDevice } from '@/lib/device-route'
-import { featureGate } from '@/lib/feature-gate-server'
-import { shapeHandoffForRole } from '@/lib/role-capabilities'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
-import { shareExpiry } from '@/lib/handoff-share'
-import { createHandoffSchema } from '@/lib/validations'
+import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
+import { prisma } from "@/lib/prisma";
+import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
+import { refusePairedDevice } from "@/lib/device-route";
+import { featureGate } from "@/lib/feature-gate-server";
+import { shapeHandoffForRole } from "@/lib/role-capabilities";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { shareExpiry } from "@/lib/handoff-share";
+import { createHandoffSchema } from "@/lib/validations";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { createD1Handoff, readD1Handoffs } from "@/lib/cloudflare/handoffs";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError, readIdempotencyKey } from "@/lib/idempotency";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 // Share links are unauthenticated: a 128-bit token like
 // /api/handoff/[id]/regenerate-token, with the expiry rule in shareExpiry.
@@ -18,56 +23,78 @@ export const dynamic = 'force-dynamic'
 // GET /api/handoff - List all handoffs for the user's family
 export async function GET(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'handoff')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "handoff");
+    if (gate) return gate;
+
+    if (storageBackend() === "d1") {
+      const result = await readD1Handoffs(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        await getD1Database(),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
 
     const handoffs = await prisma!.handoff.findMany({
       where: { family_id: auth.user.family_id },
-      orderBy: { created_at: 'desc' },
-    })
+      orderBy: { created_at: "desc" },
+    });
 
     // D2 (#102): parents get every field. Teens get everything except the
     // share token (a bearer credential for the public sitter page). Children
     // get only who is coming and when (CHILD_HANDOFF_FIELDS).
     return NextResponse.json({
       handoffs: handoffs.map((h) => shapeHandoffForRole(h, auth.user.role)),
-    })
+    });
   } catch (err) {
-    logRouteError('GET /api/handoff', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("GET /api/handoff", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 // POST /api/handoff - Create a new handoff (parent only)
 export async function POST(request: NextRequest) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'handoff')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "handoff");
+    if (gate) return gate;
 
-    const parentError = requireParent(auth.user.role)
-    if (parentError) return parentError
+    const parentError = requireParent(auth.user.role);
+    if (parentError) return parentError;
 
-    let json: unknown
+    let json: unknown;
     try {
-      json = await request.json()
+      json = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const parsed = createHandoffSchema.safeParse(json)
+    const parsed = createHandoffSchema.safeParse(json);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
     const {
       sitter_name,
@@ -82,23 +109,52 @@ export async function POST(request: NextRequest) {
       emergency_notes,
       house_notes,
       general_notes,
-    } = parsed.data
+    } = parsed.data;
 
     // Validate datetime fields. datetime-local inputs produce "YYYY-MM-DDTHH:MM"
     // strings. If a user types garbage, new Date() returns Invalid Date which
     // Prisma rejects. Guard with a parse check.
     const parseDate = (v: unknown): Date | null => {
-      if (!v || typeof v !== 'string') return null
-      const d = new Date(v)
-      return isNaN(d.getTime()) ? null : d
-    }
-    const parsedArrival = parseDate(arrival_time)
-    const parsedDeparture = parseDate(departure_time)
+      if (!v || typeof v !== "string") return null;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const parsedArrival = parseDate(arrival_time);
+    const parsedDeparture = parseDate(departure_time);
     if (arrival_time && !parsedArrival) {
-      return NextResponse.json({ error: 'Invalid arrival_time format. Use the date/time picker.' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Invalid arrival_time format. Use the date/time picker." },
+        { status: 400 },
+      );
     }
     if (departure_time && !parsedDeparture) {
-      return NextResponse.json({ error: 'Invalid departure_time format. Use the date/time picker.' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Invalid departure_time format. Use the date/time picker." },
+        { status: 400 },
+      );
+    }
+
+    if (storageBackend() === "d1") {
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await createD1Handoff(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        parsed.data,
+        key,
+        await getD1Database(),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: {
+          "Cache-Control": "private, no-store",
+          ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
     }
 
     const handoff = await prisma!.handoff.create({
@@ -116,15 +172,19 @@ export async function POST(request: NextRequest) {
         emergency_notes: emergency_notes?.trim() || null,
         house_notes: house_notes?.trim() || null,
         general_notes: general_notes?.trim() || null,
-        share_token: randomBytes(16).toString('hex'),
+        share_token: randomBytes(16).toString("hex"),
         share_expires_at: shareExpiry(parsedDeparture),
         created_by: auth.user.id,
       },
-    })
+    });
 
-    return NextResponse.json({ handoff }, { status: 201 })
+    return NextResponse.json({ handoff }, { status: 201 });
   } catch (err) {
-    logRouteError('POST /api/handoff', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code);
+    logRouteError("POST /api/handoff", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

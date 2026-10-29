@@ -31,6 +31,8 @@ import {
   type PrepActor,
 } from "./server";
 import { prepCommand } from "./contract";
+import { storageBackend } from "@/lib/storage-backend";
+import { handleD1PrepRecoveryHttp } from "@/lib/cloudflare/meal-recovery";
 const headers = { "Cache-Control": "private, no-store" };
 const fail = (status: number, code: string): EffectResult => ({
   status,
@@ -42,6 +44,7 @@ export async function handlePrepRecoveryHttp(
   request: NextRequest,
   mode: "context" | "inspect" | "apply",
 ) {
+  if (storageBackend() === "d1") return handleD1PrepRecoveryHttp(request, mode);
   try {
     const paired = await refusePairedDevice(request);
     if (paired) {

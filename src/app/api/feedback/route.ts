@@ -9,6 +9,8 @@ import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { lockUser, lockHousehold } from "@/lib/household-lock";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1Feedback, saveD1Feedback } from "@/lib/cloudflare/feedback";
 export const dynamic = "force-dynamic";
 const schema = z
   .object({
@@ -33,6 +35,20 @@ export async function GET(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
   try {
+    if (storageBackend() === "d1") {
+      const result = await readD1Feedback(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          generation: auth.payload.tv ?? 0,
+        },
+        wantsSummary(request),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const reports = await prisma!.appFeedback.findMany({
       where: { user_id: auth.user.id, family_id: auth.user.family_id },
       orderBy: [{ created_at: "desc" }, { id: "asc" }],
@@ -79,6 +95,21 @@ export async function POST(request: NextRequest) {
         { status: 429 },
       );
     const { requestId, kind, title, details, page } = parsed.data;
+    if (storageBackend() === "d1") {
+      const result = await saveD1Feedback(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          generation: auth.payload.tv ?? 0,
+        },
+        { requestId, kind, title, details, page },
+        wantsSummary(request),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const result = await prisma!.$transaction(async (tx) => {
       await lockUser(tx, auth.user.id);
       await lockHousehold(tx, auth.user.family_id);

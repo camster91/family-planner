@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { storageBackend } from "@/lib/storage-backend";
 /**
  * Shared-device audit trail (SHARED_DEVICE.md §10).
  *
@@ -6,66 +8,106 @@
  * failure is logged and never turns a security action (revocation, reuse
  * detection, lockout) into an error for the caller.
  */
-import type { Prisma, PrismaClient } from '@prisma/client'
-import { log } from '@/lib/logger'
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { log } from "@/lib/logger";
 
-type PairingCancelReason = 'parent' | 'digits_mismatch' | 'superseded' | 'device_limit'
-export type RevokeReason = 'parent' | 'lost' | 'replaced' | 'token_reuse'
-export type ElevationEndReason = 'exit' | 'idle' | 'max' | 'revoked' | 'credential_changed'
-export type ElevatedActionName = 'rename_device' | 'revoke_device' | 'update_board_settings'
+type PairingCancelReason =
+  "parent" | "digits_mismatch" | "superseded" | "device_limit";
+export type RevokeReason = "parent" | "lost" | "replaced" | "token_reuse";
+export type ElevationEndReason =
+  "exit" | "idle" | "max" | "revoked" | "credential_changed";
+export type ElevatedActionName =
+  "rename_device" | "revoke_device" | "update_board_settings";
 /** Attributed shared-tablet writes (#274, SHARED_DEVICE.md §9.2, O-5). */
-export type MemberActionName = 'list_item_check' | 'list_item_uncheck' | 'list_item_add' | 'chore_complete' | 'chore_undo'
+export type MemberActionName =
+  | "list_item_check"
+  | "list_item_uncheck"
+  | "list_item_add"
+  | "chore_complete"
+  | "chore_undo";
 /** Board-settings sections an elevated change touched (names only, never values). */
-export type BoardSettingsSectionName = 'weather' | 'memberColors' | 'display' | 'deviceWrites'
+export type BoardSettingsSectionName =
+  "weather" | "memberColors" | "display" | "deviceWrites";
 
 export type DeviceAuditEntry =
-  | { type: 'device.pairing_created'; metadata: { pairingId: string } }
-  | { type: 'device.pairing_claimed'; metadata: { pairingId: string; platform: string; appVersion: string | null } }
-  | { type: 'device.pairing_confirmed'; metadata: { pairingId: string } }
-  | { type: 'device.pairing_cancelled'; metadata: { pairingId: string; reason: PairingCancelReason } }
-  | { type: 'device.paired'; metadata: { pairingId: string; platform: string } }
-  | { type: 'device.renamed'; metadata: Record<string, never> }
-  | { type: 'device.revoked'; metadata: { reason: RevokeReason } }
-  | { type: 'device.token_reuse_detected'; metadata: { sessionId: string } }
-  | { type: 'device.elevation_started'; metadata: { method: 'pin' | 'password' } }
-  | { type: 'device.elevation_ended'; metadata: { reason: ElevationEndReason } }
-  | { type: 'device.elevation_locked'; metadata: { scope: 'device' | 'account' } }
+  | { type: "device.pairing_created"; metadata: { pairingId: string } }
   | {
-      type: 'device.elevated_action'
+      type: "device.pairing_claimed";
+      metadata: {
+        pairingId: string;
+        platform: string;
+        appVersion: string | null;
+      };
+    }
+  | { type: "device.pairing_confirmed"; metadata: { pairingId: string } }
+  | {
+      type: "device.pairing_cancelled";
+      metadata: { pairingId: string; reason: PairingCancelReason };
+    }
+  | { type: "device.paired"; metadata: { pairingId: string; platform: string } }
+  | { type: "device.renamed"; metadata: Record<string, never> }
+  | { type: "device.revoked"; metadata: { reason: RevokeReason } }
+  | { type: "device.token_reuse_detected"; metadata: { sessionId: string } }
+  | {
+      type: "device.elevation_started";
+      metadata: { method: "pin" | "password" };
+    }
+  | { type: "device.elevation_ended"; metadata: { reason: ElevationEndReason } }
+  | {
+      type: "device.elevation_locked";
+      metadata: { scope: "device" | "account" };
+    }
+  | {
+      type: "device.elevated_action";
       metadata:
-        | { action: 'rename_device' | 'revoke_device'; targetType: 'device'; targetId: string }
         | {
-            action: 'update_board_settings'
-            targetType: 'family'
-            targetId: string
-            sections: BoardSettingsSectionName[]
+            action: "rename_device" | "revoke_device";
+            targetType: "device";
+            targetId: string;
           }
+        | {
+            action: "update_board_settings";
+            targetType: "family";
+            targetId: string;
+            sections: BoardSettingsSectionName[];
+          };
     }
   | {
-      type: 'device.member_action'
-      metadata: { action: MemberActionName; targetType: 'list_item' | 'chore'; targetId: string }
+      type: "device.member_action";
+      metadata: {
+        action: MemberActionName;
+        targetType: "list_item" | "chore";
+        targetId: string;
+      };
     }
-  | { type: 'parent_pin.set'; metadata: Record<string, never> }
-  | { type: 'parent_pin.removed'; metadata: Record<string, never> }
-  | { type: 'parent_pin.cleared_by_reset'; metadata: Record<string, never> }
+  | { type: "parent_pin.set"; metadata: Record<string, never> }
+  | { type: "parent_pin.removed"; metadata: Record<string, never> }
+  | { type: "parent_pin.cleared_by_reset"; metadata: Record<string, never> };
 
-export type DeviceAuditType = DeviceAuditEntry['type']
+export type DeviceAuditType = DeviceAuditEntry["type"];
 
-type AuditDb = Pick<PrismaClient, 'deviceAuditEvent'>
+type AuditDb = Pick<PrismaClient, "deviceAuditEvent">;
+
+export type DeviceAuditInput = DeviceAuditEntry & {
+  familyId: string;
+  deviceId?: string | null;
+  actorUserId?: string | null;
+  subjectMemberId?: string | null;
+  subjectMemberErased?: boolean;
+  /** Event time; defaults to the database clock. Tablet writes pass the device clock. */
+  at?: Date;
+};
 
 export async function writeDeviceAudit(
   db: AuditDb,
-  entry: DeviceAuditEntry & {
-    familyId: string
-    deviceId?: string | null
-    actorUserId?: string | null
-    subjectMemberId?: string | null
-    subjectMemberErased?: boolean
-    /** Event time; defaults to the database clock. Tablet writes pass the device clock. */
-    at?: Date
-  }
+  entry: DeviceAuditInput,
 ): Promise<void> {
   try {
+    if (storageBackend() === "d1") {
+      const { getD1Database } = await import("@/lib/cloudflare/database");
+      await writeD1DeviceAudit(await getD1Database(), entry);
+      return;
+    }
     await db.deviceAuditEvent.create({
       data: {
         family_id: entry.familyId,
@@ -78,12 +120,42 @@ export async function writeDeviceAudit(
         ...(entry.at ? { created_at: entry.at } : {}),
       },
       select: { id: true },
-    })
+    });
   } catch (error) {
     // `type` is the fixed audit event name; the error is reduced to its class name and code.
-    log.error('device.audit_write_failed', error, { type: entry.type })
+    log.error("device.audit_write_failed", error, { type: entry.type });
+  }
+}
+
+/** Same content-minimal audit contract with an explicit native binding for
+ * source-owned repositories and local Worker verification. Best effort only. */
+export async function writeD1DeviceAudit(
+  db: Pick<import("@/lib/cloudflare/database").D1Store, "prepare">,
+  entry: DeviceAuditInput,
+): Promise<void> {
+  try {
+    await db
+      .prepare(
+        `INSERT INTO "DeviceAuditEvent"
+        (id,family_id,device_id,actor_user_id,subject_member_id,subject_member_erased,type,metadata,created_at)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,COALESCE(?9,CAST(unixepoch('subsec')*1000 AS INTEGER)))`,
+      )
+      .bind(
+        randomUUID(),
+        entry.familyId,
+        entry.deviceId ?? null,
+        entry.actorUserId ?? null,
+        entry.subjectMemberId ?? null,
+        entry.subjectMemberErased ? 1 : 0,
+        entry.type,
+        JSON.stringify(entry.metadata),
+        entry.at?.getTime() ?? null,
+      )
+      .run();
+  } catch (error) {
+    log.error("device.audit_write_failed", error, { type: entry.type });
   }
 }
 
 /** Audit retention (O-12): rows older than this are pruned when a parent opens the device list. */
-export const AUDIT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000
+export const AUDIT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;

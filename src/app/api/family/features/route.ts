@@ -1,3 +1,6 @@
+import { storageBackend } from '@/lib/storage-backend'
+import { getServerActor } from '@/lib/supabase/server'
+import { readD1FamilyFeatures, updateD1FamilyFeatures, D1FamilySettingsError } from '@/lib/cloudflare/family-settings'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/supabase/server'
 import { refusePairedDevice } from '@/lib/device-refusal'
@@ -8,7 +11,7 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
 // getServerUser returns a narrow type but the actual JWT payload includes role + family_id.
-type SessionUser = { id: string; email: string; role?: string; family_id?: string | null }
+type SessionUser = { id: string; email: string; role?: string; family_id?: string | null; tokenVersion?: number }
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v)
@@ -22,10 +25,20 @@ export async function GET(request: NextRequest) {
   const deviceRefusal = await refusePairedDevice(request)
   if (deviceRefusal) return deviceRefusal
 
-  const user = (await getServerUser()) as SessionUser | null
+  const user = (storageBackend() === 'd1' ? await getServerActor() : await getServerUser()) as SessionUser | null
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!user.family_id) {
     return NextResponse.json({ features: defaultFeatures() })
+  }
+
+  if (storageBackend() === 'd1') {
+    try {
+      return NextResponse.json({ features: await readD1FamilyFeatures({ userId: user.id, familyId: user.family_id, generation: user.tokenVersion ?? 0 }) })
+    } catch (err) {
+      if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status })
+      logRouteError('GET /api/family/features', err, getRequestId(request))
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
   }
 
   const family = await prisma!.family.findUnique({
@@ -52,7 +65,7 @@ export async function PATCH(request: Request) {
     const deviceRefusal = await refusePairedDevice(request as NextRequest)
     if (deviceRefusal) return deviceRefusal
 
-    const user = (await getServerUser()) as SessionUser | null
+    const user = (storageBackend() === 'd1' ? await getServerActor() : await getServerUser()) as SessionUser | null
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     if (user.role !== 'parent') {
       return NextResponse.json({ error: 'Only parents can change features' }, { status: 403 })
@@ -114,6 +127,10 @@ export async function PATCH(request: Request) {
     // lock order of src/lib/household-lock.ts is unaffected.
     const familyId = user.family_id
     const actorUserId = user.id
+    if (storageBackend() === 'd1') {
+      const next = await updateD1FamilyFeatures({ userId: actorUserId, familyId, generation: user.tokenVersion ?? 0 }, changes)
+      return NextResponse.json({ features: next })
+    }
     const next = await prisma!.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Family" WHERE "id" = ${familyId} FOR UPDATE`
       const family = await tx.family.findUnique({ where: { id: familyId }, select: { features: true } })
@@ -131,6 +148,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ features: next })
   } catch (err) {
+    if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status })
     logRouteError('PATCH /api/family/features', err, getRequestId(request))
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

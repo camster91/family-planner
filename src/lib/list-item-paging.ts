@@ -74,9 +74,7 @@ export function parseListItemPaging(
   }
   return { ok: true, paged: true, limit: Number(limit), cursor: position };
 }
-export function afterListItemCursor(
-  cursor: Position,
-): Prisma.ListItemWhereInput {
+export function afterListItemCursor(cursor: Position) {
   return {
     OR: [
       { position: { gt: cursor.position } },

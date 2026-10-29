@@ -10,6 +10,10 @@ import {
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { checkRateLimit } from "@/lib/rate-limit-db";
+import { storageBackend } from "@/lib/storage-backend";
+import { checkD1RateLimit } from "@/lib/cloudflare/rate-limit";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { readD1InventoryRecoveryContext } from "@/lib/cloudflare/inventory-recovery";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(request: NextRequest) {
@@ -20,7 +24,7 @@ export async function GET(request: NextRequest) {
       error.headers.set("Cache-Control", headers["Cache-Control"]);
       return error;
     }
-    if (
+    if (storageBackend() !== "d1" &&
       !(await checkRateLimit(`inventory-recovery:${auth.user.id}`, 240, 60_000))
         .allowed
     )
@@ -28,6 +32,23 @@ export async function GET(request: NextRequest) {
         { error: { code: "RATE_LIMITED" } },
         { status: 429, headers },
       );
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      role: auth.user.role,
+      generation: auth.payload.tv ?? 0,
+    };
+    if (storageBackend() === "d1") {
+      const database = await getD1Database();
+      if (!(await checkD1RateLimit(database, `inventory-recovery:${actor.userId}`, 240, 60_000, Date.now())).allowed)
+        return NextResponse.json({ error: { code: "RATE_LIMITED" } }, { status: 429, headers });
+      const owner = inventoryRecoveryOwner(request, auth.payload, auth.user);
+      const result = await readD1InventoryRecoveryContext(actor, {
+        enabled: inventoryRecoveryEnabled() && owner !== null,
+        owner,
+      }, database);
+      return NextResponse.json(result.body, { status: result.status, headers });
+    }
     const refusal = await prisma!.$transaction((tx) =>
       inventoryIntakeAuthority(tx, {
         userId: auth.user.id,

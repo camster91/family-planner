@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1CalendarSubscription } from "@/lib/cloudflare/calendar-subscriptions";
 import {
   withCalendarSubscriptionAccess,
   protectCalendarSubscriptionResponse,
@@ -37,7 +39,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const actor: CalendarSubscriptionActor = {
       userId: auth.user.id, familyId: auth.user.family_id, role, generation: auth.payload.tv ?? 0,
     };
-    const admitted = await withCalendarSubscriptionAccess(prisma!, actor, "refresh", tx => tx.calendarSubscription.findFirst({
+    const admitted = storageBackend() === "d1" ? await readD1CalendarSubscription(actor, id)
+      : await withCalendarSubscriptionAccess(prisma!, actor, "refresh", tx => tx.calendarSubscription.findFirst({
       where: { id, family_id: actor.familyId }, select: { id: true },
     }));
     if (admitted.kind === "held") return calendarSubscriptionAccessHeld();
@@ -80,7 +83,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const status = await withCalendarSubscriptionAccess(prisma!, actor, "refresh", async tx => {
+    const status = storageBackend() === "d1" ? await readD1CalendarSubscription(actor, existing.id)
+      : await withCalendarSubscriptionAccess(prisma!, actor, "refresh", async tx => {
       const sub = await tx.calendarSubscription.findFirst({
         where: { id: existing.id, family_id: actor.familyId },
         select: { id: true, name: true, color: true, url_enc: true,

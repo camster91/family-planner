@@ -11,6 +11,14 @@ on:
     branches: [main, master]
   workflow_dispatch:
     inputs:
+      cloudflare_only:
+        description: "Build and measure the Cloudflare Worker only; no deployment or browser shards"
+        type: boolean
+        default: false
+      retain_cloudflare_runtime:
+        description: "Retain a seven-day local verification tar (Worker bundle and static assets only)"
+        type: boolean
+        default: false
       update_snapshots:
         description: "Regenerate visual baselines on the CI runner and upload them as an artifact (never commits)"
         type: boolean
@@ -25,6 +33,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: E2E viewport shard (${{ matrix.group }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -186,6 +195,7 @@ jobs:
           retention-days: 7
 
   recovery_expanded:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Password recovery ordinary and expanded QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -282,6 +292,7 @@ jobs:
           retention-days: 7
 
   inventory_localization:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Inventory ordinary and expanded QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -369,6 +380,7 @@ jobs:
           retention-days: 7
 
   settings_localization:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Settings ${{ matrix.mode }} QA
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -457,6 +469,7 @@ jobs:
           retention-days: 7
 
   profile_routine:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Email-free profile routine QA (six viewports)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -536,6 +549,7 @@ jobs:
           retention-days: 7
 
   review_documents:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true }}
     name: Adopted Capture recovery QA (six viewports)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -628,7 +642,7 @@ jobs:
         profile_routine,
         review_documents,
       ]
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.cloudflare_only != true) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -641,3 +655,152 @@ jobs:
           PROFILE_ROUTINE_RESULT: ${{ needs.profile_routine.result }}
           REVIEW_DOCUMENTS_RESULT: ${{ needs.review_documents.result }}
         run: test "$SHARD_RESULT" = success && test "$RECOVERY_RESULT" = success && test "$INVENTORY_RESULT" = success && test "$SETTINGS_RESULT" = success && test "$PROFILE_ROUTINE_RESULT" = success && test "$REVIEW_DOCUMENTS_RESULT" = success
+
+  cloudflare_build:
+    name: Cloudflare build and bundle measurement
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.cloudflare_only == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+      NEXT_PUBLIC_APP_URL: https://herewoven.com
+      HEREWOVEN_STORAGE: d1
+      # Isolated build identity only; no production/provider secrets are used.
+      JWT_SECRET: fabricated-cloudflare-ci-build-key-not-production
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - name: Checkout selected source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Record source identity
+        env:
+          RUNTIME_ARTIFACT_REQUESTED: ${{ inputs.retain_cloudflare_runtime }}
+        run: |
+          mkdir -p cloudflare-readiness
+          node <<'NODE'
+          const fs = require('node:fs')
+          const crypto = require('node:crypto')
+          const requested = process.env.RUNTIME_ARTIFACT_REQUESTED === 'true'
+          const workerConfig = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'))
+          const privatePasswordComputeFiles = [
+            'src/cloudflare/password-compute-worker.ts',
+            'src/lib/cloudflare/password-compute-do.ts',
+            'src/lib/cloudflare/local-password-compute.ts',
+            'wrangler.password-compute.jsonc',
+            'package-lock.json',
+          ]
+          const privatePasswordCompute = Object.fromEntries(
+            privatePasswordComputeFiles.map(file => [
+              file,
+              crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),
+            ]),
+          )
+          fs.writeFileSync('cloudflare-readiness/source.json', `${JSON.stringify({
+            sha: process.env.GITHUB_SHA,
+            ref: process.env.GITHUB_REF,
+            storage: 'd1',
+            deployment: false,
+            runtimeArtifact: {
+              requested,
+              retentionDays: requested ? 7 : null,
+              assetRouting: { runWorkerFirst: workerConfig.assets?.run_worker_first ?? false },
+              contents: requested ? ['worker.bundle', '.open-next/assets', 'source.json'] : [],
+              privatePasswordCompute: {
+                algorithm: 'sha256',
+                files: privatePasswordCompute,
+              },
+            },
+          }, null, 2)}\n`, { mode: 0o600 })
+          NODE
+      - name: Generate existing database client types
+        # Retained PostgreSQL modules still need their generated types while
+        # D1 routes are ported. Generation does not connect to a database.
+        run: npx prisma generate
+      - name: Build Worker without deployment
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run cloudflare:build 2>&1 | tee cloudflare-readiness/build.log
+      - name: Measure upload bundle without deployment
+        shell: bash
+        run: |
+          set -o pipefail
+          npx wrangler deploy --dry-run --outfile cloudflare-readiness/worker.bundle 2>&1 | tee cloudflare-readiness/bundle.log
+      - name: Profile local startup and write safe bundle metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/cloudflare/readiness-summary.mjs \
+            --bundle-file cloudflare-readiness/worker.bundle \
+            --assets-dir .open-next/assets \
+            --summary-out cloudflare-readiness/bundle-summary.json \
+            --startup-out cloudflare-readiness/startup-summary.json \
+            --runtime-artifact-retained "${{ inputs.retain_cloudflare_runtime }}"
+      - name: Package ephemeral local Cloudflare runtime (opt-in)
+        if: ${{ inputs.retain_cloudflare_runtime == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle='cloudflare-readiness/worker.bundle'
+          source='cloudflare-readiness/source.json'
+          assets='.open-next/assets'
+          archive='cloudflare-readiness/herewoven-local-runtime.tar.gz'
+          test -s "$bundle"
+          test -s "$source"
+          test -d "$assets"
+
+          stage="$(mktemp -d)"
+          trap 'rm -rf "$stage"' EXIT
+          mkdir -p "$stage/.open-next/assets"
+          cp -- "$bundle" "$stage/worker.bundle"
+          cp -- "$source" "$stage/source.json"
+          # Copy only deployable static assets. Maps, env files and dependency
+          # trees are deliberately excluded from the retained local archive.
+          tar -C "$assets" \
+            --exclude='*.map' \
+            --exclude='node_modules' \
+            --exclude='node_modules/*' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            -cf - . | tar -C "$stage/.open-next/assets" -xf -
+
+          tar -C "$stage" \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 --group=0 --numeric-owner \
+            -czf "$archive" worker.bundle source.json .open-next/assets
+          listing="$(tar -tzf "$archive")"
+          if printf '%s\n' "$listing" | grep -Eiq '(^|/)(node_modules|[^/]*\.map$|\.env($|\.)|[^/]*\.env($|\.))'; then
+            echo 'Refusing to retain an unsafe runtime archive' >&2
+            exit 1
+          fi
+          test "$(printf '%s\n' "$listing" | grep -Ec '(^|/)worker\.bundle$')" -eq 1
+          test "$(printf '%s\n' "$listing" | grep -Ec '(^|/)source\.json$')" -eq 1
+      - name: Upload source and build evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloudflare-readiness-${{ github.sha }}
+          path: |
+            cloudflare-readiness/source.json
+            cloudflare-readiness/bundle-summary.json
+            cloudflare-readiness/startup-summary.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload ephemeral local Cloudflare runtime
+        if: ${{ inputs.retain_cloudflare_runtime == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloudflare-local-runtime-${{ github.sha }}
+          path: cloudflare-readiness/herewoven-local-runtime.tar.gz
+          if-no-files-found: error
+          retention-days: 7

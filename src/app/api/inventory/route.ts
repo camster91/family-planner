@@ -36,6 +36,10 @@ import {
 import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1Inventory, createD1Inventory } from "@/lib/cloudflare/inventory";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +130,36 @@ async function handleInventoryRead(request: NextRequest) {
       );
     }
 
+    if (storageBackend() === "d1") {
+      const native = await readD1Inventory(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        {
+          today,
+          location,
+          category,
+          query: q || undefined,
+          expiresBy:
+            expiring === null ? null : addUTCDays(today, expiring),
+          limit,
+          offset,
+        },
+      );
+      if (native.refusal)
+        return NextResponse.json(native.refusal.body, {
+          status: native.refusal.status,
+          headers: { "Cache-Control": "private, no-store" },
+        });
+      return inventoryScopedResponse(
+        inventoryJson(native.page),
+        readScope,
+      );
+    }
+
     const rows = await prisma!.inventoryItem.findMany({
       where: {
         family_id: auth.user.family_id,
@@ -207,6 +241,36 @@ export async function POST(request: NextRequest) {
     const data = parsed.data;
     const familyId = auth.user.family_id;
     const name = cleanItemName(data.name);
+
+    if (storageBackend() === "d1") {
+      try {
+        const result = await createD1Inventory(
+          {
+            userId: auth.user.id,
+            familyId,
+            role: auth.user.role,
+            generation: auth.payload.tv ?? 0,
+          },
+          data,
+          today,
+          key,
+        );
+        const response = NextResponse.json(result.body, {
+          status: result.status,
+          headers: result.replayed
+            ? { "Idempotency-Replayed": "true" }
+            : undefined,
+        });
+        response.headers.set("Cache-Control", "private, no-store");
+        return response;
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError)
+          return idempotencyError(error.code);
+        if (error instanceof InventoryInputError)
+          return inventoryError(400, "INGREDIENT_NOT_FOUND", error.message);
+        throw error;
+      }
+    }
 
     const res = await withIdempotency(
       prisma!,

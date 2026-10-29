@@ -1,3 +1,4 @@
+import { storageBackend } from '@/lib/storage-backend'
 import { prisma } from '@/lib/prisma'
 import { normalizeFeatures } from '@/lib/features'
 
@@ -20,6 +21,12 @@ type GamificationUserField = (typeof GAMIFICATION_USER_FIELDS)[number]
 /** Whether the family has Points & streaks on. No family = off. */
 export async function isGamificationOn(familyId: string | null | undefined): Promise<boolean> {
   if (!familyId) return false
+  if (storageBackend() === 'd1') {
+    const { getD1Database } = await import('@/lib/cloudflare/database')
+    const row = await (await getD1Database()).withSession('first-primary').prepare('SELECT features FROM "Family" WHERE id=?1')
+      .bind(familyId).first<{ features: string | null }>()
+    return row ? normalizeFeatures(row.features === null ? null : JSON.parse(row.features)).gamification : false
+  }
   const family = await prisma!.family.findUnique({
     where: { id: familyId },
     select: { features: true },

@@ -8,6 +8,8 @@ import { FeatureOffState } from '@/components/ui/feature-gate'
 import { isFeatureEnabled, normalizeFeatures } from '@/lib/features'
 import { utcMonthRange } from '@/lib/dates'
 import { RECENT_TRANSACTIONS_LIMIT, sumBudgetLimits } from '@/lib/budget'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1BudgetStats } from '@/lib/cloudflare/budget'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,6 +73,49 @@ export default async function BudgetPage() {
   // Finance reads own their person/parent gate, independent of layout routing.
   if (sessionUser.role !== 'parent') redirect('/dashboard')
 
+  if (!sessionUser.family_id) return <HouseholdPageState page="budget" />
+
+  // The native runtime is authoritative when D1 is selected. Keep this
+  // branch ahead of every Prisma read so a Cloudflare request cannot fall
+  // through to an unavailable Postgres client.
+  const now = new Date()
+  const targetYear = now.getUTCFullYear()
+  const targetMonth = now.getUTCMonth() + 1
+  if (storageBackend() === 'd1') {
+    const result = await readD1BudgetStats(
+      {
+        userId: sessionUser.id,
+        familyId: sessionUser.family_id,
+        role: sessionUser.role,
+        generation: sessionUser.tokenVersion,
+      },
+      targetYear,
+      targetMonth,
+    )
+    if (result.status === 401) redirect('/login')
+    if (result.status === 403) return <FeatureOffState featureKey="budget" canManage />
+    if (result.status !== 200) redirect('/dashboard')
+
+    const body = result.body as any
+    const data: BudgetPageData = {
+      month: body.month,
+      total_income: Number(body.total_income ?? 0),
+      total_expenses: Number(body.total_expenses ?? 0),
+      balance: Number(body.balance ?? 0),
+      budget_limit: body.budget_limit == null ? null : Number(body.budget_limit),
+      category_breakdown: (body.category_breakdown ?? []) as CategoryBreakdown[],
+      recent_transactions: (body.recent_transactions ?? []).map((transaction: any) => ({
+        ...transaction,
+        date: new Date(transaction.date).toISOString(),
+      })),
+      monthly_trend: (body.monthly_trend ?? []).map((month: any) => ({
+        ...month,
+        balance: Math.round((Number(month.income ?? 0) - Number(month.expenses ?? 0)) * 100) / 100,
+      })),
+    }
+    return <BudgetDashboard initialData={data} userId={sessionUser.id} canEdit archiveReviewEnabled={financeArchiveReviewEnabled()} />
+  }
+
   const user = await prisma!.user.findUnique({
     where: { id: sessionUser.id },
     select: {
@@ -97,9 +142,6 @@ export default async function BudgetPage() {
 
   // Current UTC calendar month, the same window `/api/budget/stats` uses
   // (server UTC, O-31). Transaction dates are date-only values at UTC midnight.
-  const now = new Date()
-  const targetYear = now.getUTCFullYear()
-  const targetMonth = now.getUTCMonth() + 1
   const { start: monthStart, end: monthEnd } = utcMonthRange(targetYear, targetMonth)
 
   // 1. Aggregate income and expenses for the month

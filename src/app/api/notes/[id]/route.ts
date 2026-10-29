@@ -7,6 +7,8 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { deleteNoteSchema, updateNoteSchema } from '@/lib/validations'
 import { refusePairedDevice } from '@/lib/device-route'
+import { storageBackend } from '@/lib/storage-backend'
+import { updateD1Note, deleteD1Note } from '@/lib/cloudflare/notes-projects'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +33,10 @@ export async function PATCH(request: NextRequest) {
     const parsed = updateNoteSchema.safeParse(json)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    if (storageBackend() === 'd1') {
+      const result = await updateD1Note({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, parsed.data)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
     const result = await mutatePersonNote(prisma!, {
       userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0,
@@ -67,6 +73,10 @@ export async function DELETE(request: NextRequest) {
     const parsed = deleteNoteSchema.safeParse(json)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+    }
+    if (storageBackend() === 'd1') {
+      const result = await deleteD1Note({ userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 }, parsed.data.id)
+      return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } })
     }
     const result = await mutatePersonNote(prisma!, {
       userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0,

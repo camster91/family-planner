@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { updateD1Anniversary, deleteD1Anniversary } from "@/lib/cloudflare/anniversaries";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { featureGate } from "@/lib/feature-gate-server";
 import { refusePairedDevice } from "@/lib/device-route";
@@ -48,6 +50,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
+
+    if (storageBackend() === "d1") {
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await updateD1Anniversary({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+      }, id, parsed.data, key);
+      const response = NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+      if (result.replayed) response.headers.set("Idempotency-Replayed", "true");
+      return response;
+    }
+
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
 
@@ -112,6 +129,20 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+
+    if (storageBackend() === "d1") {
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await deleteD1Anniversary({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        generation: auth.payload?.tv ?? 0,
+      }, id, key);
+      const response = NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+      if (result.replayed) response.headers.set("Idempotency-Replayed", "true");
+      return response;
     }
 
     const { key, error: keyError } = readIdempotencyKey(request);

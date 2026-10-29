@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { manageD1HouseholdProfile, listD1HouseholdProfiles } from "@/lib/cloudflare/household-profiles";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily, requireParent } from "@/lib/api-auth";
@@ -251,16 +253,10 @@ export async function runProfileCommand(
   try {
     // The command owns the transaction and replay record. Do not wrap this in
     // withIdempotency: nesting would create a second lock and split the effect.
-    const result = await manageHouseholdProfile(
-      prisma!,
-      {
-        userId: auth.user.id,
-        familyId: auth.user.family_id,
-        tokenVersion: auth.payload.tv ?? 0,
-      },
-      key,
-      input,
-    );
+    const actor = { userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 };
+    const result = storageBackend() === "d1"
+      ? await manageD1HouseholdProfile(actor, key, input)
+      : await manageHouseholdProfile(prisma!, actor, key, input);
     const headers: Record<string, string> = { ...NO_STORE };
     if (result.replayed) headers["Idempotency-Replayed"] = "true";
     const status = isRecord(input) && input.action === "create" ? 201 : 200;
@@ -320,7 +316,9 @@ export async function listProfiles(
   auth: ProfileAuth,
 ): Promise<NextResponse> {
   try {
-    const profiles = await prisma!.householdMember.findMany({
+    const profiles = storageBackend() === "d1"
+      ? await listD1HouseholdProfiles({ userId: auth.user.id, familyId: auth.user.family_id, tokenVersion: auth.payload.tv ?? 0 })
+      : await prisma!.householdMember.findMany({
       where: {
         family_id: auth.user.family_id,
         legacy_mapping: { is: null },
@@ -368,6 +366,7 @@ export async function listProfiles(
       { headers: NO_STORE },
     );
   } catch (error) {
+    if (error instanceof HouseholdProfileError) return commandError(request, error);
     logRouteError("GET /api/family/profiles", error, getRequestId(request));
     return apiError(
       500,

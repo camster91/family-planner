@@ -37,6 +37,8 @@ If an active issue conflicts with a higher authority, reconcile the issue before
 
 ## Engineering references
 
+- Cloudflare hosting migration (#604): `docs/architecture/CLOUDFLARE_RUNTIME.md` defines the implemented Workers/D1/private-R2 runtime and cross-account native-host bridge. `docs/plans/cloudflare-native-migration.md` preserves implementation history. Live source/version, acceptance, rollback and decommission evidence belongs in GitHub issue #604.
+
 - Notification event/delivery follow-through (#141): `docs/plans/notification-delivery-v1.md` (source inventory plus N1–N5; generic dedupe/admission, recovery, exact destinations and provider/native rollout remain unfinished).
 
 - Stable-profile rotation proposal (#480/#450): `docs/plans/profile-rotation-v1.md` (source-backed namespace/lifecycle/rollout contract; implementation and credit/retention decisions remain pending).
