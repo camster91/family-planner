@@ -66,10 +66,11 @@ const PRIVATE_PASSWORD_COMPUTE_FILES = [
 function usage() {
   console.log(
     [
-      "Usage: node scripts/cloudflare/local-runtime.mjs --runtime <archive> [--seed-smoke]",
+      "Usage: node scripts/cloudflare/local-runtime.mjs --runtime <archive> [--seed-smoke] [--exercise-profile-setup]",
       "",
       "The archive must be the opt-in cloudflare-local-runtime artifact.",
       "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
+      "--exercise-profile-setup enables the email-free profile flow in this disposable runtime only.",
       "The process stays alive until SIGINT/SIGTERM and prints one JSON URL line.",
     ].join("\n"),
   );
@@ -91,6 +92,7 @@ if (!runtimeArchive) {
   process.exit(2);
 }
 const seedSmoke = process.argv.includes("--seed-smoke");
+const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
 
 const safeChildEnv = {
   PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -728,6 +730,7 @@ try {
       CRON_SECRET: "fabricated-local-runtime-cron-secret",
       RELEASE_SHA: sourceSha ?? "local-runtime",
       NEXT_TELEMETRY_DISABLED: "1",
+      ...(exerciseProfileSetup ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1" } : {}),
     },
     assetRouting,
   );
@@ -774,6 +777,7 @@ try {
     externalEgress: "denied",
     email: "off",
     providerCalls: "disabled",
+    profileSetup: exerciseProfileSetup ? "test-rollout-enabled" : "default",
   };
   if (seedSmoke) {
     metadata.smokeAccounts = {

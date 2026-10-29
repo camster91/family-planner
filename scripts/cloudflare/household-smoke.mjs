@@ -457,17 +457,65 @@ async function main() {
       .fill(`${prefix} vegetables`);
     await dialog.getByLabel("Total portions", { exact: true }).fill("4");
     await dialog.getByRole("button", { name: /^next$/i }).click();
+    const saveResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/meals/bulk" &&
+        response.request().method() === "POST",
+      { timeout: 15_000 },
+    );
     await dialog.getByRole("button", { name: /save prep session/i }).click();
-    await dialog
-      .getByRole("status")
-      .filter({ hasText: /save confirmed/i })
-      .waitFor({ timeout: 15_000 });
+    const saveResponse = await saveResponsePromise;
+    const saved = await textOf(saveResponse);
+    assert.ok([200, 201].includes(saveResponse.status()), saved.body);
+    const sessionId = saved.json?.sessionId;
+    assert.equal(
+      typeof sessionId,
+      "string",
+      "bulk prep receipt did not include sessionId",
+    );
+
+    // BulkCookingPanel closes the editor from its onSaved callback. Confirm
+    // the visible panel rendered both batches from that receipt, rather than
+    // waiting for a status inside the dialog that no longer exists.
+    await dialog.waitFor({ state: "detached", timeout: 15_000 });
+    const sessionPicker = panel.getByRole("combobox").first();
+    await sessionPicker.waitFor({ state: "visible", timeout: 15_000 });
+    await page.waitForFunction(
+      ({ expected }) =>
+        document.querySelector('[data-testid="bulk-cooking-panel"] select')
+          ?.value === expected,
+      { expected: sessionId },
+    );
+    const firstBatch = panel.getByRole("article", {
+      name: firstDish,
+      exact: true,
+    });
+    const secondDish = `${prefix} vegetables`;
+    const secondBatch = panel.getByRole("article", {
+      name: secondDish,
+      exact: true,
+    });
+    await firstBatch.waitFor({ state: "visible", timeout: 15_000 });
+    await secondBatch.waitFor({ state: "visible", timeout: 15_000 });
+
+    // The panel's saved refresh is not enough to prove persistence across a
+    // new render, so reload the same route and assert both dishes again.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await settle();
+    const reloadedPanel = page.getByTestId("bulk-cooking-panel");
+    await reloadedPanel.waitFor({ state: "visible", timeout: 15_000 });
+    await reloadedPanel
+      .getByRole("article", { name: firstDish, exact: true })
+      .waitFor({ state: "visible", timeout: 15_000 });
+    await reloadedPanel
+      .getByRole("article", { name: secondDish, exact: true })
+      .waitFor({ state: "visible", timeout: 15_000 });
     record("meals-bulk-prep-several-dishes", "passed", {
       dishes: 2,
+      sessionId,
+      source: "BulkCookingPanel saved",
       path: appPath(),
     });
-    const close = dialog.getByRole("button", { name: /close bulk cooking/i });
-    if (await close.count()) await close.first().click();
   };
 
   const captureResponsiveToday = async () => {
