@@ -14,6 +14,7 @@ const env = {
 
 describe("legacy ashbi.ca alias Worker", () => {
   it("streams the original request to the allowed upstream with controlled hop headers", async () => {
+    const controller = new AbortController();
     let targetRequest: Request | undefined;
     const upstream = async (request: Request) => {
       targetRequest = request;
@@ -32,6 +33,7 @@ describe("legacy ashbi.ca alias Worker", () => {
           "x-herewoven-client-ip": "spoofed-ip",
         },
         body: JSON.stringify({ title: "Dinner" }),
+        signal: controller.signal,
       },
     );
 
@@ -53,6 +55,7 @@ describe("legacy ashbi.ca alias Worker", () => {
     expect(targetRequest?.headers.get("x-forwarded-host")).toBe(
       "family.ashbi.ca",
     );
+    expect(targetRequest?.headers.get("x-forwarded-proto")).toBe("https");
     expect(targetRequest?.headers.get(LEGACY_PROXY_SECRET_HEADER)).toBe(
       "fixture-secret",
     );
@@ -62,6 +65,8 @@ describe("legacy ashbi.ca alias Worker", () => {
     expect(await targetRequest?.text()).toBe(
       JSON.stringify({ title: "Dinner" }),
     );
+    controller.abort();
+    expect(targetRequest?.signal.aborted).toBe(true);
   });
 
   it("rewrites only owned absolute redirects and preserves duplicate cookies", async () => {
