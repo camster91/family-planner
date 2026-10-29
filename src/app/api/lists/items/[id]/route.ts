@@ -7,6 +7,8 @@ import { deletePersonListItem } from '@/lib/list-item-delete'
 import { authorizePersonListItemInTx } from '@/lib/person-list-item-authority'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
+import { storageBackend } from '@/lib/storage-backend'
+import { readD1ListItemReconciliation } from '@/lib/cloudflare/list-read'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +54,28 @@ export async function GET(request: NextRequest, context: RouteContext) {
       )
     }
     const generation = parsedGeneration
+
+    if (storageBackend() === 'd1') {
+      const state = await readD1ListItemReconciliation(
+        {
+          userId: expectedUserId,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation,
+        },
+        id,
+        listId,
+      )
+      return NextResponse.json(
+        state === 'held'
+          ? { state, error: 'Unable to reconcile this item' }
+          : { state },
+        {
+          status: state === 'held' ? 409 : 200,
+          headers: { 'Cache-Control': 'private, no-store' },
+        },
+      )
+    }
 
     const state = await prisma!.$transaction(async tx => {
       const denied = await authorizePersonListItemInTx(tx, {

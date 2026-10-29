@@ -162,6 +162,40 @@ async function readSnapshot<T>(
   }
   throw new Error("List snapshot changed too many times");
 }
+
+/**
+ * Reconcile one list item without exposing list contents. This is the native
+ * counterpart of GET /api/lists/items/[id]: inaccessible household/list
+ * scope stays `held`, while a proved list can distinguish `found` from
+ * `missing`. The authority witness and target read are checked together so a
+ * concurrent role, feature or deletion change cannot turn into a false
+ * missing result.
+ */
+export async function readD1ListItemReconciliation(
+  actor: AssistantProofActor,
+  itemId: string,
+  listId: string,
+  database?: D1Store,
+): Promise<"held" | "found" | "missing"> {
+  const snapshot = await readSnapshot(
+    actor,
+    async (db) => {
+      const list = await db.list.findFirst({
+        where: { id: listId, family_id: actor.familyId },
+        select: { id: true },
+      });
+      if (!list) return "held" as const;
+      const item = await db.listItem.findFirst({
+        where: { id: itemId, list_id: list.id },
+        select: { id: true },
+      });
+      return item ? ("found" as const) : ("missing" as const);
+    },
+    database,
+  );
+  return snapshot.denied ? "held" : snapshot.value!;
+}
+
 export async function readD1ListOverview(
   actor: AssistantProofActor,
   options: {

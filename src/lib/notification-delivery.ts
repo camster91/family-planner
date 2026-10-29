@@ -31,6 +31,7 @@ import {
 } from '@/lib/notification-policy'
 import { QUIET_HOURS_SELECT, isInQuietHours, quietHoursFromRow } from '@/lib/quiet-hours'
 import { lockHousehold, lockUser } from '@/lib/household-lock'
+import type { D1Store } from '@/lib/cloudflare/database'
 
 export interface SummaryRecipientContext {
   role: string
@@ -176,4 +177,61 @@ export async function sendOptInMail(
     })
     return { sent: true }
   }, { timeout: OPT_IN_MAIL_TRANSACTION_MS })
+}
+
+/**
+ * Native D1 counterpart to sendOptInMail. D1 cannot hold an interactive SQL
+ * lock over a provider fetch, so the primary read immediately before sending
+ * is the membership/preference/quiet-hours boundary. The caller's daily claim
+ * is consumed before this call and therefore remains the dedupe boundary if a
+ * provider response is lost or the member changes during the fetch.
+ */
+export async function sendD1OptInMail(
+  database: D1Store,
+  options: { userId: string; familyId: string; recipientContext: SummaryRecipientContext; subject: string; html: string; text: string },
+  now: Date = new Date(),
+): Promise<OptInMailResult> {
+  const deadline = Date.now() + OPT_IN_MAIL_TRANSACTION_MS - OPT_IN_MAIL_MARGIN_MS
+  const row = await database
+    .withSession('first-primary')
+    .prepare(`SELECT family_id,role,token_version,email,email_verified,morning_summary_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,quiet_hours_time_zone FROM "User" WHERE id=?1`)
+    .bind(options.userId)
+    .first<{
+      family_id: string | null
+      role: string
+      token_version: number
+      email: string | null
+      email_verified: number | boolean
+      morning_summary_enabled: number | boolean
+      quiet_hours_enabled: number | boolean
+      quiet_hours_start: string | null
+      quiet_hours_end: string | null
+      quiet_hours_time_zone: string | null
+    }>()
+  if (!row || row.family_id !== options.familyId || row.role !== options.recipientContext.role || row.token_version !== options.recipientContext.tokenVersion) {
+    return { sent: false, reason: 'membership_changed' }
+  }
+  if (row.morning_summary_enabled !== true && row.morning_summary_enabled !== 1) {
+    return { sent: false, reason: 'opted_out' }
+  }
+  if ((row.email_verified !== true && row.email_verified !== 1) || !row.email) {
+    return { sent: false, reason: 'unverified' }
+  }
+  if (isInQuietHours(now, quietHoursFromRow({
+    ...row,
+    quiet_hours_enabled: row.quiet_hours_enabled === true || row.quiet_hours_enabled === 1,
+  }))) {
+    return { sent: false, reason: 'quiet_hours' }
+  }
+  if (!isMailConfigured()) return { sent: false, reason: 'mail_not_configured' }
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new Error('Opt-in mail authorization deadline expired')
+  await sendMail({
+    to: row.email,
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    signal: AbortSignal.timeout(Math.min(OPT_IN_MAIL_PROVIDER_MS, remaining)),
+  })
+  return { sent: true }
 }

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getServerUser } from '@/lib/supabase/server'
+import { getServerUser, getServerActor } from '@/lib/supabase/server'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { pruneLegacyAnalytics } from '@/lib/legacy-analytics'
+import { storageBackend } from '@/lib/storage-backend'
+import { pruneD1LegacyAnalytics } from '@/lib/cloudflare/legacy-analytics'
 
 /**
  * Legacy analytics sink, kept for compatibility (#136, #140).
@@ -28,6 +30,14 @@ export async function POST(request: NextRequest) {
     const event = payload && typeof payload === 'object' ? (payload as { event?: unknown }).event : undefined
     if (!event || typeof event !== 'string') {
       return NextResponse.json({ error: 'Event name required' }, { status: 400 })
+    }
+
+    if (storageBackend() === 'd1') {
+      const actor = await getServerActor()
+      if (!actor) return NextResponse.json({ success: true, skipped: true, reason: 'anonymous' })
+      if (!actor.family_id) return NextResponse.json({ success: true, skipped: true, reason: 'no_family' })
+      await pruneD1LegacyAnalytics({ userId: actor.id, familyId: actor.family_id, generation: actor.tokenVersion })
+      return NextResponse.json({ success: true, skipped: true, reason: 'not_stored' })
     }
 
     // Anonymous visitors are valid: a page_view must not 401 in the console.

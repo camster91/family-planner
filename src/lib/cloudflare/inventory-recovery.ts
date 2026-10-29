@@ -15,6 +15,14 @@ import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import { normalizeName } from "@/lib/backfill/meals-groceries";
 import { canWriteInventory } from "@/lib/inventory";
 import {
+  mealRecipeSnapshot,
+  RECIPE_SNAPSHOT_MAX_BYTES,
+} from "@/lib/meal-recipe-history-contract";
+import {
+  cookingReview,
+  type CookingReviewSource,
+} from "@/lib/inventory-cooking-review-contract";
+import {
   inventoryChangeInput,
   inventoryChangeReceipt,
 } from "@/lib/inventory-change-contract";
@@ -133,6 +141,137 @@ export async function readD1InventoryRecoveryContext(
       familyId: actor.familyId,
     },
   };
+}
+
+/**
+ * Native read-only equivalent of reviewCookingStock. A cooking review is
+ * intentionally scoped by the same inventory authority as intake: the
+ * returned ingredient context is useful for planning, but never authorizes a
+ * stock mutation. Prepared batches use their immutable recipe snapshot; an
+ * unprepared batch may only resolve its current recipe when no historical
+ * evidence exists.
+ */
+export async function reviewD1CookingStock(
+  actor: D1InventoryActor,
+  source: CookingReviewSource,
+  database?: D1Store,
+): Promise<D1Reply> {
+  const result = await withAuthorizedRead(actor, async db => {
+    const family = await db.family.findUnique({
+      where: { id: actor.familyId },
+      select: { features: true },
+    });
+    if (
+      !family ||
+      !isFeatureEnabled(normalizeFeatures(family.features), "meals")
+    )
+      return fail(403, "MEALS_DISABLED");
+
+    let recipeId: string | null = source.kind === "recipe" ? source.id : null;
+    let target = source.kind === "recipe" ? source.servings : undefined;
+    let recorded: ReturnType<typeof mealRecipeSnapshot.parse>["recipe"] | null =
+      null;
+
+    if (source.kind === "batch") {
+      const batch = await db.mealBatch.findFirst({
+        where: { id: source.id, family_id: actor.familyId },
+        select: {
+          recipe_id: true,
+          total_servings: true,
+          recipe_snapshot: true,
+          recipe_snapshot_at: true,
+          prep_session: { select: { family_id: true, prepared_at: true } },
+        },
+      });
+      if (!batch || batch.prep_session.family_id !== actor.familyId)
+        return fail(404, "COOKING_SOURCE_UNAVAILABLE");
+      target = batch.total_servings;
+      if (batch.prep_session.prepared_at) {
+        const snapshot = mealRecipeSnapshot.safeParse(batch.recipe_snapshot);
+        if (
+          !snapshot.success ||
+          !batch.recipe_snapshot_at ||
+          new TextEncoder().encode(JSON.stringify(snapshot.data)).byteLength >
+            RECIPE_SNAPSHOT_MAX_BYTES
+        )
+          return fail(409, "COOKING_HISTORY_UNAVAILABLE");
+        recorded = snapshot.data.recipe;
+      } else {
+        // Do not replace unexplained historical evidence with a live recipe.
+        if (batch.recipe_snapshot_at || batch.recipe_snapshot !== null)
+          return fail(409, "COOKING_HISTORY_UNAVAILABLE");
+        recipeId = batch.recipe_id;
+      }
+    }
+
+    const recipe =
+      recorded ??
+      (recipeId
+        ? await db.recipe.findFirst({
+            where: { id: recipeId, family_id: actor.familyId },
+            select: {
+              id: true,
+              title: true,
+              servings: true,
+              ingredients: {
+                take: 101,
+                orderBy: [
+                  { ingredient: { name: "asc" } },
+                  { ingredient_id: "asc" },
+                  { id: "asc" },
+                ],
+                select: {
+                  id: true,
+                  amount: true,
+                  unit: true,
+                  ingredient: {
+                    select: { id: true, name: true, family_id: true },
+                  },
+                },
+              },
+            },
+          })
+        : null);
+    if (!recipe || recipe.ingredients.length > 100)
+      return fail(404, "COOKING_SOURCE_UNAVAILABLE");
+
+    // RecipeIngredient has no household composite foreign key. Prove the
+    // nested ingredients are household-owned before returning live context.
+    if (
+      !recorded &&
+      recipe.ingredients.some(
+        line =>
+          !(
+            line.ingredient &&
+            "family_id" in line.ingredient &&
+            line.ingredient.family_id === actor.familyId
+          ),
+      )
+    )
+      return fail(409, "COOKING_SOURCE_UNAVAILABLE");
+
+    const parsed = cookingReview.safeParse({
+      userId: actor.userId,
+      familyId: actor.familyId,
+      source,
+      title: recipe.title,
+      basis: recorded ? "prepared-snapshot" : "current-recipe",
+      baseServings: recipe.servings,
+      targetServings: target ?? recipe.servings,
+      lines: recipe.ingredients.map(line => ({
+        id: line.id,
+        ingredientId: line.ingredient.id,
+        name: line.ingredient.name,
+        amount: line.amount,
+        unit: line.unit,
+      })),
+    });
+    return parsed.success
+      ? { status: 200, body: parsed.data }
+      : fail(409, "COOKING_SOURCE_UNAVAILABLE");
+  }, database);
+  if (result.refusal) return result.refusal;
+  return result.value!;
 }
 
 type RestockComparison = {

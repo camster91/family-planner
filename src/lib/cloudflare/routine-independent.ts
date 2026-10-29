@@ -12,6 +12,13 @@ import {
   type RoutineIndependentCommand,
 } from "@/lib/routine-independent";
 import {
+  independentRecoveryEntry,
+  independentRecoveryReview,
+  INDEPENDENT_RECOVERY_CONTRACT,
+  type IndependentRecoveryEntry,
+} from "@/lib/routine-independent-recovery";
+import { ROUTINE_SCHEDULE_WRITE_ENV } from "@/lib/routine-schedule-gates";
+import {
   normalizeRoutineSharedSchedule,
   routineStepSeriesConfig,
   routineViewerDay,
@@ -30,6 +37,7 @@ type Root = { id: string; family_id: string; title: string; description: string 
 type Occurrence = { id: string; due_date: Date; recurrence_id: string | null; routine_stack_id: string | null; status: string; photo_url: string | null; photo_verified: boolean; verified_at: Date | null; verified_notes: string | null; completed_at: Date | null; successor_id: string | null; is_template: boolean; member_subject_erased: boolean };
 type Receipt = { id: string; family_id: string; user_id: string | null; action: string; request_hash: string; created_at: number; response_status: number | null; response_body: string | null; expires_at: number };
 const fail = (status: number, code: string): EffectResult => ({ status, body: { error: { code } } });
+const ROUTINE_INDEPENDENT_ACTION = "routine.independent.v1";
 const parse = <T>(value: unknown): T | null => { if (value === null || value === undefined) return null; if (typeof value !== "string") return value as T; try { return JSON.parse(value) as T; } catch { return null; } };
 const json = (value: unknown) => JSON.stringify(value);
 const untouched = (row: Occurrence) => row.status === "pending" && !row.photo_url && !row.photo_verified && !row.verified_at && !row.verified_notes && !row.completed_at && !row.successor_id && !row.member_subject_erased && !row.is_template;
@@ -88,6 +96,111 @@ export async function readD1IndependentCatalog(actor: Actor, cursor: string | nu
   if (!capture.value) return fail(403, "ROUTINE_PARENT_REQUIRED");
   const page = capture.value.slice(0, 20);
   return { status: 200, body: routineIndependentCatalog.parse({ protocol: ROUTINE_INDEPENDENT_PROTOCOL, userId: actor.userId, familyId: actor.familyId, steps: page.map((row) => { const config = routineStepSeriesConfig.safeParse(parse(row.routine_series_config)); const detached = config.success && config.data.stack_id === null; return { rootId: row.id, title: detached ? config.data.content.title : row.title, revision: detached ? config.data.revision : null, state: detached ? config.data.state : "unsupported", schedule: detached ? config.data.schedule : null }; }), nextCursor: capture.value.length > 20 ? page.at(-1)!.id : null }) };
+}
+
+/** Read-only exact-key review for a detached routine request. */
+export async function reviewD1IndependentRoutine(
+  actor: Actor,
+  raw: IndependentRecoveryEntry,
+  ownerScope: string,
+  writesEnabled: boolean,
+  now = new Date(),
+  database?: D1Store,
+): Promise<EffectResult> {
+  const entry = independentRecoveryEntry.parse(raw);
+  const input = routineIndependentCommand.parse(JSON.parse(entry.body));
+  const store = database ?? (await getD1Database());
+  const session = store.withSession("first-primary");
+  const capture = await captureD1Reads(
+    (db) => readRoot(db, actor, input.root_id, false),
+    store as unknown as NativeD1,
+  );
+  if (capture.value.denied) return fail(403, "ROUTINE_PARENT_REQUIRED");
+  if (
+    input.expected_user_id !== actor.userId ||
+    input.expected_family_id !== actor.familyId
+  )
+    return fail(403, "AUTH_CONTEXT_CHANGED");
+  const requestHash = hashIdempotentRequest(ROUTINE_INDEPENDENT_ACTION, input);
+  const record = await session
+    .prepare(
+      `SELECT id,family_id,user_id,action,request_hash,created_at,response_status,response_body,expires_at
+       FROM "IdempotencyRecord" WHERE scope=?1 AND key=?2`,
+    )
+    .bind(`user:${actor.userId}`, entry.key)
+    .first<Receipt>();
+  if (
+    record &&
+    (record.family_id !== actor.familyId ||
+      record.user_id !== actor.userId ||
+      record.action !== ROUTINE_INDEPENDENT_ACTION ||
+      record.request_hash !== requestHash)
+  )
+    return fail(422, "IDEMPOTENCY_KEY_REUSED");
+  const current = capture.value.root ? definition(capture.value.root) : null;
+  const reply = (
+    state:
+      | "ready"
+      | "pending"
+      | "committed"
+      | "removed"
+      | "expired"
+      | "conflict"
+      | "paused"
+      | "unavailable",
+    receipt: unknown = null,
+  ): EffectResult => ({
+    status: 200,
+    body: independentRecoveryReview.parse({
+      contract: INDEPENDENT_RECOVERY_CONTRACT,
+      ownerScope,
+      entry,
+      state,
+      canRetry: state === "ready" || state === "pending",
+      currentRevision: current?.revision ?? null,
+      receipt,
+    }),
+  });
+
+  if (record?.response_status !== null && record?.response_status !== undefined) {
+    const proof = routineIndependentReceipt.safeParse(receipt(record.response_body));
+    if (
+      record.response_status !== 200 ||
+      !proof.success ||
+      proof.data.requestId !== record.id ||
+      proof.data.rootId !== input.root_id ||
+      proof.data.action !== input.action ||
+      proof.data.revision !== input.expected_revision + 1
+    )
+      return reply("unavailable");
+    return reply(capture.value.root ? "committed" : "removed", proof.data);
+  }
+
+  const age = now.getTime() - Date.parse(input.issued_at);
+  if (
+    age < -60_000 ||
+    age > 15 * 60_000 ||
+    routineViewerDay(input.view_zone, now) !== input.view_day
+  )
+    return reply("expired");
+  if (!current) return reply("unavailable");
+  if (current.stack_id !== null) return reply("conflict");
+  if (current.revision !== input.expected_revision) return reply("conflict");
+  if (current.state === "stopped") return reply("conflict");
+  if (
+    (input.action === "pause" && current.state !== "active") ||
+    (input.action === "resume" && current.state !== "paused") ||
+    (input.action === "resume" &&
+      current.schedule.frequency === "once" &&
+      current.schedule.starts_on! <= input.view_day)
+  )
+    return reply("conflict");
+  if (
+    !writesEnabled ||
+    process.env[ROUTINE_SCHEDULE_WRITE_ENV] !== "1"
+  )
+    return reply("paused");
+  return reply(record ? "pending" : "ready");
 }
 
 export async function saveD1IndependentRoutine(actor: Actor, raw: unknown, key: string, now = new Date(), database?: D1Store, writesEnabled = true): Promise<EffectResult> {

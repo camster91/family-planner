@@ -21,6 +21,11 @@ export type NativePersonPlan = EffectResult & {
   effects?: (session: Pick<D1Store, "prepare">) => D1Statement[];
 };
 export type NativePersonResult = EffectResult & { replayed: boolean };
+
+function storedResponseBody(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value); } catch { return value; }
+}
 export class D1PersonReceiptError extends Error {
   constructor(
     readonly code: "IDEMPOTENCY_KEY_REUSED" | "IDEMPOTENCY_IN_PROGRESS",
@@ -77,7 +82,7 @@ export async function executeD1PersonEffect(args: {
             return {
               reply: {
                 status: prior.response_status,
-                body: prior.response_body,
+                body: storedResponseBody(prior.response_body),
                 replayed: true,
               },
             };

@@ -10,6 +10,7 @@ import {
   consumeD1VerificationToken,
   isD1VerificationTokenUsed,
   storeD1VerificationToken,
+  revokeD1UserSessions,
 } from "../../../src/lib/cloudflare/accounts";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
 
@@ -208,6 +209,42 @@ export async function testAccountRecovery(db: D1Store) {
     "stale resend cannot overwrite newer challenge",
   );
 
+  const beforeLogout = await db
+    .prepare(`SELECT token_version FROM "User" WHERE id='auth-recovery-user'`)
+    .first<{ token_version: number }>();
+  check(beforeLogout, "logout fixture account exists");
+  const logoutRace = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      revokeD1UserSessions(
+        db,
+        "auth-recovery-user",
+        beforeLogout.token_version,
+      ),
+    ),
+  );
+  check(
+    logoutRace.filter(Boolean).length === 1,
+    "one current-generation logout wins",
+  );
+  check(
+    !(await revokeD1UserSessions(
+      db,
+      "auth-recovery-user",
+      beforeLogout.token_version,
+    )),
+    "stale logout cannot revoke a newer session",
+  );
+  check(
+    !(await revokeD1UserSessions(db, "auth-recovery-missing", 0)),
+    "missing logout account is a no-op",
+  );
+  const afterLogout = await db
+    .prepare(`SELECT token_version FROM "User" WHERE id='auth-recovery-user'`)
+    .first<{ token_version: number }>();
+  check(
+    afterLogout?.token_version === beforeLogout.token_version + 1,
+    "logout revokes exactly the prior generation",
+  );
   return {
     resetSingleUse: true,
     expiry: true,
@@ -217,5 +254,6 @@ export async function testAccountRecovery(db: D1Store) {
     verificationSingleUse: true,
     verificationReplay: true,
     resendRestore: true,
+    logoutGenerationRace: true,
   };
 }

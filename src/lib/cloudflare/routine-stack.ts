@@ -391,6 +391,62 @@ export async function readD1RoutineStackCandidates(
   };
 }
 
+/** Read-only exact-key inspection for the stack receipt endpoint. */
+export async function inspectD1RoutineStack(
+  actor: Actor,
+  raw: unknown,
+  key: string,
+  now = new Date(),
+  database?: D1Store,
+): Promise<EffectResult> {
+  const draft = normalizeRoutineStackDraft(raw);
+  const unknown = (): EffectResult => ({ status: 200, body: { state: "unknown" } });
+  if (draft.family_id !== actor.familyId) return fail(403, "FORBIDDEN");
+  const store = database ?? (await getD1Database());
+  const authority = await captureD1Reads(
+    (db) => currentAuthority(db, actor),
+    store as unknown as NativeD1,
+  );
+  if (!authority.value) return fail(403, "FORBIDDEN");
+  const requestHash = hashIdempotentRequest("routine-stack.mutate", draft);
+  const receipt = await store
+    .withSession("first-primary")
+    .prepare(
+      `SELECT family_id,user_id,action,request_hash,response_status,response_body,expires_at
+       FROM "IdempotencyRecord" WHERE scope=?1 AND key=?2`,
+    )
+    .bind(`user:${actor.userId}`, key)
+    .first<{
+      family_id: string;
+      user_id: string | null;
+      action: string;
+      request_hash: string;
+      response_status: number | null;
+      response_body: string | null;
+      expires_at: number;
+    }>();
+  if (
+    !receipt ||
+    receipt.family_id !== actor.familyId ||
+    receipt.user_id !== actor.userId ||
+    receipt.action !== "routine-stack.mutate" ||
+    receipt.request_hash !== requestHash ||
+    receipt.expires_at <= now.getTime() ||
+    receipt.response_status !== 200
+  )
+    return unknown();
+  let body: unknown;
+  try {
+    body = receipt.response_body ? JSON.parse(receipt.response_body) : {};
+  } catch {
+    return unknown();
+  }
+  const proof = compactResponseSchema.safeParse(body);
+  if (!proof.success || (draft.stack_id !== null && proof.data.stack_id !== draft.stack_id))
+    return unknown();
+  return { status: 200, body: { state: "confirmed", stackId: proof.data.stack_id } };
+}
+
 export async function saveD1RoutineStack(
   actor: Actor,
   raw: unknown,

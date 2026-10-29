@@ -27,144 +27,145 @@ import { lockUser, lockHousehold } from "@/lib/household-lock";
  * missing one. The ingredient ids come from the recipe itself, never from the
  * client unchecked.
  */
-import { z } from 'zod'
-import type { Prisma, PrismaClient } from '@prisma/client'
-import { normalizeName } from '@/lib/backfill/meals-groceries'
-import type { EffectResult } from '@/lib/idempotency'
+import { z } from "zod";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { normalizeName } from "@/lib/backfill/meals-groceries";
+import type { EffectResult } from "@/lib/idempotency";
 import {
+  addFromRecipeSchema,
   ADD_FROM_RECIPE_ACTION,
   DEFAULT_GROCERY_LIST_NAME,
   FROM_RECIPE_MAX_INGREDIENTS,
   POSSIBLE_DUPLICATES_LIMIT,
   UNDO_WINDOW_MS,
   recipeGroceryAmount,
-} from '@/lib/grocery-from-recipe-contract'
+} from "@/lib/grocery-from-recipe-contract";
+import type { AddFromRecipeInput } from "@/lib/grocery-from-recipe-contract";
 
 export {
+  addFromRecipeSchema,
   ADD_FROM_RECIPE_ACTION,
   DEFAULT_GROCERY_LIST_NAME,
   FROM_RECIPE_MAX_INGREDIENTS,
   POSSIBLE_DUPLICATES_LIMIT,
   UNDO_WINDOW_MS,
   recipeGroceryAmount,
-} from '@/lib/grocery-from-recipe-contract'
+} from "@/lib/grocery-from-recipe-contract";
+export type { AddFromRecipeInput } from "@/lib/grocery-from-recipe-contract";
 
 /** Upper bound on free-text rows scanned for lookalikes (lists are small in practice). */
-const LOOKALIKE_SCAN_LIMIT = 2000
+const LOOKALIKE_SCAN_LIMIT = 2000;
 
-const idString = z.string().trim().min(1).max(128)
+const idString = z.string().trim().min(1).max(128);
 
-export const addFromRecipeSchema = z
-  .object({
-    recipeId: idString,
-    mealId: idString.optional(),
-    batchId: idString.optional(),
-    listId: idString.optional(),
-    servings: z.number().int().min(1).max(100).optional(),
-    ingredientIds: z.array(idString).min(1).max(FROM_RECIPE_MAX_INGREDIENTS).optional(),
-  })
-  .strict()
-  .refine((v) => !(v.mealId && v.batchId), "Choose a meal or a batch, not both")
-  // Order and repeats in `ingredientIds` do not change the request, so they
-  // must not change the idempotency hash either.
-  .transform((v) => ({
-    ...v,
-    ingredientIds: v.ingredientIds ? [...new Set(v.ingredientIds)].sort() : undefined,
-  }))
-
-export type AddFromRecipeInput = z.infer<typeof addFromRecipeSchema>
-
-export const undoAddSchema = z.object({ requestId: idString }).strict()
+export const undoAddSchema = z.object({ requestId: idString }).strict();
 
 export interface PossibleDuplicate {
-  ingredientId: string
-  matchedItemId: string
+  ingredientId: string;
+  matchedItemId: string;
 }
 
 /** Compact and bounded so it always fits the idempotency replay cap (8 KiB). */
 export interface AddFromRecipeResponse {
-  listId: string
-  listName: string
-  requestId: string
-  createdCount: number
-  alreadyOnListCount: number
-  possibleDuplicates: PossibleDuplicate[]
-  possibleDuplicatesTruncated: boolean
+  listId: string;
+  listName: string;
+  requestId: string;
+  createdCount: number;
+  alreadyOnListCount: number;
+  possibleDuplicates: PossibleDuplicate[];
+  possibleDuplicatesTruncated: boolean;
   /**
    * When undo stops being accepted (the request record's creation plus
    * `UNDO_WINDOW_MS`). Absolute, so a replay received minutes later does not
    * restart the window on the client.
    */
-  undoExpiresAt: string
+  undoExpiresAt: string;
 }
 
 export interface UndoAddResponse {
-  requestId: string
-  removedCount: number
+  requestId: string;
+  removedCount: number;
   /** Rows of that request someone already ticked; undo leaves them. */
-  keptCheckedCount: number
+  keptCheckedCount: number;
 }
 
 export type FromRecipeErrorCode =
-  | 'RECIPE_NOT_FOUND'
-  | 'RECIPE_HAS_NO_INGREDIENTS'
-  | 'INGREDIENT_NOT_IN_RECIPE'
-  | 'BATCH_NOT_FOUND'
-  | 'BATCH_ALREADY_PREPARED'
-  | 'BATCH_SERVINGS_MISMATCH'
-  | 'MEAL_NOT_FOUND'
-  | 'MEAL_RECIPE_MISMATCH'
-  | 'LIST_NOT_FOUND'
-  | 'LIST_NOT_GROCERY'
-  | 'UNDO_NOT_FOUND'
-  | 'UNDO_NOT_ALLOWED'
-  | 'UNDO_WINDOW_EXPIRED'
-  | 'UNDO_IN_PROGRESS'
+  | "RECIPE_NOT_FOUND"
+  | "RECIPE_HAS_NO_INGREDIENTS"
+  | "INGREDIENT_NOT_IN_RECIPE"
+  | "BATCH_NOT_FOUND"
+  | "BATCH_ALREADY_PREPARED"
+  | "BATCH_SERVINGS_MISMATCH"
+  | "MEAL_NOT_FOUND"
+  | "MEAL_RECIPE_MISMATCH"
+  | "LIST_NOT_FOUND"
+  | "LIST_NOT_GROCERY"
+  | "UNDO_NOT_FOUND"
+  | "UNDO_NOT_ALLOWED"
+  | "UNDO_WINDOW_EXPIRED"
+  | "UNDO_IN_PROGRESS";
 
 const MESSAGES: Record<FromRecipeErrorCode, string> = {
-  RECIPE_NOT_FOUND: 'Recipe not found.',
-  RECIPE_HAS_NO_INGREDIENTS: 'This recipe has no ingredients to add.',
-  INGREDIENT_NOT_IN_RECIPE: 'One of the chosen ingredients is not part of this recipe.',
-  BATCH_NOT_FOUND: 'Bulk dish not found.',
-  BATCH_SERVINGS_MISMATCH: 'Review the whole dish’s portions before adding its ingredients.',
-  BATCH_ALREADY_PREPARED: 'This dish is already prepared. Plan the next prep to buy its ingredients again.',
-  MEAL_NOT_FOUND: 'Meal not found.',
-  MEAL_RECIPE_MISMATCH: 'That meal does not use this recipe.',
-  LIST_NOT_FOUND: 'List not found.',
-  LIST_NOT_GROCERY: 'Ingredients can only be added to a grocery or shopping list.',
-  UNDO_NOT_FOUND: 'There is nothing to undo.',
-  UNDO_NOT_ALLOWED: 'Only the person who added these items can undo it.',
-  UNDO_WINDOW_EXPIRED: 'It is too late to undo this. Remove the items from the list instead.',
-  UNDO_IN_PROGRESS: 'The add is still being saved. Try again in a moment.',
-}
+  RECIPE_NOT_FOUND: "Recipe not found.",
+  RECIPE_HAS_NO_INGREDIENTS: "This recipe has no ingredients to add.",
+  INGREDIENT_NOT_IN_RECIPE:
+    "One of the chosen ingredients is not part of this recipe.",
+  BATCH_NOT_FOUND: "Bulk dish not found.",
+  BATCH_SERVINGS_MISMATCH:
+    "Review the whole dish’s portions before adding its ingredients.",
+  BATCH_ALREADY_PREPARED:
+    "This dish is already prepared. Plan the next prep to buy its ingredients again.",
+  MEAL_NOT_FOUND: "Meal not found.",
+  MEAL_RECIPE_MISMATCH: "That meal does not use this recipe.",
+  LIST_NOT_FOUND: "List not found.",
+  LIST_NOT_GROCERY:
+    "Ingredients can only be added to a grocery or shopping list.",
+  UNDO_NOT_FOUND: "There is nothing to undo.",
+  UNDO_NOT_ALLOWED: "Only the person who added these items can undo it.",
+  UNDO_WINDOW_EXPIRED:
+    "It is too late to undo this. Remove the items from the list instead.",
+  UNDO_IN_PROGRESS: "The add is still being saved. Try again in a moment.",
+};
 
 export interface ErrorBody {
-  error: { code: FromRecipeErrorCode; message: string; retryable: boolean }
+  error: { code: FromRecipeErrorCode; message: string; retryable: boolean };
 }
 
-function fail(status: 400 | 403 | 404 | 409, code: FromRecipeErrorCode): { status: number; body: ErrorBody } {
-  return { status, body: { error: { code, message: MESSAGES[code], retryable: code === 'UNDO_IN_PROGRESS' } } }
+function fail(
+  status: 400 | 403 | 404 | 409,
+  code: FromRecipeErrorCode,
+): { status: number; body: ErrorBody } {
+  return {
+    status,
+    body: {
+      error: {
+        code,
+        message: MESSAGES[code],
+        retryable: code === "UNDO_IN_PROGRESS",
+      },
+    },
+  };
 }
 
-type Actor = { id: string; family_id: string; tokenVersion?: number }
+type Actor = { id: string; family_id: string; tokenVersion?: number };
 
 // ---------------------------------------------------------------------------
 // Default list (O-4)
 
 export interface ResolvedList {
-  id: string
-  name: string
-  type: string
-  created: boolean
+  id: string;
+  name: string;
+  type: string;
+  created: boolean;
 }
 
-type TxDb = Pick<PrismaClient, '$transaction'>
+type TxDb = Pick<PrismaClient, "$transaction">;
 
-const listSelect = { id: true, name: true, type: true } as const
+const listSelect = { id: true, name: true, type: true } as const;
 
 /** Advisory-lock key: one per household, namespaced so it never meets another lock user. */
 export function defaultGroceryListLockKey(familyId: string): string {
-  return `default-grocery-list:${familyId}`
+  return `default-grocery-list:${familyId}`;
 }
 
 /**
@@ -174,36 +175,47 @@ export function defaultGroceryListLockKey(familyId: string): string {
  * `pg_advisory_xact_lock(hashtext(...))` per household, so concurrent first
  * adds from two devices create one list, not two.
  */
-export async function resolveDefaultGroceryList(db: TxDb, familyId: string, userId: string): Promise<ResolvedList> {
-  return db.$transaction((tx) => resolveDefaultGroceryListInTx(tx, familyId, userId))
+export async function resolveDefaultGroceryList(
+  db: TxDb,
+  familyId: string,
+  userId: string,
+): Promise<ResolvedList> {
+  return db.$transaction((tx) =>
+    resolveDefaultGroceryListInTx(tx, familyId, userId),
+  );
 }
 
 /** Same as `resolveDefaultGroceryList`, inside a caller's transaction. */
 export async function resolveDefaultGroceryListInTx(
   tx: Prisma.TransactionClient,
   familyId: string,
-  userId: string
+  userId: string,
 ): Promise<ResolvedList> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${defaultGroceryListLockKey(familyId)}))`
-  for (const type of ['grocery', 'shopping']) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${defaultGroceryListLockKey(familyId)}))`;
+  for (const type of ["grocery", "shopping"]) {
     const found = await tx.list.findFirst({
       where: { family_id: familyId, type },
-      orderBy: [{ updated_at: 'desc' }, { id: 'asc' }],
+      orderBy: [{ updated_at: "desc" }, { id: "asc" }],
       select: listSelect,
-    })
-    if (found) return { ...found, created: false }
+    });
+    if (found) return { ...found, created: false };
   }
   const created = await tx.list.create({
-    data: { family_id: familyId, name: DEFAULT_GROCERY_LIST_NAME, type: 'grocery', created_by: userId },
+    data: {
+      family_id: familyId,
+      name: DEFAULT_GROCERY_LIST_NAME,
+      type: "grocery",
+      created_by: userId,
+    },
     select: listSelect,
-  })
-  return { ...created, created: true }
+  });
+  return { ...created, created: true };
 }
 
 // ---------------------------------------------------------------------------
 // Add
 
-type AddDb = TxDb
+type AddDb = TxDb;
 
 /**
  * The effect behind `POST /api/lists/items/from-recipe`. `requestId` is the
@@ -214,13 +226,15 @@ export async function addRecipeToGroceries(
   db: AddDb,
   input: AddFromRecipeInput,
   actor: Actor,
-  requestId: string
+  requestId: string,
 ): Promise<EffectResult> {
   // One transaction: the rows, their read-back and the lookalike scan commit
   // together. If anything after the insert throws, the rows roll back with
   // it, so withIdempotency releasing the record never strands rows whose
   // source_request_id points at a deleted request (they could not be undone).
-  return db.$transaction((tx) => addRecipeToGroceriesInTx(tx, input, actor, requestId))
+  return db.$transaction((tx) =>
+    addRecipeToGroceriesInTx(tx, input, actor, requestId),
+  );
 }
 
 /** Caller owns commit/rollback and receipt completion. This is the same effect
@@ -229,10 +243,10 @@ export async function addRecipeToGroceriesInTx(
   db: Prisma.TransactionClient,
   input: AddFromRecipeInput,
   actor: Actor,
-  requestId: string
+  requestId: string,
 ): Promise<EffectResult> {
-  await lockUser(db, actor.id)
-  await lockHousehold(db, actor.family_id)
+  await lockUser(db, actor.id);
+  await lockHousehold(db, actor.family_id);
   const recipe = await db.recipe.findFirst({
     where: { id: input.recipeId, family_id: actor.family_id },
     select: {
@@ -243,71 +257,100 @@ export async function addRecipeToGroceriesInTx(
           ingredient_id: true,
           amount: true,
           unit: true,
-          ingredient: { select: { id: true, name: true, unit: true, family_id: true } },
+          ingredient: {
+            select: { id: true, name: true, unit: true, family_id: true },
+          },
         },
       },
     },
-  })
-  if (!recipe) return fail(404, 'RECIPE_NOT_FOUND')
+  });
+  if (!recipe) return fail(404, "RECIPE_NOT_FOUND");
 
-  let batchId = input.batchId
-  let mealServings: number | null = null
+  let batchId = input.batchId;
+  let mealServings: number | null = null;
   if (input.mealId) {
     const meal = await db.familyMeal.findFirst({
       where: { id: input.mealId, family_id: actor.family_id },
       select: { id: true, recipe_id: true, servings: true, batch_id: true },
-    })
-    if (!meal) return fail(404, 'MEAL_NOT_FOUND')
-    if (meal.recipe_id !== recipe.id) return fail(400, 'MEAL_RECIPE_MISMATCH')
-    mealServings = meal.servings ?? null
-    batchId = meal.batch_id ?? undefined
+    });
+    if (!meal) return fail(404, "MEAL_NOT_FOUND");
+    if (meal.recipe_id !== recipe.id) return fail(400, "MEAL_RECIPE_MISMATCH");
+    mealServings = meal.servings ?? null;
+    batchId = meal.batch_id ?? undefined;
   }
 
-  let batchServings: number | null = null
+  let batchServings: number | null = null;
   if (batchId) {
-    const refusal = await authorizeMealBatchInTx(db, { userId: actor.id, familyId: actor.family_id, tokenVersion: actor.tokenVersion ?? 0 }, true)
-    if (refusal) return refusal
-    const batch = await db.mealBatch.findFirst({ where: { id: batchId, family_id: actor.family_id }, select: { total_servings: true, recipe_id: true, prep_session: { select: { family_id: true, prepared_at: true } } } })
-    if (!batch || batch.prep_session.family_id !== actor.family_id) return fail(404, 'BATCH_NOT_FOUND')
-    if (batch.recipe_id !== recipe.id) return fail(400, 'MEAL_RECIPE_MISMATCH')
-    if (batch.prep_session.prepared_at) return fail(409, 'BATCH_ALREADY_PREPARED')
-    if (input.servings !== undefined && input.servings !== batch.total_servings) return fail(400, 'BATCH_SERVINGS_MISMATCH')
-    batchServings = batch.total_servings
+    const refusal = await authorizeMealBatchInTx(
+      db,
+      {
+        userId: actor.id,
+        familyId: actor.family_id,
+        tokenVersion: actor.tokenVersion ?? 0,
+      },
+      true,
+    );
+    if (refusal) return refusal;
+    const batch = await db.mealBatch.findFirst({
+      where: { id: batchId, family_id: actor.family_id },
+      select: {
+        total_servings: true,
+        recipe_id: true,
+        prep_session: { select: { family_id: true, prepared_at: true } },
+      },
+    });
+    if (!batch || batch.prep_session.family_id !== actor.family_id)
+      return fail(404, "BATCH_NOT_FOUND");
+    if (batch.recipe_id !== recipe.id) return fail(400, "MEAL_RECIPE_MISMATCH");
+    if (batch.prep_session.prepared_at)
+      return fail(409, "BATCH_ALREADY_PREPARED");
+    if (input.servings !== undefined && input.servings !== batch.total_servings)
+      return fail(400, "BATCH_SERVINGS_MISMATCH");
+    batchServings = batch.total_servings;
   }
 
   // Defensive: a recipe line whose ingredient is not in the household is never used.
-  const lines = recipe.ingredients.filter((l) => l.ingredient && l.ingredient.family_id === actor.family_id)
-  let selected = lines
+  const lines = recipe.ingredients.filter(
+    (l) => l.ingredient && l.ingredient.family_id === actor.family_id,
+  );
+  let selected = lines;
   if (input.ingredientIds) {
-    const byId = new Map(lines.map((l) => [l.ingredient_id, l]))
-    if (input.ingredientIds.some((id) => !byId.has(id))) return fail(400, 'INGREDIENT_NOT_IN_RECIPE')
-    selected = input.ingredientIds.map((id) => byId.get(id)!)
+    const byId = new Map(lines.map((l) => [l.ingredient_id, l]));
+    if (input.ingredientIds.some((id) => !byId.has(id)))
+      return fail(400, "INGREDIENT_NOT_IN_RECIPE");
+    selected = input.ingredientIds.map((id) => byId.get(id)!);
   }
-  if (selected.length === 0) return fail(400, 'RECIPE_HAS_NO_INGREDIENTS')
+  if (selected.length === 0) return fail(400, "RECIPE_HAS_NO_INGREDIENTS");
 
-  let list: { id: string; name: string }
+  let list: { id: string; name: string };
   if (input.listId) {
     const found = await db.list.findFirst({
       where: { id: input.listId, family_id: actor.family_id },
       select: { id: true, name: true, type: true },
-    })
-    if (!found) return fail(404, 'LIST_NOT_FOUND')
-    if (found.type !== 'grocery' && found.type !== 'shopping') return fail(400, 'LIST_NOT_GROCERY')
-    list = found
+    });
+    if (!found) return fail(404, "LIST_NOT_FOUND");
+    if (found.type !== "grocery" && found.type !== "shopping")
+      return fail(400, "LIST_NOT_GROCERY");
+    list = found;
   } else {
-    list = await resolveDefaultGroceryListInTx(db, actor.family_id, actor.id)
+    list = await resolveDefaultGroceryListInTx(db, actor.family_id, actor.id);
   }
 
-  const baseServings = recipe.servings > 0 ? recipe.servings : 1
-  const targetServings = batchServings ?? input.servings ?? mealServings ?? baseServings
-  const sourceKey = batchId ? `batch:${batchId}` : input.mealId ? `meal:${input.mealId}` : `recipe:${recipe.id}`
+  const baseServings = recipe.servings > 0 ? recipe.servings : 1;
+  const targetServings =
+    batchServings ?? input.servings ?? mealServings ?? baseServings;
+  const sourceKey = batchId
+    ? `batch:${batchId}`
+    : input.mealId
+      ? `meal:${input.mealId}`
+      : `recipe:${recipe.id}`;
 
   const last = await db.listItem.findFirst({
     where: { list_id: list.id },
-    orderBy: { position: 'desc' },
+    orderBy: { position: "desc" },
     select: { position: true },
-  })
-  const firstPosition = (last?.position ?? 0) + 1
+  });
+  const firstPosition = (last?.position ?? 0) + 1;
 
   // One statement. The partial unique index turns an open duplicate of the
   // same (list, ingredient, source) into a skip, also under a concurrent race.
@@ -322,14 +365,14 @@ export async function addRecipeToGroceriesInTx(
       ingredient_id: line.ingredient_id,
       recipe_id: recipe.id,
       meal_id: input.mealId ?? null,
-      source: 'recipe',
+      source: "recipe",
       source_key: sourceKey,
       source_request_id: requestId,
       added_by: actor.id,
       position: firstPosition + i,
     })),
     skipDuplicates: true,
-  })
+  });
 
   // Which of the selected ingredients this request now owns a row for. Read
   // back rather than trusting createMany's count, so a takeover after a crash
@@ -337,37 +380,45 @@ export async function addRecipeToGroceriesInTx(
   const mine = await db.listItem.findMany({
     where: { list_id: list.id, source_request_id: requestId },
     select: { ingredient_id: true },
-  })
-  const createdIngredients = new Set(mine.map((r) => r.ingredient_id))
-  const created = selected.filter((l) => createdIngredients.has(l.ingredient_id))
+  });
+  const createdIngredients = new Set(mine.map((r) => r.ingredient_id));
+  const created = selected.filter((l) =>
+    createdIngredients.has(l.ingredient_id),
+  );
 
-  const possibleDuplicates: PossibleDuplicate[] = []
-  let possibleDuplicatesTruncated = false
+  const possibleDuplicates: PossibleDuplicate[] = [];
+  let possibleDuplicatesTruncated = false;
   if (created.length > 0) {
     const freeText = await db.listItem.findMany({
       where: { list_id: list.id, checked: false, ingredient_id: null },
-      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      orderBy: [{ position: "asc" }, { id: "asc" }],
       select: { id: true, content: true },
       take: LOOKALIKE_SCAN_LIMIT,
-    })
-    const byName = new Map<string, string>()
+    });
+    const byName = new Map<string, string>();
     for (const row of freeText) {
-      const key = normalizeName(row.content)
-      if (key && !byName.has(key)) byName.set(key, row.id)
+      const key = normalizeName(row.content);
+      if (key && !byName.has(key)) byName.set(key, row.id);
     }
     for (const line of created) {
-      const matchedItemId = byName.get(normalizeName(line.ingredient.name))
-      if (!matchedItemId) continue
+      const matchedItemId = byName.get(normalizeName(line.ingredient.name));
+      if (!matchedItemId) continue;
       if (possibleDuplicates.length >= POSSIBLE_DUPLICATES_LIMIT) {
-        possibleDuplicatesTruncated = true
-        break
+        possibleDuplicatesTruncated = true;
+        break;
       }
-      possibleDuplicates.push({ ingredientId: line.ingredient_id, matchedItemId })
+      possibleDuplicates.push({
+        ingredientId: line.ingredient_id,
+        matchedItemId,
+      });
     }
   }
 
-  const record = await db.idempotencyRecord.findUnique({ where: { id: requestId }, select: { created_at: true } })
-  const undoFrom = record?.created_at ?? new Date()
+  const record = await db.idempotencyRecord.findUnique({
+    where: { id: requestId },
+    select: { created_at: true },
+  });
+  const undoFrom = record?.created_at ?? new Date();
 
   const body: AddFromRecipeResponse = {
     listId: list.id,
@@ -378,14 +429,14 @@ export async function addRecipeToGroceriesInTx(
     possibleDuplicates,
     possibleDuplicatesTruncated,
     undoExpiresAt: new Date(undoFrom.getTime() + UNDO_WINDOW_MS).toISOString(),
-  }
-  return { status: 201, body }
+  };
+  return { status: 201, body };
 }
 
 // ---------------------------------------------------------------------------
 // Undo (O-5)
 
-type UndoDb = Pick<PrismaClient, 'idempotencyRecord' | 'listItem'>
+type UndoDb = Pick<PrismaClient, "idempotencyRecord" | "listItem">;
 
 /**
  * Removes the still-unticked rows one from-recipe request created. Only the
@@ -400,9 +451,9 @@ export async function undoRecipeAdd(
   db: UndoDb,
   requestId: string,
   actor: Actor,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<{ status: number; body: UndoAddResponse | ErrorBody }> {
-  return undoGroceryAdd(db, requestId, actor, ADD_FROM_RECIPE_ACTION, now)
+  return undoGroceryAdd(db, requestId, actor, ADD_FROM_RECIPE_ACTION, now);
 }
 
 /** Shared O-5 provenance/ownership/window rule; the route fixes the source action. */
@@ -410,27 +461,33 @@ export async function undoGroceryAdd(
   db: UndoDb,
   requestId: string,
   actor: Actor,
-  action: 'grocery.add-from-recipe' | 'grocery.add-from-inventory.v1',
-  now: Date = new Date()
+  action: "grocery.add-from-recipe" | "grocery.add-from-inventory.v1",
+  now: Date = new Date(),
 ): Promise<{ status: number; body: UndoAddResponse | ErrorBody }> {
   const record = await db.idempotencyRecord.findFirst({
     where: { id: requestId, family_id: actor.family_id, action },
     select: { user_id: true, created_at: true, response_status: true },
-  })
-  if (!record) return fail(404, 'UNDO_NOT_FOUND')
-  if (record.user_id !== actor.id) return fail(403, 'UNDO_NOT_ALLOWED')
-  if (record.response_status == null) return fail(409, 'UNDO_IN_PROGRESS')
-  const cutoff = new Date(now.getTime() - UNDO_WINDOW_MS)
-  if (record.created_at.getTime() < cutoff.getTime()) return fail(409, 'UNDO_WINDOW_EXPIRED')
+  });
+  if (!record) return fail(404, "UNDO_NOT_FOUND");
+  if (record.user_id !== actor.id) return fail(403, "UNDO_NOT_ALLOWED");
+  if (record.response_status == null) return fail(409, "UNDO_IN_PROGRESS");
+  const cutoff = new Date(now.getTime() - UNDO_WINDOW_MS);
+  if (record.created_at.getTime() < cutoff.getTime())
+    return fail(409, "UNDO_WINDOW_EXPIRED");
 
   const scope = {
     source_request_id: requestId,
     added_by: actor.id,
     list: { family_id: actor.family_id },
-  }
+  };
   const removed = await db.listItem.deleteMany({
     where: { ...scope, checked: false, created_at: { gte: cutoff } },
-  })
-  const keptCheckedCount = await db.listItem.count({ where: { ...scope, checked: true } })
-  return { status: 200, body: { requestId, removedCount: removed.count, keptCheckedCount } }
+  });
+  const keptCheckedCount = await db.listItem.count({
+    where: { ...scope, checked: true },
+  });
+  return {
+    status: 200,
+    body: { requestId, removedCount: removed.count, keptCheckedCount },
+  };
 }

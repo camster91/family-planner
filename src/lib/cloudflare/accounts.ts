@@ -109,3 +109,12 @@ export async function updateD1Profile(db: D1Store, userId: string, version: numb
       data.age ?? null, userId, version).first<Record<string, unknown>>()
   return decodeUser<PublicUser>(row)
 }
+
+/** A stale logout cannot revoke a later session generation. RETURNING counts
+ * the direct account write, independently of source-epoch trigger effects. */
+export async function revokeD1UserSessions(db: D1Store, userId: string, generation: number): Promise<boolean> {
+  const row = await db.withSession('first-primary').prepare(`UPDATE "User"
+    SET token_version=token_version+1 WHERE id=?1 AND token_version=?2 RETURNING id`)
+    .bind(userId, generation).first<{ id: string }>()
+  return row !== null
+}

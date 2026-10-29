@@ -18,6 +18,7 @@ import { readPreparationRoutineOrigins } from "@/lib/event-preparation/origin";
 import { chorePreparationContext } from "@/lib/event-preparation/origin-contract";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
 export const dynamic = "force-dynamic";
 const input = z
   .object({
@@ -52,6 +53,46 @@ export async function POST(request: NextRequest) {
       return reply(
         { error: "Invalid context request" },
         error instanceof RequestBodyTooLarge ? 413 : 400,
+      );
+    }
+    if (storageBackend() === "d1") {
+      const owner = {
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        generation: auth.payload.tv ?? 0,
+      };
+      const { d1EventPreparationStorageAvailable, readD1OwnPreparationContext } =
+        await import("@/lib/cloudflare/chore-read-policy");
+      // D1 only advertises this projection when the complete preparation
+      // storage guard is present. Table presence alone is not enough: the
+      // PostgreSQL contract also requires epoch/identity/lifecycle guards.
+      if (
+        !eventPreparationReady() ||
+        !(await d1EventPreparationStorageAvailable()) ||
+        auth.user.role === "parent"
+      )
+        return reply(
+          chorePreparationContext.parse({
+            owner,
+            state: "paused",
+            backlinks: {},
+            origins: {},
+          }),
+        );
+      const ownContext = await readD1OwnPreparationContext({
+        userId: auth.user.id,
+        familyId: auth.user.family_id,
+        role: auth.user.role,
+        choreIds: parsed.ids,
+      });
+      return reply(
+        chorePreparationContext.parse({
+          owner,
+          state: "available",
+          backlinks: {},
+          origins: {},
+          ownContext,
+        }),
       );
     }
     const result = await prisma!.$transaction(async (tx) => {

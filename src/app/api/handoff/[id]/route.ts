@@ -1,52 +1,121 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateWithFamily, requireFamilyMatch, requireParent } from '@/lib/api-auth'
-import { refusePairedDevice } from '@/lib/device-route'
-import { featureGate } from '@/lib/feature-gate-server'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
-import { updateHandoffSchema } from '@/lib/validations'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+  authenticateWithFamily,
+  requireFamilyMatch,
+  requireParent,
+} from "@/lib/api-auth";
+import { refusePairedDevice } from "@/lib/device-route";
+import { featureGate } from "@/lib/feature-gate-server";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { updateHandoffSchema } from "@/lib/validations";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { deleteD1Handoff, updateD1Handoff } from "@/lib/cloudflare/handoffs";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError, readIdempotencyKey } from "@/lib/idempotency";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 // PATCH /api/handoff/[id] - Update a handoff (parent only, family-scoped)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'handoff')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "handoff");
+    if (gate) return gate;
 
-    const parentError = requireParent(auth.user.role)
-    if (parentError) return parentError
+    const parentError = requireParent(auth.user.role);
+    if (parentError) return parentError;
 
-    const { id } = await params
+    const { id } = await params;
 
-    const existing = await prisma!.handoff.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
-
-    const matchError = requireFamilyMatch(existing.family_id, auth.user.family_id)
-    if (matchError) return matchError
-
-    let json: unknown
+    let json: unknown;
     try {
-      json = await request.json()
+      json = await request.json();
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const parsed = updateHandoffSchema.safeParse(json)
+    const parsed = updateHandoffSchema.safeParse(json);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 },
+      );
     }
+
+    // The D1 repository owns the source/receipt guard and family-scoped
+    // update. Keep the legacy Prisma path below unchanged.
+    if (storageBackend() === "d1") {
+      const parseDate = (v: unknown): Date | null => {
+        if (!v || typeof v !== "string") return null;
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+      };
+      if (
+        parsed.data.arrival_time !== undefined &&
+        parsed.data.arrival_time !== null &&
+        (typeof parsed.data.arrival_time !== "string" ||
+          !parseDate(parsed.data.arrival_time))
+      ) {
+        return NextResponse.json(
+          { error: "Invalid arrival_time format" },
+          { status: 400 },
+        );
+      }
+      if (
+        parsed.data.departure_time !== undefined &&
+        parsed.data.departure_time !== null &&
+        (typeof parsed.data.departure_time !== "string" ||
+          !parseDate(parsed.data.departure_time))
+      ) {
+        return NextResponse.json(
+          { error: "Invalid departure_time format" },
+          { status: 400 },
+        );
+      }
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await updateD1Handoff(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        id,
+        parsed.data,
+        key,
+        await getD1Database(),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: {
+          "Cache-Control": "private, no-store",
+          ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
+    }
+
+    const existing = await prisma!.handoff.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const matchError = requireFamilyMatch(
+      existing.family_id,
+      auth.user.family_id,
+    );
+    if (matchError) return matchError;
+
     const {
       sitter_name,
       sitter_phone,
@@ -60,22 +129,28 @@ export async function PATCH(
       emergency_notes,
       house_notes,
       general_notes,
-    } = parsed.data
+    } = parsed.data;
 
     // Same datetime validation as POST — see POST handler for the rationale.
     const parseDate = (v: unknown): Date | null => {
-      if (!v || typeof v !== 'string') return null
-      const d = new Date(v)
-      return isNaN(d.getTime()) ? null : d
-    }
+      if (!v || typeof v !== "string") return null;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    };
     if (arrival_time !== undefined && arrival_time !== null) {
-      if (typeof arrival_time !== 'string' || !parseDate(arrival_time)) {
-        return NextResponse.json({ error: 'Invalid arrival_time format' }, { status: 400 })
+      if (typeof arrival_time !== "string" || !parseDate(arrival_time)) {
+        return NextResponse.json(
+          { error: "Invalid arrival_time format" },
+          { status: 400 },
+        );
       }
     }
     if (departure_time !== undefined && departure_time !== null) {
-      if (typeof departure_time !== 'string' || !parseDate(departure_time)) {
-        return NextResponse.json({ error: 'Invalid departure_time format' }, { status: 400 })
+      if (typeof departure_time !== "string" || !parseDate(departure_time)) {
+        return NextResponse.json(
+          { error: "Invalid departure_time format" },
+          { status: 400 },
+        );
       }
     }
 
@@ -83,60 +158,114 @@ export async function PATCH(
       where: { id },
       data: {
         ...(sitter_name !== undefined && { sitter_name }),
-        ...(sitter_phone !== undefined && { sitter_phone: sitter_phone?.trim() || null }),
-        ...(arrival_time !== undefined && { arrival_time: parseDate(arrival_time) }),
-        ...(departure_time !== undefined && { departure_time: parseDate(departure_time) }),
-        ...(kids_bedtimes !== undefined && { kids_bedtimes: kids_bedtimes?.trim() || null }),
-        ...(where_snacks !== undefined && { where_snacks: where_snacks?.trim() || null }),
-        ...(pickup_authorized !== undefined && { pickup_authorized: pickup_authorized?.trim() || null }),
-        ...(code_words !== undefined && { code_words: code_words?.trim() || null }),
+        ...(sitter_phone !== undefined && {
+          sitter_phone: sitter_phone?.trim() || null,
+        }),
+        ...(arrival_time !== undefined && {
+          arrival_time: parseDate(arrival_time),
+        }),
+        ...(departure_time !== undefined && {
+          departure_time: parseDate(departure_time),
+        }),
+        ...(kids_bedtimes !== undefined && {
+          kids_bedtimes: kids_bedtimes?.trim() || null,
+        }),
+        ...(where_snacks !== undefined && {
+          where_snacks: where_snacks?.trim() || null,
+        }),
+        ...(pickup_authorized !== undefined && {
+          pickup_authorized: pickup_authorized?.trim() || null,
+        }),
+        ...(code_words !== undefined && {
+          code_words: code_words?.trim() || null,
+        }),
         ...(pet_care !== undefined && { pet_care: pet_care?.trim() || null }),
-        ...(emergency_notes !== undefined && { emergency_notes: emergency_notes?.trim() || null }),
-        ...(house_notes !== undefined && { house_notes: house_notes?.trim() || null }),
-        ...(general_notes !== undefined && { general_notes: general_notes?.trim() || null }),
+        ...(emergency_notes !== undefined && {
+          emergency_notes: emergency_notes?.trim() || null,
+        }),
+        ...(house_notes !== undefined && {
+          house_notes: house_notes?.trim() || null,
+        }),
+        ...(general_notes !== undefined && {
+          general_notes: general_notes?.trim() || null,
+        }),
       },
-    })
+    });
 
-    return NextResponse.json({ handoff })
+    return NextResponse.json({ handoff });
   } catch (err) {
-    logRouteError('PATCH /api/handoff/[id]', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code);
+    logRouteError("PATCH /api/handoff/[id]", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 // DELETE /api/handoff/[id] - Delete a handoff (parent only, family-scoped)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const deviceRefusal = await refusePairedDevice(request)
-    if (deviceRefusal) return deviceRefusal
+    const deviceRefusal = await refusePairedDevice(request);
+    if (deviceRefusal) return deviceRefusal;
 
-    const [auth, error] = await authenticateWithFamily(request)
-    if (error) return error
+    const [auth, error] = await authenticateWithFamily(request);
+    if (error) return error;
 
-    const gate = await featureGate(auth.user.family_id, 'handoff')
-    if (gate) return gate
+    const gate = await featureGate(auth.user.family_id, "handoff");
+    if (gate) return gate;
 
-    const parentError = requireParent(auth.user.role)
-    if (parentError) return parentError
+    const parentError = requireParent(auth.user.role);
+    if (parentError) return parentError;
 
-    const { id } = await params
+    const { id } = await params;
 
-    const existing = await prisma!.handoff.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (storageBackend() === "d1") {
+      const { key, error: keyError } = readIdempotencyKey(request);
+      if (keyError) return keyError;
+      const result = await deleteD1Handoff(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload.tv ?? 0,
+        },
+        id,
+        key,
+        await getD1Database(),
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: {
+          "Cache-Control": "private, no-store",
+          ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}),
+        },
+      });
     }
 
-    const matchError = requireFamilyMatch(existing.family_id, auth.user.family_id)
-    if (matchError) return matchError
+    const existing = await prisma!.handoff.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
-    await prisma!.handoff.delete({ where: { id } })
+    const matchError = requireFamilyMatch(
+      existing.family_id,
+      auth.user.family_id,
+    );
+    if (matchError) return matchError;
 
-    return NextResponse.json({ success: true })
+    await prisma!.handoff.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
   } catch (err) {
-    logRouteError('DELETE /api/handoff/[id]', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    if (err instanceof D1PersonReceiptError) return idempotencyError(err.code);
+    logRouteError("DELETE /api/handoff/[id]", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

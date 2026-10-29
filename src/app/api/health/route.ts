@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,11 +14,21 @@ const NO_STORE = { "Cache-Control": "no-store, max-age=0" } as const;
  */
 export async function GET() {
   try {
-    const databaseConfigured = Boolean(process.env.DATABASE_URL);
+    const backend = storageBackend();
+    const databaseConfigured =
+      backend === "d1" || Boolean(process.env.DATABASE_URL);
     const jwtSecretConfigured = Boolean(process.env.JWT_SECRET);
     let databaseReady = false;
 
-    if (prisma) {
+    if (backend === "d1") {
+      try {
+        await getD1Database()
+          .then((db) => db.withSession("first-primary").prepare("SELECT 1").first());
+        databaseReady = true;
+      } catch {
+        databaseReady = false;
+      }
+    } else if (prisma) {
       try {
         await prisma.$queryRaw`SELECT 1`;
         databaseReady = true;

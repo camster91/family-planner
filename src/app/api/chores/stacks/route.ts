@@ -93,19 +93,30 @@ export async function GET(request: NextRequest) {
     }
 
     if (process.env[ROUTINE_SCHEDULE_READY_ENV] === "1") {
-      const href = await prisma!.$transaction(async (tx) => {
-        await routineScheduleAuthority(tx, {
-          userId: auth.user.id,
-          familyId: auth.user.family_id,
-          tokenVersion: auth.payload.tv ?? 0,
-        });
-        return readRoutineScheduleHandoff(
-          tx,
-          auth.user.family_id,
-          "stack",
-          stackId,
-        );
-      });
+      // Keep the schedule-editor handoff ahead of the stack snapshot on both
+      // backends. The D1 stack reader is native, but the handoff still needs
+      // to win with the same 409 response when a saved schedule exists.
+      const href =
+        storageBackend() === "d1"
+          ? await readRoutineScheduleHandoff(
+              undefined,
+              auth.user.family_id,
+              "stack",
+              stackId,
+            )
+          : await prisma!.$transaction(async (tx) => {
+              await routineScheduleAuthority(tx, {
+                userId: auth.user.id,
+                familyId: auth.user.family_id,
+                tokenVersion: auth.payload.tv ?? 0,
+              });
+              return readRoutineScheduleHandoff(
+                tx,
+                auth.user.family_id,
+                "stack",
+                stackId,
+              );
+            });
       if (href)
         return error(
           409,

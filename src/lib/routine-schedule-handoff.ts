@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import { routineStepSeriesConfig } from "@/lib/routine-schedule";
 import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 export async function readRoutineScheduleHandoff(
-  db: Pick<PrismaClient, "$queryRaw">,
+  db: Pick<PrismaClient, "$queryRaw"> | undefined,
   familyId: string,
   kind: "stack" | "chore",
   id: string,
@@ -15,6 +15,7 @@ export async function readRoutineScheduleHandoff(
     const { readD1RoutineScheduleHandoff } = await import("@/lib/cloudflare/routine-schedule-handoff");
     return readD1RoutineScheduleHandoff(familyId, kind, id);
   }
+  if (!db) return null;
   if (kind === "stack") {
     const rows = await db.$queryRaw<
       { id: string; schedule_config: unknown }[]

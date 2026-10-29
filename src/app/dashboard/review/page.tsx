@@ -3,6 +3,8 @@ import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { inboxQuery, readReviewInbox } from "@/lib/review-inbox/read";
 import ReviewInbox from "@/components/review/ReviewInbox";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ReviewInbox } from "@/lib/cloudflare/review-inbox";
 export const dynamic = "force-dynamic";
 export default async function Page({
   searchParams,
@@ -24,16 +26,16 @@ export default async function Page({
     after: params.after,
   });
   if (!query.success) redirect("/dashboard/review");
-  const page = await readReviewInbox(
-    prisma!,
-    {
-      userId: session.id,
-      familyId: session.family_id,
-      role: session.role,
-      tokenVersion: session.tokenVersion,
-    },
-    query.data,
-  );
+  const actor = {
+    userId: session.id,
+    familyId: session.family_id,
+    role: session.role,
+    tokenVersion: session.tokenVersion,
+  };
+  const page =
+    storageBackend() === "d1"
+      ? await readD1ReviewInbox(actor, query.data)
+      : await readReviewInbox(prisma!, actor, query.data);
   // Renewed authority can change while search params/storage resolve. Do not
   // serialize the former owner's page/identity or leave a blank review screen.
   if (page.state === "forbidden") redirect("/dashboard");

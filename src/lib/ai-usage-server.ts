@@ -1,14 +1,9 @@
 import { isAiUsageReady, isAiUsageAdopted } from "./ai-usage-gates";
 /** Request reservations and parent reporting, with no prompt/model/URL storage. */
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { getJwtSecret } from "./auth";
 import { lockUser, lockHousehold } from "./household-lock";
-import {
-  CaptureError,
-  resolveCaptureConfig,
-  type CaptureConfig,
-} from "./capture";
+import { resolveCaptureConfig, type CaptureConfig } from "./capture";
 import {
   aiUsagePolicy,
   defaultAiUsagePolicy,
@@ -17,50 +12,42 @@ import {
   type AiUsagePolicy,
   type ProviderUsageObserver,
 } from "./ai-usage-contract";
+import { AiUsageError } from "./ai-usage-errors";
+import { aiConfigHash } from "./ai-usage-hash";
+import type { D1Store } from "./cloudflare/database";
+import {
+  createD1AiUsageJob,
+  d1AiUsageStorageAvailable,
+  exportD1AiUsage,
+  readD1AiUsageDays,
+  readD1AiUsagePolicy,
+  reserveD1AiUsage,
+  saveD1AiUsagePolicy,
+} from "./cloudflare/ai-usage";
+export { AiUsageError } from "./ai-usage-errors";
+export { aiConfigHash } from "./ai-usage-hash";
 type Tx = Prisma.TransactionClient;
 type Raw = Pick<Tx, "$queryRaw" | "$executeRaw">;
+type UsageDb = Pick<PrismaClient, "$transaction"> | D1Store;
 export type AiUsageActor = {
   userId: string;
   familyId: string;
   generation: number;
+  role?: string;
 };
 export type AiUsageJob = ReturnType<typeof createAiUsageJob>;
 export { isAiUsageReady, isAiUsageAdopted } from "./ai-usage-gates";
-export class AiUsageError extends CaptureError {
-  constructor(
-    readonly code:
-      | "AI_USAGE_UNAVAILABLE"
-      | "AI_PAUSED"
-      | "AI_QUOTA_REACHED"
-      | "AI_PRICE_UNAVAILABLE"
-      | "AI_SOURCE_CHANGED",
-    status = 503,
-  ) {
-    super(
-      code === "AI_PAUSED"
-        ? "Household AI is paused. You can still use the app controls."
-        : code === "AI_QUOTA_REACHED"
-          ? "The household AI limit was reached. Use the app controls or ask a parent to review AI limits."
-          : code === "AI_PRICE_UNAVAILABLE"
-            ? "AI cost limits need current rates. Ask a parent to review AI usage settings."
-            : "AI usage could not be checked. Use the app controls or try again later.",
-      status,
-    );
-  }
+function isD1UsageDb(value: unknown): value is D1Store {
+  return Boolean(
+    value &&
+    typeof (value as D1Store).prepare === "function" &&
+    typeof (value as D1Store).withSession === "function",
+  );
 }
-export function aiConfigHash(config: CaptureConfig): string {
-  return createHmac("sha256", getJwtSecret())
-    .update(
-      JSON.stringify([
-        "herewoven.ai-pricing.v1",
-        config.baseUrl,
-        config.model,
-        config.apiKey,
-      ]),
-    )
-    .digest("hex");
-}
-export async function aiUsageStorageAvailable(tx: Pick<Tx, "$queryRaw">) {
+export async function aiUsageStorageAvailable(
+  tx: Pick<Tx, "$queryRaw"> | D1Store,
+) {
+  if (isD1UsageDb(tx)) return d1AiUsageStorageAvailable(tx);
   const rows = await tx.$queryRaw<
     Array<{ ready: boolean }>
   >`SELECT to_regclass('public."AiUsagePolicy"') IS NOT NULL AND to_regclass('public."AiUsageRequest"') IS NOT NULL
@@ -72,9 +59,10 @@ export async function aiUsageStorageAvailable(tx: Pick<Tx, "$queryRaw">) {
   return rows[0]?.ready === true;
 }
 export async function readAiUsagePolicy(
-  tx: Pick<Tx, "$queryRaw">,
+  tx: Pick<Tx, "$queryRaw"> | D1Store,
   familyId: string,
 ) {
+  if (isD1UsageDb(tx)) return readD1AiUsagePolicy(tx, familyId);
   const rows = await tx.$queryRaw<
     Array<{
       revision: number;
@@ -124,13 +112,15 @@ export function aiUtcWindow(now: Date) {
   };
 }
 export async function reserveAiUsage(
-  db: Pick<PrismaClient, "$transaction">,
+  db: UsageDb,
   actor: AiUsageActor,
   config: CaptureConfig,
   job: "assistant" | "capture_text" | "capture_photo",
   input: { inputBytes: number; maxOutputTokens: number },
   now = new Date(),
 ) {
+  if (isD1UsageDb(db))
+    return reserveD1AiUsage(db, actor, config, job, input, now);
   if (!isAiUsageReady() || process.env.FAMILY_AI_PROVIDER_DISABLED === "1")
     throw new AiUsageError("AI_PAUSED");
   if (
@@ -228,11 +218,12 @@ export async function reserveAiUsage(
   });
 }
 export function createAiUsageJob(
-  db: Pick<PrismaClient, "$transaction">,
+  db: UsageDb,
   actor: AiUsageActor,
   config: CaptureConfig,
   job: "assistant" | "capture_text" | "capture_photo",
 ) {
+  if (isD1UsageDb(db)) return createD1AiUsageJob(db, actor, config, job);
   if (!isAiUsageAdopted()) return undefined;
   let reservation: Awaited<ReturnType<typeof reserveAiUsage>> | null = null;
   let startedAt: number | null = null,
@@ -354,10 +345,11 @@ export function createAiUsageJob(
   };
 }
 export async function readAiUsageDays(
-  tx: Pick<Tx, "$queryRaw">,
+  tx: Pick<Tx, "$queryRaw"> | D1Store,
   familyId: string,
   now = new Date(),
 ) {
+  if (isD1UsageDb(tx)) return readD1AiUsageDays(tx, familyId, now);
   const window = aiUtcWindow(now);
   return tx.$queryRaw<
     Array<{
@@ -392,12 +384,14 @@ export async function readAiUsageDays(
     GROUP BY 1 ORDER BY 1 DESC LIMIT 31`;
 }
 export async function saveAiUsagePolicy(
-  tx: Raw,
+  tx: Raw | D1Store,
   familyId: string,
   expectedRevision: number,
   policy: AiUsagePolicy,
   config: CaptureConfig | null,
 ) {
+  if (isD1UsageDb(tx))
+    return saveD1AiUsagePolicy(tx, familyId, expectedRevision, policy, config);
   const hash =
     config && policy.inputRateMicrousdPerMillion !== null
       ? aiConfigHash(config)
@@ -419,11 +413,12 @@ export async function saveAiUsagePolicy(
 /** Portability follows the existing own-account export. No prices, provider
  * configuration, family IDs or other people's request attribution in own rows. */
 export async function exportAiUsage(
-  db: Pick<Tx, "$queryRaw">,
+  db: Pick<Tx, "$queryRaw"> | D1Store,
   userId: string,
   familyId: string | null,
   role: string | undefined,
 ) {
+  if (isD1UsageDb(db)) return exportD1AiUsage(db, userId, familyId, role);
   if (!(await aiUsageStorageAvailable(db))) return undefined;
   const ownRequests = await db.$queryRaw<
     Array<{

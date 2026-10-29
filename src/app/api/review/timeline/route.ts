@@ -9,6 +9,8 @@ import {
 } from "@/lib/review-inbox/timeline";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ChangeTimeline } from "@/lib/cloudflare/review-inbox";
 export const dynamic = "force-dynamic";
 const reply = (body: unknown, status = 200) =>
   NextResponse.json(body, {
@@ -44,16 +46,15 @@ export async function GET(request: NextRequest) {
     } catch {
       return reply({ error: "Invalid timeline cursor" }, 400);
     }
+    const actor = {
+      userId: auth.user.id,
+      familyId: auth.user.family_id,
+      tokenVersion: auth.payload.tv ?? 0,
+    };
     return reply(
-      await readChangeTimeline(
-        prisma!,
-        {
-          userId: auth.user.id,
-          familyId: auth.user.family_id,
-          tokenVersion: auth.payload.tv ?? 0,
-        },
-        query.data,
-      ),
+      storageBackend() === "d1"
+        ? await readD1ChangeTimeline(actor, query.data)
+        : await readChangeTimeline(prisma!, actor, query.data),
     );
   } catch (error) {
     if (error instanceof TimelineAccessError)

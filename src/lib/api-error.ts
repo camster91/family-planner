@@ -14,7 +14,11 @@
  * text derived from the request or from an exception.
  */
 import { NextResponse } from 'next/server'
-import { describeError, log } from '@/lib/logger'
+import { describeError } from '@/lib/logger'
+import {
+  logRouteError as logRouteErrorPure,
+  logRouteWarning as logRouteWarningPure,
+} from '@/lib/route-error-log'
 
 export type ApiErrorShape = 'flat' | 'nested'
 
@@ -74,7 +78,7 @@ export { describeError }
  * helper) passes a stable name such as `idempotency.store` and no request id.
  */
 export function logRouteError(route: string, error: unknown, requestId: string | undefined): void {
-  log.error('route.error', routeErrorContext(route, error, requestId))
+  logRouteErrorPure(route, error, requestId)
 }
 
 /**
@@ -82,9 +86,5 @@ export function logRouteError(route: string, error: unknown, requestId: string |
  * route recovers from (an optional email or notification that did not send).
  */
 export function logRouteWarning(route: string, error: unknown, requestId: string | undefined): void {
-  log.warn('route.warn', routeErrorContext(route, error, requestId))
-}
-
-function routeErrorContext(route: string, error: unknown, requestId: string | undefined) {
-  return { route: route.slice(0, 120), ...(requestId === undefined ? {} : { requestId }), ...describeError(error) }
+  logRouteWarningPure(route, error, requestId)
 }

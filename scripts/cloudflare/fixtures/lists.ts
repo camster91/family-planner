@@ -16,6 +16,7 @@ import {
   readD1ListVersion,
   readD1ListItemsApi,
   readD1ListIndex,
+  readD1ListItemReconciliation,
 } from "../../../src/lib/cloudflare/list-read";
 import { D1PersonReceiptError } from "../../../src/lib/cloudflare/person-effect";
 import { reviewD1PersonQueue } from "../../../src/lib/cloudflare/person-queue";
@@ -194,6 +195,34 @@ export async function testLists(db: D1Store) {
     "concurrent add once",
   );
   const item = (adds[0].body as any).item;
+  check(
+    (await readD1ListItemReconciliation(child, item.id, list.id, db)) ===
+      "found",
+    "own saved item reconciles",
+  );
+  check(
+    (await readD1ListItemReconciliation(
+      child,
+      "lists-missing-item",
+      list.id,
+      db,
+    )) === "missing",
+    "proved own list distinguishes missing item",
+  );
+  check(
+    (await readD1ListItemReconciliation(foreign, item.id, list.id, db)) ===
+      "held",
+    "foreign reconciliation retains pending work",
+  );
+  check(
+    (await readD1ListItemReconciliation(
+      { ...child, generation: 1 },
+      item.id,
+      list.id,
+      db,
+    )) === "held",
+    "stale reconciliation retains pending work",
+  );
   const reviewEntries = Array.from({ length: 50 }, (_, index) => ({
     id: `person-review-${String(index).padStart(4, "0")}`,
     action: "list-item.set-checked" as const,
@@ -496,5 +525,6 @@ export async function testLists(db: D1Store) {
     walkingOrder: true,
     sectionControls: true,
     personalQueueRecovery: true,
+    itemReconciliation: true,
   };
 }

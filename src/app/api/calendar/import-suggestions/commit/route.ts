@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { storageBackend } from '@/lib/storage-backend'
+import { getD1Database } from '@/lib/cloudflare/database'
+import { commitD1ImportedEvents } from '@/lib/cloudflare/calendar-import'
+import { D1PersonReceiptError } from '@/lib/cloudflare/person-effect'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { featureGate } from '@/lib/feature-gate-server'
 import { refusePairedDevice } from '@/lib/device-route'
 import { idempotencyError, readIdempotencyKey, withIdempotency } from '@/lib/idempotency'
 import { log } from '@/lib/logger'
-import { importError } from '@/lib/event-import-http'
+import { importError, importJson } from '@/lib/event-import-http'
 import { EVENT_IMPORT_FORBIDDEN_MESSAGE, canImportEvents } from '@/lib/event-import'
 import {
   EVENT_IMPORT_COMMIT_ACTION,
@@ -39,8 +43,10 @@ export async function POST(request: NextRequest) {
     const [auth, error] = await authenticateWithFamily(request)
     if (error) return error
 
-    const gate = await featureGate(auth.user.family_id, 'calendar')
-    if (gate) return gate
+    if (storageBackend() !== 'd1') {
+      const gate = await featureGate(auth.user.family_id, 'calendar')
+      if (gate) return gate
+    }
 
     if (!canImportEvents(auth.user.role)) {
       return importError(403, 'EVENT_IMPORT_FORBIDDEN', EVENT_IMPORT_FORBIDDEN_MESSAGE)
@@ -63,6 +69,30 @@ export async function POST(request: NextRequest) {
     }
     const rangeError = checkCommitRanges(parsed.data)
     if (rangeError) return importError(400, 'INVALID_BODY', rangeError)
+
+    if (storageBackend() === 'd1') {
+      try {
+        const result = await commitD1ImportedEvents(
+          {
+            userId: auth.user.id,
+            familyId: auth.user.family_id,
+            role: auth.user.role,
+            generation: auth.payload?.tv ?? 0,
+            name: auth.user.name,
+          },
+          parsed.data,
+          key,
+          await getD1Database(),
+        )
+        const response = importJson(result.body, result.status)
+        if (result.replayed) response.headers.set('Idempotency-Replayed', 'true')
+        return response
+      } catch (error) {
+        if (error instanceof D1PersonReceiptError)
+          return idempotencyError(error.code)
+        throw error
+      }
+    }
 
     const actor = { id: auth.user.id, family_id: auth.user.family_id, name: auth.user.name }
     const response = await withIdempotency(

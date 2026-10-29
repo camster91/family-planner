@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { checkRateLimit } from '@/lib/rate-limit-db'
-import { getClientIp } from '@/lib/client-ip'
-import { logRouteError } from '@/lib/api-error'
-import { getRequestId } from '@/lib/request-id'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit-db";
+import { getClientIp } from "@/lib/client-ip";
+import { logRouteError } from "@/lib/api-error";
+import { getRequestId } from "@/lib/request-id";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { readD1PublicHandoff } from "@/lib/cloudflare/handoffs";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 // GET /api/handoff/share/[token] - Public share view (no auth, no CSRF)
 // Returns handoff by share_token if not expired; 404 if not found or expired.
@@ -13,21 +16,38 @@ export const dynamic = 'force-dynamic'
 // returned — no family_id, created_by, share token or timestamps.
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ token: string }> }
+  { params }: { params: Promise<{ token: string }> },
 ) {
   try {
     // Unauthenticated endpoint keyed by a bearer token: throttle per IP so
     // tokens cannot be brute-forced.
-    const ip = getClientIp(request)
-    const rateCheck = await checkRateLimit(`handoff-share:${ip}`, 60, 15 * 60 * 1000)
+    const ip = getClientIp(request);
+    const rateCheck = await checkRateLimit(
+      `handoff-share:${ip}`,
+      60,
+      15 * 60 * 1000,
+    );
     if (!rateCheck.allowed) {
       return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateCheck.retryAfterMs / 1000)) } }
-      )
+        { error: "Too many requests. Please try again later." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil(rateCheck.retryAfterMs / 1000)),
+          },
+        },
+      );
     }
 
-    const { token } = await params
+    const { token } = await params;
+
+    if (storageBackend() === "d1") {
+      const result = await readD1PublicHandoff(token, await getD1Database());
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
 
     const handoff = await prisma!.handoff.findUnique({
       where: { share_token: token },
@@ -48,22 +68,25 @@ export async function GET(
         share_expires_at: true,
         family: { select: { name: true } },
       },
-    })
+    });
 
     if (!handoff) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     // Fail closed: a link with no expiry (legacy rows) is treated as expired.
     if (!handoff.share_expires_at || handoff.share_expires_at <= new Date()) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const publicHandoff: Partial<typeof handoff> = { ...handoff }
-    delete publicHandoff.share_expires_at
-    return NextResponse.json({ handoff: publicHandoff })
+    const publicHandoff: Partial<typeof handoff> = { ...handoff };
+    delete publicHandoff.share_expires_at;
+    return NextResponse.json({ handoff: publicHandoff });
   } catch (err) {
-    logRouteError('GET /api/handoff/share/[token]', err, getRequestId(request))
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logRouteError("GET /api/handoff/share/[token]", err, getRequestId(request));
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

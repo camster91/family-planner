@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
 import {
   boundedRequestText,
   RequestBodyTooLarge,
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
         { status: 400, headers },
       );
     const result = await previewFoodPlan(
-      prisma!,
+      storageBackend() === "d1" ? await getD1Database() : prisma!,
       {
         userId: auth.user.id,
         familyId: auth.user.family_id,

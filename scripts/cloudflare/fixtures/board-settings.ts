@@ -16,7 +16,7 @@ export async function testBoardSettings(db: D1Store) {
     .bind(familyId, JSON.stringify([photoId]), foreignFamilyId).run()
   await db.prepare(`INSERT INTO "User" (id,email,name,role,family_id,created_at)
     VALUES (?1,?2,'Board Parent','parent',?3,?7), (?4,?5,'Board Child','child',?3,?7), (?6,?8,'Foreign Parent','parent',?9,?7)`)
-    .bind(parentId, 'board-parent@example.test', familyId, childId, 'board-child@example.test', foreignId, now.getTime(), 'foreign-parent@example.test', foreignFamilyId).run()
+    .bind(parentId, 'board-settings-parent@example.test', familyId, childId, 'board-settings-child@example.test', foreignId, now.getTime(), 'board-settings-foreign-parent@example.test', foreignFamilyId).run()
   await db.prepare(`INSERT INTO "Upload" (id,family_id,filename,content_type,size_bytes,created_at)
     VALUES (?1,?2,'0123456789abcdef.jpg','image/jpeg',100,?3), ('native-board-settings-heic',?2,'0123456789abcde0.heic','image/heic',100,?3), ('native-board-settings-foreign-photo',?4,'fedcba9876543210.jpg','image/jpeg',100,?3)`)
     .bind(photoId, familyId, now.getTime(), foreignFamilyId).run()

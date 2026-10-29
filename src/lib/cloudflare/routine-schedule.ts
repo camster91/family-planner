@@ -27,6 +27,12 @@ import {
   type RoutineScheduleConfig,
   type RoutineStepSeriesConfig,
 } from "@/lib/routine-schedule";
+import {
+  ROUTINE_RECOVERY_CONTRACT,
+  routineRecoveryEntry,
+  routineRecoveryReview,
+  type RoutineRecoveryEntry,
+} from "@/lib/routine-schedule-recovery-contract";
 import type { RoutineScheduleActor } from "@/lib/routine-schedule-runtime";
 import { isProfileChoreEnabled, isProfileChoreRecurrenceSupported } from "@/lib/profile-chore-gates";
 import { profileRoleSchema, isProfileAgeAllowed } from "@/lib/member-subject-contract";
@@ -184,6 +190,142 @@ export async function readD1RoutineSchedule(actor: Actor, stackId: string, datab
   const pointsEnabled = Boolean((parseJson<Record<string, unknown>>(capture.value.state.family?.features) ?? {}).gamification);
   const steps = config.steps.map((step) => { const row = byId.get(step.template_id); const definition = row ? routineStepSeriesConfig.safeParse(row.routine_series_config) : null; const content = definition?.success ? definition.data.content : null; return { template_id: step.template_id, title: content?.title ?? row?.title ?? "", description: content?.description ?? row?.description ?? null, subject: content?.subject ?? (row?.assigned_to ? { kind: "account" as const, user_id: row.assigned_to, member_id: row.assigned_member_id } : null), points: pointsEnabled ? (content?.points ?? row?.points ?? 0) : undefined, difficulty: content?.difficulty ?? row?.difficulty ?? "medium", icon: content?.icon ?? row?.icon ?? null, duration_minutes: content?.duration_minutes ?? row?.routine_duration_minutes ?? null }; });
   return { status: 200, body: routineScheduleState.parse({ protocol: "herewoven.routine-schedule.v1", userId: actor.userId, familyId: actor.familyId, stackId, version: capture.value.state.stack!.version, label: capture.value.state.stack!.label, pointsEnabled, config, steps }) };
+}
+
+/**
+ * Read-only recovery of a future-routine request. This never reserves,
+ * expires, or rewrites an idempotency record: recovery is confirmation of the
+ * original request, not a second mutation path.
+ */
+export async function reviewD1RoutineSchedule(
+  actor: Actor,
+  raw: RoutineRecoveryEntry,
+  ownerScope: string,
+  writesEnabled: boolean,
+  now = new Date(),
+  database?: D1Store,
+): Promise<EffectResult> {
+  const entry = routineRecoveryEntry.parse(raw);
+  const input = routineScheduleCommand.parse(JSON.parse(entry.body));
+  const store = database ?? (await getD1Database());
+  const session = store.withSession("first-primary");
+  const authorityCapture = await captureRoutineAuthority(store, actor);
+  if (!authorityCapture.value) return fail(403, "ROUTINE_PARENT_REQUIRED");
+  if (
+    input.expected_user_id !== actor.userId ||
+    input.expected_family_id !== actor.familyId
+  )
+    return fail(403, "AUTH_CONTEXT_CHANGED");
+
+  const requestHash = hashIdempotentRequest(ROUTINE_SCHEDULE_ACTION, input);
+  const record = await session
+    .prepare(
+      `SELECT id,family_id,user_id,action,request_hash,created_at,response_status,response_body,expires_at
+       FROM "IdempotencyRecord" WHERE scope=?1 AND key=?2`,
+    )
+    .bind(`user:${actor.userId}`, entry.key)
+    .first<Receipt>();
+  if (
+    record &&
+    (record.family_id !== actor.familyId ||
+      record.user_id !== actor.userId ||
+      record.action !== ROUTINE_SCHEDULE_ACTION ||
+      record.request_hash !== requestHash)
+  )
+    return fail(422, "IDEMPOTENCY_KEY_REUSED");
+
+  const stackId = input.action === "create" ? null : input.stack_id;
+  const stack = stackId
+    ? await session
+        .prepare(
+          `SELECT id,version,schedule_config FROM "RoutineStack" WHERE id=?1 AND family_id=?2`,
+        )
+        .bind(stackId, actor.familyId)
+        .first<{ id: string; version: number; schedule_config: unknown }>()
+    : null;
+  const reply = (
+    state:
+      | "ready"
+      | "pending"
+      | "committed"
+      | "removed"
+      | "expired"
+      | "conflict"
+      | "paused"
+      | "unavailable",
+    receipt: unknown = null,
+  ): EffectResult => ({
+    status: 200,
+    body: routineRecoveryReview.parse({
+      contract: ROUTINE_RECOVERY_CONTRACT,
+      ownerScope,
+      entry,
+      state,
+      canRetry: state === "ready" || state === "pending",
+      currentVersion: stack?.version ?? null,
+      receipt,
+    }),
+  });
+
+  if (record?.response_status !== null && record?.response_status !== undefined) {
+    const proof = routineScheduleReceipt.safeParse(receiptBody(record.response_body));
+    if (
+      !proof.success ||
+      record.response_status !== (input.action === "create" ? 201 : 200) ||
+      proof.data.requestId !== record.id ||
+      proof.data.action !== input.action ||
+      (input.action !== "create" && proof.data.stackId !== input.stack_id)
+    )
+      return reply("unavailable");
+    const present = await session
+      .prepare(`SELECT id FROM "RoutineStack" WHERE id=?1 AND family_id=?2`)
+      .bind(proof.data.stackId, actor.familyId)
+      .first<{ id: string }>();
+    const roots = await session
+      .prepare(
+        `SELECT COUNT(*) AS count FROM "Chore" WHERE family_id=?1 AND id IN (SELECT value FROM json_each(?2))`,
+      )
+      .bind(actor.familyId, JSON.stringify(proof.data.roots))
+      .first<{ count: number }>();
+    return reply(
+      present && Number(roots?.count ?? 0) === proof.data.roots.length
+        ? "committed"
+        : "removed",
+      proof.data,
+    );
+  }
+
+  const age = now.getTime() - Date.parse(input.issued_at);
+  if (
+    age > 15 * 60_000 ||
+    age < -60_000 ||
+    routineViewerDay(input.view_zone, now) !== input.view_day
+  )
+    return reply("expired");
+  if (stackId) {
+    if (!stack) return reply("conflict");
+    if (input.action !== "create" && stack.version !== input.expected_version)
+      return reply("conflict");
+    const config = routineScheduleConfig.safeParse(parseJson(stack.schedule_config));
+    if (!config.success || config.data.state === "stopped")
+      return reply("unavailable");
+    if (
+      (input.action === "pause" && config.data.state !== "active") ||
+      (input.action === "resume" &&
+        (config.data.state !== "paused" ||
+          (config.data.schedule.frequency === "once" &&
+            config.data.schedule.starts_on! <= input.view_day)))
+    )
+      return reply("conflict");
+  }
+  if (
+    input.action === "create" &&
+    input.schedule.starts_on !== null &&
+    input.schedule.starts_on < input.view_day
+  )
+    return reply("conflict");
+  if (!writesEnabled) return reply("paused");
+  return reply(record ? "pending" : "ready");
 }
 
 function rootInsert(session: Pick<D1Store, "prepare">, actor: Actor, id: string, step: { title: string; description: string | null; subject: { kind: "account"; user_id: string; member_id: string | null } | { kind: "profile"; member_id: string }; points: number; difficulty: string; icon: string | null; duration_minutes: number | null }, schedule: ReturnType<typeof normalizeRoutineSharedSchedule>, stackId: string, label: string, order: number, anchor: string | null, now: number) {

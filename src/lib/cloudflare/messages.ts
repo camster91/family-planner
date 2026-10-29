@@ -395,4 +395,3 @@ export async function sendD1Message(
     plan: (db, receiptId) => planSend(db, actor, body, receiptId, now),
   });
 }
-

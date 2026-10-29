@@ -270,3 +270,42 @@ export async function readD1OwnPreparationContext(
     }),
   );
 }
+
+/**
+ * Preparation context is guarded by more than the two additive tables on the
+ * PostgreSQL path: epoch/identity/lifecycle triggers are part of its safety
+ * contract. D1 currently has the tables but not those guards, so callers must
+ * keep the feature paused rather than treating table presence as readiness.
+ */
+export async function d1EventPreparationStorageAvailable(
+  database?: D1Store,
+) {
+  const session = (database ?? (await getD1Database())).withSession(
+    "first-primary",
+  );
+  try {
+    const rows = await session
+      .prepare(
+        `SELECT
+          (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('EventPreparation','EventPreparationStep'))=2 AS tables_ready,
+          (SELECT COUNT(*) FROM pragma_table_info('Event') WHERE name IN ('schedule_generation','schedule_epoch','preparation_epoch'))=3 AS event_ready,
+          (SELECT COUNT(*) FROM pragma_table_info('Chore') WHERE name IN ('responsibility_generation','responsibility_epoch','preparation_epoch'))=3 AS chore_ready,
+          (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN ('herewoven_preparation_epoch','herewoven_preparation_event_move','herewoven_preparation_identity','herewoven_preparation_lifecycle','herewoven_preparation_step_version','herewoven_preparation_chore_move','herewoven_preparation_task_state'))=7 AS guards_ready`,
+      )
+      .first<{
+        tables_ready: number;
+        event_ready: number;
+        chore_ready: number;
+        guards_ready: number;
+      }>();
+    return Boolean(
+      rows?.tables_ready &&
+        rows.event_ready &&
+        rows.chore_ready &&
+        rows.guards_ready,
+    );
+  } catch {
+    // A partially migrated D1 must remain an explicit paused surface.
+    return false;
+  }
+}

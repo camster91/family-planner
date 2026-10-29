@@ -19,6 +19,9 @@ import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { HouseholdMemberIdentityConflict } from "@/lib/household-member-lifecycle";
 import { RequestBodyTooLargeError, readBoundedText } from "@/lib/bounded-body";
+import { storageBackend } from "@/lib/storage-backend";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { runD1FamilyImport } from "@/lib/cloudflare/family-import";
 
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
@@ -164,11 +167,22 @@ async function handleFamilyImport(
 
   const mappedUserIds = [...new Set(Object.values(parsed.data.identityMap))];
   if (mappedUserIds.length > 0) {
-    const familyUsers = await prisma!.user.findMany({
-      where: { id: { in: mappedUserIds }, family_id: auth.user.family_id },
-      select: { id: true },
-    });
-    const familyUserIds = new Set(familyUsers.map((user) => user.id));
+    const familyUserIds = new Set<string>();
+    if (storageBackend() === "d1") {
+      const db = await getD1Database();
+      const placeholders = mappedUserIds.map((_, index) => `?${index + 2}`).join(",");
+      const familyUsers = await db
+        .prepare(`SELECT id FROM "User" WHERE family_id=?1 AND id IN (${placeholders})`)
+        .bind(auth.user.family_id, ...mappedUserIds)
+        .all<{ id: string }>();
+      for (const user of familyUsers.results) familyUserIds.add(user.id);
+    } else {
+      const familyUsers = await prisma!.user.findMany({
+        where: { id: { in: mappedUserIds }, family_id: auth.user.family_id },
+        select: { id: true },
+      });
+      for (const user of familyUsers) familyUserIds.add(user.id);
+    }
     const invalidUserIds = mappedUserIds.filter((id) => !familyUserIds.has(id));
     if (invalidUserIds.length > 0) {
       return NextResponse.json(
@@ -182,7 +196,7 @@ async function handleFamilyImport(
   }
 
   try {
-    const result = await runFamilyImport({
+    const importOptions = {
       source,
       data: parsed.data.data,
       identityMap: parsed.data.identityMap,
@@ -190,7 +204,10 @@ async function handleFamilyImport(
       familyId: auth.user.family_id,
       startedBy: auth.user.id,
       sessionVersion: auth.payload.tv ?? 0,
-    });
+    } as const;
+    const result = storageBackend() === "d1"
+      ? await runD1FamilyImport(importOptions)
+      : await runFamilyImport(importOptions);
     if (requireOwner) {
       // Renew the same original actor before returning private preview/receipt.
       // A later refusal does not prove an earlier write rolled back.
