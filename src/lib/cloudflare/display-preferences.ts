@@ -61,12 +61,14 @@ export async function updateD1DisplayPreferences(actor: Actor, patch: Patch, dat
   // winning UPDATE, then return exactly the committed snapshot from that batch.
   const result = await db.batch<Row>([
     db.prepare(`UPDATE "User" SET display_preferences = ?, display_preferences_revision = display_preferences_revision + 1
-      WHERE id = ? AND family_id IS ? AND role = ? AND token_version = ? AND display_preferences_revision = ?`)
+      WHERE id = ? AND family_id IS ? AND role = ? AND token_version = ? AND display_preferences_revision = ? RETURNING id`)
       .bind(JSON.stringify(next), actor.userId, actor.familyId, current.row.role, actor.tokenVersion, patch.expectedRevision),
     db.prepare(SELECT).bind(actor.userId),
   ])
   const committed = loaded(result[1].results[0] ?? null, actor)
-  if (result[0].meta.changes !== 1) throw new DisplayPreferencesError('CONFLICT')
+  // RETURNING counts the direct winner; meta.changes also includes food-source
+  // epoch trigger writes and is not a count of updated account rows.
+  if (result[0].results.length !== 1) throw new DisplayPreferencesError('CONFLICT')
   return snapshot(committed)
 }
 export async function updateD1DisplayDefaults(actor: Actor, expectedRevision: number, today: TodayLayout, database?: D1Store) {
@@ -77,12 +79,12 @@ export async function updateD1DisplayDefaults(actor: Actor, expectedRevision: nu
   const result = await db.batch<Row>([
     db.prepare(`UPDATE "Family" SET display_defaults = ?, display_defaults_revision = display_defaults_revision + 1
       WHERE id = ? AND display_defaults_revision = ? AND EXISTS
-        (SELECT 1 FROM "User" WHERE id = ? AND family_id = "Family".id AND role = 'parent' AND token_version = ?)`)
+        (SELECT 1 FROM "User" WHERE id = ? AND family_id = "Family".id AND role = 'parent' AND token_version = ?) RETURNING id`)
       .bind(JSON.stringify({ version: 1, today }), actor.familyId, expectedRevision, actor.userId, actor.tokenVersion),
     db.prepare(SELECT).bind(actor.userId),
   ])
   const committed = loaded(result[1].results[0] ?? null, actor)
   if (committed.row.role !== 'parent') throw new DisplayPreferencesError('FORBIDDEN')
-  if (result[0].meta.changes !== 1) throw new DisplayPreferencesError('CONFLICT')
+  if (result[0].results.length !== 1) throw new DisplayPreferencesError('CONFLICT')
   return snapshot(committed)
 }

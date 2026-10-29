@@ -18,6 +18,7 @@ import {
   readD1ListIndex,
 } from "../../../src/lib/cloudflare/list-read";
 import { D1PersonReceiptError } from "../../../src/lib/cloudflare/person-effect";
+import { reviewD1PersonQueue } from "../../../src/lib/cloudflare/person-queue";
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
@@ -193,6 +194,45 @@ export async function testLists(db: D1Store) {
     "concurrent add once",
   );
   const item = (adds[0].body as any).item;
+  const reviewEntries = Array.from({ length: 50 }, (_, index) => ({
+    id: `person-review-${String(index).padStart(4, "0")}`,
+    action: "list-item.set-checked" as const,
+    itemId: item.id,
+    checked: true,
+  }));
+  const review = await reviewD1PersonQueue(child, reviewEntries, db);
+  check(
+    review.status === 200 &&
+      (review.body as any[]).length === 50 &&
+      (review.body as any[]).every((row) => row.target?.itemName === "Milk"),
+    "personal queue bounded native projection",
+  );
+  const otherReview = await reviewD1PersonQueue(foreign, reviewEntries, db);
+  check(
+    otherReview.status === 200 &&
+      (otherReview.body as any[]).every((row) => row.target === null),
+    "personal queue household isolation",
+  );
+  check(
+    (await reviewD1PersonQueue({ ...child, generation: 1 }, reviewEntries, db))
+      .status === 401,
+    "personal queue stale identity refused",
+  );
+  const wrongKind = await reviewD1PersonQueue(
+    child,
+    [
+      {
+        ...reviewEntries[0],
+        action: "device.list-item.set-checked",
+        actingMemberId: child.userId,
+      },
+    ],
+    db,
+  );
+  check(
+    wrongKind.status === 200 && (wrongKind.body as any[])[0].target === null,
+    "personal queue device operation hidden",
+  );
   check(
     (
       await setD1ListSectionSort(
@@ -455,5 +495,6 @@ export async function testLists(db: D1Store) {
     receiptRecovery: true,
     walkingOrder: true,
     sectionControls: true,
+    personalQueueRecovery: true,
   };
 }

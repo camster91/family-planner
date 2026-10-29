@@ -61,7 +61,7 @@ export async function updateD1FamilyFeatures(actor: Actor, changes: Partial<Reco
     const next = { ...current, ...changes }
     const entries = featureAuditEntries(current, next, { familyId: actor.familyId, actorUserId: actor.userId, actorKind: 'person' })
     const result = await db.batch<State>([
-      db.prepare(`UPDATE "Family" SET features=?4 WHERE id=?2 AND ${PARENT} AND features IS ?5`)
+      db.prepare(`UPDATE "Family" SET features=?4 WHERE id=?2 AND ${PARENT} AND features IS ?5 RETURNING id`)
         .bind(actor.userId, actor.familyId, actor.generation, JSON.stringify(next), before.features),
       ...entries.map(entry => db.prepare(`INSERT INTO "AuditLog" (id,family_id,actor_user_id,actor_kind,action,target_type,target_id,summary,created_at)
         SELECT ?1,?2,?3,'person',?4,'feature',?5,?6,?7 WHERE changes()=1`)
@@ -69,7 +69,7 @@ export async function updateD1FamilyFeatures(actor: Actor, changes: Partial<Reco
       db.prepare(SELECT).bind(actor.familyId, actor.userId),
     ])
     const committed = authorized(result.at(-1)!.results[0] ?? null, actor)
-    if (result[0].meta.changes === 1) return flags(committed.features)
+    if (result[0].results.length === 1) return flags(committed.features)
   }
   throw new D1FamilySettingsError(409, 'FEATURES_CHANGED')
 }
