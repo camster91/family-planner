@@ -335,6 +335,13 @@ async function main() {
     await listText.click();
     await page.waitForURL(/\/dashboard\/lists\/[^/]+/, { timeout: 15_000 });
     await settle();
+    // PersonGroceryAdd keeps the draft editable while its ownership-aware
+    // queue hydrates, but intentionally rejects Enter until that handshake
+    // settles. Wait on the component's explicit readiness marker so this
+    // journey does not race the queue bootstrap.
+    await page
+      .locator('[data-queue-settled="true"]')
+      .waitFor({ state: "visible", timeout: 15_000 });
     const listId = appPath().split("/").filter(Boolean).at(-1);
     assert.ok(listId, "created list URL did not include a list id");
 
@@ -574,7 +581,7 @@ async function main() {
         if ([401, 403, 404].includes(parentList.status)) {
           record("private-household-negative", "passed", {
             endpoint: "/api/lists/items",
-            status: parentList.status,
+            httpStatus: parentList.status,
             reason: "child credentials are outside the parent household",
           });
         } else {
@@ -585,7 +592,7 @@ async function main() {
           );
           record("private-household-negative", "same-household", {
             endpoint: "/api/lists/items",
-            status: parentList.status,
+            httpStatus: parentList.status,
             reason:
               "child credentials share the parent household; role guards were checked above",
           });

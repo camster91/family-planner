@@ -1,3 +1,31 @@
+# Latest migration checkpoint — 2026-10-29
+
+Candidate `c785d926ea710b6a1b3258ec16316a7fcb890dac` passed Cloudflare CI
+run [40863689234](https://github.com/camster91/family-planner/actions/runs/40863689234).
+The default native matrix (baseline plus 41 domains), TypeScript, targeted
+routine recovery, and the full local compiled-app browser household journey
+pass. Browser coverage includes authenticated root routing, family setup,
+explicitly local-enabled email-free child profile, grocery persistence,
+calendar duration edits, two-dish bulk prep with reload, child/cross-household
+refusal, logout, and phone/tablet/desktop Today captures.
+
+Created isolated D1 `herewoven` (`cff38a6c-d2cb-4a5f-bed9-3c8f8a888590`) and
+private R2 `herewoven-uploads`. All 16 migrations are applied to the fresh D1;
+verified zero users/households and no foreign-key violations. R2 public access
+is disabled and it has no public custom domains. No paid plan was enabled.
+
+The immutable artifact is prepared for deployment at
+`/tmp/herewoven-deploy-c785d926`; deployment dry-run module hashes match CI
+byte-for-byte (only leading `./` module-name normalization). Wrangler upload
+needs its separate Cloudflare OAuth login; a browser sign-in is open. The
+connected Cloudflare app applied storage/schema successfully, but cannot supply
+Wrangler's local credentials. Production DNS and the healthy VPS app remain
+unchanged. Actual edge validation, merge/cutover for both herewoven.com and
+family.ashbi.ca, and Herewoven-only VPS retirement remain open.
+
+Detailed evidence and recovery steps: [migration plan](plans/cloudflare-native-migration.md).
+Earlier sections below are historical checkpoints.
+
 # Active Cloudflare migration — 2026-10-28
 
 Cameron approved moving Herewoven entirely to Cloudflare with fresh app data.

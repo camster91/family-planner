@@ -2086,6 +2086,30 @@ self bindings. The pre-change config backup is
 `/tmp/herewoven-wrangler-before-storage-20261029.jsonc`. Account Workers subdomain
 is `ashbi-design-preview`; actual edge runtime acceptance remains unverified.
 
+### Candidate browser acceptance and prepared upload (2026-10-29)
+
+CI `40863689234` passed for `c785d926ea710b6a1b3258ec16316a7fcb890dac`:
+47,071,705 upload-module bytes (44.891 MiB, within 64 MiB). The actual compiled
+candidate passed the full local browser household script, including root/login,
+family setup, local opt-in email-free age-3 profile, list add/check/reload,
+calendar create/edit/duration, two-dish bulk prep and reload persistence,
+child finance/AI-settings refusal, foreign-household list refusal, and logout.
+Evidence: `/tmp/herewoven-browser-c785d926/manifest.json` and three Today
+screenshots. Expected negative auth probes return 401/403; this is not a
+claim that every browser console entry is empty or every app screen was tested.
+
+Root prepared `/tmp/herewoven-deploy-c785d926` directly from the immutable
+artifact. A no-bundle deployment dry run succeeds; both JavaScript and Wasm
+SHA-256 values match CI bytes after harmless leading `./` path normalization.
+No application rebuild or compiled-code edit was used for this package.
+
+All 16 schema migrations are now applied through the connected Cloudflare API
+to the isolated replacement D1. Verified migration ledger count 16, zero
+users/households, and empty foreign-key check. The CLI lacked login, so it was
+not used for schema execution. Wrangler OAuth sign-in is now open for the
+compiled-file upload; actual edge/hostname acceptance remains pending. No
+Worker, production-secret, DNS, VPS-data or paid-plan change has occurred yet.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement
