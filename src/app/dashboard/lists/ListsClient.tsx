@@ -205,7 +205,7 @@ export default function ListsClient({
   }
 
   return (
-    <div className="pb-20">
+    <div>
       <LargeHeader
         greeting={familyName}
         title={text(activeType === "grocery" ? "groceryName" : "title")}

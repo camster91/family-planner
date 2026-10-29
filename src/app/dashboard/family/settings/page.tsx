@@ -102,7 +102,7 @@ export default function FamilySettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-20">
+    <div className="mx-auto max-w-5xl space-y-5">
       <LargeHeader title={text("title")} />
       {state === "loading" && <p role="status">{text("loading")}</p>}
       {state === "error" && (

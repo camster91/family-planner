@@ -32,6 +32,8 @@ it('uses a canonical grouped surface and names the actual dashboard for Herewove
     expect(labelId).toBe('dashboard-main-label')
     expect(doc.getElementById(labelId!)?.textContent).toBe('Herewoven dashboard')
     expect(main?.textContent).toContain('Household plans')
+    expect(doc.querySelector('[data-dashboard-shell]')?.className).toContain('pb-[max(5rem,var(--phone-tab-bar-height,0px))]')
+    expect(main?.className).not.toContain('phone-tab-bar-height')
     expect(doc.body.firstElementChild?.className).toContain('bg-[var(--surface-grouped)]')
     const content = [...doc.querySelectorAll('p')].find(p => p.textContent === 'Household plans')?.parentElement
     expect(content?.className).toContain('w-full')

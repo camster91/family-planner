@@ -469,7 +469,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="pb-20">
+    <div>
       {/* Header */}
       {/* No decorative bell beside the title: where other pages put their "+"
           button it looked tappable and did nothing. */}

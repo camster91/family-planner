@@ -583,7 +583,7 @@ function MessagesContent() {
   if (contextChanged) return <div role="alert" className="card-apple m-4 p-5 space-y-3"><p>{messageText('contextChanged')}</p><button type="button" className="btn-tinted min-h-[44px]" onClick={() => window.location.reload()}>{messageText('reloadMessages')}</button></div>
 
   return (
-    <div className="pb-20">
+    <div>
       <div className="px-4 pt-2 pb-3">
         <div className="flex items-end justify-between gap-4">
           <div>

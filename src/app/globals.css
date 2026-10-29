@@ -504,11 +504,11 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 3rem 1.5rem;
+    padding: 2rem 1rem;
   }
   .empty-state-icon {
-    width: 80px;
-    height: 80px;
+    width: 64px;
+    height: 64px;
     border-radius: var(--radius-2xl);
     display: flex;
     align-items: center;
@@ -524,14 +524,14 @@
     /* A fixed width plus the img width/height attributes (aspect-ratio)
        reserves the box before the file loads. Tall art is capped by
        max-height and letterboxed by object-fit on a transparent ground. */
-    width: min(180px, 60vw);
+    width: min(144px, 40vw);
     height: auto;
-    max-height: 160px;
+    max-height: 128px;
     object-fit: contain;
     margin-bottom: 1rem;
   }
   @media (min-width: 768px) {
-    .empty-state-illustration { width: 200px; max-height: 180px; }
+    .empty-state-illustration { width: 160px; max-height: 144px; }
   }
 
   /* === Tab bar === */

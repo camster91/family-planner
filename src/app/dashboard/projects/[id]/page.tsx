@@ -166,7 +166,7 @@ async function ProjectDetailContent({ id, taskCursors = [] }: { id: string; task
   const isComplete = project.status === "completed" || progress === 100;
 
   return (
-    <div className="pb-20">
+    <div>
       {/* Back link + LargeHeader */}
       <div className="px-4 pt-4">
         <ProjectDetailBackLink />

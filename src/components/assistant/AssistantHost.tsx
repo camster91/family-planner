@@ -177,7 +177,7 @@ export default function AssistantHost({
         data-person-assistant
         data-launchers-suppressed={launcherSuppressed ? "true" : undefined}
         aria-hidden={launcherSuppressed ? "true" : undefined}
-        className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-[calc(max(5rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)] transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
+        className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-4 transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
       >
         {canChat && (
           <button
@@ -185,7 +185,7 @@ export default function AssistantHost({
             tabIndex={launcherSuppressed ? -1 : undefined}
             onClick={() => setQuickAddOpen(true)}
             disabled={panelBusy}
-            className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
+            className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
           >
             <Sparkles size={20} aria-hidden="true" />
             <span className="max-[320px]:sr-only">{msg("launcherAddAsk")}</span>
@@ -196,7 +196,7 @@ export default function AssistantHost({
           tabIndex={launcherSuppressed ? -1 : undefined}
           onClick={() => open("report")}
           disabled={panelBusy}
-          className={`${target} md:min-h-[56px] max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
+          className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
         >
           <MessageSquareWarning size={20} aria-hidden="true" />
           <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>

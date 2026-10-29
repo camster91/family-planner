@@ -287,7 +287,7 @@ export default function RecipeExplorePage() {
   );
   return (
     <FeatureGate featureKey="meals">
-      <div className="space-y-6 pb-20">
+      <div className="space-y-6">
         <header>
           <h1 className="text-large-title font-display">{text("title")}</h1>
           <p className="text-subhead text-label-secondary">

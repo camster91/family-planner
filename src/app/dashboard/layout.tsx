@@ -133,7 +133,7 @@ export default async function DashboardLayout({
   return (
     <div
       data-dashboard-shell
-      className="min-h-screen bg-[var(--surface-grouped)]"
+      className="min-h-screen bg-[var(--surface-grouped)] pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-0"
     >
       {/* Inline seed for the client-side FeaturesProvider.
           Safe JSON — only true/false per known feature key. */}
@@ -168,10 +168,10 @@ export default async function DashboardLayout({
                     {/* Apple HIG top bar nav */}
                     <DashboardNav user={navUser} />
 
-                    {/* Main content — padded for top bar height + TabBar safe area on mobile */}
+                    {/* Main content — the shell reserves bottom-tab clearance once, after all content. */}
                     <main
                       id="main-content"
-                      className="pt-16 pb-[max(5rem,var(--phone-tab-bar-height,0px))] md:pb-8"
+                      className="pt-16 pb-4"
                       aria-labelledby="dashboard-main-label"
                     >
                       <DashboardMainLabel />

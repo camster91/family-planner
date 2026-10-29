@@ -109,7 +109,7 @@ export default function HelpContent({
     </PageLink>
   );
   return (
-    <div className="mx-auto max-w-5xl space-y-3 pb-20">
+    <div className="mx-auto max-w-5xl space-y-3">
       <LargeHeader title={text("title")} subtitle={text("intro")} />
       <Section id="help-start" title={text("start")}>
         <Item

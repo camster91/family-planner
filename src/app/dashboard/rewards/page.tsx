@@ -217,7 +217,7 @@ export default async function RewardsPage({ searchParams }: RewardsPageProps) {
     isFeatureEnabled(normalizeFeatures(user?.family?.features), 'analytics')
 
   return (
-    <div className="pb-20">
+    <div>
       <RewardsPageHeader
         familyName={user?.family?.name}
         className="w-full px-4 sm:px-6 lg:px-8"

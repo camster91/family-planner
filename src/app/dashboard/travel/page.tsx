@@ -303,7 +303,7 @@ function TravelPageInner() {
 
   if (!travel) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
+      <div className="space-y-6 max-w-2xl mx-auto px-4">
         <LargeHeader title={text('title')} subtitle={text('subtitle')} className="px-0" />
         <div className="card-apple p-4" role="alert">
           <p className="text-body font-semibold text-label-primary">{text('loadErrorTitle')}</p>
@@ -322,7 +322,7 @@ function TravelPageInner() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto px-4 pb-20">
+    <div className="space-y-6 max-w-2xl mx-auto px-4">
       {writeUnconfirmed && (
         <div className="card-apple flex flex-wrap items-center justify-between gap-3 p-4" role="alert">
           <div>

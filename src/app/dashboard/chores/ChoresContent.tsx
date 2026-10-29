@@ -1192,7 +1192,7 @@ export default function ChoresContent({
   };
 
   return (
-    <div className="pb-20">
+    <div>
       {ownedCheck !== undefined && checkOwner && ownedReview?.ownerKey === checkOwnerKey && (
         <DeferredOwnedChoreReview key={`${ownedReview.ownerKey}:${ownedReview.choreId}`}
           owner={checkOwner} choreId={ownedReview.choreId} initialDecision={ownedReview.decision}

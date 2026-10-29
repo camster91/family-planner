@@ -85,7 +85,7 @@ export default function CalendarPageClient({
   };
   if (readScope.held) return <CalendarReadHeld />;
   return (
-    <div className="pb-20">
+    <div>
       {notificationFocus && <EventNotificationFocus target={notificationFocus.target} />}
       <CalendarPlanner
         readScope={readScope}
