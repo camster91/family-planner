@@ -1,3 +1,8 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { withD1ReadClient } from "@/lib/cloudflare/read-client";
+import { createD1ListItem } from "@/lib/cloudflare/list-write";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 import {
   assistantSourceGuard,
   AssistantSourceRefused,
@@ -7,7 +12,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { featureGate } from "@/lib/feature-gate-server";
 import { authenticateWithFamily, requireFamilyMatch } from "@/lib/api-auth";
 import { createListItemSchema } from "@/lib/validations";
-import { createPersonListItem, authorizePersonListItemReplay } from "@/lib/person-list-item-create";
+import {
+  createPersonListItem,
+  authorizePersonListItemReplay,
+} from "@/lib/person-list-item-create";
 import { readIdempotencyKey, withIdempotency } from "@/lib/idempotency";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
@@ -48,17 +56,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify list belongs to user's family (a foreign list keeps its 403).
-    const list = await prisma!.list.findUnique({
+    const lookup = {
       where: { id: parsed.data.listId },
       select: { family_id: true },
-    });
+    } as const;
+    const list =
+      storageBackend() === "d1"
+        ? await withD1ReadClient((db) => db.list.findUnique(lookup))
+        : await prisma!.list.findUnique(lookup);
     if (!list) {
       return NextResponse.json({ error: "List not found" }, { status: 404 });
     }
     const familyError = requireFamilyMatch(list.family_id, auth.user.family_id);
     if (familyError) return familyError;
 
-    const actor = { familyId: auth.user.family_id, addedBy: auth.user.id, role: auth.user.role, generation: auth.payload?.tv ?? 0 };
+    const actor = {
+      familyId: auth.user.family_id,
+      addedBy: auth.user.id,
+      role: auth.user.role,
+      generation: auth.payload?.tv ?? 0,
+    };
     const sourceGuard = assistantSourceGuard(
       request,
       {
@@ -69,6 +86,25 @@ export async function POST(request: NextRequest) {
       },
       "grocery_add",
     );
+    if (storageBackend() === "d1") {
+      const result = await createD1ListItem(
+        {
+          userId: actor.addedBy,
+          familyId: actor.familyId,
+          role: actor.role,
+          generation: actor.generation,
+        },
+        parsed.data,
+        key,
+        sourceGuard,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.replayed
+          ? { "Idempotency-Replayed": "true" }
+          : undefined,
+      });
+    }
     return await withIdempotency(
       prisma!,
       key,
@@ -80,19 +116,21 @@ export async function POST(request: NextRequest) {
       },
       parsed.data,
       ({ recordId }) =>
-        createPersonListItem(
-          prisma!,
-          parsed.data,
-          actor,
-          recordId,
-          { sourceGuard, groceryOnly: Boolean(sourceGuard) },
-        ),
+        createPersonListItem(prisma!, parsed.data, actor, recordId, {
+          sourceGuard,
+          groceryOnly: Boolean(sourceGuard),
+        }),
       {
         beforeReplay: () =>
-          authorizePersonListItemReplay(prisma!, actor, parsed.data.listId, { sourceGuard, groceryOnly: Boolean(sourceGuard) }),
+          authorizePersonListItemReplay(prisma!, actor, parsed.data.listId, {
+            sourceGuard,
+            groceryOnly: Boolean(sourceGuard),
+          }),
       },
     );
   } catch (error) {
+    if (error instanceof D1PersonReceiptError)
+      return idempotencyError(error.code);
     if (error instanceof AssistantSourceRefused) return error.response();
     logRouteError("POST /api/lists/items/create", error, getRequestId(request));
     return NextResponse.json(

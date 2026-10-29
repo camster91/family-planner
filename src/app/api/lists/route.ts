@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ListIndex } from "@/lib/cloudflare/list-read";
 import {
   assistantSourceGuard,
   AssistantSourceRefused,
@@ -43,6 +45,22 @@ async function handleGET(request: NextRequest) {
     if (!paging.ok)
       return NextResponse.json({ error: paging.error }, { status: 400 });
 
+    if (storageBackend() === "d1") {
+      const result = await readD1ListIndex(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        type,
+        paging,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const where: Prisma.ListWhereInput = {
       family_id: auth.user.family_id,
       ...(paging.paged && paging.cursor ? afterListCursor(paging.cursor) : {}),

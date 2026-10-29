@@ -1,3 +1,5 @@
+import { storageBackend } from "./storage-backend";
+import { deleteD1ListItem } from "./cloudflare/list-write";
 /**
  * Deleting one list item: the single write behind the REST
  * `DELETE /api/lists/items/[id]` and the older `DELETE /api/lists/items/delete?itemId=`
@@ -8,11 +10,14 @@
  * deleted. Personal routes additionally renew role/session/feature authority in
  * the same transaction before using this primitive.
  */
-import type { PrismaClient } from '@prisma/client'
-import { authorizePersonListItemInTx, type PersonListItemActor } from './person-list-item-authority'
-import type { EffectResult } from './idempotency'
+import type { PrismaClient } from "@prisma/client";
+import {
+  authorizePersonListItemInTx,
+  type PersonListItemActor,
+} from "./person-list-item-authority";
+import type { EffectResult } from "./idempotency";
 
-type Db = Pick<PrismaClient, 'listItem'>
+type Db = Pick<PrismaClient, "listItem">;
 
 /**
  * True when the item existed in `familyId` and is now gone. Both lookup and delete are
@@ -20,32 +25,51 @@ type Db = Pick<PrismaClient, 'listItem'>
  * (`deleteMany`, so a row removed in between is a plain "not found", not an
  * error).
  */
-export async function deleteHouseholdListItem(db: Db, itemId: string, familyId: string): Promise<boolean> {
+export async function deleteHouseholdListItem(
+  db: Db,
+  itemId: string,
+  familyId: string,
+): Promise<boolean> {
   const item = await db.listItem.findFirst({
     where: { id: itemId, list: { family_id: familyId } },
     select: { id: true },
-  })
-  if (!item) return false
-  const result = await db.listItem.deleteMany({ where: { id: item.id, list: { family_id: familyId } } })
-  return result.count > 0
+  });
+  if (!item) return false;
+  const result = await db.listItem.deleteMany({
+    where: { id: item.id, list: { family_id: familyId } },
+  });
+  return result.count > 0;
 }
 
 /** Live-only destructive action; no offline queue, keyed replay or new delete policy. */
 export function deletePersonListItem(
-  db: Pick<PrismaClient, '$transaction'>,
+  db: Pick<PrismaClient, "$transaction">,
   itemId: string,
   actor: PersonListItemActor,
 ): Promise<EffectResult> {
-  return db.$transaction(async tx => {
-    const denied = await authorizePersonListItemInTx(tx, actor, {})
-    if (denied) return denied
-    if (actor.role !== 'parent')
-      return { status: 403, body: { error: 'Only parents can perform this action' } }
+  if (storageBackend() === "d1")
+    return deleteD1ListItem(
+      {
+        userId: actor.addedBy,
+        familyId: actor.familyId,
+        role: actor.role,
+        generation: actor.generation,
+      },
+      itemId,
+    );
+  return db.$transaction(async (tx) => {
+    const denied = await authorizePersonListItemInTx(tx, actor, {});
+    if (denied) return denied;
+    if (actor.role !== "parent")
+      return {
+        status: 403,
+        body: { error: "Only parents can perform this action" },
+      };
     await tx.$queryRaw`SELECT i."id" FROM "ListItem" i JOIN "List" l ON l."id"=i."list_id"
-      WHERE i."id"=${itemId} AND l."family_id"=${actor.familyId} FOR UPDATE OF i`
-    const deleted = await deleteHouseholdListItem(tx, itemId, actor.familyId)
+      WHERE i."id"=${itemId} AND l."family_id"=${actor.familyId} FOR UPDATE OF i`;
+    const deleted = await deleteHouseholdListItem(tx, itemId, actor.familyId);
     return deleted
       ? { status: 200, body: { success: true } }
-      : { status: 404, body: { error: 'Item not found' } }
-  })
+      : { status: 404, body: { error: "Item not found" } };
+  });
 }

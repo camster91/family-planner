@@ -1815,6 +1815,42 @@ changed. Keep actual deployed-plan/CPU verification as a release gate and retain
 credential security. Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
 and [runtime limits configuration](https://developers.cloudflare.com/workers/wrangler/configuration/#limits).
 
+### Personal lists and grocery convergence — 2026-10-28
+
+Native D1 personal list overview/detail/index/items/version reads and list/item
+creation, item check/edit/delete, and default-grocery resolution are authored.
+Current role, session generation, feature state and household ownership are
+witnessed with the effect. Keyed successful effects and exact replay JSON commit
+in one native batch. Checks converge without rewriting attribution; online edits
+retain version conflicts. Shopping-trip learning is captured only for a real
+open-to-checked change, and default-list selection witnesses absence to serialize
+concurrent first creates. ID hydration/count groups stay below D1's bind limit.
+Migration 0012 restores the canonical open recipe-source partial unique index.
+
+The standalone local Worker list smoke passes actual D1 create/read/edit/check/
+delete, foreign ingredient/write refusal, child creation/deletion refusal,
+concurrent same-key adds and default creation, distinct no-key positions, exact
+page versions, receipt replay/reuse, stale edits, changed authority and walking
+order. A forced native SQL failure rolls back both effect and receipt. These are
+local domain checks; rendered UI, deployed limits and the full household release
+remain separate. The first standalone harness used a two-second readiness request
+that also ran mutations; its timeout retried fixture seeding. Readiness now has a
+separate non-mutating route. No production behavior was changed for the harness.
+
+Standalone TypeScript, scoped list ESLint, 21 focused existing personal-authority/
+item-guard tests and the combined Cloudflare OpenNext build pass. The first build
+found cursor SDK type incompatibilities and errors in the uncommitted parallel
+device/routine/board paths. The cursor helpers now infer their concrete SQL
+filters for both clients; integration fixes keep the device statement builder
+separate from its read-only facade and correct the board scheduled-once boolean.
+Those parallel domains still need runtime/role acceptance before being called
+complete. No browser or production validation is claimed for this slice.
+
+Remaining list conversion includes container deletion and AI target proof,
+recipe-to-grocery review/add/undo and section controls. Other parallel migration
+changes remain uncommitted and require their own verification. Production, DNS,
+paid plans and VPS resources are unchanged; the full migration goal stays active.
+
 ## Cutover and rollback
 
 The currently working app remains available until the Cloudflare replacement

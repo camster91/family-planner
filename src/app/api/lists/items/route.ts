@@ -1,3 +1,5 @@
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ListItemsApi } from "@/lib/cloudflare/list-read";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { featureGate } from "@/lib/feature-gate-server";
@@ -51,6 +53,35 @@ async function readListItems(request: NextRequest) {
       );
     }
 
+    if (storageBackend() === "d1") {
+      const paging = parseListItemPaging(request.nextUrl.searchParams, {
+        familyId: auth.user.family_id,
+        listId,
+      });
+      if (
+        !paging.ok ||
+        (paging.paged &&
+          request.nextUrl.searchParams.getAll("listId").length > 1)
+      )
+        return NextResponse.json(
+          { error: paging.ok ? "Duplicate listId" : paging.error },
+          { status: 400 },
+        );
+      const result = await readD1ListItemsApi(
+        {
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          generation: auth.payload?.tv ?? 0,
+        },
+        listId,
+        paging,
+      );
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     const list = await prisma!.list.findUnique({
       where: { id: listId },
       select: { family_id: true, type: true, sort_by_section: true },

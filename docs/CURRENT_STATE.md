@@ -5,6 +5,14 @@ Execution is #604 on `codex/cloudflare-native-migration-20261028`, based on
 `df80c65e2ed61175fc41279244047ad520162d37`. The existing VPS app has not been
 replaced or removed. No production wipe or paid-plan activation has occurred.
 
+Personal list overview/detail/index/items/version reads, list/item creation,
+check/edit/delete and default grocery resolution now have native D1 source and
+focused local Worker evidence, including concurrent retry/default-list behavior
+and atomic failure rollback. Migration 0012 restores open recipe-source
+uniqueness. Container deletion, recipe grocery review/add/undo, section controls
+and full rendered/deployed acceptance remain unfinished. Uncommitted parallel
+board/device/routine/storage changes are not release evidence.
+
 Local Workers public login, D1 session authority, registration, verification,
 login, invited-child admission, atomic family creation and persistent rate limits
 have focused runtime evidence. Password recovery/change, safe profile reads/edits
