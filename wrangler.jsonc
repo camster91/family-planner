@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "herewoven",
-  "main": ".open-next/worker.js",
+  "main": "src/cloudflare/app-worker.mjs",
   "compatibility_date": "2026-10-13",
   "compatibility_flags": [
     "nodejs_compat",
@@ -24,6 +24,22 @@
     {
       "binding": "PASSWORD_COMPUTE",
       "service": "herewoven-password-compute"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "APP_COMPUTE_POOL",
+        "class_name": "HerewovenComputePool"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "app-compute-pool-v1",
+      "new_sqlite_classes": [
+        "HerewovenComputePool"
+      ]
     }
   ],
   "vars": {

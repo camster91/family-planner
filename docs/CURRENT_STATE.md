@@ -1,3 +1,28 @@
+# Compute-budget release candidate — 2026-10-29
+
+The actual edge investigation reproduced strict 10 ms CPU failures on the
+regular app Worker, including login before the profile query. Direct profile
+SQL reduces avoidable work but does not remove this platform constraint.
+An isolated compute-only Durable Object probe, using unchanged compiled
+`9026885d` application modules, passed the full actual edge household browser
+journey: new family setup, phone/tablet/desktop Today, grocery create/check and
+reload, event duration edits, multi-dish prep and reload, child/cross-household
+refusal, logout and session rejection. The production profile rollout remained
+dormant and returned its expected 409. Captured tail outcomes were 300 `ok`
+and 16 navigation cancellations, with no CPU-limit failure in that journey.
+Private HTTP R2 upload/read, anonymous refusal, foreign-household refusal and
+same-content replay also passed after the test client supplied the normal CSRF
+cookie/header pair. No app CSRF rule was weakened.
+
+The permanent source now wraps the generated OpenNext worker in a fixed
+four-object compute pool, preserves ASSETS/root routing and canonical D1/R2,
+and uses per-request context without DO storage, alarms, cron, auth changes or
+response caching. It refuses excess concurrent dispatches without replaying
+writes. Six focused tests, TypeScript and configuration parsing pass; the exact
+compiled candidate, local harness and main edge acceptance remain pending.
+No paid plan was enabled. The temporary probe is QA infrastructure, not the
+production release. Production DNS and the healthy VPS remain unchanged.
+
 # Edge CPU follow-through — 2026-10-29
 
 Cameron completed the fresh Wrangler device sign-in and the missing
