@@ -2946,6 +2946,7 @@ const HOUSEHOLD_DELETE_ORDER = [
   "HouseholdDevice",
   "HouseholdMember",
   "PushSubscription",
+  "NativeCallInstallation",
   "IdempotencyRecord",
   "BetaMetricDaily",
 ] as const;

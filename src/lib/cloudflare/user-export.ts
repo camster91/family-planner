@@ -286,6 +286,7 @@ async function readExportRows(
     familyOnly("calendarSubscription", "CalendarSubscription"),
     familyOnly("calendarConnection", "CalendarConnection"),
     familyOnly("pushSubscription", "PushSubscription"),
+    owned("nativeCallInstallation", "NativeCallInstallation", "user_id"),
     familyOnly("budgetCategory", "BudgetCategory"),
     familyOnly("routineStack", "RoutineStack"),
     familyOnly("mealPrepSession", "MealPrepSession"),
@@ -902,6 +903,25 @@ export async function readD1UserExport(
       calendarSubscriptions: (subscriptionRows as any[]).map(publicRow),
       calendarConnections: (connectionRows as any[]).map(publicRow),
       pushSubscriptions: (pushRows as any[]).map(publicRow),
+      nativeCallInstallations: filter(
+        "nativeCallInstallation",
+        (row) => row.user_id === actor.userId,
+      ).map((row) =>
+        publicRow(
+          Object.fromEntries(
+            [
+              "id",
+              "label",
+              "platform",
+              "provider",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "revoked_at",
+            ].map((key) => [key, row[key]]),
+          ),
+        ),
+      ),
       budgetCategories: (categoryRows as any[]).map(publicRow),
       routineStacks: (routineRows as any[]).map(publicRow),
     };

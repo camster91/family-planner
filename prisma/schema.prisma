@@ -132,6 +132,7 @@ model User {
   reward_redemptions            RewardRedemption[] @relation("RewardRedemptionRequester")
   approved_reward_redemptions   RewardRedemption[] @relation("RewardRedemptionApprover")
   created_family_goals          FamilyGoal[]       @relation("FamilyGoalCreator")
+  native_call_installations     NativeCallInstallation[]
   push_subscriptions            PushSubscription[]
   created_recipes               Recipe[]           @relation("RecipeCreator")
   created_meal_plans            MealPlan[]         @relation("MealPlanCreator")
@@ -259,6 +260,7 @@ model Family {
   earned_badges      EarnedBadge[]
   reward_redemptions RewardRedemption[]
   family_goals       FamilyGoal[]
+  native_call_installations NativeCallInstallation[]
   push_subscriptions PushSubscription[]
   recipes            Recipe[]
   recipe_collections RecipeCollection[]
@@ -2316,4 +2318,31 @@ model NotificationRecipientDecision {
   @@index([family_id, id], map: "NotificationRecipientDecision_family_id_idx")
   @@index([user_id], map: "NotificationRecipientDecision_user_idx")
   @@index([notification_id], map: "NotificationRecipientDecision_notification_idx")
+}
+
+
+// Native personal-phone routing only; push material is never a public projection.
+model NativeCallInstallation {
+  id                String @id
+  family_id         String
+  user_id           String
+  generation        Int
+  epoch             String
+  revision          Int @default(1)
+  platform          String
+  label             String
+  provider          String
+  push_token_enc    String?
+  token_fingerprint String
+  revoked_at        DateTime?
+  last_command_id   String
+  last_command_hash String
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now())
+  expires_at        DateTime
+  family            Family @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user              User @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider, token_fingerprint])
+  @@index([family_id, user_id])
 }

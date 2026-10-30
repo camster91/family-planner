@@ -78,7 +78,7 @@ try {
       relations++
     }
   }
-  assert.equal(models.length, 84)
+  assert.equal(models.length, 85)
   assert.ok(relations > 150, 'relationship parser must cover the full schema')
   assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, [], 'all referenced parent keys are valid')
   // Actual new tables enforce shared retry and same-household profile identity.
