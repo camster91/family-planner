@@ -639,7 +639,7 @@ for (const locale of ["en", "es"] as const) {
     });
     let getAttempts = 0;
     try {
-      await page.route("**/api/notes", async (route) => {
+      await page.route(/\/api\/notes(?:\?.*)?$/, async (route) => {
         if (route.request().method() !== "GET") {
           await route.continue();
           return;

@@ -111,9 +111,10 @@ for (const locale of ["en", "es"] as const) {
       { locale, localeKey: LOCALE_STORAGE_KEY, themeKey: THEME_STORAGE_KEY },
     );
     await page.goto("/dashboard/notes");
-    const before = JSON.parse(
+    const originalPage = JSON.parse(
       (await browserFetch(page, "/api/notes")).body,
-    ).notes;
+    );
+    const before = originalPage.notes;
     const runtime = JSON.parse((await browserFetch(page, "/api/version")).body);
     expect(runtime.commit).toBe(
       execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
@@ -138,7 +139,7 @@ for (const locale of ["en", "es"] as const) {
       release = resolve;
     });
     let heldResponse: Promise<void> | null = null;
-    await page.route("**/api/notes", (route) => {
+    await page.route(/\/api\/notes(?:\?.*)?$/, (route) => {
       expect(route.request().method()).toBe("GET");
       if (phase === "household") {
         heldResponse = gate.then(() =>
@@ -154,6 +155,8 @@ for (const locale of ["en", "es"] as const) {
         status: phase === "refresh" ? 503 : 200,
         contentType: "application/json",
         body: JSON.stringify({
+          nextCursor: null,
+          writeContext: originalPage.writeContext,
           notes:
             phase === "empty"
               ? []
@@ -274,7 +277,7 @@ for (const locale of ["en", "es"] as const) {
       release();
       if (heldResponse) await heldResponse;
       await context.setOffline(false);
-      await page.unroute("**/api/notes");
+      await page.unroute(/\/api\/notes(?:\?.*)?$/);
       await page.unroute(`**/api/notes/${note.id}`);
     }
     expect(
