@@ -19,6 +19,7 @@ export const FEATURE_FLAG_META: readonly FeatureFlagMeta[] = [
   { key: 'calendar', defaultEnabled: true },
   { key: 'lists', defaultEnabled: true },
   { key: 'family', defaultEnabled: true },
+  { key: 'calling', defaultEnabled: false },
   { key: 'meals', defaultEnabled: true },
   { key: 'inventory', defaultEnabled: false },
   { key: 'notes', defaultEnabled: false, legacyDefault: true },

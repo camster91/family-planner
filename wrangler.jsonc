@@ -29,6 +29,10 @@
   "durable_objects": {
     "bindings": [
       {
+        "name": "FAMILY_CALLS",
+        "class_name": "FamilyCallRoom"
+      },
+      {
         "name": "APP_COMPUTE_POOL",
         "class_name": "HerewovenComputePool"
       }
@@ -39,6 +43,12 @@
       "tag": "app-compute-pool-v1",
       "new_sqlite_classes": [
         "HerewovenComputePool"
+      ]
+    },
+    {
+      "tag": "family-calls-v1",
+      "new_sqlite_classes": [
+        "FamilyCallRoom"
       ]
     }
   ],

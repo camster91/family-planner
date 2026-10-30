@@ -53,6 +53,7 @@ export default async function DeviceTodayPage() {
   return (
     <DeviceTodayScreen
       hasAccessCookie={hasAccessCookie}
+      callingAvailable={process.env.CALLING_ENABLED === "1"}
       memberProtocol={isProfileChoreEnabled() ? 2 : 1}
     />
   );

@@ -305,7 +305,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set('Permissions-Policy', process.env.CALLING_ENABLED === '1' && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname === '/device/today') ? 'camera=(self), microphone=(self), geolocation=()' : 'camera=(), microphone=(), geolocation=()')
   // HSTS — tell browsers to never load this site over HTTP. 1 year, subdomains included.
   // Only set in production to avoid breaking local dev over http://localhost.
   if (process.env.NODE_ENV === 'production') {

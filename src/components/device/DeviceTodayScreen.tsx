@@ -5,6 +5,7 @@ import { useDeviceText, englishDeviceText, type DeviceFeedback, type DeviceText 
 import { Loader2, Lock, UserRound } from 'lucide-react'
 import TodayBoard from '@/components/fridge/TodayBoard'
 import DeviceHouseholdHelper from './DeviceHouseholdHelper'
+import { CallingProvider, CallLauncher } from '@/components/calling/CallingProvider'
 import { DeviceGroceryAdd } from './DeviceGroceryAdd'
 import BoardSettings, { type BoardSettingsData, type BoardSettingsTransport, type Place } from '@/components/fridge/BoardSettings'
 import { Dialog } from '@/components/ui/dialog'
@@ -40,7 +41,7 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * act directly after "Who's this?" (SHARED_DEVICE.md §9.2), and parent mode
  * offers the board settings on the tablet itself (no photos, O-15).
  */
-export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2 }) {
+export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1, callingAvailable = false }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2; callingAvailable?: boolean }) {
   const [covered, setCovered] = React.useState(false)
   const text = useDeviceText()
   const client = useDeviceClient()
@@ -229,6 +230,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
   )
 
   return (
+    <CallingProvider enabled={callingAvailable && !!me?.features.calling && !cached && !loadError && !covered} identityKey={me?.device.id || ""} deviceClient={client}>
     <>
       <main>
         <TodayBoard
@@ -238,7 +240,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           onRefresh={() => void loadBoard()}
           checkVersion={checkVersion}
           onCoveredChange={setCovered}
-          actions={<><DeviceHouseholdHelper data={data} cached={cached || Boolean(loadError)} active={!covered && !elevated} />{parentButton}</>}
+          actions={<><CallLauncher /><DeviceHouseholdHelper data={data} cached={cached || Boolean(loadError)} active={!covered && !elevated} />{parentButton}</>}
           banner={banner}
           tileActions={actions}
           groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
@@ -307,6 +309,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
         />
       )}
     </>
+    </CallingProvider>
   )
 }
 

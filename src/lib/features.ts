@@ -32,6 +32,7 @@ import {
   Thermometer,
   Sparkles,
   Refrigerator,
+  Phone,
 } from 'lucide-react'
 
 export type FeatureKey =
@@ -59,6 +60,7 @@ export type FeatureKey =
   | 'sick-days'
   | 'gamification'
   | 'inventory'
+  | 'calling'
 
 export interface FeatureMeta {
   key: FeatureKey
@@ -121,6 +123,7 @@ export const FEATURES: FeatureMeta[] = [
   { key: 'emergency', title: 'Emergency contacts', description: 'Printable medical + emergency info card for each family member.', group: 'core', icon: Heart, glyphColor: 'family', href: '/dashboard/emergency', defaultEnabled: true },
 
   // Family — opt-in, parents turn these on deliberately
+  { key: 'calling', title: 'Family calls', description: 'Voice calls between your family’s open devices.', group: 'family', icon: Phone, glyphColor: 'family', href: '/dashboard/calls', defaultEnabled: false },
   { key: 'locations', title: 'Locations', description: 'Save home, school, and work addresses for the family.', group: 'family', icon: MapPin, glyphColor: 'calendar', href: '/dashboard/locations', defaultEnabled: false },
   { key: 'pickups', title: 'Pickups & dropoffs', description: 'Coordinate who is picking up the kids and when.', group: 'family', icon: Car, glyphColor: 'lists', href: '/dashboard/pickups', defaultEnabled: false },
   { key: 'allowance', title: 'Allowance & IOUs', description: 'Track weekly allowance and money owed between members.', group: 'family', icon: Wallet, glyphColor: 'budget', href: '/dashboard/allowance', defaultEnabled: false },

@@ -15,7 +15,17 @@ import {
   forwardToOpenNext,
 } from "./app-worker-runtime.ts";
 
+import { FamilyCallRoomCore } from "../lib/calling/room.ts";
+import { forwardCallingSocket } from "../lib/calling/ingress.ts";
 const appRouter = createAppWorkerRouter();
+
+export class FamilyCallRoom extends DurableObject {
+  constructor(ctx, env) { super(ctx, env); this.room = new FamilyCallRoomCore(ctx, env); }
+  fetch(request) { return this.room.fetch(request); }
+  webSocketMessage(socket, message) { return this.room.webSocketMessage(socket, message); }
+  webSocketClose(socket) { return this.room.webSocketClose(socket); }
+  webSocketError(socket) { return this.room.webSocketClose(socket); }
+}
 
 /**
  * A stateless compute worker. It intentionally never reads or writes
@@ -38,6 +48,7 @@ export default {
     // Static assets still follow wrangler's existing `ASSETS` /
     // `run_worker_first` policy. Requests reaching the Worker are delegated
     // to the generated OpenNext handler through the bounded DO pool.
+    if (new URL(request.url).pathname === "/api/calls/socket") return await forwardCallingSocket(request, env);
     return await appRouter.fetch(request, env);
   },
 };
