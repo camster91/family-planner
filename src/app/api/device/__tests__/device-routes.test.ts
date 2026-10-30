@@ -225,14 +225,14 @@ describe('device routes', () => {
       expect(body.links.lists).toBeNull()
     })
 
-    it('me returns the device, household name, 4 feature flags and parents only (names, hasPin)', async () => {
+    it('me returns the device, household name, 5 feature flags and parents only (names, hasPin)', async () => {
       const res = await me.GET(deviceReq({ cookies: fx.d1.cookies }))
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body).toEqual({
         device: { id: D1, label: 'Kitchen tablet' },
         household: { name: 'Household A' },
-        features: { calendar: true, chores: true, meals: true, lists: true },
+        features: { calendar: true, chores: true, meals: true, lists: true, calling: false },
         parents: [{ id: 'parent-a', name: 'Parent A', hasPin: true }],
         elevation: { active: false, memberId: null, expiresAt: null },
         // #274: tablet writes are the household's opt-in, off by default.

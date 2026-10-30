@@ -26,7 +26,7 @@ ALTER TABLE "Family"
 -- EXISTS above is skipped in its entirety (default included). Re-assert the
 -- full default on the existing column; existing row values are untouched.
 ALTER TABLE "Family"
-  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":false,"anniversaries":false,"rewards":false,"budget":false,"projects":false,"messages":false,"analytics":false,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false,"gamification":false,"inventory":false}'::jsonb;
+  ALTER COLUMN "features" SET DEFAULT '{"chores":true,"calendar":true,"lists":true,"family":true,"meals":true,"notes":false,"anniversaries":false,"rewards":false,"budget":false,"projects":false,"messages":false,"analytics":false,"wishlist":false,"emergency":true,"locations":false,"pickups":false,"allowance":false,"travel":false,"handoff":false,"sick-days":false,"gamification":false,"inventory":false,"calling":false}'::jsonb;
 
 -- 2. Family meals (the meal planning feature)
 CREATE TABLE IF NOT EXISTS "FamilyMeal" (

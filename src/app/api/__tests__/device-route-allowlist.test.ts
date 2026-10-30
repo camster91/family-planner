@@ -1340,7 +1340,7 @@ describe("device cookie route allowlist", () => {
         /\/api\/(device|family\/devices)\//.test(urlPath(f) + "/") ||
         urlPath(f) === "/api/users/elevation-pin",
     );
-    expect(deviceFiles.length).toBe(25);
+    expect(deviceFiles.length).toBe(26);
     for (const file of deviceFiles) {
       const mod = require(file);
       for (const method of METHODS) {

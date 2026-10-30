@@ -98,6 +98,7 @@ it("maps every canonical feature to a fixed safe destination and gates it", () =
     "inventory",
     "wishlist",
     "emergency",
+    "calling",
     "allowance",
     "handoff",
     "sick-days",
