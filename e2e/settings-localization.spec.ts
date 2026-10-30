@@ -847,7 +847,9 @@ test.describe("parentA household controls", () => {
           { exact: true },
         ),
       ).toBeVisible();
-      await page.clock.runFor(60001);
+      // Jump to the next minute; running every animation frame is unrelated
+      // to this relative-time assertion and can exhaust the browser deadline.
+      await page.clock.fastForward(60001);
       await expect(
         section.getByText(
           msg(other(locale), "lastUpdated", {

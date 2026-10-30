@@ -85,4 +85,9 @@ describe('describeCalendarSync', () => {
       }).text
     ).toBe('Last updated just now. Some events were skipped because the feed is very large.')
   })
+  it.each(['⟦The last refresh failed.⟧', 'Refresh failed!', '更新に失敗しました。'])('keeps existing localized sentence punctuation: %s', error => {
+    expect(describeCalendarSync({ ...base, lastAttemptAt: null, failed: true, error }).text).toBe(error)
+    expect(describeCalendarSync({ ...base, lastAttemptAt: ago(30 * 1000).toISOString(), failed: false, error }).text).toBe(`Last synced just now. ${error}`)
+  })
+
 })

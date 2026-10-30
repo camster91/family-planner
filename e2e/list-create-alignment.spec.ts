@@ -363,7 +363,10 @@ for (const locale of ["en", "es"] as const) {
         );
 
         modes.create = "hold";
-        const createButton = page.getByRole("button", { name: copy.create });
+        const createButton = page.getByRole("button", {
+          name: copy.retry,
+          exact: true,
+        });
         const heldCreate = createButton.click();
         await expect(
           page.getByRole("button", { name: copy.creating }),
