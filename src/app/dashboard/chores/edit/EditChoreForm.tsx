@@ -1,4 +1,5 @@
 "use client";
+import { FormSheetActions } from "@/components/ui/form-sheet-actions";
 import { RoutineOriginEntry } from "@/components/chores/RoutineOriginEntry";
 import { useChorePreparationContext } from "@/components/chores/useChorePreparationContext";
 import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
@@ -355,6 +356,7 @@ function EditChoreForm({
         </div>
       )}
       <form
+        id={`${fieldId}-form`}
         onSubmit={handleSubmit}
         className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}
       >
@@ -716,27 +718,24 @@ function EditChoreForm({
         </ChoreFormSection>
 
         {/* Submit */}
-        <div
-          className={
-            inSheet
-              ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1"
-              : "pt-2"
-          }
-        >
-          <button
-            type="submit"
-            disabled={
-              busy ||
-              !title ||
-              !assignedTo ||
-              (frequency === "weekly" ? !weeklyDays.length : !dueDate) ||
-              (rotating && rotation.length < ROTATION_MIN)
-            }
-            className="btn-filled w-full"
-          >
-            {loading ? message("saving") : message("save")}
-          </button>
-        </div>
+        <FormSheetActions>
+          <div className="pt-2">
+            <button
+              type="submit"
+              form={`${fieldId}-form`}
+              disabled={
+                busy ||
+                !title ||
+                !assignedTo ||
+                (frequency === "weekly" ? !weeklyDays.length : !dueDate) ||
+                (rotating && rotation.length < ROTATION_MIN)
+              }
+              className="btn-filled w-full"
+            >
+              {loading ? message("saving") : message("save")}
+            </button>
+          </div>
+        </FormSheetActions>
       </form>
     </div>
   );

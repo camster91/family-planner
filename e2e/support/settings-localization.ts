@@ -334,6 +334,24 @@ export async function identity(
   });
   return proof;
 }
+/** A held HTTP response still has a real client deadline. Capture it promptly;
+ * run the full accessibility audit once that deliberately held response settles. */
+export async function capturePending(
+  page: Page,
+  info: TestInfo,
+  state: string,
+) {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await info.attach(state, {
+    body: await page.screenshot({ animations: "disabled" }),
+    contentType: "image/png",
+  });
+}
+
 export async function capture(
   page: Page,
   info: TestInfo,

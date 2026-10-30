@@ -17,6 +17,7 @@ import {
   selectSettingsTab,
   open,
   capture,
+  capturePending,
   PROFILE,
   RAW,
   KEY,
@@ -544,12 +545,7 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByText(msg(locale, "loadingEllipsis"), { exact: true }),
       ).toBeVisible();
-      // Keep this held response below the real request deadline. Full axe
-      // analysis runs in the settled states below; only capture loading here.
-      await info.attach("subscriptions-loading", {
-        body: await page.screenshot({ animations: "disabled" }),
-        contentType: "image/png",
-      });
+      await capturePending(page, info, "subscriptions-loading");
       release({ body: { subscriptions: [] } });
       await expect(
         section.getByText(msg(locale, "noSubscriptions"), { exact: true }),
@@ -594,7 +590,11 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByRole("radio", { name: msg(next, "green"), exact: true }),
       ).toBeChecked();
-      await capture(page, info, "subscriptions-add-pending-native-colour");
+      await capturePending(
+        page,
+        info,
+        "subscriptions-add-pending-native-colour",
+      );
       add({ body: { subscription: subscription({ color: "#16a34a" }) } });
       await expect(
         section.getByText(
