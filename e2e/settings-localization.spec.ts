@@ -538,18 +538,19 @@ test.describe("parentA household controls", () => {
       baseURL,
       settings: s,
     }, info) => {
-      // The response is deliberately held while the loading state is audited.
-      // Pause its client deadline so audit speed cannot turn it into a timeout.
-      await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
       const release = s.hold("GET", "/api/calendar/subscriptions");
       await begin(page, context, baseURL!, locale, s, info);
       const section = await open(page, locale, "subscriptions");
       await expect(
         section.getByText(msg(locale, "loadingEllipsis"), { exact: true }),
       ).toBeVisible();
-      await capture(page, info, "subscriptions-loading");
+      // Keep this held response below the real request deadline. Full axe
+      // analysis runs in the settled states below; only capture loading here.
+      await info.attach("subscriptions-loading", {
+        body: await page.screenshot({ animations: "disabled" }),
+        contentType: "image/png",
+      });
       release({ body: { subscriptions: [] } });
-      await page.clock.resume();
       await expect(
         section.getByText(msg(locale, "noSubscriptions"), { exact: true }),
       ).toBeVisible();
