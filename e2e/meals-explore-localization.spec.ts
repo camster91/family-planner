@@ -379,6 +379,7 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("heading", { name: text.recipeBox }),
         ).toBeVisible();
 
+        await page.locator("#recipe-discovery-title").click();
         await page.getByLabel(text.searchPrompt).fill("soup");
         await page
           .getByRole("button", { name: text.searchRecipes, exact: true })
