@@ -125,7 +125,7 @@ for (const locale of ["en", "es"] as const) {
         "/dashboard/calendar?view=agenda",
       );
       await expect(board.getByTestId("region-link-today")).toHaveText(
-        locale === "es" ? "Calendario" : "Calendar",
+        locale === "es" ? "Hoy, abrir calendario" : "Today, open calendar",
       );
       await expect(
         board.getByText("Dentist (Casey)", { exact: true }),
