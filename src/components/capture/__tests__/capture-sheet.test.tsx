@@ -303,7 +303,7 @@ it.each([401, 403])(
     );
 
     expect(screen.getByRole("dialog", { name: "Quick add" })).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "Capture recovery is unavailable until access and storage are revalidated. Nothing was sent.",
     );
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
