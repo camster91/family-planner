@@ -538,6 +538,9 @@ test.describe("parentA household controls", () => {
       baseURL,
       settings: s,
     }, info) => {
+      // The response is deliberately held while the loading state is audited.
+      // Pause its client deadline so audit speed cannot turn it into a timeout.
+      await page.clock.pauseAt(await page.evaluate(() => Date.now() + 100));
       const release = s.hold("GET", "/api/calendar/subscriptions");
       await begin(page, context, baseURL!, locale, s, info);
       const section = await open(page, locale, "subscriptions");
@@ -546,6 +549,7 @@ test.describe("parentA household controls", () => {
       ).toBeVisible();
       await capture(page, info, "subscriptions-loading");
       release({ body: { subscriptions: [] } });
+      await page.clock.resume();
       await expect(
         section.getByText(msg(locale, "noSubscriptions"), { exact: true }),
       ).toBeVisible();
