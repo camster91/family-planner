@@ -448,7 +448,7 @@ function EditChoreForm({
           {frequency !== "weekly" && (
             <div>
               <label className="label-apple" htmlFor="dueDate">
-                {message("dueDate")}
+                {message(frequency === "once" ? "dueDate" : "scheduledDate")}
               </label>
               <input
                 id="dueDate"

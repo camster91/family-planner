@@ -453,6 +453,12 @@ it('restores the date requirement when changing Weekly back to Once', async () =
   await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
   expect(screen.queryByLabelText('Due Date')).toBeNull()
   expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(false)
+  for (const frequency of ['Daily', 'Monthly']) {
+    await user.click(screen.getByRole('button', { name: frequency }))
+    expect(screen.getByLabelText('Starts on')).toBeTruthy()
+    expect(screen.queryByLabelText('Due Date')).toBeNull()
+    expect(screen.getByText('Add a start date first.')).toBeTruthy()
+  }
   await user.click(screen.getByRole('button', { name: 'Once' }))
   expect(screen.getByLabelText('Due Date')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(true)

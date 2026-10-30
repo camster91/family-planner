@@ -270,7 +270,7 @@ export default function CreateChoreForm({
         : [message("fieldWeekday")]
       : dueDate
         ? []
-        : [message("fieldDueDate")]),
+        : [message(frequency === "once" ? "fieldDueDate" : "fieldStartDate")]),
     ...(rotating
       ? rotation.length < ROTATION_MIN
         ? [message("fieldRotation", { count: ROTATION_MIN })]
@@ -912,7 +912,7 @@ export default function CreateChoreForm({
             {frequency !== "weekly" && (
               <div>
                 <label className="label-apple" htmlFor="dueDate">
-                  {message("dueDate")}
+                  {message(frequency === "once" ? "dueDate" : "startDate")}
                 </label>
                 <input
                   id="dueDate"
