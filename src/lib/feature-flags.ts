@@ -41,6 +41,7 @@ export const FEATURE_FLAG_META: readonly FeatureFlagMeta[] = [
   },
   { key: 'wishlist', defaultEnabled: false },
   { key: 'emergency', defaultEnabled: true },
+  { key: 'calling', defaultEnabled: false },
   { key: 'locations', defaultEnabled: false },
   { key: 'pickups', defaultEnabled: false },
   { key: 'allowance', defaultEnabled: false },

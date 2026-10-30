@@ -8,10 +8,10 @@ const path = require('node:path')
 // Values deliberately mirror the headers src/middleware.ts sets so the two
 // layers never disagree. If you change one, change the other.
 //
-// - Permissions-Policy keeps camera=(): the photo capture box uses
-//   <input capture="environment">, which hands off to the OS camera app and is
-//   not governed by the camera permission policy. Nothing in src calls
-//   getUserMedia or the Geolocation API.
+// - Middleware owns Permissions-Policy at runtime, including early replies.
+//   Only an enabled calling page can request same-origin microphone/camera.
+//   Static paths excluded by its matcher retain the deny-all fallback below;
+//   a competing global header would block calls when Next combines headers.
 // - X-Frame-Options DENY: no route is intended to be framed. The Capacitor
 //   Android shell loads the site as a top-level document, not in a frame.
 // - HSTS is production-only so local http://localhost development keeps working.
@@ -24,7 +24,6 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ]
 
 function originOf(url) {
@@ -168,6 +167,10 @@ const nextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
+      ...['/_next/static/:path*', '/_next/image', '/favicon.ico', '/public/:path*'].map(source => ({
+        source,
+        headers: [{ key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' }],
+      })),
       // O-41: browsers re-check the worker script on navigation; make sure no
       // proxy or CDN serves an old copy in between.
       {

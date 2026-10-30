@@ -130,7 +130,7 @@ function withRequestId<T extends NextResponse>(response: T, requestId: string): 
   return response
 }
 
-export async function middleware(request: NextRequest) {
+async function handleMiddleware(request: NextRequest) {
   // Accept a well-formed inbound id, otherwise generate one (src/lib/request-id.ts).
   const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
   const response = await handle(request, requestId)
@@ -305,7 +305,6 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   // HSTS — tell browsers to never load this site over HTTP. 1 year, subdomains included.
   // Only set in production to avoid breaking local dev over http://localhost.
   if (process.env.NODE_ENV === 'production') {
@@ -321,5 +320,18 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
   }
   setCsrfCookie(response, csrfToken)
 
+  return response
+}
+
+// One runtime policy for successful pages, redirects and early refusals.
+// Keep it out of Next's global static headers: duplicate directives can deny
+// media even when the runtime calling flag explicitly permits the page.
+export async function middleware(request: NextRequest) {
+  const response = await handleMiddleware(request)
+  const path = request.nextUrl.pathname
+  const callingPage = path === '/dashboard' || path.startsWith('/dashboard/') || path === '/device/today'
+  response.headers.set('Permissions-Policy', process.env.CALLING_ENABLED === '1' && callingPage
+    ? 'camera=(self), microphone=(self), geolocation=()'
+    : 'camera=(), microphone=(), geolocation=()')
   return response
 }

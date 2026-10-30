@@ -52,6 +52,7 @@ export async function readD1DeviceMe(
               chores: flags.chores,
               meals: flags.meals,
               lists: flags.lists,
+              calling: flags.calling,
             },
             parents: parents.map((p) => ({
               id: p.id,

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/ui/brand-illustration";
 import { replaceWithFreshDocument } from "@/lib/auth-navigation";
+import { CallLauncher } from "@/components/calling/CallingProvider";
 import { useReviewInboxShellText } from "@/i18n/review-inbox-shell";
 import { PRODUCT_BRAND } from "@/lib/brand";
 import { usePathname } from "next/navigation";
@@ -341,6 +342,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                         {msg("inventory")}
                       </Link>
                     )}
+                    <CallLauncher className="flex w-full min-h-[44px] items-center gap-3 px-4 py-2.5 text-[15px] text-label-primary hover:bg-[var(--surface-fill)]" onOpen={() => setAvatarOpen(false)} />
                     {messagesOn && canSee("/dashboard/messages") && (
                       <Link
                         href="/dashboard/messages"

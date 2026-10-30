@@ -168,7 +168,7 @@ const OLD_EXISTING = {
   anniversaries: true, rewards: true, budget: true, projects: true, messages: true,
   analytics: true, wishlist: false, emergency: true, locations: false, pickups: false,
   allowance: false, travel: false, handoff: false, 'sick-days': false, gamification: true,
-  inventory: false,
+  inventory: false, calling: false,
 }
 
 describe('lean defaults for new households (O-38)', () => {
@@ -208,7 +208,7 @@ describe('lean defaults for new households (O-38)', () => {
     const oldColumnDefault = { ...OLD_EXISTING, gamification: false }
     expect(normalizeFeatures(oldColumnDefault)).toEqual(oldColumnDefault)
     // ...and the 20-key blob written to rows when the column was added.
-    const { gamification: _g, inventory: _i, ...addColumnBlob } = OLD_EXISTING
+    const { gamification: _g, inventory: _i, calling: _c, ...addColumnBlob } = OLD_EXISTING
     expect(normalizeFeatures(addColumnBlob)).toEqual(OLD_EXISTING)
   })
 

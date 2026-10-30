@@ -77,3 +77,29 @@ describe('middleware: returning visitors bypass marketing', () => {
     finally { log.mockRestore() }
   })
 })
+
+
+describe('runtime media policy', () => {
+  const before = process.env.CALLING_ENABLED
+  afterEach(() => {
+    if (before === undefined) delete process.env.CALLING_ENABLED
+    else process.env.CALLING_ENABLED = before
+  })
+  it.each(['/dashboard', '/dashboard/calls', '/device/today', '/login', '/', '/dashboard-elsewhere'])('has one scoped policy for %s, including early redirects', async path => {
+    process.env.CALLING_ENABLED = '1'
+    const response = await middleware(request(path))
+    const allowed = path === '/dashboard' || path.startsWith('/dashboard/') || path === '/device/today'
+    expect(response.headers.get('Permissions-Policy')).toBe(allowed
+      ? 'camera=(self), microphone=(self), geolocation=()'
+      : 'camera=(), microphone=(), geolocation=()')
+    process.env.CALLING_ENABLED = '0'
+    expect((await middleware(request(path))).headers.get('Permissions-Policy')).toBe('camera=(), microphone=(), geolocation=()')
+  })
+  it('does not append a static deny policy to runtime calling documents', async () => {
+    const headers = await require('../../next.config.js').headers()
+    expect(headers.find((rule: any) => rule.source === '/:path*').headers.some((header: any) => header.key === 'Permissions-Policy')).toBe(false)
+    for (const source of ['/_next/static/:path*', '/_next/image', '/favicon.ico', '/public/:path*']) {
+      expect(headers.find((rule: any) => rule.source === source).headers).toContainEqual({ key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' })
+    }
+  })
+})

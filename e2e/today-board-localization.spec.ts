@@ -51,7 +51,7 @@ for (const locale of ["en", "es"] as const) {
     const allFeatures = Object.fromEntries(
       FEATURES.map((feature) => [feature.key, true]),
     );
-    expect(Object.keys(allFeatures)).toHaveLength(22);
+    expect(Object.keys(allFeatures)).toHaveLength(FEATURES.length);
     const cleanFeatureAudit = await ownFeatureAudit(Object.keys(allFeatures));
     let featuresRestored = false;
     try {

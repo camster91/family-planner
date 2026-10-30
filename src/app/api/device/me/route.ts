@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
         chores: features.chores,
         meals: features.meals,
         lists: features.lists,
+        calling: features.calling,
       },
       parents: parents.map((p) => ({ id: p.id, name: p.name, hasPin: withPin.has(p.id) })),
       // Tablet writes (#274, §9.2): the household's opt-in, default off.

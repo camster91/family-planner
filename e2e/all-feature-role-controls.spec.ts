@@ -104,7 +104,7 @@ for (const role of ["parent", "teen", "child"] as const) {
       const allFeatures = Object.fromEntries(
         FEATURES.map((feature) => [feature.key, true]),
       );
-      expect(Object.keys(allFeatures)).toHaveLength(22);
+      expect(Object.keys(allFeatures)).toHaveLength(FEATURES.length);
       const cleanAudit = await ownFeatureAudit(Object.keys(allFeatures));
       let restored = false;
       let context: BrowserContext | undefined;

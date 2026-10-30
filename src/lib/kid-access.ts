@@ -18,6 +18,8 @@
 // (#241, SHARED_DEVICE.md §7). Children never open Settings; teens open only
 // the Settings page itself (TEEN_EXACT_PATHS below), never a sub-route.
 export const KID_ALLOWED_PREFIXES = [
+  // Household-only voice calling, controlled by the parent feature toggle.
+  '/dashboard/calls',
   // Their own wishlist — harmless, and how they engage with the app.
   '/dashboard/wishlist',
   // Emergency and medical info. Deliberately kid-accessible: a child home alone
