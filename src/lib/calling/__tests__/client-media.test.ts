@@ -52,7 +52,7 @@ class Peer {
   ontrack = null;
   onicecandidate = null;
   onconnectionstatechange = null;
-  constructor() {
+  constructor(public configuration: RTCConfiguration) {
     Peer.last = this;
   }
   addTrack(track: Track) {
@@ -162,6 +162,7 @@ it("stops a permission result that arrives after the caller cancels", async () =
 });
 it("stops the camera immediately even if detaching its sender fails", async () => {
   const { audio, camera } = await video();
+  expect(Peer.last.configuration.iceTransportPolicy).toBe("all");
   Peer.last
     .getSenders()
     .find((s) => s.kind === "video")!

@@ -437,6 +437,8 @@ export class CallingClient {
       this.update({ camera: false });
     }
     const peer = new RTCPeerConnection({
+      // ICE prioritizes direct host/STUN pairs; relay remains a fallback.
+      iceTransportPolicy: "all",
       iceServers: this.session?.iceServers || [],
     });
     this.peer = peer;

@@ -9,7 +9,7 @@ const ALL_ON: FamilyFeatures = Object.fromEntries(
 ) as FamilyFeatures;
 
 describe("all-on discovery feature seed replacement", () => {
-  it("replaces the full raw and escaped 22-feature representations", () => {
+  it("replaces the full raw and escaped feature representations", () => {
     const serialized = JSON.stringify(ALL_ON);
     const escaped = escapeFeatureSeedForRsc(serialized);
     const body = [
@@ -23,6 +23,6 @@ describe("all-on discovery feature seed replacement", () => {
     expect(replaced).toContain(escaped);
     expect(replaced.match(/\\\\"/g)).toBeNull();
     expect(Object.keys(ALL_ON)).toHaveLength(FEATURES.length);
-    expect(FEATURES).toHaveLength(22);
+    expect(FEATURES).toHaveLength(23);
   });
 });

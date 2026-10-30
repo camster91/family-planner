@@ -180,6 +180,15 @@ try {
     await a.evaluate(() => window.qa.tracks.some((t) => t.kind === "video")),
   ).toBe(false);
   const audioPackets = await inbound(b, "audio");
+  const directCandidate = await a.evaluate(async () => {
+    const stats = await window.qa.stats();
+    const transport = stats.find(
+      (s) => s.type === "transport" && s.selectedCandidatePairId,
+    );
+    const pair = stats.find((s) => s.id === transport?.selectedCandidatePairId);
+    return stats.find((s) => s.id === pair?.localCandidateId)?.candidateType;
+  });
+  expect(["host", "srflx", "prflx"]).toContain(directCandidate);
   await a.locator("#end").click();
   await expect.poll(async () => (await snapshot(b)).call).toBeNull();
   expect(
@@ -239,6 +248,7 @@ try {
       transport: "local workerd + native D1 + actual RTCPeerConnection",
       media: "fabricated browser audio/video",
       audioPackets,
+      directCandidate,
       videoPackets,
       householdIsolation: true,
       explicitPermission: true,
