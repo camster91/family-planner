@@ -91,6 +91,17 @@ describe("D3 chore photo ownership — two households", () => {
     mockFiles.set(path.join(UPLOAD_DIR, "chores", LEGACY_B), Buffer.from("legacy-b"));
   });
 
+  it.each([
+    { "X-Chore-Create-Actor": "parent-b", "X-Chore-Create-Household": "family-A" },
+    { "X-Chore-Create-Actor": "parent-a", "X-Chore-Create-Household": "family-B" },
+    { "X-Chore-Create-Actor": "parent-a" },
+  ] as Record<string, string>[])("refuses an original-save owner mismatch before creating a chore", async (headers) => {
+    const before = db.rows("chore").map(row => row.id);
+    const response = await createChore(req({ as: "parentA", headers, body: newChore }));
+    expect(response.status).toBe(409);
+    expect(db.rows("chore").map(row => row.id)).toEqual(before);
+  });
+
   it("records the caller's family and the uploader for every stored file", async () => {
     const { url, filename } = await uploadAs("childA");
 

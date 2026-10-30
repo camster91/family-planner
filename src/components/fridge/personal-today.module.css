@@ -2,17 +2,29 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 16px;
+  gap: 12px;
 }
 .layout > div {
   min-width: 0;
+}
+/* Personal cards use closer spacing than the across-the-room fridge board. */
+.layout > div > section,
+.nextSections > section {
+  padding: 16px;
+}
+.layout [data-region-heading] {
+  min-height: 44px;
+  margin-bottom: 8px;
+}
+.layout [data-region-heading] a {
+  min-height: 44px;
 }
 /* Tiles are ordinary flow inside their wrappers; fridge named areas stay intact. */
 .layout > div > * {
   grid-area: auto;
 }
 .compact {
-  gap: 12px;
+  gap: 8px;
 }
 .compact > div > section {
   padding: 12px;
@@ -39,14 +51,14 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 16px;
+  gap: 12px;
 }
 .nextSections > section {
   min-width: 0;
   grid-area: auto;
 }
 .compact .nextSections {
-  gap: 12px;
+  gap: 8px;
 }
 .compact .nextSections > section {
   padding: 12px;

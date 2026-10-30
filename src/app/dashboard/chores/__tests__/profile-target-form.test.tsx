@@ -2,7 +2,7 @@
 
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import CreateChorePage from "../create/page";
+import CreateChorePage from "../create/CreateChoreForm";
 import { profileSetupMessages } from "@/i18n/profile-setup";
 
 const push = jest.fn();
@@ -392,7 +392,7 @@ describe("profile target in the create chore form", () => {
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Daily" }));
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), {
+    fireEvent.change(screen.getByLabelText("Starts on"), {
       target: { value: "2099-10-05" },
     });
     await user.click(screen.getByRole("button", { name: "Create Chore" }));

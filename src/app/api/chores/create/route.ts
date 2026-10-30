@@ -55,6 +55,13 @@ export async function POST(request: NextRequest) {
   try {
     const [auth, error] = await authenticateWithFamily(request);
     if (error) return error;
+    // A retry retains the page's original actor/household, even if another
+    // tab changes accounts or moves the actor before the request arrives.
+    const expectedActor = request.headers.get("X-Chore-Create-Actor");
+    const expectedHousehold = request.headers.get("X-Chore-Create-Household");
+    if ((expectedActor !== null || expectedHousehold !== null)
+      && (expectedActor !== auth.user.id || expectedHousehold !== auth.user.family_id))
+      return choreJson({ error: "This save belongs to a different session or household." }, { status: 409 });
     const sourceGuard = assistantSourceGuard(
       request,
       {

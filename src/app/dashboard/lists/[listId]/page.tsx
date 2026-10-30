@@ -87,7 +87,7 @@ export default async function ListDetailPage({
   if (snapshot?.state === "forbidden") redirect("/dashboard");
   if (!snapshot || snapshot.state === "missing")
     return (
-      <div className="max-w-4xl mx-auto px-4 pb-20 space-y-4">
+      <div className="max-w-4xl mx-auto px-4 space-y-4">
         <ListsBackLink filter={returnFilter} cursor={returnCursor} />
         <ListReadStatus failed={!snapshot} />
         <PersonGroceryAdd userId={actor.id} listId={listId} allowNew={false} />

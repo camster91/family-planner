@@ -701,9 +701,9 @@ export default function KidHome({
   }
 
   return (
-    // Bottom room so the Undo card (fixed above the phone tab bar) never covers
-    // the last row when scrolled to the end (O-42).
-    <div className="mx-auto max-w-4xl pb-28 md:pb-20">
+    // The shell reserves bottom-tab clearance once. The measured undoRoom
+    // spacer below still protects the last row while an Undo card is visible.
+    <div className="mx-auto max-w-4xl">
       <header className="mb-5 flex items-center justify-between gap-4">
         <h1 className="min-w-0 font-display text-[30px] font-semibold leading-tight tracking-tight text-label-primary [overflow-wrap:anywhere] md:text-[40px]">
           {kidHomeText("greeting", {

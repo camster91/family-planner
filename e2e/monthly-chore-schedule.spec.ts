@@ -281,7 +281,7 @@ for (const locale of ["en", "es"] as const) {
         name: choreFormMessages[locale].monthly,
         exact: true,
       });
-      const dueDate = page.getByLabel(choreFormMessages[locale].dueDate, {
+      const dueDate = page.getByLabel(choreFormMessages[locale].startDate, {
         exact: true,
       });
       await expect(
@@ -316,7 +316,7 @@ for (const locale of ["en", "es"] as const) {
         name: choreFormMessages[locale].monthly,
         exact: true,
       });
-      const routineDate = page.getByLabel(choreFormMessages[locale].dueDate, {
+      const routineDate = page.getByLabel(choreFormMessages[locale].startDate, {
         exact: true,
       });
       await routineFrequency.click();
@@ -341,9 +341,12 @@ for (const locale of ["en", "es"] as const) {
         name: choreFormMessages[locale].monthly,
         exact: true,
       });
-      const legacyDate = page.getByLabel(choreFormMessages[locale].dueDate, {
-        exact: true,
-      });
+      const legacyDate = page.getByLabel(
+        choreFormMessages[locale].scheduledDate,
+        {
+          exact: true,
+        },
+      );
       await expect(legacyFrequency).toHaveAttribute("aria-pressed", "true");
       await expect(legacyDate).toHaveValue(MONTHLY_DATE);
       await expect(

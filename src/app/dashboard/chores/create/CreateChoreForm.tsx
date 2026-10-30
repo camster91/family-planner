@@ -1,4 +1,5 @@
 "use client";
+import { FormSheetActions } from "@/components/ui/form-sheet-actions";
 import { CHORE_PHOTO_MAX_BYTES, isChorePhotoPath } from "@/lib/chore-photo-contract";
 import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
@@ -9,7 +10,7 @@ import { routineIconLabel } from "@/lib/routine-icons";
 import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
-import { useState, useEffect, useRef, useId } from "react";
+import { useState, useEffect, useRef, useId, useCallback } from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { ArrowLeft, Plus, Camera } from "lucide-react";
 import Link from "next/link";
@@ -81,10 +82,14 @@ const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
 export default function CreateChoreForm({
   inSheet = false,
   onBusyChange,
+  onSaveStateChange,
+  contextIdentity,
   review,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
+  onSaveStateChange?: (state: "editing" | "unknown" | "confirmed") => void;
+  contextIdentity?: { userId: string; familyId: string };
   /** Capture review only: no create request, keys or navigation from this form. */
   review?: {
     initial: CaptureChoreDraft;
@@ -141,11 +146,13 @@ export default function CreateChoreForm({
   const live = useRef(true);
   const submitEpoch = useRef(0);
   const submitController = useRef<AbortController | null>(null);
-  const accountRequest = useRef<{ key: string; body: string; issuedAt: number } | null>(null);
+  const accountRequest = useRef<{ key: string; body: string; issuedAt: number; owner?: { userId: string; familyId: string } } | null>(null);
   const originalRecoveryRequest = useRef<{ action: "chore.create" | "chore.profile.create"; key: string; body: string } | null>(null);
   const [checkingReceipt, setCheckingReceipt] = useState(false);
   const [receiptFeedback, setReceiptFeedback] = useState<ChoreFormMessage | null>(null);
+  const autoReceiptKey = useRef<string | null>(null);
   const [accountSaveState, setAccountSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
+  useEffect(() => { onSaveStateChange?.(accountSaveState); }, [accountSaveState, onSaveStateChange]);
   useEffect(() => {
     live.current = true;
     return () => { live.current = false; submitEpoch.current++; submitController.current?.abort(); submitPending.current = false; };
@@ -270,7 +277,7 @@ export default function CreateChoreForm({
         : [message("fieldWeekday")]
       : dueDate
         ? []
-        : [message("fieldDueDate")]),
+        : [message(frequency === "once" ? "fieldDueDate" : "fieldStartDate")]),
     ...(rotating
       ? rotation.length < ROTATION_MIN
         ? [message("fieldRotation", { count: ROTATION_MIN })]
@@ -558,13 +565,13 @@ export default function CreateChoreForm({
         if (result.kind !== "reply") { retainProfileRequest(submittedProfileRequest); setError(profileText("profileTargetError")); return; }
         res = result.response; raw = result.body;
       } else {
-        const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now() });
+        const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now(), owner: contextIdentity ? { ...contextIdentity } : undefined });
         accountRequest.current = packet;
         originalRecoveryRequest.current = Object.freeze({ action: "chore.create", key: packet.key, body: packet.body });
         const controller = new AbortController(); submitController.current = controller;
         const result = await requestOwnedJson("/api/chores/create", {
           method: "POST", signal: controller.signal,
-          headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key }, body: packet.body,
+          headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key, ...(packet.owner ? { "X-Chore-Create-Actor": packet.owner.userId, "X-Chore-Create-Household": packet.owner.familyId } : {}) }, body: packet.body,
         }, 512 * 1024);
         if (!current()) return;
         if (result.kind !== "reply") { setAccountSaveState("unknown"); return; }
@@ -663,7 +670,7 @@ export default function CreateChoreForm({
     }
   };
 
-  const checkOriginalSave = async () => {
+  const checkOriginalSave = useCallback(async () => {
     const original = originalRecoveryRequest.current;
     if (!original || !live.current || submitPending.current || photoUploadPending.current) return;
     submitPending.current = true;
@@ -691,7 +698,46 @@ export default function CreateChoreForm({
       }
     }
     submitController.current = null; submitPending.current = false; setCheckingReceipt(false);
+  }, []);
+
+  // Inspect the original receipt once after uncertainty; never resend a write.
+  useEffect(() => {
+    const original = originalRecoveryRequest.current;
+    if (accountSaveState !== "unknown" || loading || !original || review || autoReceiptKey.current === original.key) return;
+    autoReceiptKey.current = original.key;
+    void checkOriginalSave();
+  }, [accountSaveState, loading, review, checkOriginalSave]);
+  const retryOriginalAccountSave = async () => {
+    const packet = accountRequest.current;
+    const original = originalRecoveryRequest.current;
+    const age = packet ? Date.now() - packet.issuedAt : -1;
+    if (!packet?.owner || original?.action !== "chore.create" || packet.key !== original.key || packet.body !== original.body
+      || age < 0 || age >= IDEMPOTENCY_TTL_MS || !live.current || submitPending.current || photoUploadPending.current) return;
+    submitPending.current = true;
+    const epoch = ++submitEpoch.current;
+    const controller = new AbortController(); submitController.current = controller;
+    const current = () => live.current && submitEpoch.current === epoch;
+    setLoading(true); setReceiptFeedback(null);
+    try {
+      const result = await requestOwnedJson("/api/chores/create", {
+        method: "POST", signal: controller.signal,
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: packet.key, "X-Chore-Create-Actor": packet.owner.userId, "X-Chore-Create-Household": packet.owner.familyId },
+        body: packet.body,
+      }, 512 * 1024);
+      if (!current()) return;
+      const body = result.kind === "reply" && result.body && typeof result.body === "object"
+        ? result.body as { chore?: { id?: unknown } } : null;
+      if (result.kind === "reply" && result.response.ok && typeof body?.chore?.id === "string" && body.chore.id) {
+        setAccountSaveState("confirmed");
+      } else setReceiptFeedback("choreReceiptUnavailable");
+    } finally {
+      if (current()) { submitController.current = null; submitPending.current = false; setLoading(false); }
+    }
   };
+  const accountRetryAge = accountRequest.current ? Date.now() - accountRequest.current.issuedAt : -1;
+  const canRetryAccountSave = !!accountRequest.current?.owner && originalRecoveryRequest.current?.action === "chore.create"
+    && accountRetryAge >= 0 && accountRetryAge < IDEMPOTENCY_TTL_MS;
+
   const receiptControls = originalRecoveryRequest.current && !review ? <div className="space-y-2">
     <button type="button" className="btn-plain min-h-11" disabled={busy} onClick={() => void checkOriginalSave()}>{message(checkingReceipt ? "checkingSavedChore" : "checkSavedChore")}</button>
     {receiptFeedback && <p role="status" className="text-sm text-label-secondary">{message(receiptFeedback)}</p>}
@@ -699,8 +745,11 @@ export default function CreateChoreForm({
 
   if (accountSaveState !== "editing") return <div role="status" className="rounded-2xl border border-border bg-surface-fill p-5 space-y-3">
     <p>{message(accountSaveState === "confirmed" ? "accountSaveConfirmed" : "accountSaveUnknown")}</p>
-    <p className="text-sm text-label-secondary">{message("accountSaveRecoveryLimit")}</p>
-    {receiptControls}
+    <p className="text-sm text-label-secondary">{message(accountSaveState === "confirmed" ? "accountSaveConfirmedHelp" : "accountSaveRecoveryLimit")}</p>
+    {accountSaveState === "unknown" && <>
+      {receiptControls}
+      {canRetryAccountSave && <button type="button" className="btn-filled min-h-11" disabled={busy} onClick={() => void retryOriginalAccountSave()}>{message(loading ? "retryingOriginalSave" : "retryOriginalSave")}</button>}
+    </>}
     <button type="button" className="btn-tinted min-h-11" disabled={busy} onClick={async () => {
       const epoch = submitEpoch.current;
       if ((await navigation?.releaseBeforeNavigation()) === false || !live.current || epoch !== submitEpoch.current) return;
@@ -745,6 +794,7 @@ export default function CreateChoreForm({
         </>
       )}
       <form
+        id={`${fieldId}-form`}
         onSubmit={handleSubmit}
         className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}
       >
@@ -912,7 +962,7 @@ export default function CreateChoreForm({
             {frequency !== "weekly" && (
               <div>
                 <label className="label-apple" htmlFor="dueDate">
-                  {message("dueDate")}
+                  {message(frequency === "once" ? "dueDate" : "startDate")}
                 </label>
                 <input
                   id="dueDate"
@@ -1247,32 +1297,29 @@ export default function CreateChoreForm({
         </fieldset>
 
         {/* Submit */}
-        <div
-          className={
-            inSheet
-              ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1"
-              : "pt-2"
-          }
-        >
-          <button
-            type="submit"
-            disabled={busy || profileRetryAgeHeld || submitHint !== null}
-            aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
-            className="btn-filled w-full"
-          >
-            {loading
-              ? message("creating")
-              : (review?.submitLabel ?? message("create"))}
-          </button>
-          {submitHint && (
-            <p
-              id={`${fieldId}-submit-hint`}
-              className="text-footnote text-label-secondary mt-2 text-center"
+        <FormSheetActions>
+          <div className="pt-2">
+            <button
+              type="submit"
+              form={`${fieldId}-form`}
+              disabled={busy || profileRetryAgeHeld || submitHint !== null}
+              aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
+              className="btn-filled w-full"
             >
-              {submitHint}
-            </p>
-          )}
-        </div>
+              {loading
+                ? message("creating")
+                : (review?.submitLabel ?? message("create"))}
+            </button>
+            {submitHint && (
+              <p
+                id={`${fieldId}-submit-hint`}
+                className="text-footnote text-label-secondary mt-2 text-center"
+              >
+                {submitHint}
+              </p>
+            )}
+          </div>
+        </FormSheetActions>
       </form>
     </div>
   );

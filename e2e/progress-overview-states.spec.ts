@@ -7,6 +7,7 @@
  * duration of this suite and restored with feature-audit ownership checks.
  */
 import AxeBuilder from "@axe-core/playwright";
+import { ANALYTICS_SUMMARY_COVERAGE } from "../src/lib/analytics-summary-contract";
 import type { Browser, BrowserContext } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
@@ -39,6 +40,7 @@ interface FeatureSetup {
 }
 
 const populated = {
+  coverage: ANALYTICS_SUMMARY_COVERAGE,
   weeklyCompletion: 68,
   gamification: true,
   summary: {
@@ -87,6 +89,7 @@ const populated = {
 };
 
 const empty = {
+  coverage: ANALYTICS_SUMMARY_COVERAGE,
   weeklyCompletion: 0,
   gamification: true,
   summary: {

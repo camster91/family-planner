@@ -17,6 +17,7 @@ import {
   selectSettingsTab,
   open,
   capture,
+  capturePending,
   PROFILE,
   RAW,
   KEY,
@@ -544,7 +545,7 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByText(msg(locale, "loadingEllipsis"), { exact: true }),
       ).toBeVisible();
-      await capture(page, info, "subscriptions-loading");
+      await capturePending(page, info, "subscriptions-loading");
       release({ body: { subscriptions: [] } });
       await expect(
         section.getByText(msg(locale, "noSubscriptions"), { exact: true }),
@@ -589,7 +590,11 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByRole("radio", { name: msg(next, "green"), exact: true }),
       ).toBeChecked();
-      await capture(page, info, "subscriptions-add-pending-native-colour");
+      await capturePending(
+        page,
+        info,
+        "subscriptions-add-pending-native-colour",
+      );
       add({ body: { subscription: subscription({ color: "#16a34a" }) } });
       await expect(
         section.getByText(
@@ -670,7 +675,9 @@ test.describe("parentA household controls", () => {
       // result case was removed when the response contract became strict).
       await s.arrived("POST", subPath + "/refresh", 3);
       await language(page, next);
-      refresh({ status: 503, body: {} });
+      // A definite rejection keeps this flow editable. Ambiguous server failures
+      // have their own held-write scenario below.
+      refresh({ status: 400, body: {} });
       await expect(
         section.getByText(msg(next, "refreshFailed"), { exact: true }),
       ).toBeVisible();
@@ -701,7 +708,9 @@ test.describe("parentA household controls", () => {
         .getByRole("button", { name: msg(next, "cancel"), exact: true })
         .click();
       expect(s.count("DELETE", subPath)).toBe(0);
-      s.reply("DELETE", subPath, { body: {} });
+      s.reply("DELETE", subPath, {
+        body: { success: true, removedEvents: 0 },
+      });
       await removeButton.click();
       removal = page.getByRole("alertdialog");
       await removal
@@ -715,6 +724,54 @@ test.describe("parentA household controls", () => {
       s.assertLast("DELETE", subPath);
       expect(s.count("GET", "/api/calendar/subscriptions")).toBe(1);
       await capture(page, info, "subscriptions-synthetic-removed");
+    });
+    test(`${locale}: uncertain subscription refresh stays held through language changes and inspection`, async ({
+      page,
+      context,
+      baseURL,
+      settings: s,
+    }, info) => {
+      s.reads.set("/api/calendar/subscriptions", {
+        body: { subscriptions: [subscription()] },
+      });
+      await begin(page, context, baseURL!, locale, s, info);
+      const section = await open(page, locale, "subscriptions");
+      s.reply("POST", subPath + "/refresh", { status: 503, body: {} });
+      await section
+        .getByRole("button", {
+          name: msg(locale, "refreshLabel", { name: PROFILE }),
+          exact: true,
+        })
+        .click();
+      await expect(
+        section.getByText(msg(locale, "calendarWriteUnconfirmed"), {
+          exact: true,
+        }),
+      ).toBeVisible();
+      const count = s.calls.length;
+      const next = other(locale);
+      await language(page, next);
+      expect(s.calls).toHaveLength(count);
+      await expect(
+        section.getByText(msg(next, "calendarWriteUnconfirmed"), {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await section
+        .getByRole("button", {
+          name: msg(next, "checkSubscriptions"),
+          exact: true,
+        })
+        .click();
+      await s.arrived("GET", "/api/calendar/subscriptions", 2);
+      await expect(
+        section.getByRole("button", {
+          name: msg(next, "refreshLabel", { name: PROFILE }),
+          exact: true,
+        }),
+      ).toBeDisabled();
+      expect(s.count("POST", subPath + "/refresh")).toBe(1);
+      await capture(page, info, "subscriptions-uncertain-refresh-held");
     });
     test(`${locale}: subscription failed clock semantic large-feed and old timestamps stay canonical`, async ({
       page,
@@ -772,7 +829,9 @@ test.describe("parentA household controls", () => {
       ).toBeVisible();
       await expect(
         section.getByText(
-          msg(locale, "lastUpdated", { time: msg(locale, "aWhileAgo") }),
+          msg(locale, "lastUpdated", {
+            time: msg(locale, "daysAgo", { count: 2 }),
+          }),
           { exact: true },
         ),
       ).toBeVisible();
@@ -783,12 +842,14 @@ test.describe("parentA household controls", () => {
       await expect(
         section.getByText(
           msg(other(locale), "lastUpdated", {
-            time: msg(other(locale), "aWhileAgo"),
+            time: msg(other(locale), "daysAgo", { count: 2 }),
           }),
           { exact: true },
         ),
       ).toBeVisible();
-      await page.clock.runFor(60001);
+      // Jump to the next minute; running every animation frame is unrelated
+      // to this relative-time assertion and can exhaust the browser deadline.
+      await page.clock.fastForward(60001);
       await expect(
         section.getByText(
           msg(other(locale), "lastUpdated", {

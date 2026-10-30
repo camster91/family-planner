@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { useDashboardFrameText } from "@/i18n/dashboard-frame";
 import { Dialog } from "@/components/ui/dialog";
+import { FormSheetActionsHost } from "@/components/ui/form-sheet-actions";
 import CreateListForm from "@/app/dashboard/lists/create/CreateListForm";
 import CreateChoreForm from "@/app/dashboard/chores/create/CreateChoreForm";
 import EditChoreForm from "@/app/dashboard/chores/edit/EditChoreForm";
@@ -22,13 +23,16 @@ export function FormSheet({
   children,
   description,
   closeLabel,
+  fixedFooter = false,
 }: {
   title: string;
   busy?: boolean;
   children: ReactNode;
   description?: string;
   closeLabel?: string;
+  fixedFooter?: boolean;
 }) {
+  const [footerHost, setFooterHost] = useState<HTMLDivElement | null>(null);
   const text = useDashboardFrameText();
   const router = useRouter();
   const navigation = usePendingFormNavigationController(busy);
@@ -52,21 +56,24 @@ export function FormSheet({
 
   return (
     <PendingFormNavigationProvider value={navigation}>
-      <Dialog
-        open
-        title={title}
-        variant="form"
-        onClose={busy ? undefined : () => void close()}
-        closeLabel={closeLabel ?? text("sheetClose")}
-        description={
-          description ??
-          (busy
-            ? text("sheetBusy")
-            : text("sheetDraft"))
-        }
-      >
-        {children}
-      </Dialog>
+      <FormSheetActionsHost.Provider value={footerHost}>
+        <Dialog
+          open
+          title={title}
+          variant="form"
+          footer={fixedFooter ? <div ref={setFooterHost} /> : undefined}
+          onClose={busy ? undefined : () => void close()}
+          closeLabel={closeLabel ?? text("sheetClose")}
+          description={
+            description ??
+            (busy
+              ? text("sheetBusy")
+              : text("sheetDraft"))
+          }
+        >
+          {children}
+        </Dialog>
+      </FormSheetActionsHost.Provider>
     </PendingFormNavigationProvider>
   );
 }
@@ -106,15 +113,17 @@ function ChoreSheet({
   contextIdentity?: { userId: string; familyId: string };
 }) {
   const [busy, setBusy] = useState(false);
+  const [saveState, setSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
   const { locale } = useTranslation();
   const copy = choreFormMessages[locale];
   return (
     <FormSheet
       title={edit ? copy.editTitle : copy.newTitle}
+      fixedFooter={saveState === "editing"}
       busy={busy}
       closeLabel={copy.sheetCloseLabel}
       description={
-        busy ? copy.sheetPendingDescription : copy.sheetDraftDescription
+        saveState !== "editing" ? "" : busy ? copy.sheetPendingDescription : copy.sheetDraftDescription
       }
     >
       {edit ? (
@@ -124,14 +133,14 @@ function ChoreSheet({
           onBusyChange={setBusy}
         />
       ) : (
-        <CreateChoreForm inSheet onBusyChange={setBusy} />
+        <CreateChoreForm inSheet onBusyChange={setBusy} onSaveStateChange={setSaveState} contextIdentity={contextIdentity} />
       )}
     </FormSheet>
   );
 }
 
-export function ChoreCreateSheet() {
-  return <ChoreSheet />;
+export function ChoreCreateSheet({ contextIdentity }: { contextIdentity?: { userId: string; familyId: string } } = {}) {
+  return <ChoreSheet contextIdentity={contextIdentity} />;
 }
 
 export function ChoreEditSheet({

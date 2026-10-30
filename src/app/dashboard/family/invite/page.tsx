@@ -205,7 +205,7 @@ export default function InviteMemberPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 pb-20">
+    <div className="mx-auto max-w-4xl space-y-5">
       <LargeHeader title={text("title")} subtitle={text("description")} />
       {message && (
         <p

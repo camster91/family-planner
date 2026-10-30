@@ -88,7 +88,7 @@ function AnalyticsPageContent() {
   const hasTrend = weeklyTrend.some((entry) => entry.count > 0)
 
   return (
-    <main className="mx-auto w-full max-w-[1440px] px-4 pb-20 sm:px-6 lg:px-8" aria-label={analyticsText('title')}>
+    <main className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8" aria-label={analyticsText('title')}>
       <LargeHeader
         title={analyticsText('title')}
         subtitle={analyticsText('subtitle')}

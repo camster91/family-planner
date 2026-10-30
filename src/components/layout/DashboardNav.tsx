@@ -187,15 +187,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             className="flex min-h-[44px] items-center gap-2.5 shrink-0"
           >
             <BrandMark size={48} className="h-12 w-12" />
-            <span className="font-display text-[20px] font-semibold tracking-tight text-label-primary hidden min-[390px]:block md:hidden lg:block lg:text-[22px]">
+            <span className="font-display text-[20px] font-semibold tracking-tight text-label-primary hidden min-[390px]:max-md:block xl:block xl:text-[22px]">
               {PRODUCT_BRAND.wordmark}
             </span>
           </Link>
 
           {/* Primary tabs — md+ (the phone tab bar covers smaller widths).
-              Icons from lg, where there is room for them. */}
+              The wordmark and icons join only at xl, where they fit together. */}
           <div
-            className="hidden md:flex min-w-0 items-center gap-1"
+            className="hidden md:flex shrink-0 items-center gap-1"
             data-testid="top-tabs"
           >
             {primaryTabs.map((tab) => {
@@ -217,11 +217,11 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                   )}
                 >
                   <Icon
-                    className="hidden lg:block w-4 h-4"
+                    className="hidden xl:block w-4 h-4"
                     strokeWidth={isActive ? 2.2 : 1.8}
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 break-words text-center">
+                  <span className="whitespace-nowrap text-center">
                     {tab.label}
                   </span>
                 </Link>

@@ -158,7 +158,7 @@ export function Dialog({
           "max-h-[100dvh] w-full overflow-y-auto rounded-t-[var(--radius-2xl)] bg-[var(--surface-elevated)] text-label-primary p-6 shadow-[var(--shadow-lg)] outline-none sm:max-w-lg sm:rounded-[var(--radius-2xl)]",
           "motion-safe:animate-spring-in",
           variant === "form" &&
-            "flex max-h-[92dvh] flex-col overflow-hidden p-0 sm:max-h-[90dvh] sm:max-w-xl",
+            "flex max-h-[96dvh] flex-col overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl lg:max-w-4xl",
           className,
         )}
       >

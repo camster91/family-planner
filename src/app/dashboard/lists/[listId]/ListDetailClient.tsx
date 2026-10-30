@@ -813,7 +813,7 @@ export default function ListDetailClient({
   };
 
   return (
-    <div className="space-y-5 px-4 pb-20">
+    <div className="space-y-5 px-4">
       <SyncAnnouncer
         message={readSync.announcement}
         testId="list-change-announcement"

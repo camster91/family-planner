@@ -15,6 +15,7 @@ import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
 import { recipeEditorMessages } from "../src/i18n/recipe-editor";
 import { recipeExploreMessages } from "../src/i18n/recipe-explore";
 import { RECIPE_OWNER_HEADER } from "../src/lib/recipe-owner-contract";
+import { IDEMPOTENCY_HEADER } from "../src/lib/idempotency-key";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
 import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
@@ -229,7 +230,8 @@ for (const locale of ["en", "es"] as const) {
       let discoverCalls = 0;
       let previewCalls = 0;
       let saveCalls = 0;
-      const saveBodies: unknown[] = [];
+      const saveBodies: Record<string, unknown>[] = [];
+      const saveKeys: string[] = [];
       let releaseSave: (() => void) | undefined;
       let saveStarted = false;
       let releaseSaveFinished: (() => void) | undefined;
@@ -307,6 +309,9 @@ for (const locale of ["en", "es"] as const) {
           saveCalls += 1;
           const body = request.postDataJSON() as Record<string, unknown>;
           saveBodies.push(body);
+          saveKeys.push(
+            request.headers()[IDEMPOTENCY_HEADER.toLowerCase()] || "",
+          );
           expect(typeof body.title).toBe("string");
           if (saveCalls === 1) {
             saveStarted = true;
@@ -379,6 +384,7 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("heading", { name: text.recipeBox }),
         ).toBeVisible();
 
+        await page.locator("#recipe-discovery-title").click();
         await page.getByLabel(text.searchPrompt).fill("soup");
         await page
           .getByRole("button", { name: text.searchRecipes, exact: true })
@@ -473,7 +479,20 @@ for (const locale of ["en", "es"] as const) {
           dialog.getByRole("button", { name: text.closeRecipe }),
         ).toBeVisible();
         expect(saveBodies).toHaveLength(2);
-        expect(saveBodies[0]).toEqual(saveBodies[1]);
+        // A definite 422 rejection permits a fresh command. Preserve the
+        // reviewed recipe and owner while renewing its key/issue time.
+        const { creation_issued_at: firstIssued, ...firstDraft } =
+          saveBodies[0];
+        const { creation_issued_at: secondIssued, ...secondDraft } =
+          saveBodies[1];
+        expect(firstDraft).toEqual(secondDraft);
+        expect(typeof firstIssued).toBe("number");
+        expect(typeof secondIssued).toBe("number");
+        expect(secondIssued as number).toBeGreaterThanOrEqual(
+          firstIssued as number,
+        );
+        expect(saveKeys.every((key) => key.length > 0)).toBe(true);
+        expect(saveKeys[1]).not.toBe(saveKeys[0]);
         await dialog.getByRole("button", { name: text.closeRecipe }).click();
         await expect(dialog).toHaveCount(0);
         expect(externalRequests).toEqual([]);

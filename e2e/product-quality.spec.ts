@@ -832,9 +832,7 @@ for (const locale of ["en", "es"] as const) {
         await setProductQualityWeather(false);
       }
       await page.goto("/dashboard/today?mode=fridge");
-      const board = page
-        .getByRole("main", { name: /dashboard$/i })
-        .getByTestId("today-board");
+      const board = page.getByRole("main").getByTestId("today-board");
       await expect(board).toHaveCount(1);
       await expect(board).toHaveAttribute("data-mode", "fridge");
       const groceries = board.getByTestId("region-groceries");
@@ -1110,7 +1108,7 @@ for (const locale of ["en", "es"] as const) {
       await expectNoSeriousAxe(
         page,
         info,
-        'main[aria-label$="dashboard"] [data-testid="today-board"]',
+        'main [data-testid="today-board"]',
         `${locale}-fridge`,
       );
       await info.attach(`fridge-${locale}-${info.project.name}.png`, {
@@ -1173,7 +1171,10 @@ for (const locale of ["en", "es"] as const) {
       });
     });
     const launcher = page
-      .getByRole("navigation", { name: "Today quick actions" })
+      .getByRole("navigation", {
+        name:
+          locale === "es" ? "Acciones rápidas de hoy" : "Today quick actions",
+      })
       .getByRole("button", { name: copy.launcher, exact: true });
     await expect(launcher).toBeVisible();
     await launcher.click();

@@ -624,20 +624,25 @@ test.describe("inventory (Family A parent)", () => {
     };
     const openReview = async () => {
       const [loaded] = await Promise.all([
-        page.waitForResponse(
-          (r) =>
-            new URL(r.url()).pathname ===
-              "/api/lists/items/from-recipe/review" &&
-            r.request().method() === "GET",
-        ),
+        page
+          .waitForResponse(
+            (r) =>
+              new URL(r.url()).pathname ===
+                "/api/lists/items/from-recipe/review" &&
+              r.request().method() === "GET",
+          )
+          .then(async (response) => ({
+            status: response.status(),
+            data: await response.json(),
+          })),
         lasagna
           .getByRole("button", {
             name: "Review 1 unmatched for groceries",
           })
           .click(),
       ]);
-      expect(loaded.status()).toBe(200);
-      const data = await loaded.json();
+      expect(loaded.status).toBe(200);
+      const data = loaded.data;
       expect(data).toMatchObject({
         recipeId: L.recipeLasagna,
         defaultListId: A.groceryList,

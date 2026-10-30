@@ -385,7 +385,7 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
     "max-[320px]:w-full",
     "max-[320px]:flex-nowrap",
     "max-[320px]:justify-end",
-    "pb-[calc(max(5rem,var(--phone-tab-bar-height,0px))+env(safe-area-inset-bottom,0px)+1rem)]",
+    "pb-4",
     "md:pb-6",
   );
   const buttons = within(launchers).getAllByRole("button");

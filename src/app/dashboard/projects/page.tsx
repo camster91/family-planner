@@ -151,7 +151,7 @@ export default async function ProjectsPage({ searchParams }: {
   }
 
   return (
-    <div className="pb-20">
+    <div>
       <ProjectsHeader isParent={isParent} />
       <div className="px-4 mt-6">
         {familyId ? (

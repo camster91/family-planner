@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider, useTranslation } from '@/i18n'
 import { TakeTurnsPicker } from '@/components/chores/TakeTurnsPicker'
 import { RoutineFields, RoutineIconPicker } from '@/components/chores/RoutineIconPicker'
-import CreateChorePage from '../create/page'
+import CreateChorePage from '../create/CreateChoreForm'
 import EditChorePage from '../edit/EditChoreForm'
 import ChoresContent from '../ChoresContent'
 import { ToastProvider } from '@/components/ui/toast'
@@ -453,6 +453,12 @@ it('restores the date requirement when changing Weekly back to Once', async () =
   await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
   expect(screen.queryByLabelText('Due Date')).toBeNull()
   expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(false)
+  for (const frequency of ['Daily', 'Monthly']) {
+    await user.click(screen.getByRole('button', { name: frequency }))
+    expect(screen.getByLabelText('Starts on')).toBeTruthy()
+    expect(screen.queryByLabelText('Due Date')).toBeNull()
+    expect(screen.getByText('Add a start date first.')).toBeTruthy()
+  }
   await user.click(screen.getByRole('button', { name: 'Once' }))
   expect(screen.getByLabelText('Due Date')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(true)

@@ -452,7 +452,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true, a
   }, [addToast, closeForm, refreshData, text])
 
   return (
-    <div className="pb-20">
+    <div>
       <LargeHeader
         greeting={text('pageEyebrow')}
         title={text('pageTitle')}
