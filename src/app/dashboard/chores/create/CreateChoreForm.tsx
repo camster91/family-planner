@@ -82,11 +82,13 @@ export default function CreateChoreForm({
   inSheet = false,
   onBusyChange,
   onSaveStateChange,
+  contextIdentity,
   review,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   onSaveStateChange?: (state: "editing" | "unknown" | "confirmed") => void;
+  contextIdentity?: { userId: string; familyId: string };
   /** Capture review only: no create request, keys or navigation from this form. */
   review?: {
     initial: CaptureChoreDraft;
@@ -143,7 +145,7 @@ export default function CreateChoreForm({
   const live = useRef(true);
   const submitEpoch = useRef(0);
   const submitController = useRef<AbortController | null>(null);
-  const accountRequest = useRef<{ key: string; body: string; issuedAt: number } | null>(null);
+  const accountRequest = useRef<{ key: string; body: string; issuedAt: number; owner?: { userId: string; familyId: string } } | null>(null);
   const originalRecoveryRequest = useRef<{ action: "chore.create" | "chore.profile.create"; key: string; body: string } | null>(null);
   const [checkingReceipt, setCheckingReceipt] = useState(false);
   const [receiptFeedback, setReceiptFeedback] = useState<ChoreFormMessage | null>(null);
@@ -562,13 +564,13 @@ export default function CreateChoreForm({
         if (result.kind !== "reply") { retainProfileRequest(submittedProfileRequest); setError(profileText("profileTargetError")); return; }
         res = result.response; raw = result.body;
       } else {
-        const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now() });
+        const packet = Object.freeze({ key: newIdempotencyKey(), body: JSON.stringify(requestBody), issuedAt: Date.now(), owner: contextIdentity ? { ...contextIdentity } : undefined });
         accountRequest.current = packet;
         originalRecoveryRequest.current = Object.freeze({ action: "chore.create", key: packet.key, body: packet.body });
         const controller = new AbortController(); submitController.current = controller;
         const result = await requestOwnedJson("/api/chores/create", {
           method: "POST", signal: controller.signal,
-          headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key }, body: packet.body,
+          headers: { ...headers, [IDEMPOTENCY_HEADER]: packet.key, ...(packet.owner ? { "X-Chore-Create-Actor": packet.owner.userId, "X-Chore-Create-Household": packet.owner.familyId } : {}) }, body: packet.body,
         }, 512 * 1024);
         if (!current()) return;
         if (result.kind !== "reply") { setAccountSaveState("unknown"); return; }
@@ -704,6 +706,37 @@ export default function CreateChoreForm({
     autoReceiptKey.current = original.key;
     void checkOriginalSave();
   }, [accountSaveState, loading, review, checkOriginalSave]);
+  const retryOriginalAccountSave = async () => {
+    const packet = accountRequest.current;
+    const original = originalRecoveryRequest.current;
+    const age = packet ? Date.now() - packet.issuedAt : -1;
+    if (!packet?.owner || original?.action !== "chore.create" || packet.key !== original.key || packet.body !== original.body
+      || age < 0 || age >= IDEMPOTENCY_TTL_MS || !live.current || submitPending.current || photoUploadPending.current) return;
+    submitPending.current = true;
+    const epoch = ++submitEpoch.current;
+    const controller = new AbortController(); submitController.current = controller;
+    const current = () => live.current && submitEpoch.current === epoch;
+    setLoading(true); setReceiptFeedback(null);
+    try {
+      const result = await requestOwnedJson("/api/chores/create", {
+        method: "POST", signal: controller.signal,
+        headers: { "Content-Type": "application/json", [IDEMPOTENCY_HEADER]: packet.key, "X-Chore-Create-Actor": packet.owner.userId, "X-Chore-Create-Household": packet.owner.familyId },
+        body: packet.body,
+      }, 512 * 1024);
+      if (!current()) return;
+      const body = result.kind === "reply" && result.body && typeof result.body === "object"
+        ? result.body as { chore?: { id?: unknown } } : null;
+      if (result.kind === "reply" && result.response.ok && typeof body?.chore?.id === "string" && body.chore.id) {
+        setAccountSaveState("confirmed");
+      } else setReceiptFeedback("choreReceiptUnavailable");
+    } finally {
+      if (current()) { submitController.current = null; submitPending.current = false; setLoading(false); }
+    }
+  };
+  const accountRetryAge = accountRequest.current ? Date.now() - accountRequest.current.issuedAt : -1;
+  const canRetryAccountSave = !!accountRequest.current?.owner && originalRecoveryRequest.current?.action === "chore.create"
+    && accountRetryAge >= 0 && accountRetryAge < IDEMPOTENCY_TTL_MS;
+
   const receiptControls = originalRecoveryRequest.current && !review ? <div className="space-y-2">
     <button type="button" className="btn-plain min-h-11" disabled={busy} onClick={() => void checkOriginalSave()}>{message(checkingReceipt ? "checkingSavedChore" : "checkSavedChore")}</button>
     {receiptFeedback && <p role="status" className="text-sm text-label-secondary">{message(receiptFeedback)}</p>}
@@ -712,7 +745,10 @@ export default function CreateChoreForm({
   if (accountSaveState !== "editing") return <div role="status" className="rounded-2xl border border-border bg-surface-fill p-5 space-y-3">
     <p>{message(accountSaveState === "confirmed" ? "accountSaveConfirmed" : "accountSaveUnknown")}</p>
     <p className="text-sm text-label-secondary">{message(accountSaveState === "confirmed" ? "accountSaveConfirmedHelp" : "accountSaveRecoveryLimit")}</p>
-    {accountSaveState === "unknown" && receiptControls}
+    {accountSaveState === "unknown" && <>
+      {receiptControls}
+      {canRetryAccountSave && <button type="button" className="btn-filled min-h-11" disabled={busy} onClick={() => void retryOriginalAccountSave()}>{message(loading ? "retryingOriginalSave" : "retryOriginalSave")}</button>}
+    </>}
     <button type="button" className="btn-tinted min-h-11" disabled={busy} onClick={async () => {
       const epoch = submitEpoch.current;
       if ((await navigation?.releaseBeforeNavigation()) === false || !live.current || epoch !== submitEpoch.current) return;

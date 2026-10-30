@@ -125,14 +125,14 @@ function ChoreSheet({
           onBusyChange={setBusy}
         />
       ) : (
-        <CreateChoreForm inSheet onBusyChange={setBusy} onSaveStateChange={setSaveState} />
+        <CreateChoreForm inSheet onBusyChange={setBusy} onSaveStateChange={setSaveState} contextIdentity={contextIdentity} />
       )}
     </FormSheet>
   );
 }
 
-export function ChoreCreateSheet() {
-  return <ChoreSheet />;
+export function ChoreCreateSheet({ contextIdentity }: { contextIdentity?: { userId: string; familyId: string } } = {}) {
+  return <ChoreSheet contextIdentity={contextIdentity} />;
 }
 
 export function ChoreEditSheet({

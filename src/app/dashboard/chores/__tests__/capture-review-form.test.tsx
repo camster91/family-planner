@@ -186,6 +186,34 @@ it("automatically confirms an interrupted save from its receipt without resubmit
   expect(jest.mocked(fetch).mock.calls.filter(([path]) => path === "/api/chores/create/receipt")).toHaveLength(1);
 });
 
+it("retries only the frozen original save with its original owner and key", async () => {
+  const read = global.fetch;
+  let posts = 0;
+  global.fetch = jest.fn(async (path, init) => {
+    if (path === "/api/chores/create" && init?.method === "POST") {
+      if (++posts === 1) throw new Error("Fixture connection lost");
+      return { ok: true, status: 200, json: async () => ({ chore: { id: "saved-original" } }) } as Response;
+    }
+    if (path === "/api/chores/create/receipt") return { ok: true, status: 200, json: async () => ({ state: "absent" }) } as Response;
+    return read(path, init);
+  }) as typeof fetch;
+  render(<CreateChoreForm inSheet contextIdentity={{ userId: "fixture-parent", familyId: "fixture-family" }} />);
+  await screen.findByRole("option", { name: "Synthetic parent" });
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("fixture-parent"));
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Original task" } });
+  fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+  fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
+  await screen.findByText("No matching receipt is visible. This does not prove the original save failed.");
+  fireEvent.click(screen.getByRole("button", { name: "Retry this save" }));
+  await screen.findByText("Chore saved.");
+  const writes = jest.mocked(fetch).mock.calls.filter(([path, init]) => path === "/api/chores/create" && init?.method === "POST");
+  expect(writes).toHaveLength(2);
+  expect(writes[1][1]?.body).toBe(writes[0][1]?.body);
+  expect(new Headers(writes[1][1]?.headers).get("Idempotency-Key")).toBe(new Headers(writes[0][1]?.headers).get("Idempotency-Key"));
+  expect(new Headers(writes[1][1]?.headers).get("X-Chore-Create-Actor")).toBe("fixture-parent");
+  expect(new Headers(writes[1][1]?.headers).get("X-Chore-Create-Household")).toBe("fixture-family");
+});
+
 // Authored UNRUN: a successful upload reply must still name a canonical private chore photo.
 it("keeps the previous captured-task picture when an upload reply has an invalid path", async () => {
   const old = "/api/files/chores/0123456789abcdef.jpg";
