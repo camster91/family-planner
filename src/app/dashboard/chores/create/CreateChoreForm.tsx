@@ -1,4 +1,5 @@
 "use client";
+import { FormSheetActions } from "@/components/ui/form-sheet-actions";
 import { CHORE_PHOTO_MAX_BYTES, isChorePhotoPath } from "@/lib/chore-photo-contract";
 import { requestOwnedJson, runOwnedForeground } from "@/lib/owned-request-http";
 import { nextSelectedWeekday } from "@/lib/chore-weekdays";
@@ -793,6 +794,7 @@ export default function CreateChoreForm({
         </>
       )}
       <form
+        id={`${fieldId}-form`}
         onSubmit={handleSubmit}
         className={inSheet ? "space-y-4" : "mt-6 space-y-4 px-4"}
       >
@@ -1295,32 +1297,29 @@ export default function CreateChoreForm({
         </fieldset>
 
         {/* Submit */}
-        <div
-          className={
-            inSheet
-              ? "sticky bottom-0 bg-[var(--surface-elevated)] pt-3 pb-1"
-              : "pt-2"
-          }
-        >
-          <button
-            type="submit"
-            disabled={busy || profileRetryAgeHeld || submitHint !== null}
-            aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
-            className="btn-filled w-full"
-          >
-            {loading
-              ? message("creating")
-              : (review?.submitLabel ?? message("create"))}
-          </button>
-          {submitHint && (
-            <p
-              id={`${fieldId}-submit-hint`}
-              className="text-footnote text-label-secondary mt-2 text-center"
+        <FormSheetActions>
+          <div className="pt-2">
+            <button
+              type="submit"
+              form={`${fieldId}-form`}
+              disabled={busy || profileRetryAgeHeld || submitHint !== null}
+              aria-describedby={submitHint ? `${fieldId}-submit-hint` : undefined}
+              className="btn-filled w-full"
             >
-              {submitHint}
-            </p>
-          )}
-        </div>
+              {loading
+                ? message("creating")
+                : (review?.submitLabel ?? message("create"))}
+            </button>
+            {submitHint && (
+              <p
+                id={`${fieldId}-submit-hint`}
+                className="text-footnote text-label-secondary mt-2 text-center"
+              >
+                {submitHint}
+              </p>
+            )}
+          </div>
+        </FormSheetActions>
       </form>
     </div>
   );

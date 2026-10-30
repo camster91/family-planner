@@ -252,7 +252,9 @@ export async function selectSettingsTab(
     exact: true,
   });
   await expect(tab).toBeVisible();
-  if ((await tab.getAttribute("aria-pressed")) !== "true") await tab.click();
+  // Selecting an already-active tab still records an explicit user choice,
+  // preventing a delayed provider-return callback from choosing Family.
+  await tab.click();
   await expect(tab).toHaveAttribute("aria-pressed", "true");
   if (section === "family") {
     // The family tab now loads its optional sections on first entry. Wait for
@@ -332,6 +334,24 @@ export async function identity(
   });
   return proof;
 }
+/** A held HTTP response still has a real client deadline. Capture it promptly;
+ * run the full accessibility audit once that deliberately held response settles. */
+export async function capturePending(
+  page: Page,
+  info: TestInfo,
+  state: string,
+) {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await info.attach(state, {
+    body: await page.screenshot({ animations: "disabled" }),
+    contentType: "image/png",
+  });
+}
+
 export async function capture(
   page: Page,
   info: TestInfo,
