@@ -106,6 +106,7 @@ function ChoreSheet({
   contextIdentity?: { userId: string; familyId: string };
 }) {
   const [busy, setBusy] = useState(false);
+  const [saveState, setSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
   const { locale } = useTranslation();
   const copy = choreFormMessages[locale];
   return (
@@ -114,7 +115,7 @@ function ChoreSheet({
       busy={busy}
       closeLabel={copy.sheetCloseLabel}
       description={
-        busy ? copy.sheetPendingDescription : copy.sheetDraftDescription
+        saveState !== "editing" ? "" : busy ? copy.sheetPendingDescription : copy.sheetDraftDescription
       }
     >
       {edit ? (
@@ -124,7 +125,7 @@ function ChoreSheet({
           onBusyChange={setBusy}
         />
       ) : (
-        <CreateChoreForm inSheet onBusyChange={setBusy} />
+        <CreateChoreForm inSheet onBusyChange={setBusy} onSaveStateChange={setSaveState} />
       )}
     </FormSheet>
   );

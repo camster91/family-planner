@@ -9,7 +9,7 @@ import { routineIconLabel } from "@/lib/routine-icons";
 import { MonthlyScheduleHint } from "@/components/chores/MonthlyScheduleHint";
 import { WeeklyDaysPicker } from "@/components/chores/WeeklyDaysPicker";
 
-import { useState, useEffect, useRef, useId } from "react";
+import { useState, useEffect, useRef, useId, useCallback } from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { ArrowLeft, Plus, Camera } from "lucide-react";
 import Link from "next/link";
@@ -81,10 +81,12 @@ const frequencyOptions: { value: Frequency; label: ChoreFormMessage }[] = [
 export default function CreateChoreForm({
   inSheet = false,
   onBusyChange,
+  onSaveStateChange,
   review,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
+  onSaveStateChange?: (state: "editing" | "unknown" | "confirmed") => void;
   /** Capture review only: no create request, keys or navigation from this form. */
   review?: {
     initial: CaptureChoreDraft;
@@ -145,7 +147,9 @@ export default function CreateChoreForm({
   const originalRecoveryRequest = useRef<{ action: "chore.create" | "chore.profile.create"; key: string; body: string } | null>(null);
   const [checkingReceipt, setCheckingReceipt] = useState(false);
   const [receiptFeedback, setReceiptFeedback] = useState<ChoreFormMessage | null>(null);
+  const autoReceiptKey = useRef<string | null>(null);
   const [accountSaveState, setAccountSaveState] = useState<"editing" | "unknown" | "confirmed">("editing");
+  useEffect(() => { onSaveStateChange?.(accountSaveState); }, [accountSaveState, onSaveStateChange]);
   useEffect(() => {
     live.current = true;
     return () => { live.current = false; submitEpoch.current++; submitController.current?.abort(); submitPending.current = false; };
@@ -663,7 +667,7 @@ export default function CreateChoreForm({
     }
   };
 
-  const checkOriginalSave = async () => {
+  const checkOriginalSave = useCallback(async () => {
     const original = originalRecoveryRequest.current;
     if (!original || !live.current || submitPending.current || photoUploadPending.current) return;
     submitPending.current = true;
@@ -691,7 +695,15 @@ export default function CreateChoreForm({
       }
     }
     submitController.current = null; submitPending.current = false; setCheckingReceipt(false);
-  };
+  }, []);
+
+  // Inspect the original receipt once after uncertainty; never resend a write.
+  useEffect(() => {
+    const original = originalRecoveryRequest.current;
+    if (accountSaveState !== "unknown" || loading || !original || review || autoReceiptKey.current === original.key) return;
+    autoReceiptKey.current = original.key;
+    void checkOriginalSave();
+  }, [accountSaveState, loading, review, checkOriginalSave]);
   const receiptControls = originalRecoveryRequest.current && !review ? <div className="space-y-2">
     <button type="button" className="btn-plain min-h-11" disabled={busy} onClick={() => void checkOriginalSave()}>{message(checkingReceipt ? "checkingSavedChore" : "checkSavedChore")}</button>
     {receiptFeedback && <p role="status" className="text-sm text-label-secondary">{message(receiptFeedback)}</p>}
@@ -699,8 +711,8 @@ export default function CreateChoreForm({
 
   if (accountSaveState !== "editing") return <div role="status" className="rounded-2xl border border-border bg-surface-fill p-5 space-y-3">
     <p>{message(accountSaveState === "confirmed" ? "accountSaveConfirmed" : "accountSaveUnknown")}</p>
-    <p className="text-sm text-label-secondary">{message("accountSaveRecoveryLimit")}</p>
-    {receiptControls}
+    <p className="text-sm text-label-secondary">{message(accountSaveState === "confirmed" ? "accountSaveConfirmedHelp" : "accountSaveRecoveryLimit")}</p>
+    {accountSaveState === "unknown" && receiptControls}
     <button type="button" className="btn-tinted min-h-11" disabled={busy} onClick={async () => {
       const epoch = submitEpoch.current;
       if ((await navigation?.releaseBeforeNavigation()) === false || !live.current || epoch !== submitEpoch.current) return;

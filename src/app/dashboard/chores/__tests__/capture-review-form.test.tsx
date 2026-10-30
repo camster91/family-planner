@@ -135,7 +135,7 @@ it("preserves task fields through explicit family-choice retry", async () => {
   expect(memberAttempts).toBe(2);
 });
 
-// Authored UNRUN: ordinary account creation holds unknown outcomes instead of minting a replacement save.
+// Ordinary account creation holds unknown outcomes instead of minting a replacement save.
 it("serializes ordinary submits and holds an interrupted create before any replacement", async () => {
   const read = global.fetch;
   global.fetch = jest.fn(async (path, init) => {
@@ -150,20 +150,40 @@ it("serializes ordinary submits and holds an interrupted create before any repla
   fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
   const form = screen.getByLabelText("Title").closest("form")!;
   fireEvent.submit(form); fireEvent.submit(form);
-  await screen.findByText("This chore may already have been saved. Check Chores before creating another.");
+  await screen.findByText("We couldn’t confirm your save.");
   const writes = jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST");
   expect(writes).toHaveLength(1);
   expect(typeof (writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]).toBe("string");
   expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Check original save" }));
   await screen.findByText("No matching receipt is visible. This does not prove the original save failed.");
   expect(screen.queryByRole("button", { name: "Create Chore" })).not.toBeInTheDocument();
   const receiptCall = jest.mocked(fetch).mock.calls.find(([path]) => path === "/api/chores/create/receipt")!;
   expect(new Headers(receiptCall[1]?.headers).get("Idempotency-Key")).toBe((writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]);
   expect(receiptCall[1]?.method).toBeUndefined();
-  fireEvent.click(screen.getByRole("button", { name: "Check Chores" }));
+  expect(jest.mocked(fetch).mock.calls.filter(([path]) => path === "/api/chores/create/receipt")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "View chores" }));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
   expect(jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+});
+
+it("automatically confirms an interrupted save from its receipt without resubmitting", async () => {
+  const read = global.fetch;
+  global.fetch = jest.fn(async (path, init) => {
+    if (init?.method === "POST") throw new Error("Fixture response lost after commit");
+    if (path === "/api/chores/create/receipt") return { ok: true, status: 200, json: async () => ({ state: "committed", current: "present" }) } as Response;
+    return read(path, init);
+  }) as typeof fetch;
+  render(<CreateChoreForm inSheet />);
+  await screen.findByRole("option", { name: "Synthetic parent" });
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("fixture-parent"));
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Synthetic saved task" } });
+  fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+  fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
+  await screen.findByText("Chore saved.");
+  expect(screen.queryByRole("button", { name: "Check save status" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Create Chore" })).not.toBeInTheDocument();
+  expect(jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect(jest.mocked(fetch).mock.calls.filter(([path]) => path === "/api/chores/create/receipt")).toHaveLength(1);
 });
 
 // Authored UNRUN: a successful upload reply must still name a canonical private chore photo.
