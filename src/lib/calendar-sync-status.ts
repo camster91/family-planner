@@ -18,6 +18,12 @@ export interface CalendarSyncMessages {
   tried: (message: string, ago: string) => string;
 }
 
+// Preserve complete localized sentences, including the expanded-copy wrapper.
+// Appending a period after its closing bracket duplicates existing punctuation.
+function sentence(text: string): string {
+  return /[.!?。！？][⟧"'’”)\]]*$/u.test(text) ? text : `${text}.`;
+}
+
 export interface SyncDescription {
   /** True when the last attempt failed or needs the member's action. */
   problem: boolean;
@@ -49,7 +55,7 @@ export function describeCalendarSync({
     ? formatRelativeTime(lastAttemptAt, now, messages?.relativeTime)
     : null;
   if (failed) {
-    const message = (error?.trim() || failedFallback).replace(/\.?$/, ".");
+    const message = sentence(error?.trim() || failedFallback);
     return {
       problem: true,
       text: ago
@@ -72,6 +78,6 @@ export function describeCalendarSync({
   // A successful refresh can still carry a note (e.g. a very large feed was trimmed).
   return {
     problem: false,
-    text: error?.trim() ? `${base} ${error.trim().replace(/\.?$/, ".")}` : base,
+    text: error?.trim() ? `${base} ${sentence(error.trim())}` : base,
   };
 }
