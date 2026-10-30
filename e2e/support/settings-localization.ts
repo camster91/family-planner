@@ -252,7 +252,9 @@ export async function selectSettingsTab(
     exact: true,
   });
   await expect(tab).toBeVisible();
-  if ((await tab.getAttribute("aria-pressed")) !== "true") await tab.click();
+  // Selecting an already-active tab still records an explicit user choice,
+  // preventing a delayed provider-return callback from choosing Family.
+  await tab.click();
   await expect(tab).toHaveAttribute("aria-pressed", "true");
   if (section === "family") {
     // The family tab now loads its optional sections on first entry. Wait for

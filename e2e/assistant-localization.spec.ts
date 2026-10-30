@@ -162,7 +162,10 @@ for (const locale of ["en", "es"] as const) {
         writes.push(request.url());
     });
     const launcher = page
-      .getByRole("navigation", { name: "Today quick actions" })
+      .getByRole("navigation", {
+        name:
+          locale === "es" ? "Acciones rápidas de hoy" : "Today quick actions",
+      })
       .getByRole("button", { name: copy.launcher, exact: true });
     await launcher.scrollIntoViewIfNeeded();
     await expect(launcher).toBeVisible();

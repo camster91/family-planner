@@ -89,7 +89,8 @@ it("uses the broader board frame while keeping the add flow in a form sheet", as
 
   await user.click(await screen.findByRole("button", { name: "Add" }));
   expect(screen.getByRole("dialog", { name: "New pickup" })).toHaveClass(
-    "sm:max-w-xl",
+    "sm:max-w-3xl",
+    "lg:max-w-4xl",
   );
 });
 
