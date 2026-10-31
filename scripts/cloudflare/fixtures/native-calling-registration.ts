@@ -17,10 +17,13 @@ import {
   openNativeToken,
 } from "../../../src/lib/calling/native-token";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
+import { dispatchRegisteredAndroidWake } from "../../../src/lib/calling/android-wake-dispatch";
+import { androidWakeHintSchema } from "../../../src/lib/calling/android-wake";
 type Env = {
   DB: D1Store;
   LOCAL_NATIVE_CALL_FIXTURE?: string;
   NATIVE_CALL_TOKEN_KEY: string;
+  LOCAL_FCM_SERVICE_ACCOUNT?: string;
 };
 const fixture = {
   async fetch(request: Request, env: Env) {
@@ -41,6 +44,103 @@ const fixture = {
     const now =
       Number(request.headers.get("x-local-fixture-time")) || Date.now();
     try {
+      if (url.pathname === "/wake") {
+        const body = (await request.json()) as {
+          hint: unknown;
+          scenario?: string;
+          caller?: string;
+        };
+        const hint = androidWakeHintSchema.parse(body.hint);
+        let tokenRequests = 0,
+          providerRequests = 0;
+        const callerOwner =
+          body.caller === "b"
+            ? {
+                userId: "native-fixture-user-b",
+                familyId: "native-fixture-family-b",
+                generation: 0,
+              }
+            : body.scenario === "caller-logout"
+              ? {
+                  userId: "native-fixture-caller-a",
+                  familyId: owner.familyId,
+                  generation: 0,
+                }
+              : owner;
+        const result = await dispatchRegisteredAndroidWake(
+          env.DB,
+          {
+            enabled: true,
+            projectId: "herewoven-fixture",
+            serviceAccountJson: env.LOCAL_FCM_SERVICE_ACCOUNT,
+            tokenKey: env.NATIVE_CALL_TOKEN_KEY,
+          },
+          {
+            caller: {
+              kind: "person",
+              ...callerOwner,
+              label: "Fabricated caller",
+            },
+            target: owner,
+            hint,
+          },
+          async () => !(body.scenario === "cancel" && tokenRequests > 0),
+          {
+            now: () => now,
+            fetchImpl: async (address) => {
+              if (String(address) === "https://oauth2.googleapis.com/token") {
+                tokenRequests++;
+                if (body.scenario === "caller-logout")
+                  await env.DB.prepare(
+                    'UPDATE "User" SET token_version=token_version+1 WHERE id=?',
+                  )
+                    .bind(callerOwner.userId)
+                    .run();
+                if (body.scenario === "logout")
+                  await env.DB.prepare(
+                    'UPDATE "User" SET token_version=token_version+1 WHERE id=?',
+                  )
+                    .bind(owner.userId)
+                    .run();
+                if (body.scenario === "feature-off")
+                  await env.DB.prepare(
+                    'UPDATE "Family" SET features=? WHERE id=?',
+                  )
+                    .bind('{"calling":false}', owner.familyId)
+                    .run();
+                if (body.scenario === "rotate")
+                  await env.DB.prepare(
+                    'UPDATE "NativeCallInstallation" SET revision=revision+1 WHERE id=?',
+                  )
+                    .bind(hint.installationId)
+                    .run();
+                if (body.scenario === "revoke")
+                  await env.DB.prepare(
+                    'UPDATE "NativeCallInstallation" SET push_token_enc=NULL,revoked_at=? WHERE id=?',
+                  )
+                    .bind(now, hint.installationId)
+                    .run();
+                return Response.json({
+                  access_token: "fabricated-access-token",
+                  token_type: "Bearer",
+                  expires_in: 3600,
+                });
+              }
+              if (
+                String(address) ===
+                "https://fcm.googleapis.com/v1/projects/herewoven-fixture/messages:send"
+              ) {
+                providerRequests++;
+                return Response.json({
+                  name: "projects/herewoven-fixture/messages/fixture",
+                });
+              }
+              throw new Error("Unexpected fixture destination");
+            },
+          },
+        );
+        return Response.json({ ...result, tokenRequests, providerRequests });
+      }
       if (url.pathname === "/list")
         return Response.json(await listNativeInstallations(env.DB, owner, now));
       if (url.pathname === "/register") {

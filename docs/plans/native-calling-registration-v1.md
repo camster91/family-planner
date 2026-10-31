@@ -55,12 +55,56 @@ registration mutation; lifecycle deletion still erases them immediately.
 
 ## Still required before background calling
 
+### Android wake transport source
+
+`android-wake-dispatch.ts` connects the encrypted installation registry to the
+server-only FCM HTTP v1 transport in `android-wake.ts`. This is an internal
+coordinator function, not a public API, native client, or activated call route.
+It accepts only a personal caller and a same-household Android installation with
+the exact owner generation and epoch/revision. Live caller authority and target
+registration authority are checked before OAuth and again immediately before
+dispatch. The future coordinator must also supply a live `stillRinging` check
+for the exact call/participants/deadline; there is no permissive default.
+
+The sender exchanges a scoped, five-minute RS256 service-account assertion at
+Google's fixed OAuth endpoint, then sends one high-priority data-only hint to
+the configured FCM project and Herewoven Android package. Tokens/keys remain
+server-side. Both requests reject redirects; responses and total attempt time
+are bounded. A zero-second delivery TTL prevents queued stale rings. Only opaque
+call/installation IDs, installation stamp, protocol and deadline are sent: no
+person labels, family IDs, message content, addresses, SDP/ICE or answer grants.
+The native receiver must still fetch current canonical call state; knowing these
+IDs never authorizes answering. Provider acceptance does not establish device
+delivery. Cancellation can race an already-dispatched push, so receiver-side
+reconciliation remains required even after the dispatch-time checks.
+
+There is no send retry, scheduler, token cache, provider credential setup,
+production flag, or automatic invalid-token deletion in this slice. A timeout
+after dispatch is an unknown outcome, never permission to ring again. Only a
+typed FCM `UNREGISTERED` result is classified as an invalid destination; a future
+coordinator must fence any cleanup by the original installation stamp. Invalid
+payload responses do not revoke a valid phone. No additional data is persisted.
+
+Validation: focused transport cases use generated RSA keys and fake provider
+responses. `node scripts/cloudflare/android-call-wake-smoke.mjs` executes actual
+workerd crypto and native D1, with intercepted provider fetches, for valid registry
+decryption, foreign households, expired calls, cancellation, logout, feature-off,
+rotation and revocation during OAuth. This proves neither real FCM delivery nor
+native/lock-screen acceptance. Existing production calling remains unchanged.
+
+Provider contracts: [FCM authorization](https://firebase.google.com/docs/cloud-messaging/send/v1-api),
+[Google service-account assertions](https://developers.google.com/identity/protocols/oauth2/service-account),
+[FCM lifetime and acceptance semantics](https://firebase.google.com/docs/cloud-messaging/customize-messages/setting-message-lifespan).
+
+### Remaining integration
+
 - Native installation ownership/rotation handshake and push-delivery proof;
   possession of a routing token alone must never authorize an answer.
 - Stable sleeping-target discovery, bounded incoming-call state, cancellation,
   expiry and one winning answer in the existing calling state machine.
-- Event-driven FCM/APNs delivery with private server credentials and neutral
-  lock-screen payloads; actual delivery from the Cloudflare runtime.
+- Wire the Android transport to bounded canonical incoming-call state and real
+  native readiness; implement APNs VoIP delivery. Configure private server
+  credentials and verify actual provider delivery from the Cloudflare runtime.
 - Android Telecom/notifications/native media and iOS PushKit/CallKit/native
   media. Do not remove browser visibility/capture cleanup to imitate native
   background audio. All registry receipts intentionally say
