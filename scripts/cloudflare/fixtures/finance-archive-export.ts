@@ -366,6 +366,25 @@ export async function testFinanceArchiveExport(db: D1Store) {
     "import jobs stay parent-only",
   );
 
+  for (const actor of [parent, teen, child, foreign]) {
+    await db
+      .prepare(
+        `INSERT INTO "NativeCallInstallation" (id,family_id,user_id,generation,epoch,platform,label,provider,push_token_enc,token_fingerprint,last_command_id,last_command_hash,expires_at) VALUES (?,?,?,0,?,'android',?,'fcm',?,?,?,?,?)`,
+      )
+      .bind(
+        `native-${actor.userId}`,
+        actor.familyId,
+        actor.userId,
+        "native-private-epoch-marker",
+        "Fabricated phone",
+        "native-private-routing-marker",
+        `native-fingerprint-${actor.userId}`,
+        "native-private-command-marker",
+        "native-private-hash-marker",
+        stamp + 86400000,
+      )
+      .run();
+  }
   const measured = countedStore(db);
   const parentExport = await readD1UserExport(parent, measured.counted);
   const parentExportQueries = measured.queries;
@@ -376,6 +395,16 @@ export async function testFinanceArchiveExport(db: D1Store) {
   );
   const parentBody = parentExport.body as any;
   const serializedParent = JSON.stringify(parentBody);
+  check(
+    parentBody.nativeCallInstallations.length === 1 &&
+      parentBody.nativeCallInstallations[0].id === `native-${parent.userId}`,
+    "native registration export is personal",
+  );
+  check(
+    !serializedParent.includes("native-private-") &&
+      !serializedParent.includes("native-fingerprint-"),
+    "native registration export omits all routing and ownership proof",
+  );
   check(
     parentBody.lists.length === 1 &&
       parentBody.lists[0].items[0].content === "Private milk",
@@ -478,6 +507,12 @@ export async function testFinanceArchiveExport(db: D1Store) {
   );
   const childExport = await readD1UserExport(child, db);
   check(childExport.status === 200, "child D1 export succeeds");
+  check(
+    (childExport.body as any).nativeCallInstallations.length === 1 &&
+      (childExport.body as any).nativeCallInstallations[0].id ===
+        `native-${child.userId}`,
+    "child native registration metadata is personal",
+  );
   const childHandoff = (childExport.body as any).handoffs.find(
     (row: any) => row.id === "archive-handoff-child",
   );

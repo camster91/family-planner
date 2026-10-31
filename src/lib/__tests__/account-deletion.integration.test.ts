@@ -88,6 +88,15 @@ describeWithDatabase('account deletion against Postgres', () => {
     } })
     await db.aiUsagePolicy.create({ data: { family_id: f } })
     await db.aiUsageRequest.create({ data: { id: id('ai-request'), family_id: f, user_id: parent, job: 'assistant', created_at: t } })
+    // Native phone destinations are personal credentials, including revoked rows.
+    await db.nativeCallInstallation.createMany({ data: [false, true].map((revoked) => ({
+      id: id(revoked ? 'native-revoked' : 'native-active'), family_id: f, user_id: parent,
+      generation: 0, epoch: id('native-epoch'), revision: 1, platform: 'android', label: 'Fixture phone',
+      provider: 'fcm', push_token_enc: revoked ? null : 'fixture-ciphertext',
+      token_fingerprint: id(revoked ? 'native-revoked-fingerprint' : 'native-active-fingerprint'),
+      revoked_at: revoked ? t : null, last_command_id: id('native-command'),
+      last_command_hash: 'f'.repeat(64), expires_at: later,
+    })) })
     // Uploads (and the file on disk)
     const filename = h === 'a' ? 'a1a1a1a1a1a1a1a1.jpg' : 'b2b2b2b2b2b2b2b2.jpg'
     fs.writeFileSync(path.join(uploadDir, 'chores', filename), 'x')

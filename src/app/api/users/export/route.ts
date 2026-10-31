@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       auditLog, betaMetrics,
       allowances, wishlistItems, sickDays, medications, emergencyContacts, anniversaries, pickups, pinnedNotes,
       familyLocations, handoffs, uploads, choreAssignments, calendarSubscriptions, calendarConnections,
-      pushSubscriptions, budgetCategories, routineStacks,
+      pushSubscriptions, nativeCallInstallations, budgetCategories, routineStacks,
     ] = await Promise.all([
       prisma!.user.findUnique({
         where: { id: userId },
@@ -511,6 +511,14 @@ export async function GET(request: NextRequest) {
             orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
           })
         : none,
+      // Native routing tokens and retry/ownership material are never exported.
+      own
+        ? prisma!.nativeCallInstallation.findMany({
+            where: { family_id: familyId, user_id: userId },
+            select: { id: true, label: true, platform: true, provider: true, created_at: true, updated_at: true, expires_at: true, revoked_at: true },
+            orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          })
+        : none,
       // Budget (finance) is parent-only, like GET /api/budget/categories.
       own && isParent
         ? prisma!.budgetCategory.findMany({
@@ -606,6 +614,7 @@ export async function GET(request: NextRequest) {
       calendarSubscriptions,
       calendarConnections,
       pushSubscriptions,
+      nativeCallInstallations,
       budgetCategories,
       routineStacks,
     }

@@ -18,13 +18,13 @@ const T = new Date('2026-09-20T00:00:00Z')
 const PERSONAL_KEYS = [
   'allowances', 'wishlistItems', 'sickDays', 'medications', 'emergencyContacts', 'anniversaries', 'pickups',
   'pinnedNotes', 'familyLocations', 'handoffs', 'uploads', 'choreAssignments', 'calendarSubscriptions',
-  'calendarConnections', 'pushSubscriptions', 'budgetCategories',
+  'calendarConnections', 'pushSubscriptions', 'nativeCallInstallations', 'budgetCategories',
 ] as const
 
 // Sensitive marker values seeded below; none may appear in any export.
 const SECRETS = [
   'share-token-marker', 'v1:feed-url-ciphertext', 'etag-marker', 'access-token-marker', 'refresh-token-marker',
-  'sync-cursor-marker', 'https://push.example/endpoint-marker', 'p256dh-marker', 'auth-marker', 'idem-marker',
+  'sync-cursor-marker', 'native-private-route-marker', 'native-command-hash-marker', 'https://push.example/endpoint-marker', 'p256dh-marker', 'auth-marker', 'idem-marker',
 ]
 
 const ids = (rows: any[]) => rows.map((r) => r.id).sort()
@@ -35,7 +35,7 @@ function seed() {
   // Replace the harness's generic rows of these tables with per-member ones.
   for (const model of [
     'allowance', 'wishlistItem', 'sickDay', 'medication', 'emergencyContact', 'pickup', 'pinnedNote', 'familyLocation',
-    'upload', 'choreAssignment', 'pushSubscription', 'calendarSubscription', 'calendarConnection', 'budgetCategory',
+    'upload', 'choreAssignment', 'pushSubscription', 'nativeCallInstallation', 'calendarSubscription', 'calendarConnection', 'budgetCategory',
     'handoff',
   ]) {
     db.rows(model).length = 0
@@ -49,6 +49,7 @@ function seed() {
   ] as const
   for (const [uid, family_id, k] of members) {
     const tag = family_id === FAMILY_B ? FOREIGN : 'Home'
+    db.rows('nativeCallInstallation').push({ id: `native-${k}`, family_id, user_id: uid, label: `${tag} phone`, platform: 'android', provider: 'fcm', push_token_enc: 'native-private-route-marker', token_fingerprint: 'native-command-hash-marker', last_command_hash: 'native-command-hash-marker', generation: 0, epoch: 'private-epoch-marker', revision: 1, created_at: T, updated_at: T, expires_at: T });
     db.rows('allowance').push({
       id: `allow-${k}`, family_id, from_user_id: family_id === FAMILY_A ? 'parent-a' : 'parent-b', to_user_id: uid,
       amount: 5, reason: `${tag} weekly`, status: 'paid', scheduled_for: null, paid_at: T, created_at: T, updated_at: T,
@@ -150,6 +151,9 @@ describe('GET /api/users/export — per-person domains', () => {
     expect(ids(body.uploads)).toEqual(['upload-ca'])
     expect(ids(body.choreAssignments)).toEqual(['ca-ca'])
     expect(ids(body.pushSubscriptions)).toEqual(['push-ca'])
+    expect(ids(body.nativeCallInstallations)).toEqual(['native-ca'])
+    expect(body.nativeCallInstallations[0]).not.toHaveProperty('push_token_enc')
+    expect(body.nativeCallInstallations[0]).not.toHaveProperty('epoch')
     // The seeded anniversary of household A is about child-a.
     expect(ids(body.anniversaries)).toEqual(['ann-a'])
     // Parent-only (addresses, finance, calendar sync) and parent/teen-only (ICS).
