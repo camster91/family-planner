@@ -69,6 +69,9 @@ function seedExtras() {
   db.rows('calendarSubscription').push(
     ...both((f, family_id) => ({ id: `sub-${f}`, family_id, name: 'School', url_enc: 'v1:x', created_by: `parent-${f}` }))
   )
+  db.rows('nativeCallInstallation').push(
+    ...both((f, family_id) => ({ id: `native-${f}`, family_id, user_id: `parent-${f}`, push_token_enc: 'fixture-encrypted-token' }))
+  )
   db.rows('pushSubscription').push(
     ...both((f, family_id) => ({ id: `push-${f}`, family_id, user_id: `parent-${f}`, endpoint: `https://push/${f}` }))
   )
@@ -526,6 +529,8 @@ describe('deleteMemberAccount', () => {
     expect(db.find('devicePairing', 'pair-a')).toBeUndefined()
     expect(db.find('familyInvite', 'invite-a')).toBeUndefined()
     expect(db.find('pushSubscription', 'push-a')).toBeUndefined()
+    expect(db.find('nativeCallInstallation', 'native-a')).toBeUndefined()
+    expect(db.find('nativeCallInstallation', 'native-b')).toBeDefined()
     // Household tablets stay paired; only the creator reference is cleared.
     expect(db.find('householdDevice', 'dev-a')).toMatchObject({ created_by: null })
     expect(db.find('deviceSession', 'dsess-a')).toMatchObject({ revoked_at: null })

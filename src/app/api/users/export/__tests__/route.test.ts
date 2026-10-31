@@ -82,6 +82,7 @@ jest.mock("@/lib/prisma", () => {
       calendarSubscription: { findMany: findMany() },
       calendarConnection: { findMany: findMany() },
       pushSubscription: { findMany: findMany() },
+      nativeCallInstallation: { findMany: findMany() },
       budgetCategory: { findMany: findMany() },
   } as any;
   // Parent exports include notification-event portability, which uses the

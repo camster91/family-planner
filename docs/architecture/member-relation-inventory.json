@@ -596,6 +596,19 @@
     "remaining": "Keep this User actor separate from any profile subject. No replacement by a selected profile. Per-domain erasure, authorization and old-client acceptance remain required."
   },
   {
+    "relation": "NativeCallInstallation.user",
+    "fields": ["user_id"],
+    "kind": "account",
+    "migration": "Keep personal phone registration tied to the authenticated User, never to a selected household profile. Account and household erasure delete routing tokens and tombstones; generation changes delete registrations and membership or calling-off changes revoke routing material.",
+    "evidence": [
+      "prisma/schema.prisma: model NativeCallInstallation",
+      "database/cloudflare/0017_native_call_installations.sql",
+      "src/lib/account-deletion.ts"
+    ],
+    "disposition": "retain-authenticated-account",
+    "remaining": "Native push, call state and physical locked-screen acceptance remain unfinished; registration does not grant background calling readiness."
+  },
+  {
     "relation": "Notification.user",
     "fields": ["user_id"],
     "kind": "account",
