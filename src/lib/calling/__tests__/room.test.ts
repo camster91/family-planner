@@ -1,3 +1,18 @@
+import {
+  readCurrentAndroidBinding,
+  type NativeCallBinding,
+} from "../native-binding";
+import { dispatchRegisteredAndroidWake } from "../android-wake-dispatch";
+jest.mock("../native-binding", () => ({
+  ...jest.requireActual("../native-binding"),
+  readCurrentAndroidBinding: jest.fn(async () => ({
+    push_token_enc: "fixture",
+    label: "Fixture phone",
+  })),
+}));
+jest.mock("../android-wake-dispatch", () => ({
+  dispatchRegisteredAndroidWake: jest.fn(),
+}));
 import { FamilyCallRoomCore, type CallSocket } from "../room";
 import { signCallGrant, callCookieHash, type CallGrant } from "../grant";
 import { callActorAllowed } from "../authority";
@@ -29,6 +44,10 @@ let sockets: Socket[], room: FamilyCallRoomCore, env: any;
 const NativeResponse = Response;
 beforeEach(() => {
   jest.mocked(callActorAllowed).mockResolvedValue(true);
+  jest
+    .mocked(readCurrentAndroidBinding)
+    .mockResolvedValue({ push_token_enc: "fixture", label: "Fixture phone" });
+  jest.mocked(dispatchRegisteredAndroidWake).mockReset();
   sockets = [];
   (globalThis as any).WebSocketPair = class {
     0 = new Socket();
@@ -183,3 +202,270 @@ it("refuses DND recipients and oversize messages", async () => {
   );
   expect(a.socket.closeCode).toBe(1009);
 });
+
+const nativeTarget = (): NativeCallBinding => ({
+  installationId: "11111111-1111-4111-8111-111111111111",
+  epoch: "22222222-2222-4222-8222-222222222222",
+  revision: 1,
+  owner: { userId: "b", familyId: "family-a", generation: 0 },
+});
+const asSocket = (socket: Socket) => socket as unknown as CallSocket;
+const enableNative = () => {
+  env.CALLING_NATIVE_REGISTRATION_ENABLED = "1";
+  env.CALLING_NATIVE_COORDINATION_ENABLED = "1";
+};
+it("does not expose sleeping calling with the default-off native coordinator", async () => {
+  const a = await join("a");
+  expect(
+    await room.beginSleepingCall(asSocket(a.socket), nativeTarget(), "voice"),
+  ).toBeNull();
+  expect((a.socket.data as any).call).toBeUndefined();
+});
+it("reserves one wake per sleeping call, keeps the phone busy, and preserves reservations across room reconstruction", async () => {
+  enableNative();
+  const a = await join("a"),
+    c = await join("c");
+  const hint = await room.beginSleepingCall(
+    asSocket(a.socket),
+    nativeTarget(),
+    "video",
+  );
+  expect(hint?.expiresAt).toBeGreaterThan(Date.now());
+  expect(
+    await room.beginSleepingCall(asSocket(c.socket), nativeTarget(), "voice"),
+  ).toBeNull();
+  expect(await room.reserveSleepingWake(asSocket(a.socket), hint!.callId)).toBe(
+    true,
+  );
+  room = new FamilyCallRoomCore(
+    {
+      acceptWebSocket: () => undefined,
+      getWebSockets: () => sockets as unknown as CallSocket[],
+    },
+    env,
+  );
+  expect(await room.reserveSleepingWake(asSocket(a.socket), hint!.callId)).toBe(
+    false,
+  );
+  expect(await room.sleepingCallCurrent(asSocket(a.socket), hint!.callId)).toBe(
+    true,
+  );
+});
+it("commits exactly one concurrent answer and preserves voice downgrade and normal signaling cleanup", async () => {
+  enableNative();
+  const a = await join("a"),
+    b = await join("b"),
+    other = await join("b");
+  const hint = (await room.beginSleepingCall(
+    asSocket(a.socket),
+    nativeTarget(),
+    "video",
+  ))!;
+  const accepted = await Promise.all(
+    [b, other].map((peer) =>
+      room.claimSleepingCall(
+        asSocket(peer.socket),
+        hint.callId,
+        nativeTarget(),
+        "voice",
+        async () => true,
+      ),
+    ),
+  );
+  expect(accepted.filter(Boolean)).toHaveLength(1);
+  const receiver = accepted[0] ? b : other;
+  expect(last(a.socket, "accepted").mode).toBe("voice");
+  await send(a.socket, {
+    type: "signal",
+    callId: hint.callId,
+    signal: { type: "offer", sdp: "v=0\r\nm=video 9 RTP/SAVPF 96\r\n" },
+  });
+  expect(last(a.socket, "error").code).toBe("invalid");
+  await send(receiver.socket, { type: "end", callId: hint.callId });
+  expect((a.socket.data as any).call).toBeUndefined();
+  expect(
+    await room.claimSleepingCall(
+      asSocket(other.socket),
+      hint.callId,
+      nativeTarget(),
+      "voice",
+      async () => true,
+    ),
+  ).toBe(false);
+});
+it("rejects account-only ownership, wrong devices, foreign callers and expired answers", async () => {
+  enableNative();
+  const a = await join("a"),
+    b = await join("b");
+  // A cross-household connection cannot coexist in the real room; explicitly use
+  // an owner mismatch on the caller already in the room for this negative case.
+  expect(
+    await room.beginSleepingCall(
+      asSocket(a.socket),
+      {
+        ...nativeTarget(),
+        owner: { ...nativeTarget().owner, familyId: "other" },
+      },
+      "voice",
+    ),
+  ).toBeNull();
+  const hint = (await room.beginSleepingCall(
+    asSocket(a.socket),
+    nativeTarget(),
+    "voice",
+  ))!;
+  expect(
+    await room.claimSleepingCall(
+      asSocket(b.socket),
+      hint.callId,
+      nativeTarget(),
+      "voice",
+      async () => false,
+    ),
+  ).toBe(false);
+  expect(
+    await room.claimSleepingCall(
+      asSocket(b.socket),
+      hint.callId,
+      { ...nativeTarget(), revision: 2 },
+      "voice",
+      async () => true,
+    ),
+  ).toBe(false);
+  expect(
+    await room.claimSleepingCall(
+      asSocket(b.socket),
+      hint.callId,
+      nativeTarget(),
+      "video",
+      async () => true,
+    ),
+  ).toBe(false);
+  jest.spyOn(Date, "now").mockReturnValue(hint.expiresAt);
+  expect(
+    await room.claimSleepingCall(
+      asSocket(b.socket),
+      hint.callId,
+      nativeTarget(),
+      "voice",
+      async () => true,
+    ),
+  ).toBe(false);
+  expect(last(a.socket, "ended").reason).toBe("timeout");
+});
+it("does not block cancellation while native ownership verification waits", async () => {
+  enableNative();
+  const a = await join("a"),
+    b = await join("b");
+  const hint = (await room.beginSleepingCall(
+    asSocket(a.socket),
+    nativeTarget(),
+    "voice",
+  ))!;
+  let release!: (value: boolean) => void;
+  const answer = room.claimSleepingCall(
+    asSocket(b.socket),
+    hint.callId,
+    nativeTarget(),
+    "voice",
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  await send(a.socket, { type: "end", callId: hint.callId });
+  release(true);
+  expect(await answer).toBe(false);
+});
+it("keeps End responsive during wake I/O and never dispatches the same call twice", async () => {
+  enableNative();
+  const a = await join("a");
+  const hint = (await room.beginSleepingCall(
+    asSocket(a.socket),
+    nativeTarget(),
+    "voice",
+  ))!;
+  let release!: () => void, started!: () => void;
+  const began = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  jest
+    .mocked(dispatchRegisteredAndroidWake)
+    .mockImplementation(async (_db, _config, _input, current) => {
+      started();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { status: (await current()) ? "accepted" : "cancelled" };
+    });
+  const pending = room.dispatchSleepingWake(asSocket(a.socket), hint.callId, {
+    enabled: true,
+  });
+  await began;
+  expect(
+    await room.dispatchSleepingWake(asSocket(a.socket), hint.callId, {
+      enabled: true,
+    }),
+  ).toEqual({ status: "cancelled" });
+  await send(a.socket, { type: "end", callId: hint.callId });
+  release();
+  expect(await pending).toEqual({ status: "cancelled" });
+  expect(dispatchRegisteredAndroidWake).toHaveBeenCalledTimes(1);
+});
+it("revokes both active peers when the native installation is unlinked", async () => {
+  enableNative();
+  const a = await join("a"),
+    b = await join("b");
+  const hint = (await room.beginSleepingCall(
+    asSocket(a.socket),
+    nativeTarget(),
+    "voice",
+  ))!;
+  expect(
+    await room.claimSleepingCall(
+      asSocket(b.socket),
+      hint.callId,
+      nativeTarget(),
+      "voice",
+      async () => true,
+    ),
+  ).toBe(true);
+  jest.mocked(readCurrentAndroidBinding).mockResolvedValue(null);
+  await send(b.socket, { type: "heartbeat" });
+  expect(last(a.socket, "ended").reason).toBe("unavailable");
+  expect((a.socket.data as any).call).toBeUndefined();
+  expect((b.socket.data as any).call).toBeUndefined();
+});
+
+it.each(["unknown", "unavailable"] as const)(
+  "handles %s delivery without releasing the wake reservation",
+  async (status) => {
+    enableNative();
+    const a = await join("a");
+    const hint = (await room.beginSleepingCall(
+      asSocket(a.socket),
+      nativeTarget(),
+      "voice",
+    ))!;
+    jest.mocked(dispatchRegisteredAndroidWake).mockResolvedValue({ status });
+    expect(
+      await room.dispatchSleepingWake(asSocket(a.socket), hint.callId, {
+        enabled: true,
+      }),
+    ).toEqual({ status });
+    expect(
+      await room.dispatchSleepingWake(asSocket(a.socket), hint.callId, {
+        enabled: true,
+      }),
+    ).toEqual({ status: "cancelled" });
+    expect(dispatchRegisteredAndroidWake).toHaveBeenCalledTimes(1);
+    if (status === "unknown") {
+      expect(
+        await room.sleepingCallCurrent(asSocket(a.socket), hint.callId),
+      ).toBe(true);
+    } else {
+      expect((a.socket.data as any).call).toBeUndefined();
+      expect(last(a.socket, "ended").reason).toBe("unavailable");
+    }
+  },
+);

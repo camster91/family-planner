@@ -1,4 +1,16 @@
 import {
+  dispatchRegisteredAndroidWake,
+  type RegisteredAndroidWakeConfig,
+} from "./android-wake-dispatch";
+import type { AndroidWakeResult } from "./android-wake";
+import {
+  nativeCallBindingSchema,
+  readCurrentAndroidBinding,
+  sameNativeBinding,
+  type NativeCallBinding,
+} from "./native-binding";
+import type { AndroidWakeHint } from "./android-wake";
+import {
   CALL_PROTOCOL,
   HEARTBEAT_MS,
   MAX_CALL_MS,
@@ -37,6 +49,8 @@ type Attachment = {
     initiator: boolean;
     mode: "voice" | "video";
     expires: number;
+    nativeTarget?: NativeCallBinding;
+    wakeAttempted?: boolean;
   };
 };
 /** No media/signaling bodies in durable storage or attachments. */
@@ -103,8 +117,286 @@ export class FamilyCallRoomCore {
       Date.now() - a.joined < 8 * 60 * 60_000 &&
       (a.grant.kind !== "device" ||
         ["1", "true"].includes(this.env.SHARED_DEVICE_ENABLED || "")) &&
-      (await callActorAllowed(this.env.DB, a.grant))
+      (await callActorAllowed(this.env.DB, a.grant)) &&
+      (!a.call?.nativeTarget ||
+        (this.nativeCoordinationEnabled() &&
+          !!(await readCurrentAndroidBinding(
+            this.env.DB,
+            a.call.nativeTarget,
+          ))))
     );
+  }
+  private nativeCoordinationEnabled() {
+    return (
+      this.env.CALLING_ENABLED === "1" &&
+      this.env.CALLING_NATIVE_REGISTRATION_ENABLED === "1" &&
+      this.env.CALLING_NATIVE_COORDINATION_ENABLED === "1" &&
+      !!this.env.DB
+    );
+  }
+  /** Internal only: no native endpoint/proof/UI is exposed by the v1 socket protocol. */
+  beginSleepingCall(
+    socket: CallSocket,
+    target: NativeCallBinding,
+    mode: "voice" | "video",
+  ): Promise<AndroidWakeHint | null> {
+    return this.serial(async () => {
+      if (
+        !this.nativeCoordinationEnabled() ||
+        !nativeCallBindingSchema.safeParse(target).success ||
+        !["voice", "video"].includes(mode) ||
+        !this.sockets().includes(socket)
+      )
+        return null;
+      this.reap();
+      const a = this.data(socket);
+      if (
+        a.grant.kind !== "person" ||
+        a.grant.familyId !== target.owner.familyId ||
+        a.call ||
+        a.dnd ||
+        !(await this.allowed(socket))
+      )
+        return null;
+      const registration = await readCurrentAndroidBinding(
+        this.env.DB!,
+        target,
+      );
+      if (
+        !registration ||
+        this.sockets().some((s) => {
+          const call = this.data(s).call;
+          return call?.nativeTarget?.installationId === target.installationId;
+        })
+      )
+        return null;
+      const id = crypto.randomUUID(),
+        expires = Date.now() + RING_MS;
+      a.call = {
+        id,
+        peer: target.installationId,
+        phase: "outgoing",
+        initiator: true,
+        mode,
+        expires,
+        nativeTarget: structuredClone(target),
+        wakeAttempted: false,
+      };
+      this.put(socket, a);
+      this.send(socket, {
+        type: "ringing",
+        callId: id,
+        incoming: false,
+        mode,
+        peer: {
+          id: target.installationId,
+          kind: "person",
+          status: "available",
+          label: registration.label,
+        },
+      });
+      await this.presence();
+      // presence can revoke an actor after the initial read.
+      if (this.data(socket).call?.id !== id) return null;
+      return {
+        protocol: "herewoven.call-wake.v1",
+        callId: id,
+        installationId: target.installationId,
+        epoch: target.epoch,
+        revision: target.revision,
+        expiresAt: expires,
+      };
+    });
+  }
+  /** Reserve before outbound I/O. An uncertain send is never automatically reserved twice. */
+  reserveSleepingWake(socket: CallSocket, callId: string): Promise<boolean> {
+    return this.serial(async () => {
+      this.reap();
+      if (
+        !this.nativeCoordinationEnabled() ||
+        !this.sockets().includes(socket) ||
+        !(await this.allowed(socket))
+      )
+        return false;
+      const a = this.data(socket),
+        call = a.call;
+      if (
+        !call?.nativeTarget ||
+        call.id !== callId ||
+        call.phase !== "outgoing" ||
+        call.wakeAttempted
+      )
+        return false;
+      call.wakeAttempted = true;
+      this.put(socket, a);
+      return true;
+    });
+  }
+  /** Run outbound I/O outside serial(): End/Decline remains responsive during OAuth. */
+  async dispatchSleepingWake(
+    socket: CallSocket,
+    callId: string,
+    config: RegisteredAndroidWakeConfig,
+    deps: { fetchImpl?: typeof fetch; now?: () => number } = {},
+  ): Promise<AndroidWakeResult> {
+    if (!config.enabled || !(await this.reserveSleepingWake(socket, callId)))
+      return { status: "cancelled" };
+    const input = await this.serial(async () => {
+      const a = this.data(socket),
+        call = a.call;
+      if (
+        !this.sockets().includes(socket) ||
+        a.grant.kind !== "person" ||
+        !call?.nativeTarget ||
+        call.id !== callId ||
+        call.phase !== "outgoing"
+      )
+        return null;
+      return {
+        caller: structuredClone(a.grant),
+        target: structuredClone(call.nativeTarget.owner),
+        hint: {
+          protocol: "herewoven.call-wake.v1" as const,
+          callId,
+          installationId: call.nativeTarget.installationId,
+          epoch: call.nativeTarget.epoch,
+          revision: call.nativeTarget.revision,
+          expiresAt: call.expires,
+        },
+      };
+    });
+    if (!input) return { status: "cancelled" };
+    const result = await dispatchRegisteredAndroidWake(
+      this.env.DB!,
+      config,
+      input,
+      () => this.sleepingCallCurrent(socket, callId),
+      deps,
+    );
+    if (
+      ["unavailable", "invalid-destination", "rejected", "expired"].includes(
+        result.status,
+      )
+    ) {
+      await this.serial(async () => {
+        const call = this.data(socket).call;
+        if (call?.id === callId && call.phase === "outgoing") {
+          this.end(
+            socket,
+            result.status === "expired" ? "timeout" : "unavailable",
+          );
+          await this.presence();
+        }
+      });
+    }
+    return result;
+  }
+  /** Safe to await around OAuth: never hold the room queue during outbound I/O. */
+  sleepingCallCurrent(socket: CallSocket, callId: string): Promise<boolean> {
+    return this.serial(async () => {
+      this.reap();
+      if (!this.nativeCoordinationEnabled() || !this.sockets().includes(socket))
+        return false;
+      if (!(await this.allowed(socket))) {
+        this.end(socket, "unavailable");
+        return false;
+      }
+      const call = this.data(socket).call;
+      return (
+        !!call?.nativeTarget &&
+        call.id === callId &&
+        call.phase === "outgoing" &&
+        !!call.wakeAttempted
+      );
+    });
+  }
+  /**
+   * A signed-in browser or push ID alone cannot claim a phone. The native
+   * ownership verifier is mandatory and must bind this exact socket grant and
+   * installation stamp. It runs outside the queue; authority/deadline are then
+   * rechecked inside the serialized commit. No permissive production verifier.
+   */
+  async claimSleepingCall(
+    receiver: CallSocket,
+    callId: string,
+    target: NativeCallBinding,
+    mode: "voice" | "video",
+    verifyOwnership: (
+      grant: CallGrant,
+      binding: NativeCallBinding,
+    ) => Promise<boolean>,
+  ): Promise<boolean> {
+    if (
+      !this.nativeCoordinationEnabled() ||
+      !nativeCallBindingSchema.safeParse(target).success ||
+      !this.sockets().includes(receiver) ||
+      !["voice", "video"].includes(mode)
+    )
+      return false;
+    const original = this.data(receiver).grant;
+    if (
+      original.kind !== "person" ||
+      original.userId !== target.owner.userId ||
+      original.familyId !== target.owner.familyId ||
+      original.generation !== target.owner.generation
+    )
+      return false;
+    try {
+      if (
+        !(await verifyOwnership(
+          structuredClone(original),
+          structuredClone(target),
+        ))
+      )
+        return false;
+    } catch {
+      return false;
+    }
+    return this.serial(async () => {
+      this.reap();
+      if (
+        !this.nativeCoordinationEnabled() ||
+        !this.sockets().includes(receiver) ||
+        !(await this.allowed(receiver)) ||
+        this.data(receiver).call ||
+        this.data(receiver).dnd
+      )
+        return false;
+      const caller = this.sockets().find(
+        (s) => this.data(s).call?.id === callId,
+      );
+      if (!caller || caller === receiver || !(await this.allowed(caller)))
+        return false;
+      const a = this.data(caller),
+        b = this.data(receiver),
+        call = a.call;
+      if (
+        !call?.nativeTarget ||
+        !sameNativeBinding(call.nativeTarget, target) ||
+        call.phase !== "outgoing" ||
+        call.expires <= Date.now() ||
+        (mode === "video" && call.mode !== "video")
+      )
+        return false;
+      call.peer = b.grant.endpointId;
+      call.phase = "active";
+      call.mode = mode;
+      call.expires = Date.now() + MAX_CALL_MS;
+      b.call = {
+        ...structuredClone(call),
+        peer: a.grant.endpointId,
+        initiator: false,
+      };
+      this.put(caller, a);
+      this.put(receiver, b);
+      this.send(caller, { type: "accepted", callId, initiator: true, mode });
+      this.send(receiver, { type: "accepted", callId, initiator: false, mode });
+      await this.presence();
+      return (
+        this.data(caller).call?.id === callId &&
+        this.data(receiver).call?.id === callId
+      );
+    });
   }
   private end(socket: CallSocket, reason: "ended" | "unavailable" | "timeout") {
     const a = this.data(socket),

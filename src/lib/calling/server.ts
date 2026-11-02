@@ -22,6 +22,8 @@ import { callActorAllowed } from "./authority";
 import { callCookieHash, signCallGrant } from "./grant";
 export type CallingEnv = {
   CALLING_ENABLED?: string;
+  CALLING_NATIVE_REGISTRATION_ENABLED?: string;
+  CALLING_NATIVE_COORDINATION_ENABLED?: string;
   JWT_SECRET?: string;
   CALLING_TURN_KEY_ID?: string;
   CALLING_TURN_API_TOKEN?: string;

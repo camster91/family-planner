@@ -96,14 +96,53 @@ Provider contracts: [FCM authorization](https://firebase.google.com/docs/cloud-m
 [Google service-account assertions](https://developers.google.com/identity/protocols/oauth2/service-account),
 [FCM lifetime and acceptance semantics](https://firebase.google.com/docs/cloud-messaging/customize-messages/setting-message-lifespan).
 
+### Sleeping-call coordinator source
+
+`FamilyCallRoomCore` now has internal methods to begin a call to a registered
+Android installation, reserve one wake attempt, check whether it is still
+ringing, dispatch through the registry-backed FCM sender, and claim an answer.
+The production Durable Object wrapper and the v1 WebSocket protocol do not expose
+these methods. `CALLING_NATIVE_COORDINATION_ENABLED=1` and the native registration
+flag are both required; neither flag is added to production configuration.
+
+Pending state uses the caller's existing hibernatable WebSocket attachment,
+with the call ID, target owner/generation/stamp, mode, deadline and wake-attempt
+reservation. No new DO storage table, call history, D1 schema, bearer token,
+SDP/ICE or media is persisted. The caller must remain connected. The ring
+deadline is 30 seconds, checked on room activity and every answer; existing
+heartbeat/close cleanup still applies. This is eligibility expiry, not a new
+scheduled erasure promise. No alarms, cron, polling service or automatic wake
+retry is added. A reconstructed room retains the reservation in its attachment.
+
+Wake I/O and native ownership verification run outside the room's serialized
+commit queue, so cancellation remains responsive during them. The commit then
+rechecks the live caller, receiver, exact installation stamp, deadline, busy/DND
+state and mode. Native ownership verification is mandatory with no permissive
+default: a session, phone ID or push hint alone cannot answer. Concurrent answers
+produce one active pair; video may downgrade to voice. The native target binding
+remains attached to both active peers, so unlink, rotation or authority loss ends
+the call during subsequent canonical action/heartbeat checks. Known send failure
+ends a still-pending call; uncertain delivery stays pending until cancellation
+or expiry and never releases its one-attempt reservation.
+
+`node scripts/cloudflare/sleeping-call-smoke.mjs` exercises actual local DOs,
+WebSockets and D1, including one winning answer, attachment reconstruction,
+missing-proof refusal and active-call revocation. Its ownership verifier is
+explicitly fabricated. Unit tests also cover cancellation during OAuth/proof,
+expiry, same-household boundaries and default-off behavior. The existing local
+WebRTC media diagnostic still sends audio/video and stops capture on revocation.
+None establishes native hardware, real provider delivery or a real installation
+ownership handshake. This source still cannot make a closed phone ring.
+
 ### Remaining integration
 
 - Native installation ownership/rotation handshake and push-delivery proof;
   possession of a routing token alone must never authorize an answer.
-- Stable sleeping-target discovery, bounded incoming-call state, cancellation,
-  expiry and one winning answer in the existing calling state machine.
-- Wire the Android transport to bounded canonical incoming-call state and real
-  native readiness; implement APNs VoIP delivery. Configure private server
+- Expose stable sleeping-target discovery and the internal coordinator only
+  after native ownership proof, readiness and compatible admission protocols
+  exist. Add receiver/caller routes and native UI, with bounded retries and
+  installation-specific ownership proofs; never accept the diagnostic verifier.
+- Wire native readiness to the coordinator; implement APNs VoIP delivery. Configure private server
   credentials and verify actual provider delivery from the Cloudflare runtime.
 - Android Telecom/notifications/native media and iOS PushKit/CallKit/native
   media. Do not remove browser visibility/capture cleanup to imitate native
@@ -128,7 +167,10 @@ registration flag is off. The Prisma/PostgreSQL compatibility schema is in
 its security cleanup triggers on server rollback. Older foreground clients need
 no change and never call this optional API. Keep native registration off unless
 all relevant schema/secret/client gates are ready; registration alone never
-makes a closed device ringable. No production migration or key setup is implied
+makes a closed device ringable. Before rolling back to code unaware of native
+call bindings, disable global calling and verify new-format active calls have
+ended/disconnected; older room code cannot enforce installation-stamp revocation
+on a native call attachment it does not understand. No production migration or key setup is implied
 by this source change.
 
 ## Verification

@@ -1,4 +1,5 @@
 import type { D1Store } from "@/lib/cloudflare/database";
+import { readCurrentAndroidBinding } from "./native-binding";
 import { callActorAllowed } from "./authority";
 import type { CallActor } from "./protocol";
 import type { NativeCallOwner } from "./native-registration-contract";
@@ -16,7 +17,7 @@ type Input = {
   target: NativeCallOwner;
   hint: AndroidWakeHint;
 };
-type Config = AndroidWakeConfig & {
+export type RegisteredAndroidWakeConfig = AndroidWakeConfig & {
   tokenKey?: string;
   previousTokenKey?: string;
 };
@@ -31,7 +32,7 @@ type Deps = { fetchImpl?: typeof fetch; now?: () => number };
  */
 export async function dispatchRegisteredAndroidWake(
   db: D1Store,
-  config: Config,
+  config: RegisteredAndroidWakeConfig,
   input: Input,
   stillRinging: () => Promise<boolean>,
   deps: Deps = {},
@@ -47,27 +48,16 @@ export async function dispatchRegisteredAndroidWake(
   const read = async () => {
     if (!(await callActorAllowed(db, input.caller, now()))) return null;
     const { target, hint } = input;
-    const row = await db
-      .withSession("first-primary")
-      .prepare(
-        `SELECT i.push_token_enc FROM "NativeCallInstallation" i
-       JOIN "User" u ON u.id=i.user_id AND u.family_id=i.family_id AND u.token_version=i.generation
-       JOIN "Family" f ON f.id=i.family_id
-       WHERE i.id=? AND i.user_id=? AND i.family_id=? AND i.generation=?
-       AND i.epoch=? AND i.revision=? AND i.platform='android' AND i.provider='fcm'
-       AND i.revoked_at IS NULL AND i.expires_at>? AND i.push_token_enc IS NOT NULL
-       AND u.role IN ('parent','teen','child') AND json_extract(f.features,'$.calling')=1`,
-      )
-      .bind(
-        hint.installationId,
-        target.userId,
-        target.familyId,
-        target.generation,
-        hint.epoch,
-        hint.revision,
-        now(),
-      )
-      .first<{ push_token_enc: string }>();
+    const row = await readCurrentAndroidBinding(
+      db,
+      {
+        owner: target,
+        installationId: hint.installationId,
+        epoch: hint.epoch,
+        revision: hint.revision,
+      },
+      now(),
+    );
     return row
       ? openNativeToken(
           row.push_token_enc,
