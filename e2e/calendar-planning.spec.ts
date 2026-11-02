@@ -48,7 +48,12 @@ for (const role of ["parent", "teen"] as const) {
     page,
   }) => {
     await loginViaUi(page, FIXTURE_EMAILS.familyA[role]);
-    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+    await expect(page).toHaveURL(
+      role === "parent" ? /\/dashboard\/today$/ : /\/dashboard$/,
+    );
+    await expect(
+      page.getByRole("button", { name: "User menu", exact: true }),
+    ).toBeVisible();
     const writes: string[] = [];
     page.on("request", (request) => {
       if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
