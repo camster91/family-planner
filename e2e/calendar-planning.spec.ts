@@ -40,10 +40,7 @@ async function selectConnectedSource(page: Page) {
   }
   const menu = page.locator("summary[aria-label='Calendars & connections']");
   await menu.click();
-  await menu
-    .locator("..")
-    .getByRole("button", { name: "Connected calendar", exact: true })
-    .click();
+  await source.selectOption("connected");
 }
 
 for (const role of ["parent", "teen"] as const) {

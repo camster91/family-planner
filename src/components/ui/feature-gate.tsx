@@ -5,7 +5,7 @@ import { Lock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useFeatureEnabled, useFeatures } from '@/components/providers/features-provider'
 import type { FeatureKey } from '@/lib/features'
-import { useTranslation } from '@/i18n'
+import { useCoreTranslation } from '@/i18n/core'
 import { getFeatureDisplayCopy, getFeatureOffCopy } from '@/i18n/feature-display'
 import type { Locale } from '@/i18n/types'
 
@@ -30,7 +30,7 @@ export function FeatureGate({
 /** The off state with the viewer's role from the features provider. */
 function ClientFeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
   const { canManage } = useFeatures()
-  const { locale } = useTranslation()
+  const { locale } = useCoreTranslation()
   return <FeatureOffState featureKey={featureKey} canManage={canManage} locale={locale} />
 }
 
@@ -56,7 +56,7 @@ export function FeatureOffState({
   headingLevel?: 1 | 2
   testId?: string
 }) {
-  const { locale: contextLocale } = useTranslation()
+  const { locale: contextLocale } = useCoreTranslation()
   const effectiveLocale = locale ?? contextLocale
   const display = getFeatureDisplayCopy(effectiveLocale, featureKey)
   const defaultCopy = getFeatureOffCopy(effectiveLocale, display.title)

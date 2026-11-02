@@ -1,6 +1,6 @@
 /** #424: existing planner and review-first import, isolated data and explicit provider UI fixture mode. */
 import AxeBuilder from "@axe-core/playwright";
-import type { Page, TestInfo, Locator } from "@playwright/test";
+import type { Page, TestInfo, Locator, Route } from "@playwright/test";
 import { test, expect, browserFetch, browserSend } from "./support/test";
 import { authFile } from "./support/env";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -29,6 +29,16 @@ const projects = [
 ];
 const privateTitle = "Synthetic {title} — 李 🗓️";
 const privateSource = "Synthetic {source} — 李 🗓️";
+// Preserve the real authenticated owner header when substituting range content.
+// Missing or stale owners intentionally fail closed in the production reader.
+async function rangeFixture(route: Route, json: unknown) {
+  const canonicalUrl = new URL(route.request().url());
+  canonicalUrl.searchParams.delete("cursor");
+  const response = await route.fetch({ url: canonicalUrl.toString() });
+  expect(response.status()).toBe(200);
+  expect(response.headers()["x-herewoven-calendar-owner"]).toBeTruthy();
+  return route.fulfill({ response, json });
+}
 function text(template: string, params: Record<string, string | number> = {}) {
   return (expanded ? pseudolocalizeTemplate(template) : template).replace(
     /\{(\w+)\}/g,
@@ -79,16 +89,21 @@ async function capture(
 
 async function openSourceFilter(
   page: Page,
-  labels: { source: string; showCalendars: string },
+  labels: { source: string; showCalendars: string; calendarMenu: string },
 ) {
   const source = page.getByRole("combobox", {
     name: labels.source,
     exact: true,
   });
   if (!(await source.isVisible())) {
-    await page
-      .getByRole("button", { name: labels.showCalendars, exact: true })
-      .click();
+    const calendarMenu = page
+      .locator("summary")
+      .filter({ hasText: labels.calendarMenu });
+    if (await calendarMenu.count()) await calendarMenu.click();
+    else
+      await page
+        .getByRole("button", { name: labels.showCalendars, exact: true })
+        .click();
   }
   await expect(source).toBeVisible();
   return source;
@@ -181,6 +196,7 @@ for (const locale of ["en", "es"] as const) {
       await openSourceFilter(page, {
         source: p("source"),
         showCalendars: p("showCalendars"),
+        calendarMenu: p("calendarMenu"),
       })
     ).selectOption("connected");
     await expect(
@@ -207,12 +223,19 @@ for (const locale of ["en", "es"] as const) {
           status: 503,
           json: { error: "Synthetic range failure" },
         });
-      return route.fulfill({
-        json: {
-          events: [],
-          hasMore: true,
-          nextCursor: `synthetic-page-${requests}`,
-        },
+      return rangeFixture(route, {
+        events: [
+          {
+            id: `synthetic-event-${requests}`,
+            title: `Synthetic page ${requests}`,
+            start_time: "2026-01-05T18:00:00Z",
+            end_time: "2026-01-05T18:30:00Z",
+            event_type: "other",
+            source: null,
+          },
+        ],
+        hasMore: true,
+        nextCursor: `synthetic-page-${requests}`,
       });
     });
     await visit(page);
@@ -237,7 +260,7 @@ for (const locale of ["en", "es"] as const) {
     ).toBeVisible();
     expect(requests).toBe(11);
     await expect(
-      page.getByText(p("partialHelp"), { exact: true }),
+      page.getByRole("status").getByText(p("partialHelp"), { exact: true }),
     ).toBeVisible();
     await capture(page, info, `${locale}-planner-partial`, [
       page.getByRole("button", { name: p("showDay"), exact: true }),
@@ -247,24 +270,26 @@ for (const locale of ["en", "es"] as const) {
     page,
   }, info) => {
     await page.route("**/api/events?*", (route) =>
-      route.fulfill({
-        json: {
-          events: [
-            {
-              id: "synthetic-private",
-              title: privateTitle,
-              description: "Synthetic {description}",
-              location: "Synthetic room",
-              start_time: "2026-11-01T06:30:45.123Z",
-              end_time: "2026-11-01T06:45:55.456Z",
-              event_type: "other",
-              source: { name: privateSource, color: null },
-              source_subscription_id: "synthetic-source",
+      rangeFixture(route, {
+        events: [
+          {
+            id: "synthetic-private",
+            title: privateTitle,
+            description: "Synthetic {description}",
+            location: "Synthetic room",
+            start_time: "2026-11-01T06:30:45.123Z",
+            end_time: "2026-11-01T06:45:55.456Z",
+            event_type: "other",
+            source: {
+              subscription_id: "synthetic-source",
+              name: privateSource,
+              color: null,
             },
-          ],
-          hasMore: false,
-          nextCursor: null,
-        },
+            source_subscription_id: "synthetic-source",
+          },
+        ],
+        hasMore: false,
+        nextCursor: null,
       }),
     );
     await visit(page, "/dashboard/calendar?date=2026-11-01&view=week");
@@ -455,9 +480,7 @@ for (const locale of ["en", "es"] as const) {
       },
     ];
     await page.route("**/api/events?*", (route) =>
-      route.fulfill({
-        json: { events: rows, hasMore: false, nextCursor: null },
-      }),
+      rangeFixture(route, { events: rows, hasMore: false, nextCursor: null }),
     );
     await visit(page, "/dashboard/calendar?date=2026-01-05&view=day");
     const late = page.getByRole("button", { name: /Synthetic late \{title\}/ });

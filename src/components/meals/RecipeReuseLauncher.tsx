@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { readRecipeJson } from "@/lib/recipe-read-client";
 import { useRecipePresentationText } from "@/i18n/recipe-presentation";
@@ -13,16 +13,19 @@ const summary = z.object({
   prep_time: z.number().int().min(0).max(1440).nullable(),
   cook_time: z.number().int().min(0).max(1440).nullable(),
 });
-/** A URL carries only intent. Re-read owned canonical data; open an editor only on a tap. */
+/** A URL carries intent, never authority. Re-read owned canonical data before prefilling an editor. */
 export function RecipeReuseLauncher({
   recipeId: id,
   kind,
   onUse,
   onDismiss,
+  autoUse = false,
 }: {
   recipeId: string;
   kind: "meal" | "prep";
-  onUse: (recipe: RecipeOption) => void;
+  onUse: (recipe: RecipeOption) => void | boolean;
+  /** An explicit Plan meal/Add to prep action may open its review editor directly. */
+  autoUse?: boolean;
   onDismiss: () => void;
 }) {
   const text = useRecipePresentationText();
@@ -46,8 +49,11 @@ export function RecipeReuseLauncher({
     const controller = new AbortController();
     void (async () => {
       try {
-        const body = await readRecipeJson(`/api/recipes/${encodeURIComponent(id)}`,
-          controller.signal, { timeoutMs: 10000 });
+        const body = await readRecipeJson(
+          `/api/recipes/${encodeURIComponent(id)}`,
+          controller.signal,
+          { timeoutMs: 10000 },
+        );
         const recipe = z.object({ recipe: summary }).parse(body).recipe;
         if (recipe.id !== id) throw new Error();
         if (active) setLoad({ id, recipe });
@@ -60,9 +66,23 @@ export function RecipeReuseLauncher({
       controller.abort();
     };
   }, [id, attempt]);
-  if (!id) return null;
+  const callbacks = useRef({ onUse, onDismiss });
+  callbacks.current = { onUse, onDismiss };
+  const consumed = useRef<string | null>(null);
   const recipe = load?.id === id ? load.recipe : undefined;
   const error = load?.id === id && load.error;
+  useEffect(() => {
+    if (!autoUse || !recipe || consumed.current === id) return;
+    consumed.current = id;
+    // Opening an editor is not a save. Preserve the intent if the destination
+    // is protecting a pending mutation or an existing draft.
+    if (callbacks.current.onUse(recipe) === false) {
+      consumed.current = null;
+      return;
+    }
+    callbacks.current.onDismiss();
+  }, [autoUse, recipe, id]);
+  if (!id) return null;
   return (
     <section
       className="card-apple p-4 space-y-3"
@@ -89,8 +109,7 @@ export function RecipeReuseLauncher({
               // The destination owns the day/portion editor. Once it has the
               // canonical recipe, clear only this one-shot intent so closing
               // that editor does not reopen the same saved recipe launcher.
-              onUse(recipe);
-              onDismiss();
+              if (onUse(recipe) !== false) onDismiss();
             }}
           >
             {text(kind === "prep" ? "usePrep" : "useMeal")}

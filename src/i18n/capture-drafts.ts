@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 const en = {
   restoreReplace:
     "Replace current unsaved reviewed fields with the saved review?",
@@ -191,5 +191,5 @@ const es: typeof en = {
     "No se encontró trabajo guardado para esta sesión en este dispositivo.",
 };
 export function useCaptureDraftText() {
-  return useTranslation().locale === "es" ? es : en;
+  return useCoreTranslation().locale === "es" ? es : en;
 }

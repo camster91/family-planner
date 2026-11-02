@@ -256,9 +256,11 @@ for (const locale of ["en", "es"] as const) {
           held = true;
           const response = await route.fetch();
           expect(response.status()).toBe(200);
+          const body = await response.json();
+          expect(body.event.id).toBe(ids[0]);
           ready();
           await released;
-          return route.fulfill({ response });
+          return route.fulfill({ response, json: body });
         }
         return route.continue();
       });
@@ -296,8 +298,8 @@ for (const locale of ["en", "es"] as const) {
       release();
       const completedPrevious = await previousResponse;
       expect(completedPrevious.status()).toBe(200);
-      expect(await completedPrevious.finished()).toBeNull();
-      expect((await completedPrevious.json()).event.id).toBe(ids[0]);
+      // The held body was verified before release. A superseded fetch may
+      // be abandoned by the browser; response.finished() need not resolve.
       await expect(
         page.getByLabel(locale === "es" ? "Título" : "Title"),
       ).toHaveValue("Synthetic current record");

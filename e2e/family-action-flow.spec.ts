@@ -201,3 +201,51 @@ test("wide Today puts dinner beside the schedule without changing saved section 
     "next",
   );
 });
+
+for (const kind of ["meal", "prep"] as const) {
+  test(`recipe opens ${kind} editor with its day and no automatic save`, async ({
+    page,
+  }, info) => {
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (
+        ["POST", "PATCH", "DELETE"].includes(request.method()) &&
+        /\/api\/(meals|meal-prep)(\/|$)/.test(new URL(request.url()).pathname)
+      )
+        writes.push(request.url());
+    });
+    await page.goto(
+      "/dashboard/meals/recipes/fx_recipe_a_lasagna?start=2026-01-08",
+    );
+    await page
+      .getByRole("link", {
+        name: kind === "meal" ? "Plan a meal" : "Add to prep",
+        exact: true,
+      })
+      .click();
+    const editor = page.getByTestId(
+      kind === "meal" ? "meal-modal" : "meal-prep-editor",
+    );
+    await expect(editor).toBeVisible();
+    await expect(
+      editor.getByLabel(kind === "meal" ? "Date" : "Preparation day", {
+        exact: true,
+      }),
+    ).toHaveValue("2026-01-08");
+    if (kind === "prep")
+      await editor.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(
+      editor.getByRole("combobox", { name: "Recipe (optional)", exact: true }),
+    ).toHaveValue("fx_recipe_a_lasagna");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await info.attach(`recipe-${kind}-handoff`, {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
+    expect(writes).toEqual([]);
+  });
+}

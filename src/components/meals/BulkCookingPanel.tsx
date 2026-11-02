@@ -37,6 +37,7 @@ export function BulkCookingPanel({
   onMealsChanged,
   onContext,
   reuseRecipeId,
+  autoUseRecipe = false,
   onDismissReuse,
   preparedReuse = { state: "none" },
   onDismissPreparedReuse,
@@ -47,6 +48,7 @@ export function BulkCookingPanel({
   refreshKey: unknown;
   onMealsChanged: () => void;
   onContext: (scope: MealPrepContext | null) => void;
+  autoUseRecipe?: boolean;
   reuseRecipeId?: string | null;
   onDismissReuse?: () => void;
   preparedReuse?: PreparedReuseIntent;
@@ -519,6 +521,7 @@ export function BulkCookingPanel({
           !modal && (
             <RecipeReuseLauncher
               recipeId={reuseRecipeId}
+              autoUse={autoUseRecipe}
               onDismiss={onDismissReuse}
               kind="prep"
               onUse={(recipe) => setEditor({ day: defaultDay, recipe })}

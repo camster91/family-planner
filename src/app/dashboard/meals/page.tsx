@@ -569,6 +569,7 @@ function MealsPageInner() {
   const dismissReuse = () => {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("recipe");
+    next.delete("compose");
     router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
       scroll: false,
     });
@@ -1076,10 +1077,11 @@ function MealsPageInner() {
         >
           <RecipeReuseLauncher
             recipeId={reuseRecipeId}
+            autoUse={searchParams.get("compose") === "meal"}
             onDismiss={dismissReuse}
             kind="meal"
             onUse={(recipe) => {
-              if (mealMutationPending.current) return;
+              if (mealMutationPending.current) return false;
               setModal({
                 mode: "add",
                 defaultDate: startKey,
@@ -1101,6 +1103,7 @@ function MealsPageInner() {
           >
             <BulkCookingPanel
               reuseRecipeId={reuseRecipeId}
+              autoUseRecipe={searchParams.get("compose") === "prep"}
               onDismissReuse={dismissReuse}
               preparedReuse={preparedReuse}
               recoveryRequested={searchParams.get("bulkWork") === "recovery"}

@@ -1,4 +1,4 @@
-import { useTranslation } from '@/i18n'
+import { useCoreTranslation } from '@/i18n/core'
 
 export const featureSuggestionsEnglish = {
   heading: 'Turn on more',
@@ -45,7 +45,7 @@ export const featureSuggestionsMessages = {
 }
 
 export function useFeatureSuggestionsText() {
-  const { t: translate } = useTranslation()
+  const { t: translate } = useCoreTranslation()
   return (
     key: FeatureSuggestionsMessage,
     params?: Record<string, string | number>,

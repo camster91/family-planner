@@ -307,7 +307,7 @@ async function assertPhotoRecovery(
   );
   try {
     await photo.setInputFiles(file);
-    await expect(section.getByRole("alert")).toHaveText(copy.uploadFailed);
+    await expect(section.getByRole("alert")).toHaveText(copy.uploadUnconfirmed);
     await expect(title).toHaveValue(draftTitle);
     await expect(photo).toHaveValue("");
     await expect(save).toBeEnabled();

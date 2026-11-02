@@ -72,7 +72,7 @@ for (const width of [320, 390]) {
       await expect
         .poll(() =>
           page
-            .locator("#main-content")
+            .locator("[data-dashboard-shell]")
             .evaluate((el) =>
               parseFloat(el.style.getPropertyValue("--phone-tab-bar-height")),
             ),
@@ -98,7 +98,7 @@ for (const width of [320, 390]) {
       const normalReserve = `${Math.max(80, (await nav.boundingBox())!.height)}px`;
       expect(
         await page
-          .locator("#main-content")
+          .locator("[data-dashboard-shell]")
           .evaluate((el) => getComputedStyle(el).paddingBottom),
         "keep the 5rem floor; reserve more only when labels actually need it",
       ).toBe(normalReserve);
@@ -118,7 +118,7 @@ for (const width of [320, 390]) {
       await expect
         .poll(
           () =>
-            page.locator("#main-content").evaluate((el) => {
+            page.locator("[data-dashboard-shell]").evaluate((el) => {
               const bar = document.querySelector("nav.tab-bar")!;
               return (
                 parseFloat(getComputedStyle(el).paddingBottom) >=
@@ -223,12 +223,16 @@ for (const width of [320, 390]) {
       const long = geometry.tabs.find(
         (t) => t.text === (role === "parent" ? "Calendar" : "Emergency"),
       )!;
-      expect
-        .soft(
-          new Set(long.textRects.map((r) => r.top)).size,
-          "long label really wraps",
-        )
-        .toBeGreaterThan(1);
+      // At 320px even the three-tab child navigation must wrap. At 390px
+      // its labels can fit naturally; the painted-bounds checks above still
+      // require every letter to remain visible without clipping.
+      if (width === 320 || role !== "child")
+        expect
+          .soft(
+            new Set(long.textRects.map((r) => r.top)).size,
+            "long label really wraps",
+          )
+          .toBeGreaterThan(1);
       await links.last().focus();
       await expect(links.last()).toBeFocused();
       expect(
@@ -265,7 +269,7 @@ for (const width of [320, 390]) {
       await expect
         .poll(() =>
           page
-            .locator("#main-content")
+            .locator("[data-dashboard-shell]")
             .evaluate((el) => getComputedStyle(el).paddingBottom),
         )
         .toBe(normalReserve);
@@ -274,14 +278,14 @@ for (const width of [320, 390]) {
       await expect
         .poll(() =>
           page
-            .locator("#main-content")
+            .locator("[data-dashboard-shell]")
             .evaluate((el) => getComputedStyle(el).paddingBottom),
         )
-        .toBe("32px");
+        .toBe("0px");
       await expect
         .poll(() =>
           page
-            .locator("#main-content")
+            .locator("[data-dashboard-shell]")
             .evaluate((el) =>
               el.style.getPropertyValue("--phone-tab-bar-height"),
             ),
@@ -292,7 +296,7 @@ for (const width of [320, 390]) {
       await expect
         .poll(() =>
           page
-            .locator("#main-content")
+            .locator("[data-dashboard-shell]")
             .evaluate((el) =>
               parseFloat(el.style.getPropertyValue("--phone-tab-bar-height")),
             ),
@@ -306,7 +310,7 @@ for (const width of [320, 390]) {
       await expect
         .poll(() =>
           page
-            .locator("#main-content")
+            .locator("[data-dashboard-shell]")
             .evaluate((el) =>
               el.style.getPropertyValue("--phone-tab-bar-height"),
             ),

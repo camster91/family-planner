@@ -88,7 +88,7 @@ function AnalyticsPageContent() {
   const hasTrend = weeklyTrend.some((entry) => entry.count > 0)
 
   return (
-    <main className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8" aria-label={analyticsText('title')}>
+    <section className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8" aria-label={analyticsText('title')}>
       <LargeHeader
         title={analyticsText('title')}
         subtitle={analyticsText('subtitle')}
@@ -156,8 +156,7 @@ function AnalyticsPageContent() {
 
             {gamification ? (
               <section className="card-apple p-5 sm:p-6" aria-labelledby="family-progress-title">
-                <h2 id="family-progress-title" className="text-title-3 text-label-primary">{analyticsText('progressByPerson')}</h2>
-                <p className="mt-1 text-subhead text-label-secondary">{analyticsText('progressByPersonDescription', { days: ANALYTICS_WINDOW_DAYS })}</p>
+                <h2 id="family-progress-title" className="text-title-3 text-label-primary">{analyticsText('householdProgress')}</h2>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <div className="rounded-[var(--radius-sm)] bg-surface-fill p-3">
                     <div className="text-title-3 font-semibold text-label-primary" data-testid="family-points">{familyPoints}</div>
@@ -172,7 +171,7 @@ function AnalyticsPageContent() {
             ) : (
               <section className="card-apple flex items-center p-5 sm:p-6" aria-labelledby="family-progress-title">
                 <div>
-                  <h2 id="family-progress-title" className="text-title-3 text-label-primary">{analyticsText('progressByPerson')}</h2>
+                  <h2 id="family-progress-title" className="text-title-3 text-label-primary">{analyticsText('householdProgress')}</h2>
                   <p className="mt-1 text-subhead text-label-secondary">{analyticsText('completions', { count: totalDone })}</p>
                 </div>
               </section>
@@ -258,7 +257,7 @@ function AnalyticsPageContent() {
           </section>
         </>
       )}
-    </main>
+    </section>
   )
 }
 

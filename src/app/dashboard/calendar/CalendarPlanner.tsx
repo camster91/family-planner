@@ -2,7 +2,11 @@
 import { PreparationButton } from "@/components/calendar/preparation/PreparationProvider";
 import { ScheduleReviewButton } from "@/components/calendar/review/ScheduleReviewProvider";
 import * as React from "react";
-import { CalendarReadHeld, useCalendarReadScope, type CalendarReadScope } from "@/components/calendar/CalendarReadScope";
+import {
+  CalendarReadHeld,
+  useCalendarReadScope,
+  type CalendarReadScope,
+} from "@/components/calendar/CalendarReadScope";
 import { CalendarReadOwnerChanged } from "@/lib/calendar-read-owner";
 import Link from "next/link";
 import { useCoreTranslation } from "@/i18n/core";
@@ -159,9 +163,16 @@ export function CalendarPlanner({
       id = ++requestId.current;
     setState("loading");
     setSelected(null);
-    fetchPlanningRange(start, end, controller.signal, fetch, 10, { owner: readScope.owner, admit: readScope.admit })
+    fetchPlanningRange(start, end, controller.signal, fetch, 10, {
+      owner: readScope.owner,
+      admit: readScope.admit,
+    })
       .then((result) => {
-        if (!readScope.held && !controller.signal.aborted && id === requestId.current) {
+        if (
+          !readScope.held &&
+          !controller.signal.aborted &&
+          id === requestId.current
+        ) {
           setData(result.events);
           setTruncated(result.truncated);
           setState("ready");
@@ -175,12 +186,24 @@ export function CalendarPlanner({
         }
       });
     return () => controller.abort();
-  }, [start, end, local, retry, refreshKey, eventRevision, readScope, readScope.held]);
+  }, [
+    start,
+    end,
+    local,
+    retry,
+    refreshKey,
+    eventRevision,
+    readScope,
+    readScope.held,
+  ]);
   React.useEffect(() => {
     if (readScope.held) return;
     const controller = new AbortController();
     setSourceState("loading");
-    fetchPlanningSources(controller.signal, { owner: readScope.owner, admit: readScope.admit })
+    fetchPlanningSources(controller.signal, {
+      owner: readScope.owner,
+      admit: readScope.admit,
+    })
       .then((subscriptions) => {
         if (!readScope.held && !controller.signal.aborted) {
           setSources(subscriptions);
@@ -376,22 +399,26 @@ export function CalendarPlanner({
                 <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
                   {msg("calendarMenuHelp")}
                 </p>
-                <fieldset className={styles.connectionSources}>
-                  <legend>{msg("calendars")}</legend>
-                  {options.map((source) => (
-                    <button
-                      key={source.id}
-                      type="button"
-                      aria-pressed={filter === source.id}
-                      onClick={() => {
-                        setFilter(source.id);
-                        closeConnectionMenu();
-                      }}
-                    >
-                      {source.name}
-                    </button>
-                  ))}
-                </fieldset>
+                <div className={styles.connectionSources}>
+                  <label htmlFor="calendar-menu-source">
+                    {msg("calendars")}
+                  </label>
+                  <select
+                    id="calendar-menu-source"
+                    aria-label={msg("source")}
+                    value={filter}
+                    onChange={(event) => {
+                      setFilter(event.target.value);
+                      closeConnectionMenu();
+                    }}
+                  >
+                    {options.map((source) => (
+                      <option key={source.id} value={source.id}>
+                        {source.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <p className="px-3 py-2 text-[12px] leading-5 text-label-secondary">
                   {calendarSyncAvailable
                     ? msg("connectionHelp")
@@ -416,67 +443,52 @@ export function CalendarPlanner({
           </Link>
         </div>
       </header>
-      <div className={styles.layout}>
-        <aside className={styles.sources} data-menu-source={canEditEvents}>
-          <button
-            type="button"
-            className={styles.sourceToggle}
-            aria-expanded={sourcesExpanded}
-            aria-controls="calendar-source-options"
-            onClick={() => setSourcesExpanded((open) => !open)}
-          >
-            {msg(sourcesExpanded ? "hideCalendars" : "showCalendars")}
-          </button>
-          <div
-            id="calendar-source-options"
-            className={styles.sourceOptions}
-            data-expanded={sourcesExpanded}
-          >
-            <label htmlFor="calendar-source">{msg("calendars")}</label>
-            <select
-              id="calendar-source"
-              aria-label={msg("source")}
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+      <div className={styles.layout} data-source-menu={canEditEvents}>
+        {!canEditEvents && (
+          <aside className={styles.sources}>
+            <button
+              type="button"
+              className={styles.sourceToggle}
+              aria-expanded={sourcesExpanded}
+              aria-controls="calendar-source-options"
+              onClick={() => setSourcesExpanded((open) => !open)}
             >
-              {options.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <p>{msg("sourceHelp")}</p>
-            <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
-          </div>
-        </aside>
-        <section className={styles.main} aria-label={msg("range")}>
-            {sourceState === "loading" && (
-              <p role="status">{msg("loadingSources")}</p>
-            )}
-            {sourceState === "error" && (
-              <p role="alert">
-                {msg("sourcesFailed")}{" "}
-                <button onClick={() => setRetry((n) => n + 1)}>
-                  {msg("retrySources")}
-                </button>
-              </p>
-            )}
-          {displayState === "ready" && now !== null && loadedAt !== null && (
-            <div className={styles.note}>
-              <UpdatedLine
-                lastSyncAt={loadedAt}
-                now={now}
-                testId="calendar-updated"
-              />
-              <SyncNotice
-                lastSyncAt={loadedAt}
-                now={now}
-                online={online}
-                what="calendar"
-                canGoStale={false}
-                appBanner
-              />
+              {msg(sourcesExpanded ? "hideCalendars" : "showCalendars")}
+            </button>
+            <div
+              id="calendar-source-options"
+              className={styles.sourceOptions}
+              data-expanded={sourcesExpanded}
+            >
+              <label htmlFor="calendar-source">{msg("calendars")}</label>
+              <select
+                id="calendar-source"
+                aria-label={msg("source")}
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                {options.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <p>{msg("sourceHelp")}</p>
+              <p>{canEditEvents ? msg("parentHelp") : msg("memberHelp")}</p>
             </div>
+          </aside>
+        )}
+        <section className={styles.main} aria-label={msg("range")}>
+          {sourceState === "loading" && (
+            <p role="status">{msg("loadingSources")}</p>
+          )}
+          {sourceState === "error" && (
+            <p role="alert">
+              {msg("sourcesFailed")}{" "}
+              <button onClick={() => setRetry((n) => n + 1)}>
+                {msg("retrySources")}
+              </button>
+            </p>
           )}
           <div className={styles.controls}>
             <nav aria-label={msg("changeDates")}>
@@ -502,6 +514,23 @@ export function CalendarPlanner({
               </button>
             </nav>
             <p>{msg("showing", { source: label })}</p>
+            {displayState === "ready" && now !== null && loadedAt !== null && (
+              <div className={styles.syncStatus}>
+                <UpdatedLine
+                  lastSyncAt={loadedAt}
+                  now={now}
+                  testId="calendar-updated"
+                />
+                <SyncNotice
+                  lastSyncAt={loadedAt}
+                  now={now}
+                  online={online}
+                  what="calendar"
+                  canGoStale={false}
+                  appBanner
+                />
+              </div>
+            )}
           </div>
           <div
             className={`${styles.calendarBody} ${displayState === "ready" && overlaps.total > 0 ? styles.withOverlaps : ""}`}
