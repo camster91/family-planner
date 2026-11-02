@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 import * as React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
 import { I18nProvider } from '@/i18n'
@@ -47,4 +47,31 @@ describe('deferred Today setup cards', () => {
       consoleError.mockRestore()
     }
   })
+})
+
+it('loads optional suggestions when they approach the viewport and keeps them mounted', async () => {
+  const original = global.IntersectionObserver
+  let notify: IntersectionObserverCallback = () => {}
+  const disconnect = jest.fn()
+  global.IntersectionObserver = jest.fn((callback) => {
+    notify = callback
+    return { observe: jest.fn(), disconnect }
+  }) as unknown as typeof IntersectionObserver
+  let imports = 0
+  const createCard = () => React.lazy(async () => {
+    imports++
+    return { default: () => <p>Available suggestions</p> }
+  })
+  try {
+    const view = render(<LazySetupCard createCard={createCard} cardProps={{}} whenVisible />)
+    expect(imports).toBe(0)
+    act(() => notify([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver))
+    await screen.findByText('Available suggestions')
+    expect(imports).toBe(1)
+    expect(disconnect).toHaveBeenCalled()
+    view.rerender(<LazySetupCard createCard={createCard} cardProps={{}} whenVisible />)
+    expect(screen.getByText('Available suggestions')).toBeVisible()
+    expect(imports).toBe(1)
+    view.unmount()
+  } finally { global.IntersectionObserver = original }
 })

@@ -30,6 +30,7 @@ type SetupCardFactory<Props> = () => React.LazyExoticComponent<React.ComponentTy
 type LazySetupCardProps<Props> = {
   createCard: SetupCardFactory<Props>
   cardProps: Props
+  whenVisible?: boolean
 }
 
 class SetupChunkBoundary extends React.Component<SetupChunkBoundaryProps, SetupChunkBoundaryState> {
@@ -89,12 +90,29 @@ function LoadedSetupCard({ onLoaded, children }: { onLoaded: () => void; childre
   return children
 }
 
-export function LazySetupCard<Props>({ createCard, cardProps }: LazySetupCardProps<Props>) {
+export function LazySetupCard<Props>({ createCard, cardProps, whenVisible = false }: LazySetupCardProps<Props>) {
+  const [activated, setActivated] = React.useState(!whenVisible)
   const [attempt, setAttempt] = React.useState(0)
   const [Card, setCard] = React.useState(createCard)
   const retryRef = React.useRef<HTMLButtonElement>(null)
   const regionRef = React.useRef<HTMLDivElement>(null)
   const restoreFocusOnLoadRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (activated) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setActivated(true)
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setActivated(true)
+        observer.disconnect()
+      }
+    }, { rootMargin: '200px' })
+    if (regionRef.current) observer.observe(regionRef.current)
+    return () => observer.disconnect()
+  }, [activated])
 
   const onLoaded = React.useCallback(() => {
     if (!restoreFocusOnLoadRef.current) return
@@ -115,7 +133,7 @@ export function LazySetupCard<Props>({ createCard, cardProps }: LazySetupCardPro
       >
         <React.Suspense fallback={<SetupChunkFallback status="loading" />}>
           <LoadedSetupCard onLoaded={onLoaded}>
-            {React.createElement(Card as unknown as React.ComponentType<never>, cardProps as never)}
+            {activated ? React.createElement(Card as unknown as React.ComponentType<never>, cardProps as never) : <SetupChunkFallback status="loading" />}
           </LoadedSetupCard>
         </React.Suspense>
       </SetupChunkBoundary>
@@ -140,6 +158,7 @@ function LazyFeatureSuggestions({
   return (
     <LazySetupCard
       createCard={createFeatureSuggestions}
+      whenVisible
       cardProps={{ viewer, familyId, setupDone, initialPicked }}
     />
   )
