@@ -280,3 +280,12 @@ it("a loaded 404 error changes locale without another event request or enabled s
   expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
   expect(global.fetch).toHaveBeenCalledTimes(2);
 });
+
+it.each(["start_time", "end_time"] as const)("keeps invalid stored %s as a load error", async (field) => {
+  const log = jest.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    fetched({ ...event, [field]: "invalid-instant" });
+    renderLocale(<EditEventPage />, "en");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load event data");
+  } finally { log.mockRestore(); }
+});

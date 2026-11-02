@@ -183,6 +183,7 @@ export default function AssistantHost({
           <button
             type="button"
             tabIndex={launcherSuppressed ? -1 : undefined}
+            data-secondary-quick-add
             onClick={() => setQuickAddOpen(true)}
             disabled={panelBusy}
             className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
