@@ -9,6 +9,7 @@ export const mealsPageEnglish = {
   reviewOtherTab: "Review meals in another tab",
   checkSave: "Check the same save",
   meal: "Meal",
+  details: "Details · cook & notes",
   cook: "Cook (optional)",
   unassigned: "Unassigned",
   currentCook: "Current cook",
@@ -29,13 +30,15 @@ export const mealsPageEnglish = {
   today: "Today",
   saveFailed: "Couldn't save the meal",
   deleteFailed: "The meal was not deleted. Try again.",
-  deleteUnknown: "We couldn't confirm deleting {name}. Check the meal before trying again.",
+  deleteUnknown:
+    "We couldn't confirm deleting {name}. Check the meal before trying again.",
   checkDelete: "Check deletion",
   checkingDelete: "Checking deletion…",
   deleted: "Deleted {name}",
   alreadyGone: "{name} was already removed.",
   restoreUnconfirmed: "Couldn't confirm restoring {name}",
-  restoreHint: "The restore may have saved. Check the same request before adding the meal again.",
+  restoreHint:
+    "The restore may have saved. Check the same request before adding the meal again.",
   checkRestore: "Check same restore",
   breakfast: "Breakfast",
   lunch: "Lunch",
@@ -55,33 +58,40 @@ export const mealsPageSpanish: Record<keyof typeof mealsPageEnglish, string> = {
   reviewOtherTab: "Revisar comidas en otra pestaña",
   checkSave: "Comprobar el mismo guardado",
   meal: "Comida",
+  details: "Detalles · cocinero y notas",
   cook: "Cocinero (opcional)",
   unassigned: "Sin asignar",
   currentCook: "Cocinero actual",
   loadingCooks: "Cargando cocineros del hogar…",
-  cooksFailed: "No se pudieron cargar los cocineros. Se conservará la asignación actual.",
+  cooksFailed:
+    "No se pudieron cargar los cocineros. Se conservará la asignación actual.",
   viewRecipe: "Ver receta",
   servings: "Porciones (opcionales)",
-  servingsHint: "Déjalo vacío si no se ha indicado. De lo contrario, introduce entre 1 y 100.",
-  saveServings: "Guarda las porciones antes de añadir ingredientes a la compra.",
+  servingsHint:
+    "Déjalo vacío si no se ha indicado. De lo contrario, introduce entre 1 y 100.",
+  saveServings:
+    "Guarda las porciones antes de añadir ingredientes a la compra.",
   fridge: "Qué hay en la nevera",
   unsupportedWeek: "Semana no compatible",
   weeks: "Semanas de planificación de comidas",
   previousWeek: "Semana anterior",
   currentWeek: "Semana actual",
   nextWeek: "Semana siguiente",
-  weekHint: "Elige una semana compatible de siete días o vuelve a la semana actual.",
+  weekHint:
+    "Elige una semana compatible de siete días o vuelve a la semana actual.",
   connectionHint: "Comprueba tu conexión y vuelve a intentarlo.",
   today: "Hoy",
   saveFailed: "No se pudo guardar la comida",
   deleteFailed: "No se eliminó la comida. Vuelve a intentarlo.",
-  deleteUnknown: "No pudimos confirmar la eliminación de {name}. Comprueba la comida antes de volver a intentarlo.",
+  deleteUnknown:
+    "No pudimos confirmar la eliminación de {name}. Comprueba la comida antes de volver a intentarlo.",
   checkDelete: "Comprobar eliminación",
   checkingDelete: "Comprobando eliminación…",
   deleted: "Se eliminó {name}",
   alreadyGone: "{name} ya se había eliminado.",
   restoreUnconfirmed: "No pudimos confirmar la restauración de {name}",
-  restoreHint: "Puede haberse guardado. Comprueba la misma solicitud antes de añadir la comida otra vez.",
+  restoreHint:
+    "Puede haberse guardado. Comprueba la misma solicitud antes de añadir la comida otra vez.",
   checkRestore: "Comprobar restauración",
   breakfast: "Desayuno",
   lunch: "Almuerzo",
@@ -98,7 +108,10 @@ const messages = { en: mealsPageEnglish, es: mealsPageSpanish };
 export function useMealsPageText() {
   const { t } = useTranslation();
   return useCallback(
-    (key: keyof typeof mealsPageEnglish, params?: Record<string, string | number>) => t(key, params, messages),
+    (
+      key: keyof typeof mealsPageEnglish,
+      params?: Record<string, string | number>,
+    ) => t(key, params, messages),
     [t],
   );
 }

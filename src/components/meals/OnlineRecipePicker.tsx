@@ -185,6 +185,8 @@ export function OnlineRecipePicker({
         }}
         onCreated={(recipe) => {
           onEditingChange?.(false);
+          setEditing(false);
+          setPreview(null);
           onCreated(recipe);
         }}
         onSavingChange={onSavingChange}

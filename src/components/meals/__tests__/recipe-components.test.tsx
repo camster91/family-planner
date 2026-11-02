@@ -94,40 +94,65 @@ describe("RecipePicker", () => {
   it("loads another page only on request and keeps the chosen recipe visible", async () => {
     const user = userEvent.setup();
     const firstPage = Array.from({ length: 24 }, (_, index) => ({
-      ...SOUP, id: index === 0 ? SOUP.id : `r_${index}`,
+      ...SOUP,
+      id: index === 0 ? SOUP.id : `r_${index}`,
       title: index === 0 ? SOUP.title : `Recipe ${index}`,
     }));
     const calls = mockFetch((url) =>
       url.includes("offset=0")
         ? { status: 200, body: { recipes: firstPage, nextOffset: 24 } }
-        : { status: 200, body: { recipes: [{ ...SOUP, id: "r_late", title: "Zucchini bake" }], nextOffset: null } },
+        : {
+            status: 200,
+            body: {
+              recipes: [{ ...SOUP, id: "r_late", title: "Zucchini bake" }],
+              nextOffset: null,
+            },
+          },
     );
     render(<Harness />);
     await screen.findByRole("option", { name: SOUP.title });
     expect(calls).toHaveLength(1);
-    await user.selectOptions(screen.getByLabelText("Recipe (optional)"), SOUP.id);
+    await user.selectOptions(
+      screen.getByLabelText("Recipe (optional)"),
+      SOUP.id,
+    );
     await user.click(screen.getByRole("button", { name: "More recipes" }));
     await screen.findByRole("option", { name: "Zucchini bake" });
     expect(screen.getByRole("option", { name: SOUP.title })).toBeTruthy();
     expect(screen.queryByRole("option", { name: "Recipe 1" })).toBeNull();
-    expect((screen.getByLabelText("Recipe (optional)") as HTMLSelectElement).value).toBe(SOUP.id);
+    expect(
+      (screen.getByLabelText("Recipe (optional)") as HTMLSelectElement).value,
+    ).toBe(SOUP.id);
     expect(calls.map((call) => call.url)).toEqual([
-      "/api/recipes?limit=24&offset=0", "/api/recipes?limit=24&offset=24",
+      "/api/recipes?limit=24&offset=0",
+      "/api/recipes?limit=24&offset=24",
     ]);
   });
 
   it("searches the full library without submitting the meal or clearing its selection", async () => {
     const user = userEvent.setup();
     const onSubmit = jest.fn();
-    const calls = mockFetch((url) => ({ status: 200, body: {
-      recipes: url.includes("q=beans") ? [] : [SOUP], nextOffset: null,
-    } }));
+    const calls = mockFetch((url) => ({
+      status: 200,
+      body: {
+        recipes: url.includes("q=beans") ? [] : [SOUP],
+        nextOffset: null,
+      },
+    }));
     render(<Harness onSubmit={onSubmit} />);
     await screen.findByRole("option", { name: SOUP.title });
-    await user.selectOptions(screen.getByLabelText("Recipe (optional)"), SOUP.id);
-    await user.type(screen.getByRole("searchbox", { name: "Search saved recipes" }), "beans{Enter}");
+    await user.selectOptions(
+      screen.getByLabelText("Recipe (optional)"),
+      SOUP.id,
+    );
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search saved recipes" }),
+      "beans{Enter}",
+    );
     await screen.findByText("No matching recipes. Try another search.");
-    expect(calls[calls.length - 1].url).toBe("/api/recipes?limit=24&offset=0&q=beans");
+    expect(calls[calls.length - 1].url).toBe(
+      "/api/recipes?limit=24&offset=0&q=beans",
+    );
     expect(screen.getByTestId("selected").textContent).toBe(SOUP.title);
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -311,5 +336,32 @@ describe("RecipeDetail", () => {
       "Serves",
     ]);
     expect(screen.queryByRole("heading", { name: "Method" })).toBeNull();
+  });
+});
+
+describe("meal discovery continuity", () => {
+  it("opens discovery when requested and preserves its query across saved recipes", async () => {
+    mockFetch(() => ({
+      status: 200,
+      body: { recipes: [SOUP], nextOffset: null },
+    }));
+    const user = userEvent.setup();
+    render(<RecipePicker initiallyOnline value={null} onChange={jest.fn()} />);
+    const search = await screen.findByRole("searchbox", {
+      name: "What would you like to cook?",
+    });
+    await user.type(search, "quick soup");
+    await user.click(
+      screen.getByRole("button", { name: "Search saved recipes" }),
+    );
+    expect(search).not.toBeVisible();
+    await screen.findByRole("combobox", { name: "Recipe (optional)" });
+    await user.click(screen.getByRole("button", { name: "Find online" }));
+    expect(
+      screen.getByRole("searchbox", { name: "What would you like to cook?" }),
+    ).toHaveValue("quick soup");
+    expect(
+      screen.getByRole("searchbox", { name: "What would you like to cook?" }),
+    ).toBeVisible();
   });
 });

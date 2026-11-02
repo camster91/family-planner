@@ -211,14 +211,20 @@ function handler<T>(element: HTMLElement, name: string): T {
 
 describe("/dashboard/meals", () => {
   it("carries requested portions into the review editor without changing the recipe or saving", async () => {
-    window.history.replaceState({}, "", `/dashboard/meals?recipe=${LASAGNA.id}&compose=meal&servings=8&start=2026-01-08`);
+    window.history.replaceState(
+      {},
+      "",
+      `/dashboard/meals?recipe=${LASAGNA.id}&compose=meal&servings=8&start=2026-01-08`,
+    );
     const { calls } = setup({ meals: [] });
     const dialog = await screen.findByTestId("meal-modal");
     expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-01-08");
     expect(within(dialog).getByLabelText("Servings (optional)")).toHaveValue(8);
     expect(LASAGNA.servings).toBe(6);
     expect(calls.filter((call) => call.method !== "GET")).toEqual([]);
-    await waitFor(() => expect(window.location.search).toBe("?start=2026-01-08"));
+    await waitFor(() =>
+      expect(window.location.search).toBe("?start=2026-01-08"),
+    );
   });
   it("shows all seven dinners first and discloses other slots per day without writes", async () => {
     const user = userEvent.setup();
@@ -246,7 +252,9 @@ describe("/dashboard/meals", () => {
       expect.stringContaining("Green salad"),
     ]);
     expect(
-      within(card).queryByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
+      within(card).queryByRole("button", {
+        name: /^Add breakfast Nothing planned ?,/i,
+      }),
     ).toBeNull();
     const disclosure = within(card).getByRole("button", {
       name: /Other meals/,
@@ -259,7 +267,9 @@ describe("/dashboard/meals", () => {
         ?.hidden,
     ).toBe(false);
     expect(
-      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
+      within(card).getByRole("button", {
+        name: /^Add breakfast Nothing planned ?,/i,
+      }),
     ).toBeTruthy();
     expect(within(card).getAllByTestId("meal-row")).toHaveLength(3);
     expect(
@@ -278,7 +288,9 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
-      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
+      within(card).getByRole("button", {
+        name: /^Add breakfast Nothing planned ?,/i,
+      }),
     );
     await user.type(screen.getByLabelText("Recipe name"), "Porridge");
     let release!: (response: Response) => void;
@@ -419,6 +431,9 @@ describe("/dashboard/meals", () => {
       }
       const dialog = screen.getByRole("dialog");
       await user.click(
+        within(dialog).getByRole("button", { name: "Search saved recipes" }),
+      );
+      await user.click(
         within(dialog).getByRole("button", { name: "New recipe" }),
       );
       const editor = await screen.findByTestId("recipe-quick-create");
@@ -530,6 +545,9 @@ describe("/dashboard/meals", () => {
         await user.click(await screen.findByTestId("meal-row"));
       }
       const dialog = screen.getByRole("dialog");
+      await user.click(
+        within(dialog).getByRole("button", { name: "Search saved recipes" }),
+      );
       const newRecipe = within(dialog).getByRole("button", {
         name: "New recipe",
       });
@@ -841,7 +859,9 @@ describe("/dashboard/meals", () => {
       within(await todayCard()).getByRole("button", { name: /Other meals/ }),
     );
     await user.click(
-      within(await todayCard()).getByRole("button", { name: /^Add lunch Nothing planned ?,/i }),
+      within(await todayCard()).getByRole("button", {
+        name: /^Add lunch Nothing planned ?,/i,
+      }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Servings (optional)"), "1");
@@ -1083,7 +1103,11 @@ describe("/dashboard/meals", () => {
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
-    await user.click(within(card).getByRole("button", { name: /^Add snack Nothing planned ?,/i }));
+    await user.click(
+      within(card).getByRole("button", {
+        name: /^Add snack Nothing planned ?,/i,
+      }),
+    );
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("option", { name: "Sam" });
     await user.selectOptions(
@@ -1272,7 +1296,9 @@ describe("/dashboard/meals", () => {
     );
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(await screen.findByText("Green salad was already removed.")).toBeVisible();
+    expect(
+      await screen.findByText("Green salad was already removed."),
+    ).toBeVisible();
     expect(screen.queryByTestId("undo-toast")).toBeNull();
     expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
   });
@@ -1300,9 +1326,7 @@ describe("/dashboard/meals", () => {
     const deletes = calls.filter((call) => call.method === "DELETE");
     expect(deletes).toHaveLength(1);
 
-    await user.click(
-      screen.getByRole("button", { name: "Check deletion" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Check deletion" }));
     await waitFor(() =>
       expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1),
     );
@@ -1414,7 +1438,9 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
-      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
+      within(card).getByRole("button", {
+        name: /^Add breakfast Nothing planned ?,/i,
+      }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Recipe name"), "Porridge");
@@ -1434,9 +1460,14 @@ describe("/dashboard/meals", () => {
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
     await user.click(
-      within(card).getByRole("button", { name: /^Add dinner Nothing planned ?,/i }),
+      within(card).getByRole("button", {
+        name: /^Add dinner Nothing planned ?,/i,
+      }),
     );
     const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Search saved recipes" }),
+    );
     const picker = within(dialog).getByLabelText("Recipe (optional)");
     await within(dialog).findByRole("option", { name: "Veggie lasagna" });
     await user.selectOptions(picker, "r_lasagna");
@@ -1458,6 +1489,7 @@ describe("/dashboard/meals", () => {
       meal_type: "dinner",
       recipe_name: "Veggie lasagna",
       recipe_id: "r_lasagna",
+      servings: 6,
     });
   });
 
@@ -1604,7 +1636,9 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
-      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
+      within(card).getByRole("button", {
+        name: /^Add breakfast Nothing planned ?,/i,
+      }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Recipe name"), "Porridge");
