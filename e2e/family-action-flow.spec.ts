@@ -78,6 +78,19 @@ test("Today Add or ask leads to a composer without starting AI or writes", async
   ).toBe(true);
 });
 
+test("calendar connections menu stays inside the screen", async ({ page }) => {
+  await page.goto("/dashboard/calendar");
+  const menu = page.locator("details").filter({
+    has: page.locator("summary[aria-label='Calendars & connections']"),
+  });
+  await menu.locator("summary").click();
+  await expect(menu.getByRole("combobox", { name: "Calendar source" })).toBeVisible();
+  const box = await menu.locator(":scope > div").boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+});
+
 test("photo handoff explains unavailable capture and offers manual entry", async ({
   page,
 }) => {
@@ -227,6 +240,9 @@ for (const kind of ["meal", "prep"] as const) {
       kind === "meal" ? "meal-modal" : "meal-prep-editor",
     );
     await expect(editor).toBeVisible();
+    const backdrop = await editor.locator("..").boundingBox();
+    expect(backdrop!.y).toBe(0);
+    expect(backdrop!.height).toBe(page.viewportSize()!.height);
     await expect(
       editor.getByLabel(kind === "meal" ? "Date" : "Preparation day", {
         exact: true,
@@ -242,6 +258,9 @@ for (const kind of ["meal", "prep"] as const) {
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    await editor.evaluate(async (element) => {
+      await Promise.all(element.getAnimations().map((animation) => animation.finished));
+    });
     await info.attach(`recipe-${kind}-handoff`, {
       body: await page.screenshot(),
       contentType: "image/png",
