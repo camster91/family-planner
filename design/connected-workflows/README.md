@@ -1,0 +1,47 @@
+# Connected workflow studies — #499 / #460
+
+Status: proposed, interactive local design/spec reference, not production implementation. Canonical plan: https://github.com/camster91/family-planner/issues/499. Source baseline `c9e2ec1c1562ff9de034fecce31e55deda742637`. Uses the accepted Glance and act direction, existing Woven Grove palette, unchanged H asset and navigation. No new backend, provider, role or feature removal.
+
+Run from repository root: `python3 -m http.server 18427 --bind 127.0.0.1`, then open `/design/connected-workflows/index.html`. Prototype only, fabricated data, no online search, persistence, authentication or production mutation. Browser-local sample selections reset on reload. Navigation includes explicitly out-of-scope destinations. Toasts disclose interactions that are only explanatory. System/Georgia typography is a local approximation, not proof of exact production fonts. This supplements existing Figma references in `design/APPROVED_UI_ROLLOUT.md`; it does not claim a new Figma approval.
+
+## Source findings and disposition
+
+| Surface / source | Observed source | Proposed disposition |
+|---|---|---|
+| Today: `src/components/fridge/TodayBoard.tsx`, `TodayControls.tsx` | Add-or-ask and one controls menu already consolidate earlier duplicate controls; layout editor sits inside menu. Clock/update/fridge entry have responsive visibility rules. | Preserve those improvements. Use a compact heading and meaningful Next up content. Do not report old screenshots as current runtime defects. Validate actual eligibility rules and rendering before changing fridge entry. |
+| Meals: `src/app/dashboard/meals/page.tsx` | Header Add Meal/inventory link, separate Plan/Explore/Prep navigation, independent FoodPlanningLauncher, week controls. | Keep one view row, contextual week navigation, one dominant Plan action. Fold assisted planning into the relevant chooser/prep intent; preserve its grounded review/recovery behavior. Inventory remains reachable. |
+| Add Meal: same page, `src/components/meals/RecipePicker.tsx` | Date, slot, name, saved query, saved select, New recipe, cook, notes and servings compete in the editor. | Replace competing recipe inputs with intent-based choice. Keep context; ask servings once; secondary cook/notes. Quick meal remains. Do not just wrap the same long form in more accordions. |
+| Discovery: `src/app/dashboard/meals/explore/page.tsx`, recipes discover/preview APIs | Discovery and import already exist separately from saved picker. | Extract/reuse the discovery controller and preview UI, preserve source attribution, duplicate review and current owner/cancellation guards. Not a new parallel discovery backend. |
+| Calendar: `CalendarPageClient.tsx`, `CalendarPlanner.tsx` | Planner owns source selector/view/date controls; capture passed into header; import also mounted as separate trailing action. | One date/view toolbar. Connections, import and capture grouped predictably beside calendar sources, with frequent Add event distinct. Preserve deep links, subscription read-only rules, overlap and duration semantics. Agenda study only; week grid remains to be designed/verified. |
+
+`ROUTE_INVENTORY.md` enumerates current page sources. It is not a completed per-screen controls audit. This slice manually traces the three exemplars; remaining routes need component-level inspection, populated/empty states and actual role/device evidence.
+
+## Prototype flow and implementation contract
+
+1. Today → Find dinner or Meals → Plan a meal retains meal day/slot.
+2. Find recipes / Saved / Paste link / Quick meal are mutually exclusive modes inside one chooser. Saved should initially show actual favorites/recent recipes; no false empty library during loading.
+3. Results → preview keeps query/scroll/filters and draft context on Back. Show publisher, available timing and serving details; don't fabricate missing data. Unavailable discovery offers retry/paste/quick meal while retaining input.
+4. Plan this meal → confirm chosen recipe, context and servings. Cook/notes secondary. No duplicate recipe-name field unless a quick meal is selected. Existing recipe edits need explicit policy and must not mutate shared recipes accidentally.
+5. Save → real confirmed result with next step Review groceries. Pending blocks duplicate saves. Unknown outcomes reconcile the original idempotent operation; navigation must preserve recovery context. No optimistic claim of persistence.
+6. Grocery review → select missing amounts using canonical recipe/stock data, handle unknown units conservatively, choose destination if multiple grocery lists, append idempotently. Link to actual resulting list. Stock consumption is a separate explicit action, never inferred from adding groceries.
+7. Cook/leftovers/reuse and multi-dish prep continue through existing meal/batch/portion APIs. These screens are not fully mocked in this slice and remain required before #460 is complete.
+
+Canonical adapters to reuse: `/api/recipes/discover`, `/api/recipes/preview`, `/api/recipes`, `/api/recipes/[id]/curation`, `/api/recipes/collections`, `/api/meals/create`, existing meal mutation/recovery controller, AddToGroceriesButton and current bulk APIs. Verify request/response and ownership contracts before extraction; endpoint presence does not prove live provider success. One household scope and current authorization apply throughout.
+
+## People, devices and states
+
+- Study is the parent personal view only. Teen/child permissions, emergency access and email-free assignments remain separate required examples. Do not use cosmetic role toggles as authorization evidence.
+- Shared device: show only approved household content; no account entry/private messages, finances, care records or precise private addresses by default. Parent personal prototype is not a shared-device design.
+- Phone: bottom navigation, agenda/day rows, near-full-height bottom sheet. Tablet/desktop: top navigation, meaningful multi-column content, wider editor. Long tasks can scroll intentionally; don't shrink text or hide useful content just to fit one screen.
+- Keyboard: native dialog focuses/traps and closes with Escape. Production must retain opener focus, draft/discard and pending-close semantics; this disposable prototype does not implement draft recovery.
+- Required production states: loading without layout jumps, no recipes, no matches, partial metadata, inaccessible source, invalid URL, provider timeout, forbidden role, stale session, offline, interrupted save, existing duplicate, pending confirmation, successful save and undo where supported. These are specification requirements, not completed prototype coverage.
+
+## Delivery cut and compatibility
+
+First implementation PR: extract one meal chooser using existing saved and discovery controllers; integrate it into Add Meal with date/slot/servings/return context, translations and same mutation controller. Preserve edit-meal flow, current canonical routes, favorites/collections, bulk recipe linking, API compatibility and existing recovery behavior. No schema migration or provider activation expected; assess before changing either.
+
+Validate the selected journey with an empty household and populated recipe library at phone/tablet/desktop sizes, plus ownership refusal, failure/retry, draft preservation and duplicate prevention. Record real search/import coverage separately. Rollback is UI composition reverting to the existing editor without changing records or API contracts. Today/Calendar production changes follow the same shared patterns after this first slice proves useful.
+
+## Evidence and remaining work
+
+Local prototype checks cover three screen compositions at 390×844, 800×1280 and 1366×768 plus recipe selection → confirmation → grocery review → return. These are simulated interactions only. Screenshots/check receipts live in the sibling `artifacts/connected-workflows-20261102` directory. No production app screenshots, runtime provider success, full accessibility audit, shared-device acceptance or native acceptance are claimed. Broader inventory/role/state studies and live-backend implementation remain open in #499/#460.
