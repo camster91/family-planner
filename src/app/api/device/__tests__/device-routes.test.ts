@@ -232,7 +232,7 @@ describe('device routes', () => {
       expect(body).toEqual({
         device: { id: D1, label: 'Kitchen tablet' },
         household: { name: 'Household A' },
-        features: { calendar: true, chores: true, meals: true, lists: true, calling: false },
+        features: { calendar: true, chores: true, meals: true, lists: true },
         parents: [{ id: 'parent-a', name: 'Parent A', hasPin: true }],
         elevation: { active: false, memberId: null, expiresAt: null },
         // #274: tablet writes are the household's opt-in, off by default.

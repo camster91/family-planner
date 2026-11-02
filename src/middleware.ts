@@ -325,12 +325,12 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
 
 // One runtime policy for successful pages, redirects and early refusals.
 // Keep it out of Next's global static headers: duplicate directives can deny
-// media even when the runtime calling flag explicitly permits the page.
+// media used by explicit voice assistance and photo/scan actions.
 export async function middleware(request: NextRequest) {
   const response = await handleMiddleware(request)
   const path = request.nextUrl.pathname
-  const callingPage = path === '/dashboard' || path.startsWith('/dashboard/') || path === '/device/today'
-  response.headers.set('Permissions-Policy', process.env.CALLING_ENABLED === '1' && callingPage
+  const capturePage = path === '/dashboard' || path.startsWith('/dashboard/') || path === '/device/today'
+  response.headers.set('Permissions-Policy', capturePage
     ? 'camera=(self), microphone=(self), geolocation=()'
     : 'camera=(), microphone=(), geolocation=()')
   return response

@@ -29,10 +29,6 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "FAMILY_CALLS",
-        "class_name": "FamilyCallRoom"
-      },
-      {
         "name": "APP_COMPUTE_POOL",
         "class_name": "HerewovenComputePool"
       }
@@ -54,8 +50,7 @@
   ],
   "vars": {
     "NEXT_PUBLIC_APP_URL": "https://herewoven.com",
-    "HEREWOVEN_STORAGE": "d1",
-    "CALLING_ENABLED": "1"
+    "HEREWOVEN_STORAGE": "d1"
   },
   "account_id": "1f5acce966c81fbe36ae06521414d0b8",
   "d1_databases": [
