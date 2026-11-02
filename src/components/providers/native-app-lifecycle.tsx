@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { watchNativeResume } from '@/lib/native-app'
+import { watchNativeApp } from '@/lib/native-app-lazy'
 
 export function NativeAppLifecycle() {
-  useEffect(() => watchNativeResume(() => window.dispatchEvent(new Event('focus'))), [])
+  useEffect(() => watchNativeApp(native => native.watchNativeResume(() => window.dispatchEvent(new Event('focus')))), [])
   return null
 }

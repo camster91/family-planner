@@ -108,7 +108,7 @@ test("parent planning: real range, fixed clock geometry, source empty, detail an
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   await page.goto("/dashboard/calendar?date=2026-01-05&view=week");
   const dentist = page.getByRole("button", { name: /Dentist \(Casey\)/ });
   await expect(dentist).toBeVisible();
@@ -177,7 +177,7 @@ test("phone defaults to agenda, explicit week wins, teen can open details but no
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginViaUi(page, FIXTURE_EMAILS.familyA.teen);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  await expect(page).toHaveURL(/\/dashboard$/);
   const requests: string[] = [];
   page.on("request", (request) => requests.push(request.url()));
   await page.goto("/dashboard/calendar?date=2026-01-05");
@@ -211,7 +211,7 @@ test("actual range requests use 23- and 25-hour viewer days at DST boundaries", 
   page,
 }) => {
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   for (const [date, hours] of [
     ["2026-03-08", 23],
     ["2026-11-01", 25],
@@ -234,7 +234,7 @@ test("failed real request is not empty and Retry recovers", async ({
   page,
 }) => {
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   await page.route("**/api/events?*", (route) => route.abort());
   await page.goto("/dashboard/calendar?date=2026-01-05&view=agenda");
   await expect(
@@ -253,7 +253,7 @@ test("actual planning region has no axe AA violations in light and dark phone st
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await page.goto("/dashboard/calendar?date=2026-01-05&view=agenda");
@@ -302,7 +302,7 @@ test("real edge fixtures: clock-change Agenda and bounded late-event geometry", 
   );
   expect(baseURL).toBe("http://127.0.0.1:3217");
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/, { timeout: 30000 });
+  await expect(page).toHaveURL(/\/dashboard\/today$/, { timeout: 30000 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const rows = [
@@ -510,7 +510,7 @@ for (const [zone, unsupported, valid, direction] of [
       page,
     }) => {
       await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-      await expect(page).toHaveURL(/\/dashboard(?:\/|$)/, { timeout: 30000 });
+      await expect(page).toHaveURL(/\/dashboard\/today$/, { timeout: 30000 });
       const requests: string[] = [];
       page.on("request", (request) => {
         const url = new URL(request.url());
