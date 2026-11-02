@@ -257,6 +257,7 @@ for (const locale of ["en", "es"] as const) {
       const cleanAudit = await ownFeatureAudit(["gamification", "rewards"]);
       let originalFeatures: Record<string, unknown> | undefined;
       let featureChanged = false;
+      let savedReward: unknown;
       let mode: "failure" | "pending" | "unknown" = "failure";
       let finishPendingRequest:
         ((continueRequest: boolean) => void) | undefined;
@@ -297,7 +298,9 @@ for (const locale of ["en", "es"] as const) {
         });
         if (continueRequest) {
           ownedReceiptKeys.add(idempotencyKey);
-          await route.continue();
+          const upstream = await route.fetch();
+          savedReward = await upstream.json();
+          await route.fulfill({ response: upstream });
         } else await route.abort();
       });
 
@@ -424,7 +427,7 @@ for (const locale of ["en", "es"] as const) {
             )
             .then(async (response) => ({
               status: response.status(),
-              body: await response.json(),
+              body: savedReward,
             }));
           finishPendingRequest?.(true);
           const [rewardResponse] = await Promise.all([

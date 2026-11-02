@@ -406,20 +406,26 @@ async function createWish(
     .getByLabel(copy.description, { exact: true })
     .fill(fields.description);
   await dialog.getByLabel(copy.price, { exact: true }).fill(fields.price);
-  const responsePromise = page
-    .waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        new URL(response.url()).pathname === "/api/wishlist",
-    )
-    .then(async (response) => ({
-      status: response.status(),
-      body: await response.text(),
-    }));
+  let savedBody = "";
+  const captureSave = async (
+    route: Parameters<Parameters<Page["route"]>[1]>[0],
+  ) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const upstream = await route.fetch();
+    savedBody = await upstream.text();
+    await route.fulfill({ response: upstream });
+  };
+  await page.route("**/api/wishlist", captureSave);
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/wishlist",
+  );
   await dialog.getByRole("button", { name: copy.save, exact: true }).click();
   const response = await responsePromise;
-  expect(response.status).toBe(201);
-  const item = parseItem(response.body);
+  await page.unroute("**/api/wishlist", captureSave);
+  expect(response.status()).toBe(201);
+  const item = parseItem(savedBody);
   await expect(dialog).toHaveCount(0);
   // The confirmed row can render before the create handler releases its
   // submitting lock. Audit the settled surface, not a changing disabled paint.
