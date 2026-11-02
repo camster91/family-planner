@@ -37,6 +37,7 @@ export function BulkCookingPanel({
   onMealsChanged,
   onContext,
   reuseRecipeId,
+  reuseServings,
   autoUseRecipe = false,
   onDismissReuse,
   preparedReuse = { state: "none" },
@@ -50,6 +51,7 @@ export function BulkCookingPanel({
   onContext: (scope: MealPrepContext | null) => void;
   autoUseRecipe?: boolean;
   reuseRecipeId?: string | null;
+  reuseServings?: number;
   onDismissReuse?: () => void;
   preparedReuse?: PreparedReuseIntent;
   onDismissPreparedReuse?: () => void;
@@ -86,6 +88,7 @@ export function BulkCookingPanel({
     day: string;
     seed?: MealPrepSummary;
     recipe?: RecipeOption;
+    portions?: number;
     restoredDraft?: Extract<PrepDraft, { kind: "create" }>;
   } | null>(null);
   const [modal, setModal] = React.useState<{
@@ -524,7 +527,9 @@ export function BulkCookingPanel({
               autoUse={autoUseRecipe}
               onDismiss={onDismissReuse}
               kind="prep"
-              onUse={(recipe) => setEditor({ day: defaultDay, recipe })}
+              onUse={(recipe) =>
+                setEditor({ day: defaultDay, recipe, portions: reuseServings })
+              }
             />
           )}
         {current && !forbidden && (
@@ -748,6 +753,7 @@ export function BulkCookingPanel({
               defaultDay={editor.day}
               seed={editor.seed}
               initialRecipe={editor.recipe}
+              initialPortions={editor.portions}
               freshWritesBlocked={mutationsBlocked}
               onClose={() => setEditor(null)}
               onSaved={saved}

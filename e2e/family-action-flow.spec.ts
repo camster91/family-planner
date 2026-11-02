@@ -221,7 +221,7 @@ test("wide Today puts dinner beside the schedule without changing saved section 
 });
 
 for (const kind of ["meal", "prep"] as const) {
-  test(`recipe opens ${kind} editor with its day and no automatic save`, async ({
+  test(`recipe opens ${kind} editor with its day, portions and no automatic save`, async ({
     page,
   }, info) => {
     const writes: string[] = [];
@@ -235,6 +235,7 @@ for (const kind of ["meal", "prep"] as const) {
     await page.goto(
       "/dashboard/meals/recipes/fx_recipe_a_lasagna?start=2026-01-08",
     );
+    await page.getByRole("spinbutton", { name: "Cooking portions" }).fill("8");
     await page
       .getByRole("link", {
         name: kind === "meal" ? "Plan a meal" : "Add to prep",
@@ -258,6 +259,12 @@ for (const kind of ["meal", "prep"] as const) {
     await expect(
       editor.getByRole("combobox", { name: "Recipe (optional)", exact: true }),
     ).toHaveValue("fx_recipe_a_lasagna");
+    await expect(
+      editor.getByRole("spinbutton", {
+        name: kind === "meal" ? "Servings (optional)" : "Total portions",
+        exact: true,
+      }),
+    ).toHaveValue("8");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

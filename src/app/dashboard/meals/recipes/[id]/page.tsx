@@ -192,7 +192,7 @@ function RecipePageInner() {
                     {detailText("reviewUsed")}
                   </Link>
                   <Link
-                    href={`/dashboard/meals?recipe=${encodeURIComponent(load.recipe.id)}&compose=meal`}
+                    href={`/dashboard/meals?recipe=${encodeURIComponent(load.recipe.id)}&compose=meal${servings ? `&servings=${servings}` : ""}`}
                     onClick={guardGrocery}
                     aria-disabled={groceryPending}
                     className="btn-filled min-h-[44px]"
@@ -200,7 +200,7 @@ function RecipePageInner() {
                     {detailText("planMeal")}
                   </Link>
                   <Link
-                    href={`/dashboard/meals?view=bulk&recipe=${encodeURIComponent(load.recipe.id)}&compose=prep`}
+                    href={`/dashboard/meals?view=bulk&recipe=${encodeURIComponent(load.recipe.id)}&compose=prep${servings ? `&servings=${servings}` : ""}`}
                     onClick={guardGrocery}
                     aria-disabled={groceryPending}
                     className="btn-tinted min-h-[44px]"

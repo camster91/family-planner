@@ -38,7 +38,7 @@ test("Routines keeps Today actionable and other repeating chores dated, grouped 
   // bucket. The app's authentication and rate-limit policy are unchanged.
   await page.setExtraHTTPHeaders({ "X-Forwarded-For": "198.51.100.243" });
   await loginViaUi(page, FIXTURE_EMAILS.familyA.parent);
-  await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  await expect(page).toHaveURL(/\/dashboard\/today$/);
   // Own a fresh series: generated non-fixture copies from earlier local runs
   // are intentionally not removed by fixture seeding. Shared fixture state
   // must not determine this test's expected group count.

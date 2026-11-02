@@ -1,5 +1,12 @@
 /** Authored for the deferred QA pass; not executed during source recovery. */
-import { mealDayHref } from "../meal-navigation";
+import { mealDayHref, recipeReuseServings } from "../meal-navigation";
+
+it("accepts only bounded whole-number serving requests without changing the recipe", () => {
+  expect(recipeReuseServings("8")).toBe(8);
+  expect(recipeReuseServings("100")).toBe(100);
+  for (const value of [null, "", "0", "-1", "1.5", "1e2", "101", "8000000"])
+    expect(recipeReuseServings(value)).toBeUndefined();
+});
 
 it("retains the viewed calendar day and existing planner context", () => {
   expect(mealDayHref("/dashboard/meals?view=bulk&recipe=fixture#plan", "2026-11-02"))

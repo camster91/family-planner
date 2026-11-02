@@ -355,9 +355,20 @@ for (const locale of ["en", "es"] as const) {
           await name.fill(rewardName);
           await description.fill("Keep this draft while retrying.");
           await submit.click();
-          await expect(form.getByRole("alert")).toContainText(
-            surface === "sheet" ? copy.permissionError : copy.permissionError,
-          );
+          await expect(form.getByRole("alert")).toContainText(copy.accessHold);
+          await expect(
+            form.getByRole("button", { name: copy.create, exact: true }),
+          ).toHaveCount(0);
+          // A permission refusal holds this owner. Only a fresh canonical
+          // owner read may restore the editor; it must retain the original draft.
+          await form
+            .getByRole("button", { name: copy.checkRewards, exact: true })
+            .click();
+          await expect(page).toHaveURL(/\/dashboard\/rewards$/);
+          form = await openSurface(page, surface, locale);
+          name = form.getByLabel(new RegExp(copy.name));
+          description = form.getByLabel(copy.description, { exact: false });
+          submit = form.getByRole("button", { name: copy.create, exact: true });
           await expect(name).toHaveValue(rewardName);
           await expect(description).toHaveValue(
             "Keep this draft while retrying.",
@@ -405,18 +416,23 @@ for (const locale of ["en", "es"] as const) {
             await expect(page).toHaveURL(/\/dashboard\/rewards\/create$/);
           }
 
-          const rewardResponsePromise = page.waitForResponse(
-            (response) =>
-              response.url().endsWith("/api/rewards") &&
-              response.request().method() === "POST",
-          );
+          const rewardResponsePromise = page
+            .waitForResponse(
+              (response) =>
+                response.url().endsWith("/api/rewards") &&
+                response.request().method() === "POST",
+            )
+            .then(async (response) => ({
+              status: response.status(),
+              body: await response.json(),
+            }));
           finishPendingRequest?.(true);
           const [rewardResponse] = await Promise.all([
             rewardResponsePromise,
             pendingClick,
           ]);
-          expect(rewardResponse.status()).toBe(200);
-          const created = (await rewardResponse.json()) as {
+          expect(rewardResponse.status).toBe(200);
+          const created = rewardResponse.body as {
             reward?: {
               id?: unknown;
               family_id?: unknown;
@@ -475,7 +491,10 @@ for (const locale of ["en", "es"] as const) {
         // The direct flow deliberately aborts a request after it reaches the
         // server, reloads, then retries the exact same canonical body/key.
         expect(postIdempotencyKeys[3]).toBe(postIdempotencyKeys[4]);
-        expect(new Set(postIdempotencyKeys).size).toBe(4);
+        // A refused request keeps its key when the restored draft is unchanged.
+        expect(postIdempotencyKeys[0]).toBe(postIdempotencyKeys[1]);
+        expect(postIdempotencyKeys[2]).toBe(postIdempotencyKeys[3]);
+        expect(new Set(postIdempotencyKeys).size).toBe(2);
         for (const key of postIdempotencyKeys) {
           expect(isValidIdempotencyKey(key)).toBe(true);
         }

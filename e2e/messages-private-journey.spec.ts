@@ -364,12 +364,12 @@ test.describe("Messages private send and recovery", () => {
             body,
           });
         };
-        await page.route("**/api/messages/attachments", attachmentRoute);
+        await page.route("**/api/messages/attachments/owned", attachmentRoute);
 
         messagesRoute = async (route) => {
           const request = route.request();
           const url = new URL(request.url());
-          if (url.pathname !== "/api/messages") {
+          if (!["/api/messages", "/api/messages/send"].includes(url.pathname)) {
             await route.continue();
             return;
           }
@@ -401,6 +401,7 @@ test.describe("Messages private send and recovery", () => {
           await route.fulfill({ response: upstream });
         };
         await page.route("**/api/messages", messagesRoute);
+        await page.route("**/api/messages/send", messagesRoute);
 
         await page.goto("/dashboard/messages");
         await assertSurface(page, locale, true);
@@ -526,9 +527,15 @@ test.describe("Messages private send and recovery", () => {
           contentType: "image/png",
         });
       } finally {
-        if (messagesRoute) await page.unroute("**/api/messages", messagesRoute);
+        if (messagesRoute) {
+          await page.unroute("**/api/messages", messagesRoute);
+          await page.unroute("**/api/messages/send", messagesRoute);
+        }
         if (attachmentRoute) {
-          await page.unroute("**/api/messages/attachments", attachmentRoute);
+          await page.unroute(
+            "**/api/messages/attachments/owned",
+            attachmentRoute,
+          );
         }
         try {
           if (parentMessageId === undefined) {

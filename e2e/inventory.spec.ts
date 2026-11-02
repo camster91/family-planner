@@ -622,6 +622,15 @@ test.describe("inventory (Family A parent)", () => {
       });
       expect(state).toEqual({ rows: [], records: [] });
     };
+    let reviewBody: unknown;
+    await page.route(
+      "**/api/lists/items/from-recipe/review?*",
+      async (route) => {
+        const upstream = await route.fetch();
+        reviewBody = await upstream.json();
+        await route.fulfill({ response: upstream });
+      },
+    );
     const openReview = async () => {
       const [loaded] = await Promise.all([
         page
@@ -631,9 +640,9 @@ test.describe("inventory (Family A parent)", () => {
                 "/api/lists/items/from-recipe/review" &&
               r.request().method() === "GET",
           )
-          .then(async (response) => ({
+          .then((response) => ({
             status: response.status(),
-            data: await response.json(),
+            data: reviewBody,
           })),
         lasagna
           .getByRole("button", {
@@ -642,7 +651,7 @@ test.describe("inventory (Family A parent)", () => {
           .click(),
       ]);
       expect(loaded.status).toBe(200);
-      const data = loaded.data;
+      const data = loaded.data as { ingredients: { ingredientId: string }[] };
       expect(data).toMatchObject({
         recipeId: L.recipeLasagna,
         defaultListId: A.groceryList,

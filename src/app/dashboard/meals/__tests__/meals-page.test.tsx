@@ -119,6 +119,8 @@ function setup({
             { id: "cook_b", name: "Sam", role: "teen" },
           ],
         });
+      if (url === `/api/recipes/${LASAGNA.id}`)
+        return json(200, { recipe: LASAGNA });
       if (url.startsWith("/api/recipes"))
         return json(200, { recipes: [LASAGNA], nextOffset: null });
       if (url.startsWith("/api/meals/") && method === "GET") {
@@ -208,6 +210,16 @@ function handler<T>(element: HTMLElement, name: string): T {
 }
 
 describe("/dashboard/meals", () => {
+  it("carries requested portions into the review editor without changing the recipe or saving", async () => {
+    window.history.replaceState({}, "", `/dashboard/meals?recipe=${LASAGNA.id}&compose=meal&servings=8&start=2026-01-08`);
+    const { calls } = setup({ meals: [] });
+    const dialog = await screen.findByTestId("meal-modal");
+    expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-01-08");
+    expect(within(dialog).getByLabelText("Servings (optional)")).toHaveValue(8);
+    expect(LASAGNA.servings).toBe(6);
+    expect(calls.filter((call) => call.method !== "GET")).toEqual([]);
+    await waitFor(() => expect(window.location.search).toBe("?start=2026-01-08"));
+  });
   it("shows all seven dinners first and discloses other slots per day without writes", async () => {
     const user = userEvent.setup();
     const { calls } = setup({
