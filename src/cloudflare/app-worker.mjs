@@ -15,16 +15,20 @@ import {
   forwardToOpenNext,
 } from "./app-worker-runtime.ts";
 
-import { FamilyCallRoomCore } from "../lib/calling/room.ts";
-import { forwardCallingSocket } from "../lib/calling/ingress.ts";
+import { retiredCallingResponse, retireCallSocket, isRetiredCallingPath } from "./retired-calling.ts";
 const appRouter = createAppWorkerRouter();
 
+// Keep the deployed class export/migration identity for existing objects.
+// The service is retired: no grants, provider calls, new sessions or signaling.
 export class FamilyCallRoom extends DurableObject {
-  constructor(ctx, env) { super(ctx, env); this.room = new FamilyCallRoomCore(ctx, env); }
-  fetch(request) { return this.room.fetch(request); }
-  webSocketMessage(socket, message) { return this.room.webSocketMessage(socket, message); }
-  webSocketClose(socket) { return this.room.webSocketClose(socket); }
-  webSocketError(socket) { return this.room.webSocketClose(socket); }
+  constructor(ctx, env) {
+    super(ctx, env);
+    for (const socket of ctx.getWebSockets()) retireCallSocket(socket);
+  }
+  fetch() { return retiredCallingResponse(); }
+  webSocketMessage(socket) { retireCallSocket(socket); }
+  webSocketClose(socket) { retireCallSocket(socket); }
+  webSocketError(socket) { retireCallSocket(socket); }
 }
 
 /**
@@ -48,7 +52,8 @@ export default {
     // Static assets still follow wrangler's existing `ASSETS` /
     // `run_worker_first` policy. Requests reaching the Worker are delegated
     // to the generated OpenNext handler through the bounded DO pool.
-    if (new URL(request.url).pathname === "/api/calls/socket") return await forwardCallingSocket(request, env);
+    const path = new URL(request.url).pathname;
+    if (isRetiredCallingPath(path)) return retiredCallingResponse();
     return await appRouter.fetch(request, env);
   },
 };

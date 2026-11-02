@@ -9,7 +9,7 @@ const path = require('node:path')
 // layers never disagree. If you change one, change the other.
 //
 // - Middleware owns Permissions-Policy at runtime, including early replies.
-//   Only an enabled calling page can request same-origin microphone/camera.
+//   App capture pages can request same-origin microphone/camera for explicit voice and photo actions.
 //   Static paths excluded by its matcher retain the deny-all fallback below;
 //   a competing global header would block calls when Next combines headers.
 // - X-Frame-Options DENY: no route is intended to be framed. The Capacitor

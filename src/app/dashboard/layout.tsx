@@ -14,7 +14,6 @@ import ResponsibilityProvider from "@/components/responsibility/ResponsibilityPr
 import { responsibilityReady } from "@/lib/responsibility-owner";
 import AssistantHost from "@/components/assistant/AssistantHost";
 import { ReactNode } from "react";
-import { DashboardCallingProvider } from "@/components/calling/CallingProvider";
 import {
   SignedOutDashboard,
   DashboardSkipLink,
@@ -152,7 +151,6 @@ export default async function DashboardLayout({
           initial={initialFeatures}
           canManage={role === "parent"}
         >
-          <DashboardCallingProvider available={process.env.CALLING_ENABLED === "1"} identityKey={`${sessionUser.id}:${sessionUser.family_id || ""}`}>
           <Suspense fallback={null}>
             <PreparationProvider enabled={eventPreparationReady()} role={role}>
               <ScheduleReviewProvider
@@ -214,7 +212,6 @@ export default async function DashboardLayout({
               </ScheduleReviewProvider>
             </PreparationProvider>
           </Suspense>
-          </DashboardCallingProvider>
         </FeaturesProvider>
       </DisplayPreferencesProvider>
     </div>

@@ -34,7 +34,6 @@ export const featureDisplayEnglish: FeatureDisplayCopyMap = FEATURES.reduce(
 );
 
 export const featureDisplaySpanish: FeatureDisplayCopyMap = {
-  calling: { title: "Llamadas familiares", description: "Llamadas de voz y vídeo entre los dispositivos abiertos de tu familia." },
   chores: {
     title: "Tareas",
     description: "Asigna tareas y mira lo que está hecho.",

@@ -1,3 +1,5 @@
+> Cancelled by Cameron: remove calling. The removal release retires all UI/API/provider paths. This document is preserved as historical context, not an active plan. Native preparation in draft PR #614 is abandoned and was never deployed.
+
 # Family calling v1 — #612
 
 Approved 2026-10-29: build voice and video family-device calls separately from PR #611.
