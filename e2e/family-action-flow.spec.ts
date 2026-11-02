@@ -87,7 +87,9 @@ test("calendar connections menu stays inside the screen", async ({ page }) => {
     has: page.locator("summary[aria-label='Calendars & connections']"),
   });
   await menu.locator("summary").click();
-  await expect(menu.getByRole("combobox", { name: "Calendar source" })).toBeVisible();
+  await expect(
+    menu.getByRole("combobox", { name: "Calendar source" }),
+  ).toBeVisible();
   const box = await menu.locator(":scope > div").boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -262,7 +264,9 @@ for (const kind of ["meal", "prep"] as const) {
       ),
     ).toBe(true);
     await editor.evaluate(async (element) => {
-      await Promise.all(element.getAnimations().map((animation) => animation.finished));
+      await Promise.all(
+        element.getAnimations().map((animation) => animation.finished),
+      );
     });
     await info.attach(`recipe-${kind}-handoff`, {
       body: await page.screenshot(),
