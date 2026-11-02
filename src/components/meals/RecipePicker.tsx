@@ -16,6 +16,12 @@ import { readRecipePickerPage } from "@/lib/recipe-picker-client";
 import { Plus } from "lucide-react";
 import type { MealRecipeSummary } from "@/lib/meal-slots";
 import { useTranslation } from "@/i18n";
+import { useRecipeExploreText } from "@/i18n/recipe-explore";
+const OnlineRecipePicker = React.lazy(() =>
+  import("./OnlineRecipePicker").then((module) => ({
+    default: module.OnlineRecipePicker,
+  })),
+);
 import { useRecipePresentationText } from "@/i18n/recipe-presentation";
 
 // Creating a recipe is an explicit secondary action. Keep the full recipe
@@ -55,6 +61,16 @@ export function RecipePicker({
 }) {
   const { t } = useTranslation();
   const text = useRecipePresentationText();
+  const exploreText = useRecipeExploreText();
+  const [online, setOnline] = React.useState(false);
+  const onlineSaving = React.useRef(false);
+  const [onlinePending, setOnlinePending] = React.useState(false);
+  const [onlineEditing, setOnlineEditing] = React.useState(false);
+  const reportOnlineSaving = (pending: boolean) => {
+    onlineSaving.current = pending;
+    setOnlinePending(pending);
+    onCreatingChange?.(pending);
+  };
   const selectId = React.useId();
   const statusId = React.useId();
   const [recipes, setRecipes] = React.useState<RecipeOption[]>(() =>
@@ -64,7 +80,10 @@ export function RecipePicker({
   const [creating, setCreating] = React.useState(false);
 
   const [query, setQuery] = React.useState("");
-  const [page, setPage] = React.useState<{ offset: number; trail: number[] }>({ offset: 0, trail: [] });
+  const [page, setPage] = React.useState<{ offset: number; trail: number[] }>({
+    offset: 0,
+    trail: [],
+  });
   const [nextOffset, setNextOffset] = React.useState<number | null>(null);
   const [retry, setRetry] = React.useState(0);
   const [pinnedRecipe, setPinnedRecipe] = React.useState(initialRecipe ?? null);
@@ -76,17 +95,21 @@ export function RecipePicker({
     const controller = new AbortController();
     setState("loading");
     // Debounce typing without downloading the rest of the household library.
-    const timer = setTimeout(() => {
-      void readRecipePickerPage(query.trim(), page.offset, controller.signal)
-        .then((result) => {
-          if (generation !== sequence.current) return;
-          setRecipes(result.recipes);
-          setNextOffset(result.nextOffset);
-          setState("ready");
-        }).catch(() => {
-          if (generation === sequence.current) setState("error");
-        });
-    }, query ? 250 : 0);
+    const timer = setTimeout(
+      () => {
+        void readRecipePickerPage(query.trim(), page.offset, controller.signal)
+          .then((result) => {
+            if (generation !== sequence.current) return;
+            setRecipes(result.recipes);
+            setNextOffset(result.nextOffset);
+            setState("ready");
+          })
+          .catch(() => {
+            if (generation === sequence.current) setState("error");
+          });
+      },
+      query ? 250 : 0,
+    );
     return () => {
       sequence.current++;
       clearTimeout(timer);
@@ -94,11 +117,14 @@ export function RecipePicker({
     };
   }, [query, page.offset, retry]);
 
-  const selectedRecipe = recipes.find((recipe) => recipe.id === value) ??
+  const selectedRecipe =
+    recipes.find((recipe) => recipe.id === value) ??
     (pinnedRecipe?.id === value ? pinnedRecipe : null) ??
     (initialRecipe?.id === value ? initialRecipe : null);
-  const options = selectedRecipe && !recipes.some((recipe) => recipe.id === selectedRecipe.id)
-    ? [selectedRecipe, ...recipes] : recipes;
+  const options =
+    selectedRecipe && !recipes.some((recipe) => recipe.id === selectedRecipe.id)
+      ? [selectedRecipe, ...recipes]
+      : recipes;
 
   const handleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (disabled || isMutationPending?.()) return;
@@ -121,132 +147,215 @@ export function RecipePicker({
 
   let status: React.ReactNode = null;
   if (state === "loading") status = text("pickerLoading");
-  else if (state === "error")
-    status = text("pickerFailed");
-  else if (recipes.length === 0 && query.trim()) status = text("pickerNoMatches");
+  else if (state === "error") status = text("pickerFailed");
+  else if (recipes.length === 0 && query.trim())
+    status = text("pickerNoMatches");
   else if (recipes.length === 0)
-    status = canCreate
-      ? text("pickerEmptyCreate")
-      : text("pickerEmpty");
+    status = canCreate ? text("pickerEmptyCreate") : text("pickerEmpty");
 
   return (
     <div className="space-y-2" data-testid="recipe-picker">
-      <label
-        htmlFor={selectId}
-        className="text-subhead text-label-secondary mb-1 block"
-      >
-        {text("pickerLabel")}
-      </label>
-      <input
-        id={searchInputId}
-        type="search"
-        aria-label={text("pickerSearch")}
-        placeholder={text("pickerSearch")}
-        value={query}
-        maxLength={120}
-        disabled={disabled}
-        onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
-        onChange={(event) => {
-          if (disabled || isMutationPending?.()) return;
-          if (selectedRecipe) setPinnedRecipe(selectedRecipe);
-          setQuery(event.target.value);
-          setPage({ offset: 0, trail: [] });
-          setState("loading");
-        }}
-        className="input-apple min-h-[44px] w-full"
-      />
-      <div className="flex gap-2">
-        <select
-          id={selectId}
-          value={value ?? ""}
-          onChange={handleSelect}
-          disabled={disabled}
-          aria-describedby={status ? statusId : undefined}
-          className="min-w-0 flex-1 input-apple min-h-[44px]"
+      {canCreate && (
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label={exploreText("source")}
         >
-          <option value="">{text("noRecipe")}</option>
-          {options.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title}
-            </option>
-          ))}
-        </select>
-        {canCreate && !creating && (
           <button
             type="button"
-            className="btn-tinted min-h-[44px] shrink-0"
-            disabled={disabled}
+            className={online ? "btn-tinted min-h-11" : "btn-filled min-h-11"}
+            aria-pressed={!online}
+            disabled={disabled || onlinePending || creating || onlineEditing}
             onClick={() => {
-              if (disabled || isMutationPending?.()) return;
-              setCreating(true);
+              if (!onlineSaving.current && !isMutationPending?.())
+                setOnline(false);
             }}
           >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>{text("newRecipe")}</span>
+            {exploreText("searchSaved")}
           </button>
-        )}
-      </div>
-      {status && (
-        <div className="flex flex-wrap items-center gap-2">
-          <p
-            id={statusId}
-            role="status"
-            className="text-footnote text-label-secondary"
+          <button
+            type="button"
+            className={online ? "btn-filled min-h-11" : "btn-tinted min-h-11"}
+            aria-pressed={online}
+            disabled={disabled || onlinePending || creating || onlineEditing}
+            onClick={() => {
+              if (!onlineSaving.current && !isMutationPending?.())
+                setOnline(true);
+            }}
           >
-            {status}
-          </p>
-          {state === "error" && (
-            <button
-              type="button"
-              onClick={() => {
-                if (disabled || isMutationPending?.()) return;
-                setState("loading");
-                setRetry((previous) => previous + 1);
-              }}
-              disabled={disabled}
-              className="min-h-[44px] px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline"
-            >
-              {text("retry")}
-            </button>
-          )}
+            {exploreText("findOnline")}
+          </button>
         </div>
       )}
-      {(page.trail.length > 0 || nextOffset !== null) && (
-        <div className="flex flex-wrap gap-2" aria-label={text("pickerPages")} role="group">
-          <button type="button" className="btn-tinted min-h-[44px]"
-            disabled={disabled || state !== "ready" || page.trail.length === 0}
-            onClick={() => {
-              if (disabled || isMutationPending?.() || state !== "ready" || !page.trail.length) return;
-              if (selectedRecipe) setPinnedRecipe(selectedRecipe);
-              setState("loading");
-              setPage({ offset: page.trail[page.trail.length - 1], trail: page.trail.slice(0, -1) });
-            }}>{text("pickerPrevious")}</button>
-          <button type="button" className="btn-tinted min-h-[44px]"
-            disabled={disabled || state !== "ready" || nextOffset === null}
-            onClick={() => {
-              if (disabled || isMutationPending?.() || state !== "ready" || nextOffset === null) return;
-              if (selectedRecipe) setPinnedRecipe(selectedRecipe);
-              setState("loading");
-              setPage({ offset: nextOffset, trail: [...page.trail, page.offset] });
-            }}>{text("pickerNext")}</button>
-        </div>
-      )}
-      {creating && (
-        <React.Suspense
-          fallback={
-            <p role="status" className="text-footnote text-label-secondary">
-              {t("common.loading")}
-            </p>
-          }
-        >
-          <RecipeQuickCreate
-            onCreated={handleCreated}
-            onCancel={() => setCreating(false)}
-            onSavingChange={onCreatingChange}
+      {online ? (
+        <React.Suspense fallback={<p role="status">{t("common.loading")}</p>}>
+          <OnlineRecipePicker
+            onCreated={(recipe) => {
+              handleCreated(recipe);
+              setOnline(false);
+            }}
+            onEditingChange={setOnlineEditing}
+            onSavingChange={reportOnlineSaving}
             disabled={disabled}
             isMutationPending={isMutationPending}
           />
         </React.Suspense>
+      ) : (
+        <>
+          <label
+            htmlFor={selectId}
+            className="text-subhead text-label-secondary mb-1 block"
+          >
+            {text("pickerLabel")}
+          </label>
+          <input
+            id={searchInputId}
+            type="search"
+            aria-label={text("pickerSearch")}
+            placeholder={text("pickerSearch")}
+            value={query}
+            maxLength={120}
+            disabled={disabled}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.preventDefault();
+            }}
+            onChange={(event) => {
+              if (disabled || isMutationPending?.()) return;
+              if (selectedRecipe) setPinnedRecipe(selectedRecipe);
+              setQuery(event.target.value);
+              setPage({ offset: 0, trail: [] });
+              setState("loading");
+            }}
+            className="input-apple min-h-[44px] w-full"
+          />
+          <div className="flex gap-2">
+            <select
+              id={selectId}
+              value={value ?? ""}
+              onChange={handleSelect}
+              disabled={disabled}
+              aria-describedby={status ? statusId : undefined}
+              className="min-w-0 flex-1 input-apple min-h-[44px]"
+            >
+              <option value="">{text("noRecipe")}</option>
+              {options.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.title}
+                </option>
+              ))}
+            </select>
+            {canCreate && !creating && (
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px] shrink-0"
+                disabled={disabled}
+                onClick={() => {
+                  if (disabled || isMutationPending?.()) return;
+                  setCreating(true);
+                }}
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span>{text("newRecipe")}</span>
+              </button>
+            )}
+          </div>
+          {status && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p
+                id={statusId}
+                role="status"
+                className="text-footnote text-label-secondary"
+              >
+                {status}
+              </p>
+              {state === "error" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (disabled || isMutationPending?.()) return;
+                    setState("loading");
+                    setRetry((previous) => previous + 1);
+                  }}
+                  disabled={disabled}
+                  className="min-h-[44px] px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline"
+                >
+                  {text("retry")}
+                </button>
+              )}
+            </div>
+          )}
+          {(page.trail.length > 0 || nextOffset !== null) && (
+            <div
+              className="flex flex-wrap gap-2"
+              aria-label={text("pickerPages")}
+              role="group"
+            >
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={
+                  disabled || state !== "ready" || page.trail.length === 0
+                }
+                onClick={() => {
+                  if (
+                    disabled ||
+                    isMutationPending?.() ||
+                    state !== "ready" ||
+                    !page.trail.length
+                  )
+                    return;
+                  if (selectedRecipe) setPinnedRecipe(selectedRecipe);
+                  setState("loading");
+                  setPage({
+                    offset: page.trail[page.trail.length - 1],
+                    trail: page.trail.slice(0, -1),
+                  });
+                }}
+              >
+                {text("pickerPrevious")}
+              </button>
+              <button
+                type="button"
+                className="btn-tinted min-h-[44px]"
+                disabled={disabled || state !== "ready" || nextOffset === null}
+                onClick={() => {
+                  if (
+                    disabled ||
+                    isMutationPending?.() ||
+                    state !== "ready" ||
+                    nextOffset === null
+                  )
+                    return;
+                  if (selectedRecipe) setPinnedRecipe(selectedRecipe);
+                  setState("loading");
+                  setPage({
+                    offset: nextOffset,
+                    trail: [...page.trail, page.offset],
+                  });
+                }}
+              >
+                {text("pickerNext")}
+              </button>
+            </div>
+          )}
+          {creating && (
+            <React.Suspense
+              fallback={
+                <p role="status" className="text-footnote text-label-secondary">
+                  {t("common.loading")}
+                </p>
+              }
+            >
+              <RecipeQuickCreate
+                onCreated={handleCreated}
+                onCancel={() => setCreating(false)}
+                onSavingChange={reportOnlineSaving}
+                disabled={disabled}
+                isMutationPending={isMutationPending}
+              />
+            </React.Suspense>
+          )}
+        </>
       )}
     </div>
   );

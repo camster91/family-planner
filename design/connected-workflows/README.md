@@ -45,3 +45,25 @@ Validate the selected journey with an empty household and populated recipe libra
 ## Evidence and remaining work
 
 Local prototype checks cover three screen compositions at 390×844, 800×1280 and 1366×768 plus recipe selection → confirmation → grocery review → return. These are simulated interactions only. Screenshots/check receipts live in the sibling `artifacts/connected-workflows-20261102` directory. No production app screenshots, runtime provider success, full accessibility audit, shared-device acceptance or native acceptance are claimed. Broader inventory/role/state studies and live-backend implementation remain open in #499/#460.
+
+## Recipe delivery update and considered ideas — November 2
+
+The first implementation adds inline publisher search and URL preview to the existing meal recipe picker, reusing the owned recipe editor and returning the saved recipe directly to the meal. Search is explicitly labeled with its three supported publishers. Google is currently an external search link; it is **not** a connected Google Search API or Gemini grounding provider. No Google billing/provider switch is activated by this patch. Source presence is not a successful live publisher test.
+
+Before embedded Google discovery: integrate the existing household provider configuration and metered usage broker; verify model eligibility, source/suggestion display and storage terms; review bounded cost and failure policy; validate a real grounded response. Do not turn Gemini grounding into a scraped result database or silently persist its generated text as a publisher recipe. Publisher imports remain separate, explicit reviewed actions. References: https://ai.google.dev/gemini-api/docs/google-search/ and https://ai.google.dev/gemini-api/terms .
+
+Ideas to evaluate within the existing workflow, not as new top-level buttons:
+
+| Idea | Placement and benefit | Evidence / dependency |
+|---|---|---|
+| Use what we have | Optional ingredient filter in recipe choice; prioritizes food to use soon | Canonical inventory quantities, age and uncertain-unit handling; no automatic dietary claims |
+| Family favorites and repeat meals | Saved view, recent selections before a blank search | Reuse existing favorites/collections and meal history, scoped to household |
+| Time available | Optional 15/30/60-minute filter beside search | Only use publisher times when present; unknown stays unknown |
+| Grocery difference review | Immediately after planning, one review with destination list | Existing grocery write/idempotency plus serving/unit validation |
+| Leftovers and next prep | Meal/prep detail, not another home toolbar | Existing batch/portion consumption model and conflict handling |
+| Dietary preferences | Optional household preference and query aid | Explicit editable preferences; ingredients require checking; never promise allergen safety |
+| Weekly suggestions | Optional planning action inside Meals | Existing grounded food planner and review flow; no automatic scheduling or new cron |
+
+Prioritize search/import/save/reuse and grocery review before adding more recommendation controls. Photos need verified publisher metadata and safe image handling; do not substitute generated pictures for actual recipe images.
+
+Local verification for inline discovery: 15 focused tests pass (new search/import handoff, changed-owner refusal and retry; existing saved picker and Explore localization). Typecheck passes. Scoped ESLint has no errors and one pre-existing ref-cleanup warning in RecipePicker. The real OnlineRecipePicker was rendered in an isolated browser fixture at 390×844, 800×1280 and 1366×768: search → preview passes, no page exceptions or horizontal overflow; phone results and tablet preview were visually inspected. The fixture stubs publisher responses and the final editor, so it does not prove real publisher availability, persistence or authenticated production behavior. No deployment or provider activation occurred.

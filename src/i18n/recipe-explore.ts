@@ -3,6 +3,21 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  inlineOwnerChanged:
+    "Your session or household changed. Close this form and reopen it before continuing.",
+  inlineBack: "← Back to recipes",
+  inlineUse: "Review and save for this meal",
+  inlineMore: "More recipes",
+  inlineSearch: "Search",
+  inlineSources: "Search BBC Good Food, Allrecipes and Serious Eats.",
+  inlineGoogle: "Search Google ↗",
+  inlinePaste: "Have a recipe link?",
+  inlineUrl: "Recipe link",
+  inlinePreview: "Preview recipe",
+  inlinePartial:
+    "Some recipe sites are unavailable. You can try again or paste a recipe link.",
+  inlineEmpty: "No recipes found. Try a different search or paste a link.",
+
   savedWork: "Continue saved recipe work",
   allSources: "All supported sites",
   partialSearch:
@@ -96,6 +111,22 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  inlineOwnerChanged:
+    "Tu sesión o tu hogar ha cambiado. Cierra este formulario y vuelve a abrirlo.",
+  inlineBack: "← Volver a las recetas",
+  inlineUse: "Revisar y guardar para esta comida",
+  inlineMore: "Más recetas",
+  inlineSearch: "Buscar",
+  inlineSources: "Busca en BBC Good Food, Allrecipes y Serious Eats.",
+  inlineGoogle: "Buscar en Google ↗",
+  inlinePaste: "¿Tienes un enlace a una receta?",
+  inlineUrl: "Enlace de la receta",
+  inlinePreview: "Vista previa",
+  inlinePartial:
+    "Algunos sitios no están disponibles. Inténtalo de nuevo o pega un enlace.",
+  inlineEmpty:
+    "No se encontraron recetas. Prueba otra búsqueda o pega un enlace.",
+
   savedWork: "Continuar una receta guardada",
   allSources: "Todos los sitios compatibles",
   partialSearch:
