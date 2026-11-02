@@ -79,13 +79,9 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
     onlyOnSomeProjects(testInfo);
     await withDb(async (db) => {
       await removeSpecRows(db);
-      const today = new Date(
-        Date.UTC(
-          E2E_ANCHOR.getUTCFullYear(),
-          E2E_ANCHOR.getUTCMonth(),
-          E2E_ANCHOR.getUTCDate(),
-        ),
-      );
+      // FamilyMeal.date is a date-only timestamp. Passing a JS Date lets pg
+      // apply the runner timezone and can shift midnight into yesterday.
+      const today = E2E_ANCHOR.toISOString().slice(0, 10);
       await db.query(
         `INSERT INTO "FamilyMeal" (id, family_id, date, meal_type, recipe_name, recipe_id, servings, created_by)
          VALUES ($1, $2, $3, 'lunch', 'Tomato soup', $4, 8, $5)`,
@@ -133,6 +129,20 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
     const review = page.getByRole("dialog", {
       name: "Review grocery ingredients",
     });
+    let reviewBody: unknown;
+    let addedBody: unknown;
+    // Capture the real upstream body before giving it to the app. Chromium
+    // may discard a response handle as the nested review sheet closes.
+    await page.route(
+      /\/api\/lists\/items\/from-recipe(?:\/review)?(?:\?|$)/,
+      async (route) => {
+        const upstream = await route.fetch();
+        const body = await upstream.json();
+        if (route.request().method() === "GET") reviewBody = body;
+        else if (route.request().method() === "POST") addedBody = body;
+        await route.fulfill({ response: upstream });
+      },
+    );
     const confirm = review.getByRole("button", {
       name: "Add selected ingredients",
     });
@@ -147,7 +157,7 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
         dialogButton.click(),
       ]);
       expect(loaded.status()).toBe(200);
-      expect(await loaded.json()).toMatchObject({
+      expect(reviewBody).toMatchObject({
         recipeId: RECIPE_ID,
         targetServings: 8,
         defaultListId: A.groceryList,
@@ -209,7 +219,7 @@ test.describe("recipe ingredients to groceries: Family A parent", () => {
       listId: A.groceryList,
       ingredientIds: [TOMATOES],
     });
-    const first = await response.json();
+    const first = addedBody;
     expect(first).toMatchObject({
       listId: A.groceryList,
       createdCount: 1,

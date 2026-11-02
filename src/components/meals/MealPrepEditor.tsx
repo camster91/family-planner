@@ -56,6 +56,7 @@ export function MealPrepEditor({
   defaultDay,
   seed,
   initialRecipe,
+  initialPortions,
   context,
   freshWritesBlocked = false,
   restoredDraft,
@@ -67,6 +68,7 @@ export function MealPrepEditor({
   context: MealPrepContext;
   seed?: MealPrepSummary;
   initialRecipe?: RecipeOption;
+  initialPortions?: number;
   freshWritesBlocked?: boolean;
   restoredDraft?: Extract<PrepDraft, { kind: "create" }>;
   onClose: () => void;
@@ -109,9 +111,10 @@ export function MealPrepEditor({
                     name: initialRecipe.title,
                     recipe: initialRecipe,
                     portions: String(
-                      initialRecipe.servings && initialRecipe.servings <= 50
-                        ? initialRecipe.servings
-                        : 8,
+                      initialPortions ??
+                        (initialRecipe.servings && initialRecipe.servings <= 50
+                          ? initialRecipe.servings
+                          : 8),
                     ),
                   }
                 : {}),
@@ -454,24 +457,39 @@ export function MealPrepEditor({
                     />
                   </label>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    <label
-                      className="text-subhead"
-                      htmlFor={`${prefix}-portions`}
-                    >
-                      {tBulk("portions")}
-                      <input
-                        id={`${prefix}-portions`}
-                        className="input-field w-full mt-1"
-                        type="number"
-                        min={1}
-                        max={50}
-                        step={1}
-                        required
-                        value={dish.portions}
-                        disabled={mutation.locked}
-                        onChange={(e) => update({ portions: e.target.value })}
-                      />
-                    </label>
+                    <div>
+                      <label
+                        className="text-subhead"
+                        htmlFor={`${prefix}-portions`}
+                      >
+                        {tBulk("portions")}
+                        <input
+                          id={`${prefix}-portions`}
+                          className="input-field w-full mt-1"
+                          type="number"
+                          min={1}
+                          max={50}
+                          step={1}
+                          required
+                          value={dish.portions}
+                          disabled={mutation.locked}
+                          onChange={(e) => update({ portions: e.target.value })}
+                          aria-describedby={
+                            Number(dish.portions) > 50
+                              ? `${prefix}-portions-hint`
+                              : undefined
+                          }
+                        />
+                      </label>
+                      {Number(dish.portions) > 50 && (
+                        <p
+                          id={`${prefix}-portions-hint`}
+                          className="block mt-1 text-footnote text-label-secondary"
+                        >
+                          {tBulk("portionsRange")}
+                        </p>
+                      )}
+                    </div>
                     <label className="text-subhead" htmlFor={`${prefix}-cook`}>
                       {tBulk("cook")}
                       <select

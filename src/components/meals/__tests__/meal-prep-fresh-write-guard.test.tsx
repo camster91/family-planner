@@ -57,6 +57,29 @@ describe("mounted bulk cooking write guards", () => {
   const postCalls = () =>
     fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
 
+  it("retains requested portions for review and requires an explicit correction above the prep limit", async () => {
+    const recipe = { id: "recipe-1", title: "Soup", servings: 4, prep_time: null, cook_time: null };
+    render(
+      <I18nProvider locale="en">
+        <MealPrepEditor defaultDay="2026-01-08" context={context}
+          initialRecipe={recipe} initialPortions={80}
+          onClose={jest.fn()} onSaved={jest.fn()} />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+    const portions = await screen.findByLabelText("Total portions");
+    expect(portions).toHaveValue(80);
+    expect(screen.getByText("Choose 1–50 portions per dish before continuing.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(portions).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Save prep session" })).not.toBeInTheDocument();
+    fireEvent.change(portions, { target: { value: "8" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Save prep session" })).toBeVisible();
+    expect(recipe.servings).toBe(4);
+    expect(postCalls()).toEqual([]);
+  });
+
   it("keeps the mounted editor reviewable but blocks a fresh save after reload failure", async () => {
     const { rerender } = render(
       <I18nProvider locale="en">

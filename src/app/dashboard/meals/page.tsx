@@ -4,6 +4,7 @@ import { FoodPlanningLauncher } from "@/components/meals/planning/FoodPlanningLa
 
 import * as React from "react";
 import { preparedReuseIntent } from "@/lib/prepared-meal-reuse";
+import { recipeReuseServings } from "@/lib/meal-navigation";
 import styles from "./meals-board.module.css";
 import Link from "next/link";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
@@ -121,6 +122,7 @@ function MealModal({
   defaultDate,
   defaultMealType,
   defaultRecipe,
+  defaultServings,
   onSave,
   onCreated,
   onDelete,
@@ -133,6 +135,7 @@ function MealModal({
   defaultDate?: string;
   defaultMealType?: MealType;
   defaultRecipe?: RecipeOption;
+  defaultServings?: number;
   onSave: (data: MealSaveData) => void;
   onCreated: () => void;
   onDelete?: () => void;
@@ -160,6 +163,7 @@ function MealModal({
   const [cookId, setCookId] = React.useState(initialCookId ?? "");
   const initialServings =
     initial?.servings ??
+    defaultServings ??
     (defaultRecipe?.servings && defaultRecipe.servings <= 100
       ? defaultRecipe.servings
       : null);
@@ -560,6 +564,7 @@ function MealsPageInner() {
   const displayLocale = useDisplayLocale();
   const searchParams = useSearchParams();
   const reuseRecipeId = searchParams.get("recipe");
+  const reuseServings = recipeReuseServings(searchParams.get("servings"));
   const preparedReuse = preparedReuseIntent(searchParams);
   const preparationActive = usePreparationActive();
   const pathname = usePathname();
@@ -570,7 +575,9 @@ function MealsPageInner() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("recipe");
     next.delete("compose");
-    router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+    next.delete("servings");
+    const query = next.toString();
+    router.replace(`${pathname}${query ? `?${query}` : ""}`, {
       scroll: false,
     });
   };
@@ -578,7 +585,8 @@ function MealsPageInner() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("preparedSession");
     next.delete("preparedBatch");
-    void router.replace(`${pathname}${next.size ? `?${next}` : ""}`, {
+    const query = next.toString();
+    void router.replace(`${pathname}${query ? `?${query}` : ""}`, {
       scroll: false,
     });
   };
@@ -637,6 +645,7 @@ function MealsPageInner() {
     defaultDate?: string;
     defaultMealType?: MealType;
     defaultRecipe?: RecipeOption;
+    defaultServings?: number;
   } | null>(null);
   const [saving, setSaving] = React.useState(false);
   // Nested recipe handlers can run before React commits the saving state.
@@ -1086,6 +1095,7 @@ function MealsPageInner() {
                 mode: "add",
                 defaultDate: startKey,
                 defaultRecipe: recipe,
+                defaultServings: reuseServings,
               });
             }}
           />
@@ -1103,6 +1113,7 @@ function MealsPageInner() {
           >
             <BulkCookingPanel
               reuseRecipeId={reuseRecipeId}
+              reuseServings={reuseServings}
               autoUseRecipe={searchParams.get("compose") === "prep"}
               onDismissReuse={dismissReuse}
               preparedReuse={preparedReuse}
@@ -1292,6 +1303,7 @@ function MealsPageInner() {
           defaultDate={modal.defaultDate}
           defaultMealType={modal.defaultMealType}
           defaultRecipe={modal.defaultRecipe}
+          defaultServings={modal.defaultServings}
           onSave={handleSave}
           onCreated={() => {
             setModal(null);

@@ -446,7 +446,9 @@ async function assertUiLogin(
   // loginViaUi performs the real form submission. Wait for its canonical
   // dashboard arrival before navigating again; a premature goto can abort the
   // redirect and leave the first protected page blank on slower builds.
-  await expect(page).toHaveURL(/\/dashboard(?:\/.*)?$/);
+  await expect(page).toHaveURL(
+    expectedRole === "parent" ? /\/dashboard\/today$/ : /\/dashboard$/,
+  );
   const auth = await browserFetch(page, "/api/auth/me");
   expect(auth.status, auth.body).toBe(200);
   const user = JSON.parse(auth.body).user as {
@@ -627,6 +629,16 @@ for (const locale of LOCALES) {
         const dialog = page.getByRole("dialog");
         await expect(dialog).toBeVisible();
         await makeDraft(page, fixture, locale);
+        let savedBody = "";
+        const captureSave = async (
+          route: Parameters<Parameters<Page["route"]>[1]>[0],
+        ) => {
+          if (route.request().method() !== "POST") return route.fallback();
+          const upstream = await route.fetch();
+          savedBody = await upstream.text();
+          await route.fulfill({ response: upstream });
+        };
+        await page.route("**/api/chores/stacks", captureSave);
         const saveResponse = page.waitForResponse(
           (response) =>
             response.url().endsWith("/api/chores/stacks") &&
@@ -636,7 +648,8 @@ for (const locale of LOCALES) {
           .getByRole("button", { name: copy[locale].save, exact: true })
           .click();
         const response = await saveResponse;
-        const responseBody = await response.text();
+        await page.unroute("**/api/chores/stacks", captureSave);
+        const responseBody = savedBody;
         expect(response.status(), responseBody).toBe(200);
         const body = JSON.parse(responseBody) as {
           stack_id?: string;
