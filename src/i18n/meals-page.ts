@@ -44,6 +44,7 @@ export const mealsPageEnglish = {
   untitled: "Untitled meal",
   recipe: "Recipe",
   recipePrep: "Recipe · {time} prep",
+  addAction: "Add",
   addMeal: "Add {meal}, {day}",
   addAnother: "Add another {meal}, {day}",
 };
@@ -89,6 +90,7 @@ export const mealsPageSpanish: Record<keyof typeof mealsPageEnglish, string> = {
   untitled: "Comida sin título",
   recipe: "Receta",
   recipePrep: "Receta · {time} de preparación",
+  addAction: "Añadir",
   addMeal: "Añadir {meal}, {day}",
   addAnother: "Añadir otra comida de {meal}, {day}",
 };

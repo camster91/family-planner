@@ -329,9 +329,9 @@ test.describe("account and household deletion", () => {
     await loginViaUi(page, x.email(x.duo.teen));
     await page.waitForURL(/\/dashboard$/);
     await expect(
-      page.getByRole("button", { name: "User menu", exact: true }),
+      page.getByRole("button", { name: /User menu$/, exact: true }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "User menu" }).click();
+    await page.getByRole("button", { name: /User menu$/ }).click();
     await expect(
       page.getByRole("button", { name: "Delete my account" }),
     ).toHaveCount(0);

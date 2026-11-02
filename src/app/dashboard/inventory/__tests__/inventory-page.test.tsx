@@ -640,7 +640,7 @@ describe("/dashboard/inventory", () => {
       ).toHaveFocus(),
     );
 
-    await user.click(await screen.findByRole("button", { name: "Edit Peas" }));
+    await user.click(await screen.findByRole("button", { name: /^Edit Peas\b/ }));
     const edit = await screen.findByRole("dialog");
     // An older item without a date kind edits as best before.
     expect(
@@ -726,7 +726,7 @@ describe("/dashboard/inventory", () => {
       return normalFetch(url, init);
     });
     await user.click(
-      await screen.findByRole("button", { name: "Edit Tomatoes" }),
+      await screen.findByRole("button", { name: /^Edit Tomatoes\b/ }),
     );
     const edit = await screen.findByRole("dialog");
     await user.click(within(edit).getByRole("button", { name: "Save" }));
@@ -824,7 +824,7 @@ describe("/dashboard/inventory", () => {
     await waitFor(() =>
       expect(within(soon).getAllByTestId("use-soon-item")).toHaveLength(2),
     );
-    await user.click(within(soon).getByRole("button", { name: "Used Milk" }));
+    await user.click(within(soon).getByRole("button", { name: "Used it: Milk" }));
     await waitFor(() =>
       expect(calls.some((c) => isStockCall(c, "consume", "i-milk"))).toBe(true),
     );
@@ -866,7 +866,7 @@ describe("/dashboard/inventory", () => {
       "Threw away Tomatoes",
     );
 
-    await user.click(screen.getByRole("button", { name: "Edit Milk" }));
+    await user.click(screen.getByRole("button", { name: /^Edit Milk\b/ }));
     const edit = await screen.findByRole("dialog");
     await user.type(within(edit).getByLabelText(/How much did you use/), "0.5");
     await user.click(within(edit).getByRole("button", { name: "Used it" }));
@@ -885,7 +885,7 @@ describe("/dashboard/inventory", () => {
     ).toBe(true);
 
     // An item without an amount has no "how much" field; Throw away sends no body fields.
-    await user.click(screen.getByRole("button", { name: "Edit Peas" }));
+    await user.click(screen.getByRole("button", { name: /^Edit Peas\b/ }));
     const peas = await screen.findByRole("dialog");
     expect(within(peas).queryByLabelText(/How much did you use/)).toBeNull();
     await user.click(within(peas).getByRole("button", { name: "Throw away" }));
@@ -901,7 +901,7 @@ describe("/dashboard/inventory", () => {
     await waitFor(() =>
       expect(within(soon).getAllByTestId("use-soon-item")).toHaveLength(2),
     );
-    await user.click(within(soon).getByRole("button", { name: "Used Milk" }));
+    await user.click(within(soon).getByRole("button", { name: "Used it: Milk" }));
     expect(
       await screen.findByText(
         "This check confirmed that the request did not change stock. The list was refreshed; review it before trying again.",
@@ -994,7 +994,7 @@ describe("/dashboard/inventory", () => {
     const before = calls.length;
     await user.click(
       within(screen.getByTestId("use-soon")).getByRole("button", {
-        name: "Used Milk",
+        name: "Used it: Milk",
       }),
     );
     expect(await screen.findByText(OFFLINE_WRITE_MESSAGE)).toBeTruthy();
@@ -1018,7 +1018,7 @@ describe("/dashboard/inventory", () => {
     // Any write triggers a refresh; use the filter-free path: "Used it".
     await user.click(
       within(screen.getByTestId("use-soon")).getByRole("button", {
-        name: "Used Milk",
+        name: "Used it: Milk",
       }),
     );
     const banner = await screen.findByTestId("inventory-connection");

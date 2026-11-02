@@ -140,7 +140,7 @@ it("renders the localized board regions while preserving household values and li
     screen.getByText("Getting ready for: School trip"),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Mark Pack bag done, Casey" }),
+    screen.getByRole("button", { name: /^Mark done: Pack bag.*Casey\b/ }),
   ).toBeInTheDocument();
   expect(screen.getByText("Tomorrow")).toBeInTheDocument();
   expect(
@@ -170,7 +170,7 @@ it("switches every board region to Spanish without translating inserted househol
     screen.getByText("Preparativos para: School trip"),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "Marcar Pack bag como hecha, Casey" }),
+    screen.getByRole("button", { name: /^Marcar como hecha: Pack bag.*Casey\b/ }),
   ).toBeInTheDocument();
   expect(screen.getByText("Mañana")).toBeInTheDocument();
   expect(screen.queryByText("Escuela")).not.toBeInTheDocument();

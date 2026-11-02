@@ -295,7 +295,7 @@ describe('TabBar (phone)', () => {
 describe('DashboardNav (top bar)', () => {
   it('closes the user menu with Escape and restores focus to its trigger', () => {
     render(<DashboardNav user={user('parent')} />)
-    const trigger = screen.getByRole('button', { name: 'User menu' })
+    const trigger = screen.getByRole('button', { name: /User menu$/ })
     fireEvent.click(trigger)
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     const signOut = screen.getByRole('button', { name: 'Sign Out' })

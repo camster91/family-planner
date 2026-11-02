@@ -246,7 +246,7 @@ describe("/dashboard/meals", () => {
       expect.stringContaining("Green salad"),
     ]);
     expect(
-      within(card).queryByRole("button", { name: /^Add breakfast,/ }),
+      within(card).queryByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     ).toBeNull();
     const disclosure = within(card).getByRole("button", {
       name: /Other meals/,
@@ -259,7 +259,7 @@ describe("/dashboard/meals", () => {
         ?.hidden,
     ).toBe(false);
     expect(
-      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     ).toBeTruthy();
     expect(within(card).getAllByTestId("meal-row")).toHaveLength(3);
     expect(
@@ -278,7 +278,7 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
-      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     );
     await user.type(screen.getByLabelText("Recipe name"), "Porridge");
     let release!: (response: Response) => void;
@@ -411,7 +411,7 @@ describe("/dashboard/meals", () => {
       if (action === "POST") {
         await user.click(
           within(await todayCard()).getByRole("button", {
-            name: /^Add dinner,/,
+            name: /^Add dinner Nothing planned ?,/i,
           }),
         );
       } else {
@@ -523,7 +523,7 @@ describe("/dashboard/meals", () => {
       if (method === "POST") {
         await user.click(
           within(await todayCard()).getByRole("button", {
-            name: /^Add dinner,/,
+            name: /^Add dinner Nothing planned ?,/i,
           }),
         );
       } else {
@@ -841,7 +841,7 @@ describe("/dashboard/meals", () => {
       within(await todayCard()).getByRole("button", { name: /Other meals/ }),
     );
     await user.click(
-      within(await todayCard()).getByRole("button", { name: /^Add lunch,/ }),
+      within(await todayCard()).getByRole("button", { name: /^Add lunch Nothing planned ?,/i }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Servings (optional)"), "1");
@@ -1083,7 +1083,7 @@ describe("/dashboard/meals", () => {
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
-    await user.click(within(card).getByRole("button", { name: /^Add snack,/ }));
+    await user.click(within(card).getByRole("button", { name: /^Add snack Nothing planned ?,/i }));
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("option", { name: "Sam" });
     await user.selectOptions(
@@ -1398,7 +1398,7 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     const opener = within(card).getByRole("button", {
-      name: /^Add breakfast,/,
+      name: /^Add breakfast Nothing planned ?,/i,
     });
     await user.click(opener);
     const dialog = await screen.findByRole("dialog");
@@ -1414,7 +1414,7 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
-      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Recipe name"), "Porridge");
@@ -1434,7 +1434,7 @@ describe("/dashboard/meals", () => {
     const { calls } = setup({ meals: [] });
     const card = await todayCard();
     await user.click(
-      within(card).getByRole("button", { name: /^Add dinner,/ }),
+      within(card).getByRole("button", { name: /^Add dinner Nothing planned ?,/i }),
     );
     const dialog = await screen.findByRole("dialog");
     const picker = within(dialog).getByLabelText("Recipe (optional)");
@@ -1604,7 +1604,7 @@ describe("/dashboard/meals", () => {
     const card = await todayCard();
     await user.click(within(card).getByRole("button", { name: /Other meals/ }));
     await user.click(
-      within(card).getByRole("button", { name: /^Add breakfast,/ }),
+      within(card).getByRole("button", { name: /^Add breakfast Nothing planned ?,/i }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Recipe name"), "Porridge");

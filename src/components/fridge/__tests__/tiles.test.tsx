@@ -254,7 +254,7 @@ describe("person board (#274)", () => {
     expect(within(chores()).queryByText("Feed the cat")).toBeNull();
     expect(
       within(chores()).getByRole("button", {
-        name: /Mark Pack school bag done/,
+        name: /Mark done: Pack school bag/,
       }),
     ).toBeTruthy();
   });
@@ -337,7 +337,7 @@ describe("person board (#274)", () => {
     });
     expect(
       within(chores()).getByRole("button", {
-        name: "Mark Feed the cat done, Casey",
+        name: "Mark done: Feed the cat Casey",
       }),
     ).toBeTruthy();
     expect(
@@ -347,7 +347,7 @@ describe("person board (#274)", () => {
     unmount();
     await renderBoard({ viewer: { id: "p", role: "parent" } });
     expect(
-      within(chores()).getAllByRole("button", { name: /^Mark .* done/ }),
+      within(chores()).getAllByRole("button", { name: /^Mark done: / }),
     ).toHaveLength(2);
   });
 
@@ -382,7 +382,7 @@ describe("person board (#274)", () => {
     expect(within(chores()).getByText("Put away blocks")).toBeInTheDocument();
     expect(
       within(chores()).queryByRole("button", {
-        name: /Mark Put away blocks done/,
+        name: /Mark done: Put away blocks/,
       }),
     ).toBeNull();
     expect(setChoreDone).not.toHaveBeenCalled();
@@ -434,7 +434,7 @@ describe("person board (#274)", () => {
     ).toBeInTheDocument();
     expect(
       within(chores()).queryByRole("button", {
-        name: /Mark Brush teeth done/,
+        name: /Mark done: Brush teeth/,
       }),
     ).toBeNull();
     expect(setChoreDone).not.toHaveBeenCalled();
@@ -451,7 +451,7 @@ describe("person board (#274)", () => {
     await renderBoard({ viewer: { id: "c", role: "child" } });
     fireEvent.click(
       within(chores()).getByRole("button", {
-        name: "Mark Feed the cat done, Casey",
+        name: "Mark done: Feed the cat Casey",
       }),
     );
     await settle();
@@ -475,7 +475,7 @@ describe("person board (#274)", () => {
     setChoreDone.mockResolvedValue({ ok: false, message: "Chore not found" });
     await renderBoard({ viewer: { id: "p", role: "parent" } });
     fireEvent.click(
-      within(chores()).getByRole("button", { name: /Mark Water plants done/ }),
+      within(chores()).getByRole("button", { name: /Mark done: Water plants/ }),
     );
     await settle();
     expect(within(chores()).getByText("Water plants")).toBeTruthy();
@@ -489,7 +489,7 @@ describe("person board (#274)", () => {
     await renderBoard({ viewer: { id: "c", role: "child" } });
     expect(within(groceries()).getByText("3 to buy")).toBeTruthy();
     fireEvent.click(
-      within(groceries()).getByRole("button", { name: "Tick off Milk, 2" }),
+      within(groceries()).getByRole("button", { name: "Tick off Milk × 2" }),
     );
     await settle();
     expect(personQueue.enqueue).toHaveBeenCalledWith("list-item.set-checked", {
@@ -530,7 +530,7 @@ describe("person board (#274)", () => {
       "button",
     )) {
       expect(button.className).toMatch(/min-h-\[52px\]/);
-      expect(button.getAttribute("aria-label")).toBeTruthy();
+      expect(button).toHaveAccessibleName();
     }
   });
 });
@@ -546,7 +546,7 @@ describe("explicit tile actions", () => {
     await renderBoard({ tileActions: actions });
     expect(within(groceries()).queryAllByRole("button")).toHaveLength(0);
     fireEvent.click(
-      within(chores()).getByRole("button", { name: /Mark Feed the cat done/ }),
+      within(chores()).getByRole("button", { name: /Mark done: Feed the cat/ }),
     );
     await settle();
     expect(screen.queryByTestId("undo-toast")).toBeNull();
@@ -635,7 +635,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
   it("asks who it is (names and colours only), then completes as that member with a fresh key", async () => {
     const { request } = await renderDevice();
     fireEvent.click(
-      within(chores()).getByRole("button", { name: /Mark Feed the cat done/ }),
+      within(chores()).getByRole("button", { name: /Mark done: Feed the cat/ }),
     );
     await settle();
     const dialog = screen.getByTestId("who-is-this");
@@ -735,7 +735,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
       ),
     );
     fireEvent.click(
-      within(chores()).getByRole("button", { name: /Mark Water plants done/ }),
+      within(chores()).getByRole("button", { name: /Mark done: Water plants/ }),
     );
     await settle();
     fireEvent.click(
@@ -786,7 +786,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     await settle();
     fireEvent.click(
       within(chores()).getByRole("button", {
-        name: /Mark Put away blocks done/,
+        name: /Mark done: Put away blocks/,
       }),
     );
     await settle();
@@ -857,7 +857,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     // Rendering the chore capability is expected to be pure. A grocery tap
     // must still ask for an account actor, even with a visible profile chore.
     fireEvent.click(
-      within(groceries()).getByRole("button", { name: "Tick off Milk, 2" }),
+      within(groceries()).getByRole("button", { name: "Tick off Milk × 2" }),
     );
     await settle();
     const dialog = screen.getByTestId("who-is-this");
@@ -910,7 +910,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     );
     await settle();
     fireEvent.click(
-      within(chores()).getByRole("button", { name: /Marcar Put away blocks/ }),
+      within(chores()).getByRole("button", { name: /Marcar como hecha: Put away blocks/ }),
     );
     await settle();
     const dialog = screen.getByTestId("who-is-this");
@@ -964,7 +964,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     expect(within(chores()).getByText("Put away blocks")).toBeInTheDocument();
     expect(
       within(chores()).queryByRole("button", {
-        name: /Mark Put away blocks done/,
+        name: /Mark done: Put away blocks/,
       }),
     ).toBeNull();
     expect(fc.request).not.toHaveBeenCalled();

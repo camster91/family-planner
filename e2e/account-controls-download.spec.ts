@@ -15,7 +15,7 @@ test("a failed account-controls download retries without deleting anything", asy
     "representative phone, portrait and fridge layouts",
   );
   expect((await page.goto("/dashboard"))?.status()).toBe(200);
-  const menu = page.getByRole("button", { name: "User menu" });
+  const menu = page.getByRole("button", { name: /User menu$/ });
   await menu.click();
   await page.waitForLoadState("networkidle");
   const writes: string[] = [];

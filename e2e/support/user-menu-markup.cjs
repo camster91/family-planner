@@ -82,7 +82,7 @@ async function main() {
     ),
   );
   await act(async () =>
-    document.querySelector('[aria-label="User menu"]').click(),
+    document.querySelector("button[aria-expanded]").click(),
   );
   process.stdout.write(document.getElementById("root").innerHTML);
   await act(async () => component.unmount());

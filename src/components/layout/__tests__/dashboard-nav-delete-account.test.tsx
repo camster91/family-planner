@@ -43,7 +43,7 @@ const KID_OPTIONS: DeletionOptions = {
 
 async function openMenu(role: NavUser['role']) {
   render(<DashboardNav user={user(role)} />)
-  await userEvent.click(screen.getByRole('button', { name: 'User menu' }))
+  await userEvent.click(screen.getByRole('button', { name: /User menu$/ }))
 }
 
 describe('DashboardNav user menu: delete my account', () => {

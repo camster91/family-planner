@@ -1371,17 +1371,16 @@ function DayCard({
               <button
                 type="button"
                 onClick={() => onAdd(day, slot.type)}
-                aria-label={text("addMeal", {
-                  meal: label.toLowerCase(),
-                  day: day.longLabel,
-                })}
                 className={styles.emptySlot}
               >
+                {/* Named by its content so the visible slot text stays in the spoken name (WCAG 2.5.3). */}
                 <span>
-                  <span className={styles.slotLabel}>{label}</span>
+                  <span className="sr-only">{text("addAction")} </span>
+                  <span className={styles.slotLabel}>{label}</span>{" "}
                   <span className={styles.meta}>
                     {tWeek(incomplete ? "notLoaded" : "nothingPlanned")}
                   </span>
+                  <span className="sr-only">, {day.longLabel}</span>
                 </span>
                 <Plus className="w-5 h-5 shrink-0" aria-hidden="true" />
               </button>

@@ -34,7 +34,7 @@ function mockPrefs() {
 
 async function openMenu(role: NavUser['role']) {
   render(<DashboardNav user={user(role)} />)
-  await userEvent.click(screen.getByRole('button', { name: 'User menu' }))
+  await userEvent.click(screen.getByRole('button', { name: /User menu$/ }))
 }
 
 describe('DashboardNav user menu: notifications', () => {
@@ -52,7 +52,7 @@ describe('DashboardNav user menu: notifications', () => {
     // Escape closes it and focus goes back to the menu button.
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Notifications' })).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'User menu' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /User menu$/ }))
   })
 
   it.each(['parent', 'teen'] as const)('a %s does not get the menu entry (they use Settings)', async (role) => {
