@@ -336,7 +336,7 @@ test.describe("sign out", () => {
     );
     expect(oldSession).toBeTruthy();
 
-    await page.getByRole("button", { name: "User menu" }).click();
+    await page.getByRole("button", { name: /User menu$/ }).click();
     await page.getByRole("button", { name: "Sign Out" }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.goto("/dashboard");

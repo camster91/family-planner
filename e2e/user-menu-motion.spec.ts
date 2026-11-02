@@ -40,7 +40,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     const link = page.getByRole("link", { name: "Food inventory" });
     await expect(link).toHaveAttribute("href", "/dashboard/inventory");
     await expect(
-      page.getByRole("button", { name: "User menu" }),
+      page.getByRole("button", { name: /User menu$/ }),
     ).toHaveAttribute("aria-expanded", "true");
     const measurements = await link.evaluate((element) => {
       const link = element as HTMLElement;

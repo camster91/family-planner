@@ -99,7 +99,7 @@ describe('CalendarSyncSection', () => {
       screen.getByRole("button", { name: "Retry connected calendars" }),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Sync Google Calendar now" }),
+      screen.queryByRole("button", { name: "Sync now: Google Calendar" }),
     ).toBeNull();
 
     await userEvent.click(
@@ -145,7 +145,7 @@ describe('CalendarSyncSection', () => {
       <CalendarSyncSection onProviderReturn={() => undefined} />,
     );
     expect(
-      await screen.findByRole("button", { name: "Sync Google Calendar now" }),
+      await screen.findByRole("button", { name: "Sync now: Google Calendar" }),
     ).toBeTruthy();
 
     // A provider-return callback identity change represents the settings host
@@ -158,7 +158,7 @@ describe('CalendarSyncSection', () => {
       screen.getByRole("button", { name: "Retry connected calendars" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Sync Google Calendar now" }),
+      screen.getByRole("button", { name: "Sync now: Google Calendar" }),
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Disconnect Google Calendar" }),
@@ -224,7 +224,7 @@ describe('CalendarSyncSection', () => {
     expect(await screen.findByText('Connected by Sam')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Change calendar/ })).toBeNull()
     expect(screen.queryByRole('radio')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Sync Google Calendar now' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sync now: Google Calendar' })).toBeTruthy()
   })
 
   it('with no connection: one plain line and the two connect buttons', async () => {
@@ -271,7 +271,7 @@ describe('CalendarSyncSection', () => {
     const { unmount } = render(<CalendarSyncSection />)
     expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeTruthy()
     expect(screen.getByText(/Reconnect this calendar to keep it in sync/)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Sync Google Calendar now/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Sync now: Google Calendar/ })).toBeNull()
     unmount()
 
     mockApi(200, [{ ...revoked, is_mine: false, owner: { id: 'u2', name: 'Sam' } }])

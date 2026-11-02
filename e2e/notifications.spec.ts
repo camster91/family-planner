@@ -164,7 +164,7 @@ test.describe("notification preferences (Family A child, user menu)", () => {
     );
     await resetSpecState();
     await page.goto("/dashboard");
-    const menu = page.getByRole("button", { name: "User menu" });
+    const menu = page.getByRole("button", { name: /User menu$/ });
     await menu.click();
     await page.waitForLoadState("networkidle");
     let blocked = false;
@@ -202,7 +202,7 @@ test.describe("notification preferences (Family A child, user menu)", () => {
     onlyOnSomeProjects(testInfo);
     await resetSpecState();
     await page.goto("/dashboard");
-    const menu = page.getByRole("button", { name: "User menu" });
+    const menu = page.getByRole("button", { name: /User menu$/ });
     await menu.click();
     const item = page.getByRole("button", { name: "Notifications" });
     // The menu opens with a spring animation that starts at scale(0.92), so

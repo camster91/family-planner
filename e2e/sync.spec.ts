@@ -287,11 +287,11 @@ test.describe("offline grocery ticks: Family A parent", () => {
       await page.context().clearCookies();
       await loginViaUi(page, ownedAccount.email, FIXTURE_PASSWORD);
       await expect(page).toHaveURL(/\/dashboard/);
-      await page.getByRole("button", { name: "User menu" }).click();
+      await page.getByRole("button", { name: /User menu$/ }).click();
       await expect(
         page.getByText(`Sync E2E ${compatibilityCase.id}`, { exact: true }),
       ).toBeVisible();
-      await page.getByRole("button", { name: "User menu" }).click();
+      await page.getByRole("button", { name: /User menu$/ }).click();
       fixture = await createList(page, testInfo, ["Existing grocery"]);
       const listId = fixture.listId;
       const itemId = fixture.items["Existing grocery"];
@@ -383,7 +383,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
         });
         expect(cleanup.status, cleanup.body).toBe(200);
         fixture = null;
-        await page.getByRole("button", { name: "User menu" }).click();
+        await page.getByRole("button", { name: /User menu$/ }).click();
         await page.getByRole("button", { name: "Sign Out" }).click();
         await expect(page).toHaveURL(/\/login$/);
         const leftovers = await page.evaluate(async () => {
@@ -880,7 +880,7 @@ test.describe("offline grocery ticks: Family A parent", () => {
       "conflict",
     );
     const updates = trackUpdates(page);
-    await page.getByRole("button", { name: "User menu", exact: true }).click();
+    await page.getByRole("button", { name: /User menu$/ }).click();
     await page.getByRole("link", { name: "Help", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Help", exact: true }),
@@ -1160,7 +1160,7 @@ test.describe("offline grocery ticks: sign-out", () => {
       route.abort("internetdisconnected"),
     );
     await goOnline(page);
-    await page.getByRole("button", { name: "User menu" }).click();
+    await page.getByRole("button", { name: /User menu$/ }).click();
     await page.getByRole("button", { name: "Sign Out" }).click();
     await expect(page).toHaveURL(/\/login$/);
 

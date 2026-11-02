@@ -578,15 +578,13 @@ export function CalendarPlanner({
                           <button
                             key={event.id}
                             type="button"
-                            aria-label={msg("reviewEvent", {
-                              title: event.title,
-                            })}
                             onClick={(ev) => {
                               trigger.current = ev.currentTarget;
                               setSelected(event);
                             }}
                           >
-                            <strong>{event.title}</strong>
+                            <span className="sr-only">{msg("reviewEvent")} </span>
+                            <strong>{event.title}</strong>{" "}
                             <small>{sourceLabel(event)}</small>
                           </button>
                           <ScheduleReviewButton

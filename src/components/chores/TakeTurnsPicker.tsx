@@ -114,7 +114,7 @@ export function TakeTurnsPicker({
                     )}
                   >
                     {picked ? place + 1 : ''}
-                  </span>
+                  </span>{' '}
                   <span className="min-w-0 break-words text-body">{m.name}</span>
                 </button>
               )

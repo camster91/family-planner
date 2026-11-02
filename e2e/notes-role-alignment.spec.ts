@@ -333,6 +333,16 @@ function titleFor(role: Role) {
   return NOTE_TITLES[role];
 }
 
+/** An editable note card's edit button: its title, named by the title alone. */
+function editableNoteCard(page: Page, title: string) {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exact = new RegExp(`^${escaped}$`);
+  return page
+    .getByTestId("note-card")
+    .locator("h2 button")
+    .filter({ hasText: exact });
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async ({ playwright, baseURL }, info) => {
@@ -541,13 +551,9 @@ for (const locale of ["en", "es"] as const) {
         );
         expect(edited.status, edited.body).toBe(200);
 
-        const ownCard = page.locator(
-          `[role="button"][aria-label="${titleFor(role)}"]`,
-        );
+        const ownCard = editableNoteCard(page, titleFor(role));
         await expect(ownCard).toHaveCount(1);
-        const parentCard = page.locator(
-          `[role="button"][aria-label="${NOTE_TITLES.parent}"]`,
-        );
+        const parentCard = editableNoteCard(page, NOTE_TITLES.parent);
         await expect(parentCard).toHaveCount(role === "parent" ? 1 : 0);
         await ownCard.click();
         const dialog = page.getByRole("dialog");
@@ -670,14 +676,10 @@ for (const locale of ["en", "es"] as const) {
       expect(getAttempts).toBe(2);
       releaseRetry?.();
       releaseRetry = undefined;
-      await expect(
-        page.locator(`[role="button"][aria-label="${NOTE_TITLES.parent}"]`),
-      ).toBeVisible();
+      await expect(editableNoteCard(page, NOTE_TITLES.parent)).toBeVisible();
       await expect(page.getByTestId("notes-retry")).toHaveCount(0);
 
-      const parentCard = page.locator(
-        `[role="button"][aria-label="${NOTE_TITLES.parent}"]`,
-      );
+      const parentCard = editableNoteCard(page, NOTE_TITLES.parent);
       await parentCard.click();
       const dialog = page.getByRole("dialog");
       await expect(dialog).toBeVisible();

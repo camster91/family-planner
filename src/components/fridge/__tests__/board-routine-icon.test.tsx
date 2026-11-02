@@ -44,7 +44,7 @@ it("loads the optional picture without changing the labelled chore action", asyn
     "brush-teeth",
   );
   await userEvent.click(
-    screen.getByRole("button", { name: "Mark Brush teeth done, Casey" }),
+    screen.getByRole("button", { name: "Mark done: Brush teeth Casey" }),
   );
   expect(tick).toHaveBeenCalledWith({ ...chore, icon: "brush-teeth" });
 });
@@ -64,7 +64,7 @@ it("keeps completion available if the decorative picture fails", async () => {
       </ul>,
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Mark Brush teeth done, Casey" }),
+      screen.getByRole("button", { name: "Mark done: Brush teeth Casey" }),
     );
     expect(tick).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("loaded-picture")).not.toBeInTheDocument();

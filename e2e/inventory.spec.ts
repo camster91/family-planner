@@ -312,7 +312,7 @@ async function tapToInventory(page: Page, testInfo: TestInfo) {
     "touch navigation is checked on the phone project",
   );
   await page.goto("/dashboard");
-  await page.getByRole("button", { name: "User menu" }).tap();
+  await page.getByRole("button", { name: /User menu$/ }).tap();
   const link = page.getByRole("link", { name: "Food inventory" });
   const box = await link.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
@@ -868,7 +868,7 @@ test.describe("inventory (Family A parent)", () => {
           r.url().includes("/api/inventory/change") &&
           r.request().method() === "POST",
       ),
-      soon.getByRole("button", { name: `Used ${YOGURT}` }).click(),
+      soon.getByRole("button", { name: `Used it: ${YOGURT}` }).click(),
     ]);
     expect(consumed.status()).toBe(200);
     expect(consumed.request().headers()["idempotency-key"]).toMatch(
@@ -963,7 +963,7 @@ test.describe("inventory (Family A parent)", () => {
     await expect(itemRow(page, IDS.milk)).toBeVisible();
     await page
       .getByTestId("use-soon")
-      .getByRole("button", { name: "Used Milk" })
+      .getByRole("button", { name: "Used it: Milk" })
       .click();
     await expect(page.getByTestId("inventory-notice")).toContainText(
       "You're offline. Connect to the internet to change the inventory.",

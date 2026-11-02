@@ -79,7 +79,7 @@ describe('RewardsBoard', () => {
     renderBoard({ rewards: [MOVIE, { ...MOVIE, id: 'r_game', name: 'Game time', cost: 30 }] })
     expect(screen.getAllByTestId('claimable-reward')).toHaveLength(2)
     expect(screen.queryAllByTestId('family-reward')).toHaveLength(0)
-    expect(screen.getByRole('button', { name: 'Claim Game time' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Claim Reward: Game time' })).toBeTruthy()
   })
 
   it('parses the canonical inactive flag and keeps retired rewards out of the claim shelf', () => {
@@ -107,7 +107,7 @@ describe('RewardsBoard', () => {
       return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
     }) as unknown as typeof fetch
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
@@ -150,7 +150,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     const calls = mockFetch(() => ({ status: 200, body: CLAIMED_MOVIE }))
     renderBoard()
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     const dialog = screen.getByRole('dialog', { name: 'Claim Movie night?' })
     expect(dialog.textContent).toContain('This uses 50 points')
     expect(calls).toHaveLength(0)
@@ -171,7 +171,7 @@ describe('RewardsBoard', () => {
       body: { reward: { ...MOVIE, id: 'other', status: 'claimed', claimedById: 'someone-else' }, xp: 30 },
     }))
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toContain('The connection dropped before we could confirm.')
     expect(screen.getByRole('dialog')).toBeTruthy()
@@ -189,7 +189,7 @@ describe('RewardsBoard', () => {
       body: { reward: { ...MOVIE, status: 'claimed', ...claimant }, xp: 30 },
     }))
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toContain('The connection dropped before we could confirm.')
     expect(refresh).not.toHaveBeenCalled()
@@ -199,7 +199,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => ({ status: 409, body: { error: 'Reward is no longer available' } }))
     renderBoard()
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Reward is no longer available')
     expect(screen.getByRole('dialog')).toBeTruthy()
@@ -215,7 +215,7 @@ describe('RewardsBoard', () => {
       return { ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response
     }) as unknown as typeof fetch
     renderBoard({ rewards: [MOVIE] })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     await user.click(await screen.findByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
@@ -227,7 +227,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => 'throw')
     renderBoard()
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Check your connection and try again.')
   })
@@ -250,7 +250,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => 'throw')
     renderBoard({ isParent: true, currentUserId: 'parent_1' }, 'es')
-    await user.click(screen.getByRole('button', { name: 'Marcar Ice cream como entregada' }))
+    await user.click(screen.getByRole('button', { name: 'Marcar como entregada: Ice cream' }))
     const row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
     expect(await within(row).findByText('Revisa tu conexión e inténtalo de nuevo.')).toBeTruthy()
     expect(within(row).queryByText('Check your connection and try again.')).toBeNull()
@@ -271,7 +271,7 @@ describe('RewardsBoard', () => {
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     const row = screen.getAllByTestId('family-reward').find((r) => r.textContent?.includes('Ice cream'))!
     expect(row.textContent).toContain('Claimed by Sam')
-    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(row).getByRole('button', { name: 'Mark as given: Ice cream' }))
     await waitFor(() => expect(refresh).toHaveBeenCalled())
     expect(calls).toHaveLength(1)
     expect(calls[0]).toEqual(expect.objectContaining({ url: '/api/rewards/approve', method: 'POST', body: { rewardId: 'r_ice' } }))
@@ -284,7 +284,7 @@ describe('RewardsBoard', () => {
     mockFetch(() => ({ status: 200, body: { reward: { ...ICE_CREAM, id: 'other', status: 'approved' } } }))
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     const row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
-    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(row).getByRole('button', { name: 'Mark as given: Ice cream' }))
     expect(await within(row).findByText('The connection dropped before we could confirm.')).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()
   })
@@ -298,8 +298,8 @@ describe('RewardsBoard', () => {
       rewards: [ICE_CREAM, { ...ICE_CREAM, id: 'r_game', name: 'Game time' }],
     })
     const rows = screen.getAllByTestId('family-reward')
-    await user.click(within(rows[0]).getByRole('button', { name: 'Mark Ice cream as given' }))
-    await user.click(within(rows[1]).getByRole('button', { name: 'Mark Game time as given' }))
+    await user.click(within(rows[0]).getByRole('button', { name: 'Mark as given: Ice cream' }))
+    await user.click(within(rows[1]).getByRole('button', { name: 'Mark as given: Game time' }))
     expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
     expect(within(rows[0]).getByText('try later')).toBeTruthy()
     expect(within(rows[1]).getByText('try later')).toBeTruthy()
@@ -326,7 +326,7 @@ describe('RewardsBoard', () => {
     }) as unknown as typeof fetch
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
     let row = screen.getAllByTestId('family-reward').find((item) => item.textContent?.includes('Ice cream'))!
-    await user.click(within(row).getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(within(row).getByRole('button', { name: 'Mark as given: Ice cream' }))
     expect(within(row).getByText('try later')).toBeTruthy()
 
     await user.click(within(row).getByRole('button', { name: 'Check status' }))
@@ -349,7 +349,7 @@ describe('RewardsBoard', () => {
     const user = userEvent.setup()
     mockFetch(() => ({ status: 400, body: { error: 'Reward must be claimed before approval' } }))
     renderBoard({ isParent: true, currentUserId: 'parent_1' })
-    await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }))
+    await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }))
     expect(await screen.findByText('Reward must be claimed before approval')).toBeTruthy()
     expect(screen.getByText("Couldn't mark Ice cream as given")).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()
@@ -375,7 +375,7 @@ it('retains a closed uncertain claim for review and holds page navigation after 
   const calls = mockFetch(url => url === '/api/rewards/claim' ? 'throw' : { status: 200, body: { rewards: [MOVIE] } })
   const user = userEvent.setup()
   renderBoard({ pageInfo: { older: false, nextCursor: 'fixture-cursor' } })
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
   await within(screen.getByRole('dialog')).findByText('Check status')
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
@@ -399,7 +399,7 @@ it('settles an abort-ignoring claim deadline and retries with the original key/b
     }) as typeof fetch
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
     renderBoard({ pageInfo: { older: false, nextCursor: 'fixture-cursor' } })
-    await user.click(screen.getByRole('button', { name: 'Claim Movie night' }))
+    await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }))
     await act(async () => { jest.advanceTimersByTime(15_001) })
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Try again' }).hasAttribute('disabled')).toBe(false)
@@ -424,7 +424,7 @@ it('keeps an oversized approval receipt uncertain and reuses the original key on
   }) as typeof fetch
   const user = userEvent.setup()
   renderBoard({ isParent: true, currentUserId: 'parent_1' })
-  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }))
+  await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }))
   await screen.findByRole('button', { name: 'Try again' })
   expect(decode).not.toHaveBeenCalled()
   await user.click(screen.getByRole('button', { name: 'Try again' }))
@@ -445,7 +445,7 @@ it('retains the original uncertain approval key across a later known refusal', a
   }) as typeof fetch;
   const user = userEvent.setup();
   renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
-  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }));
   await user.click(await screen.findByRole('button', { name: 'Try again' }));
   await screen.findByText('Later validation refusal');
   await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -461,7 +461,7 @@ it('masks private state after a late-access hold without sending another request
     return { ok: false, status: 401, json: async () => ({ error: 'May already be saved', code: 'REWARD_ACCESS_CHANGED' }) } as Response;
   }) as typeof fetch;
   const user = userEvent.setup(); renderBoard({ rewards: [MOVIE] });
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
   await screen.findByRole('button', { name: 'Reload rewards' });
   expect(screen.queryByText('Movie night')).toBeNull(); expect(screen.queryByRole('dialog')).toBeNull();
@@ -470,7 +470,7 @@ it('masks private state after a late-access hold without sending another request
 it('does not resolve an uncertain own claim from another account’s current claim', async () => {
   mockFetch(url => url === '/api/rewards/claim' ? 'throw' : { status: 200, body: { rewards: [{ ...MOVIE, status: 'claimed', claimedById: 'another-child', claimedByName: 'Fixture other' }] } });
   const user = userEvent.setup(); renderBoard({ rewards: [MOVIE] });
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
   await user.click(await screen.findByRole('button', { name: 'Check status' }));
   await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
@@ -484,7 +484,7 @@ it('aborts foreground approval on owner replacement and ignores its late result'
   global.fetch = jest.fn(async (_input, init) => { requestSignal = init?.signal; return new Promise<Response>(resolve => { settle = resolve }); }) as typeof fetch;
   const user = userEvent.setup();
   const { rerender } = renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1', familyId: 'family-one', viewerRole: 'parent', sessionGeneration: 2 });
-  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }));
   rerender(<I18nProvider locale="en"><ToastProvider><RewardsBoard rewards={[]} userXp={0} isParent={false} currentUserId="other-account" familyId="other-family" viewerRole="child" sessionGeneration={1} canViewAnalytics={false} /></ToastProvider></I18nProvider>);
   expect(requestSignal?.aborted).toBe(true); expect(screen.queryByText('Ice cream')).toBeNull();
   await act(async () => { settle({ ok: true, status: 200, json: async () => GIVEN_ICE_CREAM } as Response); });
@@ -495,7 +495,7 @@ it('retires a pending claim after unmount without a late success toast or refres
   let requestSignal: AbortSignal | null | undefined;
   global.fetch = jest.fn(async (_input, init) => { requestSignal = init?.signal; return new Promise<Response>(resolve => { settle = resolve }); }) as typeof fetch;
   const user = userEvent.setup(); const { unmount } = renderBoard({ rewards: [MOVIE] });
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
   unmount(); expect(requestSignal?.aborted).toBe(true);
   await act(async () => { settle({ ok: true, status: 200, json: async () => CLAIMED_MOVIE } as Response); });
@@ -506,7 +506,7 @@ it('shares one synchronous latch across rapid approval activations', async () =>
   const requests: RequestInit[] = [];
   global.fetch = jest.fn(async (_input, init) => { requests.push(init ?? {}); return new Promise<Response>(() => {}) }) as typeof fetch;
   renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
-  const button = screen.getByRole('button', { name: 'Mark Ice cream as given' });
+  const button = screen.getByRole('button', { name: 'Mark as given: Ice cream' });
   act(() => { button.click(); button.click(); });
   await waitFor(() => expect(requests).toHaveLength(1));
 });
@@ -518,7 +518,7 @@ it('holds an original approval past receipt retention without issuing a new POST
   try {
     const calls = mockFetch(url => url === '/api/rewards/approve' ? 'throw' : { status: 200, body: { rewards: [ICE_CREAM] } });
     const user = userEvent.setup(); renderBoard({ rewards: [ICE_CREAM], isParent: true, currentUserId: 'parent_1' });
-    await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+    await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }));
     await screen.findByRole('button', { name: 'Try again' });
     localClock = firstIssued + 7 * 24 * 60 * 60 * 1000;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -543,7 +543,7 @@ it('freezes owned claim context and retries only the owned endpoint', async () =
       json: async () => ({ ...CLAIMED_MOVIE, reward: { ...CLAIMED_MOVIE.reward, family_id: owner.familyId, notification_generation: generation } }) } as Response;
   }) as typeof fetch;
   const user = userEvent.setup(); renderBoard({ rewards: [{ ...MOVIE, sourceGeneration: generation }], familyId: owner.familyId, viewerRole: owner.role, sessionGeneration: 2, ownedActions: { owner } });
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
   await user.click(await screen.findByRole('button', { name: 'Try again' }));
   await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -554,7 +554,7 @@ it('freezes owned claim context and retries only the owned endpoint', async () =
 it('holds missing owned capability instead of posting an unversioned claim', async () => {
   global.fetch = jest.fn() as typeof fetch;
   const user = userEvent.setup(); renderBoard({ rewards: [MOVIE], ownedActions: { owner: null } });
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Claim' }));
   await screen.findByText('This reward request could not be prepared. Reload rewards and try again.');
   expect(global.fetch).not.toHaveBeenCalled();
@@ -571,7 +571,7 @@ it('does not resolve an owned approval from a recreated reward with the same ID'
       json: async () => read ? { protocol: 'herewoven.reward-action.v1', owner, rewards: [{ id: ICE_CREAM.id, family_id: owner.familyId, notification_generation: replaced, name: ICE_CREAM.name, cost: 20, status: 'redeemed', is_active: true, claimed_by: 'kid_1' }] } : { error: 'Outcome unknown' } } as Response;
   }) as typeof fetch;
   const user = userEvent.setup(); renderBoard({ rewards: [{ ...ICE_CREAM, sourceGeneration: original }], isParent: true, currentUserId: owner.userId, familyId: owner.familyId, viewerRole: owner.role, sessionGeneration: 2, ownedActions: { owner } });
-  await user.click(screen.getByRole('button', { name: 'Mark Ice cream as given' }));
+  await user.click(screen.getByRole('button', { name: 'Mark as given: Ice cream' }));
   await user.click(await screen.findByRole('button', { name: 'Check status' }));
   await screen.findByText('The current reward does not confirm your original request. Keep this recovery and check again.');
   expect(refresh).not.toHaveBeenCalled(); expect(urls).toEqual(['/api/rewards/approve/owned', '/api/rewards/owned?rewardId=r_ice']);
@@ -581,7 +581,7 @@ it('does not resolve an owned approval from a recreated reward with the same ID'
 it('offers one deliberate claim control for an available reward from a notification', async () => {
   const user = userEvent.setup(); global.fetch = jest.fn() as typeof fetch;
   renderBoard({ rewards: [MOVIE], notificationFocus: { target: MOVIE } });
-  expect(screen.getAllByRole('button', { name: 'Claim Movie night' })).toHaveLength(1);
-  await user.click(screen.getByRole('button', { name: 'Claim Movie night' }));
+  expect(screen.getAllByRole('button', { name: 'Claim Reward: Movie night' })).toHaveLength(1);
+  await user.click(screen.getByRole('button', { name: 'Claim Reward: Movie night' }));
   expect(screen.getByRole('dialog')).toBeTruthy(); expect(global.fetch).not.toHaveBeenCalled();
 });
