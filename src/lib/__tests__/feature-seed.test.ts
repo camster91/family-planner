@@ -23,6 +23,6 @@ describe("all-on discovery feature seed replacement", () => {
     expect(replaced).toContain(escaped);
     expect(replaced.match(/\\\\"/g)).toBeNull();
     expect(Object.keys(ALL_ON)).toHaveLength(FEATURES.length);
-    expect(FEATURES).toHaveLength(23);
+    expect(FEATURES).toHaveLength(22);
   });
 });
