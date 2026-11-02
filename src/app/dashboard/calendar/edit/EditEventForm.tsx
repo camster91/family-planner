@@ -7,12 +7,11 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
-import { format } from 'date-fns'
 import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventDuration } from '@/components/calendar/EventDuration'
-import { eventFormRange } from '@/lib/dates'
+import { eventFormRange, isoToLocalDateTimeInput } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
@@ -99,13 +98,15 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           setTitle(event.title)
           setDescription(event.description || '')
           // Populate the form in the user's local time
-          const start = new Date(event.start_time)
-          setStartDate(format(start, 'yyyy-MM-dd'))
-          setStartTime(format(start, 'HH:mm'))
+          const start = isoToLocalDateTimeInput(event.start_time)
+          if (!start) throw new Error('INVALID_EVENT_TIME')
+          setStartDate(start.slice(0, 10))
+          setStartTime(start.slice(11))
           if (event.end_time) {
-            const end = new Date(event.end_time)
-            setEndDate(format(end, 'yyyy-MM-dd'))
-            setEndTime(format(end, 'HH:mm'))
+            const end = isoToLocalDateTimeInput(event.end_time)
+            if (!end) throw new Error('INVALID_EVENT_TIME')
+            setEndDate(end.slice(0, 10))
+            setEndTime(end.slice(11))
           }
           setLocation(event.location || '')
           originalRecurrence.current = typeof event.recurrence === 'string' ? event.recurrence : null

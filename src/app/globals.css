@@ -754,3 +754,10 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* A screen with its own quick-add action needs only one visible launcher.
+   CSS keeps the fallback available if the screen's primary action is absent,
+   without another observer, context provider or client-side state. */
+[data-dashboard-shell]:has([data-primary-quick-add]) [data-secondary-quick-add] {
+  display: none;
+}

@@ -12,7 +12,7 @@ import ChoresContent from "../ChoresContent";
 import { ToastProvider } from "@/components/ui/toast";
 import { I18nProvider } from "@/i18n";
 import { profileSetupMessages } from "@/i18n/profile-setup";
-import { format } from "date-fns";
+import { toDateOnlyLocal } from "@/lib/dates";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: jest.fn(), push: jest.fn() }),
@@ -50,7 +50,7 @@ afterEach(() => jest.restoreAllMocks());
 
 function completedChore(id: string, title: string) {
   // These are today's calendar-date chores, not the current UTC day's chores.
-  const today = format(new Date(), "yyyy-MM-dd") + "T00:00:00.000Z";
+  const today = toDateOnlyLocal(new Date()) + "T00:00:00.000Z";
   return {
     id,
     family_id: "fam",
