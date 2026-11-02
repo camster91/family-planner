@@ -93,7 +93,8 @@ test.describe("offline: Family A parent", () => {
     await goOnline(page);
 
     await page.goto("/dashboard/today");
-    await expect(page.getByTestId("board-updated")).toBeVisible();
+    // The compact phone header keeps freshness in Today controls.
+    await expect(page.getByTestId("board-updated")).toContainText("Updated");
     await goOffline(page);
     await expect(banner(page)).toBeVisible();
     await expect(page.getByTestId("sync-notice")).toContainText(

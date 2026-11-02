@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useOnline } from "@/components/ui/use-online";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useTodayBoardText } from "@/i18n/today-board";
@@ -103,23 +104,25 @@ function DeferredTodayLayoutEditor({
         <SlidersHorizontal size={18} aria-hidden="true" />
         {text("customize")}
       </button>
-      {started && (
-        <React.Suspense
-          fallback={
-            <p role="status" className="text-footnote text-label-secondary">
-              {text("customize")}…
-            </p>
-          }
-        >
-          <LazyTodayLayoutEditor
-            available={available}
-            open={open}
-            onOpenChange={setOpen}
-            hideInternalLauncher
-            showStatus={false}
-          />
-        </React.Suspense>
-      )}
+      {started &&
+        createPortal(
+          <React.Suspense
+            fallback={
+              <p role="status" className="text-footnote text-label-secondary">
+                {text("customize")}…
+              </p>
+            }
+          >
+            <LazyTodayLayoutEditor
+              available={available}
+              open={open}
+              onOpenChange={setOpen}
+              hideInternalLauncher
+              showStatus={false}
+            />
+          </React.Suspense>,
+          document.body,
+        )}
     </>
   );
 }
@@ -669,7 +672,9 @@ export default function TodayBoard({
     now: now ? now.getTime() : null,
     display,
   });
-  React.useEffect(() => { onCoveredChange?.(covered); }, [covered, onCoveredChange]);
+  React.useEffect(() => {
+    onCoveredChange?.(covered);
+  }, [covered, onCoveredChange]);
   const boardRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     // Covered: the board leaves the focus order and the accessibility tree
@@ -877,7 +882,9 @@ export default function TodayBoard({
 
         <header className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 md:mb-5 2xl:mb-8">
           <div className="min-w-0">
-            <p className={`${personal ? "hidden sm:block" : ""} mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]`}>
+            <p
+              className={`${personal ? "hidden sm:block" : ""} mb-1 text-[13px] font-semibold uppercase tracking-[0.12em] text-label-secondary md:text-[14px] 2xl:text-[20px]`}
+            >
               {text("today")}
             </p>
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
@@ -901,7 +908,9 @@ export default function TodayBoard({
 
           {/* Right cluster: weather (#262, only when the household opted in and a
             forecast is available) above the refresh time and the mode action. */}
-          <div className={`${personal && !view?.weather ? "hidden sm:flex" : "flex"} w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end`}>
+          <div
+            className={`${personal && !view?.weather ? "hidden sm:flex" : "flex"} w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end`}
+          >
             {view?.weather && (
               <div className="w-full min-w-0 sm:w-auto">
                 <LazyWeatherTile view={view.weather} />
@@ -948,8 +957,14 @@ export default function TodayBoard({
               online={online}
             >
               <DeferredTodayLayoutEditor available={availableSections} />
-              {now && <UpdatedLine lastSyncAt={shownSyncAt} now={now.getTime()}
-                testId="today-menu-updated" className="px-3 py-2 text-footnote text-label-secondary sm:hidden" />}
+              {now && (
+                <UpdatedLine
+                  lastSyncAt={shownSyncAt}
+                  now={now.getTime()}
+                  testId="today-menu-updated"
+                  className="px-3 py-2 text-footnote text-label-secondary sm:hidden"
+                />
+              )}
             </TodayControls>
           </>
         )}

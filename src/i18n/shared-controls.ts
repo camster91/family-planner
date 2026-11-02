@@ -1,6 +1,6 @@
 "use client";
 import { useCallback } from "react";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 const en = {
   search: "Search",
   clear: "Clear",
@@ -17,6 +17,6 @@ const es: Record<keyof typeof en, string> = {
 };
 const messages = { en, es };
 export function useSharedControlsText() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   return useCallback((key: keyof typeof en) => t(key, undefined, messages), [t]);
 }

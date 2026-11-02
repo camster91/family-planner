@@ -396,7 +396,10 @@ test.describe("Personal-only household work", () => {
             edgeTolerance,
           );
         }
-        expect(Math.abs(comingBox!.x - gridBox!.x)).toBeLessThan(edgeTolerance);
+        if (width < 1280)
+          expect(Math.abs(comingBox!.x - gridBox!.x)).toBeLessThan(
+            edgeTolerance,
+          );
         expect(Math.abs(right(comingBox!) - gridRight)).toBeLessThan(
           edgeTolerance,
         );
@@ -436,31 +439,24 @@ test.describe("Personal-only household work", () => {
           expect(Math.abs(nextBox!.y - dinnerBox!.y)).toBeLessThan(
             edgeTolerance,
           );
-          expect(Math.abs(nextBox!.y - groceriesBox!.y)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(Math.abs(nextBox!.width - dinnerBox!.width)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(Math.abs(nextBox!.width - groceriesBox!.width)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(nextBox!.x).toBeLessThan(dinnerBox!.x);
-          expect(dinnerBox!.x).toBeLessThan(groceriesBox!.x);
+          expect(nextBox!.width).toBeGreaterThan(dinnerBox!.width);
           expect(right(nextBox!)).toBeLessThanOrEqual(
             dinnerBox!.x + edgeTolerance,
           );
-          expect(right(dinnerBox!)).toBeLessThanOrEqual(
-            groceriesBox!.x + edgeTolerance,
+          expect(Math.abs(right(dinnerBox!) - gridRight)).toBeLessThan(
+            edgeTolerance,
+          );
+          expect(Math.abs(groceriesBox!.y - comingBox!.y)).toBeLessThan(
+            edgeTolerance,
           );
           expect(right(groceriesBox!)).toBeLessThanOrEqual(
-            gridRight + edgeTolerance,
+            comingBox!.x + edgeTolerance,
           );
+          expect(comingBox!.width).toBeGreaterThan(groceriesBox!.width);
           expect(comingBox!.y).toBeGreaterThanOrEqual(
             Math.max(
               nextBox!.y + nextBox!.height,
               dinnerBox!.y + dinnerBox!.height,
-              groceriesBox!.y + groceriesBox!.height,
             ) - edgeTolerance,
           );
         }

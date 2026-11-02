@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import type { OwnedRequestRecoveryError } from "@/lib/owned-request-journal";
 
 /** Fixed local copy only: never include saved fields, keys or storage contents. */
@@ -39,5 +39,5 @@ const es: typeof en = {
     "La revisión guardada ya no coincide con esta acción. Mantén esta pantalla abierta y recupera el trabajo antes de continuar. No repitas una solicitud sin confirmar como un elemento nuevo.",
 };
 export function useReviewRecoveryText() {
-  return useTranslation().locale === "es" ? es : en;
+  return useCoreTranslation().locale === "es" ? es : en;
 }

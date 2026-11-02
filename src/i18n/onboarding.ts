@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import type { Locale } from "./types";
 
 export const onboardingEnglish = {
@@ -156,7 +156,7 @@ export const onboardingMessages: Record<
 };
 
 export function useOnboardingText() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   return useCallback((key: OnboardingMessage, params?: Record<string, string | number>) =>
     t(key, params, onboardingMessages), [t]);
 }

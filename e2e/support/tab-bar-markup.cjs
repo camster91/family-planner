@@ -49,6 +49,9 @@ const layout = fs.readFileSync(
   path.join(root, "src/app/dashboard/layout.tsx"),
   "utf8",
 );
+const shellClass = layout.match(
+  /data-dashboard-shell\s+className="([^"]+)"/,
+)[1];
 const mainClass = layout.match(/id="main-content"\s+className="([^"]+)"/)[1];
 if (process.argv[2] === "--browser") {
   const output = path.resolve(process.argv[3]);
@@ -101,7 +104,7 @@ if (process.argv[2] === "--browser") {
         { initial: defaultFeatures(), canManage: role === "parent" },
         React.createElement(
           "div",
-          { className: "min-h-screen bg-[var(--surface-grouped)]" },
+          { "data-dashboard-shell": "", className: shellClass },
           React.createElement(
             "main",
             { id: "main-content", className: mainClass },

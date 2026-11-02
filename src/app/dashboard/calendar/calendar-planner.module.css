@@ -163,6 +163,14 @@
   grid-template-columns: 184px minmax(0, 1fr);
   gap: 24px;
 }
+.layout[data-source-menu="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.syncStatus {
+  margin-inline-start: auto;
+  font-size: 13px;
+  color: var(--label-secondary);
+}
 .sources {
   font-size: 13px;
   color: var(--label-secondary);
@@ -213,14 +221,21 @@
 }
 .connectionMenu > div {
   position: absolute;
-  inset-inline-end: 0;
+  inset-inline-start: 0;
   top: calc(100% + 8px);
-  width: min(320px, calc(100vw - 32px));
+  width: min(320px, calc(100vw - 48px));
   overflow: hidden;
   border: 1px solid var(--surface-separator-opaque);
   border-radius: 14px;
   background: var(--surface-elevated);
   box-shadow: var(--shadow-md);
+}
+.connectionSources label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.connectionSources select {
+  width: 100%;
 }
 .connectionSources {
   display: grid;
@@ -594,12 +609,6 @@
   .layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
-  }
-  /* Keep the source filter available on phones. Editable households also
-     render the connection menu in the header, but hiding this aside removes
-     the only compact way to choose a source. */
-  .sources[data-menu-source="true"] {
-    display: block;
   }
   .planner .sourceToggle {
     display: flex;

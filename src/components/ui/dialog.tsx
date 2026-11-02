@@ -145,7 +145,7 @@ export function Dialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 !m-0 z-[80] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
       <div
         ref={panelRef}
         role={role}

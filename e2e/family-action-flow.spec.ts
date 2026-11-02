@@ -6,7 +6,10 @@ test.beforeEach(async ({}, info) => {
   test.skip(
     ![
       "phone-390x844",
+      "phone-430x932",
+      "tablet-portrait-800x1280",
       "fridge-landscape-1280x800",
+      "tablet-large-1920x1200",
       "desktop-1366x768",
     ].includes(info.project.name),
     "representative personal dashboard layouts",
@@ -76,6 +79,21 @@ test("Today Add or ask leads to a composer without starting AI or writes", async
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("calendar connections menu stays inside the screen", async ({ page }) => {
+  await page.goto("/dashboard/calendar");
+  const menu = page.locator("details").filter({
+    has: page.locator("summary[aria-label='Calendars & connections']"),
+  });
+  await menu.locator("summary").click();
+  await expect(
+    menu.getByRole("combobox", { name: "Calendar source" }),
+  ).toBeVisible();
+  const box = await menu.locator(":scope > div").boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
 });
 
 test("photo handoff explains unavailable capture and offers manual entry", async ({
@@ -201,3 +219,59 @@ test("wide Today puts dinner beside the schedule without changing saved section 
     "next",
   );
 });
+
+for (const kind of ["meal", "prep"] as const) {
+  test(`recipe opens ${kind} editor with its day and no automatic save`, async ({
+    page,
+  }, info) => {
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (
+        ["POST", "PATCH", "DELETE"].includes(request.method()) &&
+        /\/api\/(meals|meal-prep)(\/|$)/.test(new URL(request.url()).pathname)
+      )
+        writes.push(request.url());
+    });
+    await page.goto(
+      "/dashboard/meals/recipes/fx_recipe_a_lasagna?start=2026-01-08",
+    );
+    await page
+      .getByRole("link", {
+        name: kind === "meal" ? "Plan a meal" : "Add to prep",
+        exact: true,
+      })
+      .click();
+    const editor = page.getByTestId(
+      kind === "meal" ? "meal-modal" : "meal-prep-editor",
+    );
+    await expect(editor).toBeVisible();
+    const backdrop = await editor.locator("..").boundingBox();
+    expect(backdrop!.y).toBe(0);
+    expect(backdrop!.height).toBe(page.viewportSize()!.height);
+    await expect(
+      editor.getByLabel(kind === "meal" ? "Date" : "Preparation day", {
+        exact: true,
+      }),
+    ).toHaveValue("2026-01-08");
+    if (kind === "prep")
+      await editor.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(
+      editor.getByRole("combobox", { name: "Recipe (optional)", exact: true }),
+    ).toHaveValue("fx_recipe_a_lasagna");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await editor.evaluate(async (element) => {
+      await Promise.all(
+        element.getAnimations().map((animation) => animation.finished),
+      );
+    });
+    await info.attach(`recipe-${kind}-handoff`, {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
+    expect(writes).toEqual([]);
+  });
+}

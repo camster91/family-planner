@@ -1,4 +1,4 @@
-import { useTranslation } from "@/i18n";
+import { useCoreTranslation } from "@/i18n/core";
 import { FEATURES, type FeatureKey } from "@/lib/features";
 import type { Locale } from "./types";
 
@@ -184,6 +184,6 @@ export function getFeatureOffCopy(
 }
 
 export function useFeatureDisplayCopy(): FeatureDisplayResolver {
-  const { locale } = useTranslation();
+  const { locale } = useCoreTranslation();
   return (key) => getFeatureDisplayCopy(locale, key);
 }
