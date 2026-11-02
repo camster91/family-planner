@@ -6,7 +6,10 @@ test.beforeEach(async ({}, info) => {
   test.skip(
     ![
       "phone-390x844",
+      "phone-430x932",
+      "tablet-portrait-800x1280",
       "fridge-landscape-1280x800",
+      "tablet-large-1920x1200",
       "desktop-1366x768",
     ].includes(info.project.name),
     "representative personal dashboard layouts",
