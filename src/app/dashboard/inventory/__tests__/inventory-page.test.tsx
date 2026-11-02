@@ -741,7 +741,7 @@ describe("/dashboard/inventory", () => {
       expect(screen.queryByTestId("inventory-change-recovery")).toBeNull(),
     );
     await user.click(
-      await screen.findByRole("button", { name: "Edit Tomatoes" }),
+      await screen.findByRole("button", { name: /^Edit Tomatoes\b/ }),
     );
     const next = await screen.findByRole("dialog");
     await user.clear(within(next).getByLabelText("Name"));
@@ -793,8 +793,8 @@ describe("/dashboard/inventory", () => {
       return normalFetch(url, init);
     });
     const soon = await screen.findByTestId("use-soon");
-    await within(soon).findByRole("button", { name: "Used Milk" });
-    await user.click(within(soon).getByRole("button", { name: "Used Milk" }));
+    await within(soon).findByRole("button", { name: "Used it: Milk" });
+    await user.click(within(soon).getByRole("button", { name: "Used it: Milk" }));
     const recovery = await screen.findByTestId("inventory-change-recovery");
     await within(recovery).findByRole("button", { name: "Check same save" });
     await user.keyboard("{Escape}");

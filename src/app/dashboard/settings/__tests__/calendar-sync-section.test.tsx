@@ -99,7 +99,7 @@ describe('CalendarSyncSection', () => {
       screen.getByRole("button", { name: "Retry connected calendars" }),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Sync Google Calendar now" }),
+      screen.queryByRole("button", { name: "Sync now: Google Calendar" }),
     ).toBeNull();
 
     await userEvent.click(
@@ -145,7 +145,7 @@ describe('CalendarSyncSection', () => {
       <CalendarSyncSection onProviderReturn={() => undefined} />,
     );
     expect(
-      await screen.findByRole("button", { name: "Sync Google Calendar now" }),
+      await screen.findByRole("button", { name: "Sync now: Google Calendar" }),
     ).toBeTruthy();
 
     // A provider-return callback identity change represents the settings host
@@ -158,7 +158,7 @@ describe('CalendarSyncSection', () => {
       screen.getByRole("button", { name: "Retry connected calendars" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Sync Google Calendar now" }),
+      screen.getByRole("button", { name: "Sync now: Google Calendar" }),
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Disconnect Google Calendar" }),
