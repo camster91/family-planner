@@ -1420,7 +1420,8 @@ test.describe("parentA connected calendars", () => {
           .getByRole("button", { name: msg(next, "cancel"), exact: true })
           .click();
         expect(s.count("DELETE", conPath)).toBe(0);
-        s.reply("DELETE", conPath, { body: {} });
+        // Only an explicit success confirms a disconnect (b6944cb).
+        s.reply("DELETE", conPath, { body: { success: true } });
         await disconnect.click();
         removal = page.getByRole("alertdialog");
         await removal
@@ -1433,7 +1434,8 @@ test.describe("parentA connected calendars", () => {
           ),
         ).toBeVisible();
         s.assertLast("DELETE", conPath);
-        expect(s.count("GET", "/api/calendar/connections")).toBe(1);
+        // Initial read plus the two explicit refreshes after unconfirmed syncs.
+        expect(s.count("GET", "/api/calendar/connections")).toBe(3);
         await capture(page, info, "connections-synthetic-disconnected");
       });
       test(`${locale}: all eight provider-return outcomes and unknown query remain mounted`, async ({
