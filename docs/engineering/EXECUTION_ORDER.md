@@ -45,6 +45,15 @@ Continue the existing issues, not another feature backlog.
   overflow horizontally; the phone review screenshot was inspected. Broader
   photo, camera hardware, provider and native acceptance remain outstanding.
   No product provider was activated or called; no production changes ran.
+- Stock lifecycle follow-through: actual local Worker/D1 browser at `ba99cbb9`
+  passed partial consumption (three cans to two), owned Undo (back to three),
+  and replacement creation in a selected grocery list. The phone screenshot
+  exposed a stacked editor behind the replacement sheet. The editor now
+  suspends while replacement is open, retaining its unsaved fields for return;
+  a regression covers one visible dialog, draft restoration and no stock write.
+  Replacement success also drops the redundant setup hint/list-index link and
+  spaces its remaining Open list/Undo controls. Focused inventory/restock tests
+  passed (28 tests). Exact updated UI rendering remains to verify.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,

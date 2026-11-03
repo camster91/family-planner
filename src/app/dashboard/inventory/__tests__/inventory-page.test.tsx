@@ -349,6 +349,22 @@ describe("/dashboard/inventory", () => {
     });
   });
 
+  it("shows only replacement controls and restores the unchanged editor draft on close", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup();
+    await user.click(await screen.findByRole("button", { name: /^Edit Tomatoes\b/ }));
+    const editor = screen.getByRole("dialog", { name: "Edit Tomatoes" });
+    await user.clear(within(editor).getByLabelText("Name"));
+    await user.type(within(editor).getByLabelText("Name"), "Draft tomato name");
+    await user.click(within(editor).getByRole("button", { name: "Add a replacement" }));
+    const replacement = await screen.findByRole("dialog", { name: "Add a replacement" });
+    expect(screen.queryByRole("dialog", { name: "Edit Tomatoes" })).not.toBeInTheDocument();
+    await user.click(within(replacement).getByRole("button", { name: "Close" }));
+    const returned = await screen.findByRole("dialog", { name: "Edit Tomatoes" });
+    expect(within(returned).getByLabelText("Name")).toHaveValue("Draft tomato name");
+    expect(calls.every(call => call.method === "GET" || call.url === "/api/inventory/restock/review")).toBe(true);
+  });
+
   it("keeps the inventory draft open and non-dismissible while saving", async () => {
     const user = userEvent.setup();
     let release!: () => void;

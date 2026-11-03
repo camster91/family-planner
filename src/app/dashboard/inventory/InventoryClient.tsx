@@ -643,7 +643,7 @@ function InventoryContent({
       {editing && (
         <ItemModal
           mode={editing.mode}
-          suspended={readBlocked || !!stockChange}
+          suspended={readBlocked || !!stockChange || !!restockItem}
           onVerifyAccess={() => void load()}
           initialContext={intakeContext}
           initial={editing.mode === 'edit' ? editing.item : undefined}
