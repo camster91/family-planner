@@ -12,6 +12,18 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Routine handoff connection (#464/#450/#499): the assistant now opens the
+  dedicated routine view, and the chores server honors the fixed `view=routines`
+  destination. Routine editor save/return and schedule-manager return links use
+  that same destination. Client state follows changed destination props without
+  resetting a person's tab choice on ordinary refresh. Existing role, feature,
+  draft and save-recovery gates remain intact; no new write path is introduced.
+  Three affected suites pass (54 tests), typecheck passes, and browser component
+  checks pass EN/ES across six sizes for direct routine selection and returning to
+  Today without horizontal overflow. The Spanish phone rendering was inspected.
+  These use an isolated actual-component fixture with a router adapter, not a
+  production household or native device. Evidence: `routine-handoff-*` in the
+  sibling continuation artifacts. Nothing was pushed, merged or deployed.
 - iOS native dependency/build follow-through (#473/#138): `cap sync ios`
   corrected the generated Swift package from Capacitor 8.5.2 to the installed
   8.5.3 runtime; Xcode regenerated the exact resolved pin. Candidate `1efe4fc7`

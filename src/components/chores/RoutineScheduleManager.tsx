@@ -537,7 +537,7 @@ export default function RoutineScheduleManager({
   return (
     <section className="space-y-5 min-w-0">
       <Link
-        href="/dashboard/chores"
+        href="/dashboard/chores?view=routines"
         className="inline-flex min-h-[44px] items-center text-body text-label-secondary"
       >
         {t("return")}

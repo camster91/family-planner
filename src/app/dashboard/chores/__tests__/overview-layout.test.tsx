@@ -54,11 +54,13 @@ function mount(
   chores = [...steps, row("Take recycling")],
   locale: "en" | "es" = "en",
   role = "parent",
+  requestedRoutineView = false,
 ) {
   return render(
     <I18nProvider locale={locale}>
       <ToastProvider>
         <ChoresContent
+          requestedRoutineView={requestedRoutineView}
           chores={chores}
           familyMembers={[{ id: "adult", name: "Alex", role: "parent" }]}
           currentUserId="adult"
@@ -192,4 +194,12 @@ it("localizes the overview and embedded routine controls without translating hou
   ).toBeTruthy();
   expect(screen.getByText("0 de 2 pasos hechos · 0 revisados")).toBeTruthy();
   expect(screen.getByText("Morning reset")).toBeTruthy();
+});
+
+it("opens routine handoffs directly and still allows switching to daily chores", async () => {
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  mount(steps, "en", "parent", true);
+  expect(screen.getByRole("combobox", { name: "More chore views" })).toHaveValue("routines");
+  await user.click(screen.getByRole("button", { name: "Today" }));
+  expect(screen.getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "true");
 });

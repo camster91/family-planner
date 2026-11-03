@@ -51,7 +51,7 @@ type RoutineStackEditorProps = {
   onClose?: () => void;
 };
 
-const ROUTINE_EDITOR_RETURN_PATH = "/dashboard/chores";
+const ROUTINE_EDITOR_RETURN_PATH = "/dashboard/chores?view=routines";
 const ROUTINE_HISTORY_MARKER = "__familyPlannerRoutineStackEditor";
 
 type RoutineHistoryEntry = {

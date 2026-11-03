@@ -232,3 +232,11 @@ it("hands meal/prep planning and recovery to fixed canonical screens with role/d
   expect(canUseAssistantAction({ kind: "open", destination: "food-recovery" }, "teen", { ...f, inventory: false })).toBe(true);
   expect(assistantPrompt("parent", f)).toContain("never claim that chat created meals");
 });
+
+it("opens the routine workspace without bypassing household feature or role gates", () => {
+  const action = { kind: "open", destination: "routines" } as const;
+  expect(assistantDestination("routines")).toBe("/dashboard/chores?view=routines");
+  expect(canUseAssistantAction(action, "parent", allFeaturesOn())).toBe(true);
+  expect(canUseAssistantAction(action, "child", allFeaturesOn())).toBe(false);
+  expect(canUseAssistantAction(action, "parent", { ...allFeaturesOn(), chores: false })).toBe(false);
+});
