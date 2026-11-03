@@ -61,9 +61,16 @@ Continue the existing issues, not another feature backlog.
   refusal, repeat receipt replay, replay after pause, failed-batch rollback and
   authority races. Domain tests: 13 suites/66 tests passed, 1 suite/8 tests skipped;
   TypeScript passed. These are local backend results, not rendered acceptance.
-- Event preparation is still paused: connect the native writer/source to HTTP,
-  finish picker and recovery adapters, and exercise profile/routine-copy writes,
-  then verify the rendered full journey before enabling its flag. Continue routine/profile
+- Native preparation HTTP context/read/preview/write/picker/recovery now dispatch
+  without PostgreSQL. Discovery preserves literal search and bounded pagination;
+  inspection checks committed receipts before age, pause or target availability.
+  Real D1 checks additionally pass recovery, pickers, profile pagination and
+  routine-copy creation/provenance for an email-free profile. API/domain/component
+  tests: 17 suites/76 tests passed, 1 suite/8 tests skipped; typecheck/lint passed.
+- Event preparation is still paused in the release configuration. The local
+  runtime harness now accepts `--exercise-event-preparation` for fabricated
+  household browser checks; build the current candidate and verify the rendered
+  full journey before enabling its release flag. Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.
 - Keep live Google/provider eligibility, signed native builds, physical-device

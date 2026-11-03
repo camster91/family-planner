@@ -244,11 +244,20 @@ export async function readD1PreparationSource(
   const db = database ?? (await getD1Database());
   if (!(await d1EventPreparationStorageAvailable(db)))
     throw new EventPreparationError("UNAVAILABLE");
+  return validatedD1PreparationRead(
+    (client) => loadD1PreparationSource(client, actor, scope),
+    db,
+  );
+}
+
+/** Validate all acquisition reads together before disclosing private results. */
+export async function validatedD1PreparationRead<T>(
+  readSource: (client: D1ReadClient) => Promise<T>,
+  database?: D1Store,
+): Promise<T> {
+  const db = database ?? (await getD1Database());
   for (let attempt = 0; attempt < 3; attempt++) {
-    const read = await captureD1Reads(
-      (client) => loadD1PreparationSource(client, actor, scope),
-      db as unknown as NativeD1,
-    );
+    const read = await captureD1Reads(readSource, db as unknown as NativeD1);
     try {
       await db.withSession("first-primary").batch(read.checks(db));
       return read.value;
