@@ -31,6 +31,12 @@ export async function checkPreparationLifecycle(db) {
     `UPDATE "EventPreparationStep" SET chore_id='schema-chore' WHERE id='guard-step'`,
     `UPDATE "EventPreparationStep" SET preparation_id='changed' WHERE id='guard-step'`,
     `UPDATE "EventPreparationStep" SET family_id='schema-b' WHERE id='guard-step'`,
+    `UPDATE "EventPreparationStep" SET position=0 WHERE id='guard-step'`,
+    `UPDATE "EventPreparationStep" SET position=100 WHERE id='guard-step'`,
+    `UPDATE "EventPreparationStep" SET cue_anchor=NULL WHERE id='guard-step'`,
+    `UPDATE "EventPreparationStep" SET cue_anchor='event_start' WHERE id='guard-step'`,
+    `UPDATE "EventPreparationStep" SET cue_minutes=-1 WHERE id='guard-step'`,
+    `UPDATE "EventPreparationStep" SET cue_minutes=525601 WHERE id='guard-step'`,
   ]) await assert.rejects(run(sql))
   await run(`UPDATE "EventPreparation" SET reviewed_event_source='${'b'.repeat(64)}' WHERE id='guard-plan'`)
   assert.equal(await value('EventPreparation','revision','guard-plan'),3)
@@ -49,6 +55,19 @@ export async function checkPreparationLifecycle(db) {
   assert.equal(await value('Event','preparation_epoch','guard-event'),3,'plan recreated invalidates old snapshot')
   await run(`UPDATE "Event" SET family_id='schema-b' WHERE id='guard-event'`)
   assert.equal(await value('EventPreparation','id','guard-plan'),undefined,'moving event detaches plan')
+  await run(`INSERT INTO "Event"(id,family_id,title,start_time,end_time,created_by) VALUES ('reorder-event','schema-a','Reorder fixture',1,2,'schema-user')`)
+  await run(`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES ('reorder-plan','schema-a','reorder-event','${'a'.repeat(64)}')`)
+  const insert = (id,chore,position) => db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES (?1,'schema-a','reorder-plan',?2,?3)`).bind(id,chore,position)
+  await db.batch([insert('reorder-a','guard-chore-moved',1),insert('reorder-b','schema-chore',2)])
+  const remove = () => db.prepare(`DELETE FROM "EventPreparationStep" WHERE preparation_id='reorder-plan' AND family_id='schema-a'`)
+  await db.batch([remove(),insert('reorder-b','schema-chore',1),insert('reorder-a','guard-chore-moved',2)])
+  assert.equal(await value('EventPreparationStep','position','reorder-a'),2)
+  assert.equal(await value('EventPreparationStep','position','reorder-b'),1)
+  const revision = await value('EventPreparation','revision','reorder-plan')
+  await assert.rejects(db.batch([remove(),insert('reorder-a','guard-chore-moved',0)]))
+  assert.equal(await value('EventPreparationStep','position','reorder-a'),2,'failed reorder restores original links')
+  assert.equal(await value('EventPreparationStep','position','reorder-b'),1)
+  assert.equal(await value('EventPreparation','revision','reorder-plan'),revision,'failed reorder restores revision')
   assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results,[])
-  return { identity:true, sourceVersion:true, lifecycle:true, taskEpoch:true, householdMoves:true }
+  return { identity:true, sourceVersion:true, lifecycle:true, taskEpoch:true, householdMoves:true, stepBounds:true, atomicReorder:true }
 }

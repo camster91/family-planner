@@ -62,7 +62,7 @@ export async function testChoreReads(db:D1Store){
   const kid=await readD1KidDashboardData('chore-read-a','chore-read-teen',now,false,db)
   check(kid[0].length===1&&kid[0][0].id==='chore-read-visible-teen'&&kid[1].length===1&&kid[1][0].id==='chore-read-own-catch-up'&&kid[2][0]?.title==='School concert'&&kid[3].length===0,'kid home preserves own bounded work, hidden routine policy, shared event summaries and rewards gating')
   await db.prepare(`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES ('chore-read-plan','chore-read-a','chore-read-event',?1)`).bind('a'.repeat(64)).run()
-  await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES ('chore-read-plan-step','chore-read-a','chore-read-plan','chore-read-visible-teen',0)`).run()
+  await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES ('chore-read-plan-step','chore-read-a','chore-read-plan','chore-read-visible-teen',1)`).run()
   const cues=await readD1OwnPreparationContext({userId:'chore-read-teen',familyId:'chore-read-a',role:'teen',choreIds:['chore-read-visible-teen','chore-read-visible-parent','chore-read-foreign']},db)
   check(Object.keys(cues).length===1&&cues['chore-read-visible-teen']?.eventTitle==='School concert','kid preparation cue is limited to their actual assigned canonical work')
   let changed=false

@@ -40,7 +40,7 @@ export async function testAssistantDeleteTarget(db: D1Store) {
     if(children){
       await db.prepare(`INSERT INTO "Chore"(id,family_id,title,created_by,assigned_to,due_date) VALUES (?1,'target-a','Preparation chore','target-parent','target-parent',?2)`).bind(id+'-chore',day).run()
       await db.prepare(`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES (?1,'target-a',?2,?3)`).bind(id+'-plan',id,'a'.repeat(64)).run()
-      await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES (?1,'target-a',?2,?3,0)`).bind(id+'-step',id+'-plan',id+'-chore').run()
+      await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES (?1,'target-a',?2,?3,1)`).bind(id+'-step',id+'-plan',id+'-chore').run()
       await db.prepare(`INSERT INTO "CalendarEventLink"(id,family_id,connection_id,event_id,external_id) VALUES (?1,'target-a','target-connection',?2,?1)`).bind(id+'-link',id).run()
     }
   }
@@ -68,7 +68,7 @@ export async function testAssistantDeleteTarget(db: D1Store) {
     `UPDATE "Event" SET description='Changed details' WHERE id='target-stale'`,
     `UPDATE "Event" SET updated_at=updated_at+1 WHERE id='target-stale'`,
     `UPDATE "EventPreparation" SET revision=revision+1 WHERE id='target-stale-plan'`,
-    `UPDATE "EventPreparationStep" SET position=1 WHERE id='target-stale-step'`,
+    `UPDATE "EventPreparationStep" SET position=2 WHERE id='target-stale-step'`,
     `UPDATE "CalendarEventLink" SET external_etag='Changed' WHERE id='target-stale-link'`,
   ]
   await seed('target-stale')
@@ -80,7 +80,7 @@ export async function testAssistantDeleteTarget(db: D1Store) {
   }
   for(const [label,sql] of [
     ['root',`UPDATE "Event" SET location='Changed after verification' WHERE id='target-stale'`],
-    ['child',`UPDATE "EventPreparationStep" SET position=2 WHERE id='target-stale-step'`],
+    ['child',`UPDATE "EventPreparationStep" SET position=3 WHERE id='target-stale-step'`],
     ['empty',`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES ('target-empty-new','target-a','target-empty','${'b'.repeat(64)}')`],
   ]){
     if(label==='empty')await seed('target-empty',false)
@@ -111,8 +111,17 @@ export async function testAssistantDeleteTarget(db: D1Store) {
   await db.prepare(`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES ('target-cap-plan','target-a','target-cap','${'c'.repeat(64)}')`).run()
   await db.prepare(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<501)
     INSERT INTO "Chore"(id,family_id,title,created_by,assigned_to,due_date) SELECT 'target-cap-chore-'||x,'target-a','Fixture','target-parent','target-parent',?1 FROM n`).bind(day).run()
+  // Deliberately emulate malformed pre-0018 data to retain the bounded-reader
+  // regression. The normal writer now refuses this shape; restore its guard.
+  const bounds = await db.prepare(`SELECT sql FROM sqlite_master WHERE type='trigger' AND name='EventPreparationStep_bounds_insert'`).first<{sql:string}>()
+  check(bounds?.sql, 'step bounds guard exists')
+  await db.prepare('DROP TRIGGER "EventPreparationStep_bounds_insert"').run()
+  try {
   await db.prepare(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<501)
     INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) SELECT 'target-cap-step-'||x,'target-a','target-cap-plan','target-cap-chore-'||x,x FROM n`).run()
+  } finally {
+    await db.prepare(bounds.sql).run()
+  }
   const cappedSource=await source()
   await refused(()=>reviewD1EventDeleteTarget(actor,'target-cap',cappedSource,db))
   stage='expired target'

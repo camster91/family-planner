@@ -42,9 +42,14 @@ Continue the existing issues, not another feature backlog.
   household movement and failed-batch rollback. Event/chore mutation and
   deletion, assistant deletion, review inbox and archive/export smoke checks
   passed with the migration. No production migration has run.
+- Migration `0018_event_preparation_step_bounds.sql` adds canonical 1–99
+  ordering and all-or-none timing-cue validation. Real D1 checks prove stable-ID
+  atomic reorder and rollback to the original links/revision on failure.
+  Chore reads, archive export and assistant-delete guards pass; the oversized
+  legacy-data fixture explicitly restores its temporarily disabled insert guard.
 - Event preparation is still paused: finish the complete D1 readiness contract,
-  preparation writer and parent projections, including ordered-step validation
-  and atomic reorder behavior, before enabling its flag. Continue routine/profile
+  preparation writer and parent projections, using the verified atomic reorder
+  strategy, before enabling its flag. Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.
 - Keep live Google/provider eligibility, signed native builds, physical-device
