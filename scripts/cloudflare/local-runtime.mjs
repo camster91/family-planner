@@ -846,6 +846,7 @@ try {
     email: "off",
     providerCalls: exerciseRecipeSearch ? "fabricated-google-only" : "disabled",
     connectedPlanning: exerciseConnectedPlanning ? "test-rollout-enabled" : "default",
+    scheduleReview: exerciseScheduleReview ? "test-rollout-enabled" : "default",
     eventPreparation: exerciseEventPreparation ? "test-rollout-enabled" : "default",
     profileRoutines: exerciseProfileRoutines ? "test-rollout-enabled" : "default",
     profileSetup: exerciseProfileSetup ? "test-rollout-enabled" : "default",

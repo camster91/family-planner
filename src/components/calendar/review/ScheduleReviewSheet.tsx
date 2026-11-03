@@ -766,13 +766,19 @@ export default function ScheduleReviewSheet({
                     {copy.duration}: {duration(choice.start, choice.end)}
                   </p>
                 </div>
-                <p className="text-callout">
-                  {bufferSummary(result.query.buffers)}
-                </p>
-                <p className="text-footnote">
-                  {copy.reserved}: {date(choice.reservedStart)} –{" "}
-                  {date(choice.reservedEnd)}
-                </p>
+                {Object.values(result.query.buffers).some(
+                  (minutes) => minutes > 0,
+                ) && (
+                  <>
+                    <p className="text-callout">
+                      {bufferSummary(result.query.buffers)}
+                    </p>
+                    <p className="text-footnote">
+                      {copy.reserved}: {date(choice.reservedStart)} –{" "}
+                      {date(choice.reservedEnd)}
+                    </p>
+                  </>
+                )}
                 {result.query.otherBuffers.length > 0 && (
                   <details>
                     <summary className="min-h-11 cursor-pointer py-2">

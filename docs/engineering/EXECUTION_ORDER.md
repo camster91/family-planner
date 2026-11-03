@@ -96,7 +96,13 @@ Continue the existing issues, not another feature backlog.
   rollback, recovery after target deletion/pause, and revoked-session refusal.
   API/domain/component checks pass 16 suites/141 tests (one PostgreSQL suite/six
   tests skipped); typecheck and changed-source lint pass. The schedule readiness
-  flag is still off: exact built-candidate browser checks and activation are next.
+  flag was subsequently enabled in candidate configuration after building
+  `aa5bdc67` and testing the real local Worker/D1 calendar → timing review →
+  alternative → confirm flow. Phone/tablet/desktop confirmation fit, a dropped
+  committed response recovered through Check saved request, and canonical event
+  times persisted after reload with duration unchanged. The phone screenshot
+  exposed redundant zero-minute buffer details; confirmation now omits those
+  when no buffers were entered. Production activation remains separate.
   No provider refresh, external calendar write, production migration or deployment
   was performed. Evidence: `schedule-*` in the continuation artifact directory.
 - Keep live Google/provider eligibility, signed native builds, physical-device
