@@ -12,6 +12,18 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Calendar interoperability acceptance (#124): extended the existing native D1
+  fixture through real parser → reconciliation → read-back for weekly Toronto
+  spring/fall DST, stable IDs on replay, moved exception identity, individual and
+  whole-series cancellation, and preservation of local/history/foreign events.
+  Both calendar sync and subscription slices pass in disposable workerd/D1; the
+  same run covers revoke-during-fetch, source replacement, atomic rollback,
+  truncated-input preservation and the subscription access/privacy/cap controls.
+  Five focused Jest suites pass (126 tests). The smoke runner now allows these
+  two existing slices individually. See CALENDAR_INTEROPERABILITY.md for exact
+  scope and `calendar-interop-*` artifacts. Fabricated feeds/provider responses
+  do not establish live-provider, physical-device or full #124 acceptance.
+  No application behavior, credentials, production or external state changed.
 - Routine handoff connection (#464/#450/#499): the assistant now opens the
   dedicated routine view, and the chores server honors the fixed `view=routines`
   destination. Routine editor save/return and schedule-manager return links use
