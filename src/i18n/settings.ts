@@ -301,6 +301,7 @@ export const settingsEnglish = {
   pickerFailed: "Could not load your calendars",
   connectionSaveFailed: "Could not save that change",
   syncFailed: "Could not sync that calendar",
+  calendarChangeUnconfirmed: "We could not confirm the calendar change. Refresh connected calendars before trying another change.",
   connectionRemoveFailed: "Could not disconnect that calendar",
   calendarConnectionsLoadFailed:
     "Could not load connected calendars. Try again.",
@@ -632,6 +633,7 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   pickerFailed: "No se pudieron cargar tus calendarios",
   connectionSaveFailed: "No se pudo guardar ese cambio",
   syncFailed: "No se pudo sincronizar ese calendario",
+  calendarChangeUnconfirmed: "No pudimos confirmar el cambio del calendario. Actualiza los calendarios conectados antes de hacer otro cambio.",
   connectionRemoveFailed: "No se pudo desconectar ese calendario",
   calendarConnectionsLoadFailed:
     "No se pudieron cargar los calendarios conectados. Vuelve a intentarlo.",

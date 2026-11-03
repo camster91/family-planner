@@ -134,6 +134,22 @@ Continue the existing issues, not another feature backlog.
   backend or installed app. Exact release build/CI remains part of final QA.
   Fresh issue reads preserve unfinished profile rotation/credit/linking scope;
   existing unresolved credit/retention decisions were not inferred or bypassed.
+- Calendar connection recovery (#124/#499): picker replies now require valid,
+  distinct remote calendars; malformed data is not an empty-calendar result.
+  Save/sync replies require the same connection and valid projection; successful
+  sync counts must be nonnegative safe integers. Disconnect requires explicit
+  success before removing the visible row. Malformed replies, transport failures
+  and server errors retain confirmed rows and hold further controls behind the
+  existing canonical refresh action. An uncertain disconnect closes only its
+  confirmation dialog so recovery remains reachable; no automatic write retry.
+  Provider-reported unsuccessful sync uses typed localized feedback rather than
+  rendering raw result text. A refresh is an observation, not proof that an
+  earlier unknown server operation stopped; no new delivery/exact-receipt claim.
+  Four suites pass (34 tests), plus typecheck/lint. Local mocked-response browser
+  checks pass EN/ES at all six sizes (12 cases), including hold, visible retained
+  row, refresh, no repeated write and no horizontal overflow. Phone screenshot
+  inspected. No live provider/OAuth/credential, external calendar or production
+  change occurred; exact release build/CI and provider acceptance remain.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
