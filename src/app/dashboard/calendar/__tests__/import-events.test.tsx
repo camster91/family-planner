@@ -74,7 +74,8 @@ function mockFetch({
 }
 
 async function pasteAndFind(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText('Text of the email or flyer'), 'Picture day next Friday')
+  // The import dialog is lazy-loaded; wait for it before typing.
+  await user.type(await screen.findByLabelText('Text of the email or flyer'), 'Picture day next Friday')
   await user.click(screen.getByRole('button', { name: 'Find events' }))
 }
 
