@@ -1,5 +1,47 @@
 # Scheduled Database Backups
 
+## Current runtime: Cloudflare D1 — November 3, 2026
+
+Production uses D1/private R2. The PostgreSQL container scripts and systemd
+installation instructions below are retained compatibility/recovery procedures,
+not an installed Cloudflare backup system. Do not recreate the retired VPS or
+install its timer as part of a D1 release. #604 owns the live runtime identities.
+
+The local upgrade/export/restore rehearsal for migrations 0017/0018 is:
+
+```sh
+node scripts/cloudflare/preparation-upgrade-smoke.mjs
+```
+
+It creates disposable local databases, applies the previous sixteen migrations,
+seeds fabricated household/preparation records, exports with Wrangler, applies
+0017/0018 twice through the migration ledger, then restores into another empty
+local D1 database. It compares every application table plus the original schema,
+indexes and triggers, validates foreign keys, and upgrades the restored database.
+Legacy invalid step positions remain readable; unsupported edits are refused
+until an explicit valid-position repair. No existing database is accepted as an
+input. The disposable databases and fabricated SQL export are removed on exit;
+the printed checksum identifies that rehearsal export, not a retained live backup.
+
+**Observed restore ordering constraint:** a direct import of Wrangler's raw
+export failed with `no such table: main.RoutineStack` because table creation and
+inserts were interleaved. The rehearsal preserves the raw export and its hash
+while preparing a separately ordered import: deferred foreign keys, all tables
+and indexes, exported data, then triggers. Trigger installation follows data
+loading so restoring history does not create new lifecycle epochs. Unsupported
+statement forms fail explicitly; they are not silently dropped. This narrowly
+validated local procedure is not a universal SQL restore tool or permission to
+restore production.
+
+Before a real data-affecting release, retain a fresh authorized production backup
+or recovery point, immutable source/configuration, actual recovery owner and
+isolated restore proof. Include private R2 recovery and post-backup write handling
+in the recovery decision. A fabricated rehearsal, historical PostgreSQL archive,
+or previous Worker alone does not satisfy current D1/R2 recovery acceptance.
+
+## Retained PostgreSQL compatibility procedure
+
+
 Owner runbook for #145. Everything here is **ready but not installed**. Installing the timer is a new scheduler on the production host, so it needs Cameron's explicit approval for that exact action (`AGENTS.md`). Agents must not install, enable or run it on a real host.
 
 ## What is in the repository

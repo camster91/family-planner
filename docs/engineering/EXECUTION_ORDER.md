@@ -12,6 +12,20 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- D1 migration/recovery rehearsal (#450/#499 release gate): added a local-only
+  Wrangler check from migration 0016 through 0017/0018 with populated fabricated
+  preparation rows, including a legacy invalid step. Upgrade and repeat apply
+  preserve all 98 application tables; invalid edits refuse without mutation,
+  valid repair advances the parent revision. A direct raw-export restore failed
+  on a forward table reference (`RoutineStack`); the verified local restore
+  orders tables/indexes, data, then triggers without rewriting exported statements.
+  Independent restore matches all original rows, schema/index/trigger definitions
+  and the old migration ledger; foreign keys pass and upgrading again preserves
+  data. Strict statement classification and exact guard-error checks pass. The
+  final fixture and lint pass; logs are `preparation-upgrade-*`. BACKUPS and
+  RELEASE_AND_ROLLBACK now distinguish this D1 evidence from historical VPS
+  procedures. This is not production D1/R2 backup integrity, installed-client or
+  live rollback proof. No production data/schema/provider/permission changed.
 - Consolidated release review — source `cc91fc8b`: fresh Cloudflare build,
   sequential typecheck and full-suite rerun pass (841 suites/8,548 tests;
   85 suites/562 tests skipped). Lint: zero errors, 76 warnings. The first suite

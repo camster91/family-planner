@@ -47,6 +47,14 @@ previous Worker and configuration, and record the recovery owner before promotio
 - Affected real workerd/D1 and actual-component browser evidence is recorded in
   `docs/engineering/EXECUTION_ORDER.md`. It covers the exercised journeys only;
   fake provider responses do not prove live provider acceptance.
+- Local migration/restore rehearsal now passes from 0016 through 0017/0018,
+  comparing all 98 application tables and restoring exact schema/index/trigger
+  definitions and prior migration ledger. It also covers preserved invalid legacy
+  steps, explicit repair, repeated migration apply and restore-then-upgrade.
+  Raw export import failed on forward table references; the local procedure
+  installs tables/indexes before data and triggers afterward. See BACKUPS.md.
+  Fresh production D1/R2 recovery evidence and installed old-client acceptance
+  remain separate requirements; no production migration or restoration ran.
 - Current-candidate CI, immutable release artifact, integrated browser workflow,
   independent review and migration/recovery proof remain release work.
 - #141 still needs asynchronous delivery/provider registration, revocation and

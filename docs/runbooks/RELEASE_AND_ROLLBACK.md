@@ -28,6 +28,17 @@ Promote the exact reviewed artifact. Do not rebuild different code during produc
 8. Remove disposable QA data.
 9. Record outcome.
 
+## Cloudflare preparation migration rehearsal
+
+For the connected-feature candidate, migrations 0017/0018 add preparation
+identity/lifecycle and step bounds. Run the disposable D1 upgrade/restore check
+in [BACKUPS.md](BACKUPS.md) before promotion. It proves the seeded local upgrade,
+row/schema-preserving restore and forward reapplication; it does not prove a
+current production backup, installed old-client behavior or a live rollback.
+Keep a concrete decision for new records/writes made after the backup before
+choosing data restoration. Do not remove the new integrity triggers or restore
+old data merely because an application version is being rolled back.
+
 ## Android rollout
 Use internal/closed/staged tracks before broad release as planned in #138. Verify install/update from prior supported version, app links, cold/warm start, process restart and server compatibility.
 
