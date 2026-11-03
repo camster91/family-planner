@@ -19,9 +19,17 @@ Continue the existing issues, not another feature backlog.
   unchanged. The completion helper also shares the target, but it has no current
   production caller and is not counted as producer coverage. Six affected suites
   / 77 tests pass (including removed-member refusal and focus authorization),
-  typecheck and scoped lint pass. These are unit/route fixtures, not an updated
-  compiled or live delivery claim. No schema, provider, scheduler or deployment
-  change. N2 asynchronous recovery and N3 provider/device acceptance remain open.
+  typecheck and scoped lint pass. Clean source `2f6ffb368bf15bd20fc0b69934dd73f8c274d1c1`
+  also passed Cloudflare build/dry bundle. In authenticated local Worker/D1 Chrome,
+  a fabricated parent's newly created chore produced an inbox notification whose
+  Open link rendered that exact task and existing completion/edit controls at
+  390×844 without overflow. The screenshot was inspected. The initial script
+  used the read-only collection endpoint; correcting it to canonical
+  `/api/chores/create` passed without product changes. Evidence is retained under
+  adjacent `chore-notification-links-*` artifacts. External egress was denied;
+  the owned runtime stopped with exit130. No schema, provider, scheduler or
+  deployment change. N2 asynchronous recovery and N3 provider/device acceptance
+  remain open. This does not establish new provider or installed-device delivery.
 
 - Compiled browser continuation at source `3cce250a9351cdbd2e3cda416e07325214a20eae`:
   fixed the dedicated Review inbox silently losing its editor when quick capture

@@ -1,5 +1,19 @@
 # Recipe-to-meal candidate review
 
+## Chore notification follow-through — November 3
+
+Source `2f6ffb368bf15bd20fc0b69934dd73f8c274d1c1` connects ordinary assignment
+and post-commit approval/return notices to existing permission-checked chore
+focus. Six affected suites / 77 tests, typecheck, scoped lint and Cloudflare
+build/dry bundle passed. Actual local Worker/D1 browser acceptance verified
+new assignment → stored inbox notice → Open → exact chore on a 390×844 phone.
+The rendered target offers existing completion/edit controls without overflow.
+Evidence: adjacent `chore-notification-links-*` artifacts. The initial fixture
+called the wrong collection endpoint; its corrected canonical create call passed
+without another app change. No live data, provider, scheduler or deployment was
+changed. Prior broader suite evidence retains its original source identity;
+production release status remains **Not ready** for the outstanding gates below.
+
 ## Latest scoped follow-up — November 3
 
 Source `3cce250a9351cdbd2e3cda416e07325214a20eae` fixes the unavailable quick-add
