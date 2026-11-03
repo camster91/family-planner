@@ -20,15 +20,17 @@ jest.mock("@/components/calendar/review/ScheduleReviewProvider", () => ({
 jest.mock("@/components/capture/CaptureBox", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   return {
-    CaptureBox: function FixtureCapture() {
+    CaptureBox: function FixtureCapture({ onAvailabilityChange }: { onAvailabilityChange?: (value: "available" | "unavailable") => void }) {
       const [value, setValue] = React.useState("");
-      return (
+      return (<>
+        <button onClick={() => onAvailabilityChange?.("unavailable")}>Fixture unavailable</button>
+        <button onClick={() => onAvailabilityChange?.("available")}>Fixture connected</button>
         <input
           aria-label="Fixture capture draft"
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
-      );
+      </>);
     },
   };
 });
@@ -81,4 +83,15 @@ it("opens a check at its exact chore focus instead of the generic chore board", 
     "href",
     "/dashboard/chores?focus=chore-a",
   );
+});
+
+it("explains unavailable capture without removing the editor or recipe recovery", async () => {
+  render(view("capture"));
+  await userEvent.click(await screen.findByRole("button", { name: "Fixture unavailable" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Use Add or ask for manual entry");
+  expect(screen.getByRole("link", { name: "Family AI settings" })).toHaveAttribute("href", "/dashboard/settings#ai-capture");
+  expect(screen.getByRole("link", { name: "Review recipe imports" })).toBeVisible();
+  expect(screen.getByLabelText("Fixture capture draft")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Fixture connected" }));
+  expect(screen.queryByRole("link", { name: "Family AI settings" })).not.toBeInTheDocument();
 });

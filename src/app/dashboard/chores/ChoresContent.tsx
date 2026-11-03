@@ -99,6 +99,7 @@ function isActiveRepeatingChore(chore: Chore): boolean {
 }
 
 interface ChoresContentProps {
+  requestedRoutineView?: boolean;
   ownedCheck?: { owner: ChoreCheckOwner | null };
   notificationFocus?: { target: NotificationFocus | null };
   preparationBacklinks?: PreparationBacklinks;
@@ -262,6 +263,7 @@ function ReassignModal({
 }
 
 export default function ChoresContent({
+  requestedRoutineView = false,
   ownedCheck,
   chores,
   notificationFocus,
@@ -278,13 +280,16 @@ export default function ChoresContent({
     && ownedCheck.owner.familyId === familyId ? ownedCheck.owner : null;
   const checkOwnerKey = checkOwner ? JSON.stringify(checkOwner) : null;
   const [ownedReview, setOwnedReview] = React.useState<{ choreId: string; decision: "approve" | "reject"; ownerKey: string } | null>(null);
-  const [view, setView] = React.useState<"chores" | "routines">("chores");
+  const [view, setView] = React.useState<"chores" | "routines">(requestedRoutineView ? "routines" : "chores");
   const [inlineRoutinePanelOpen, setInlineRoutinePanelOpen] =
     React.useState(true);
   const [inlineRoutinePanelLoaded, setInlineRoutinePanelLoaded] =
     React.useState(false);
   const [filter, setFilter] = React.useState<FilterMode>("today");
   const [seriesMode, setSeriesMode] = React.useState(false);
+  React.useEffect(() => {
+    setView(requestedRoutineView ? "routines" : "chores");
+  }, [requestedRoutineView]);
   const overviewText = useChoreOverviewText();
   const presentation: ChorePresentation =
     view === "routines" ? "routines" : seriesMode ? "series" : filter;

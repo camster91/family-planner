@@ -157,13 +157,34 @@ for (const locale of ["en", "es"] as const)
           await capture(page, info, item.section + "-recovery", [], section);
           continue;
         }
-        await expect(dialog.getByRole("alert")).toHaveText(
-          "Synthetic removal refusal",
+        // A 5xx disconnect is unconfirmed (b6944cb): the dialog closes, the
+        // section holds further changes and asks for an explicit refresh,
+        // never an automatic retry of a possibly applied delete.
+        await expect(dialog).toHaveCount(0);
+        await expect(section.getByRole("alert")).toContainText(
+          msg(locale, "calendarChangeUnconfirmed"),
         );
-        await expect(confirm).toBeEnabled();
-        await capture(page, info, item.section + "-retry", [confirm], dialog);
+        const refresh = section.getByRole("button", {
+          name: msg(locale, "retryCalendarConnections"),
+          exact: true,
+        });
+        await expect(refresh).toBeEnabled();
+        expect(s.count("DELETE", item.path)).toBe(1);
+        await capture(
+          page,
+          info,
+          item.section + "-recovery",
+          [refresh],
+          section,
+        );
+        await refresh.click();
+        await expect(section.getByRole("alert")).toHaveCount(0);
+        await opener.click();
+        dialog = page.getByRole("alertdialog");
         s.reply("DELETE", item.path, { body: { success: true } });
-        await confirm.click();
+        await dialog
+          .getByRole("button", { name: msg(locale, item.action), exact: true })
+          .click();
         await expect(dialog).toHaveCount(0);
         expect(s.count("DELETE", item.path)).toBe(2);
         await expect(opener).toHaveCount(0);

@@ -68,8 +68,7 @@ export async function POST(request: NextRequest) {
       // PostgreSQL contract also requires epoch/identity/lifecycle guards.
       if (
         !eventPreparationReady() ||
-        !(await d1EventPreparationStorageAvailable()) ||
-        auth.user.role === "parent"
+        !(await d1EventPreparationStorageAvailable())
       )
         return reply(
           chorePreparationContext.parse({
@@ -79,6 +78,17 @@ export async function POST(request: NextRequest) {
             origins: {},
           }),
         );
+      if (auth.user.role === "parent") {
+        const { readD1ParentPreparationContext } = await import("@/lib/cloudflare/preparation-context");
+        const context = await readD1ParentPreparationContext({
+          userId: auth.user.id,
+          familyId: auth.user.family_id,
+          role: auth.user.role,
+          tokenVersion: auth.payload.tv ?? 0,
+          choreIds: parsed.ids,
+        });
+        return reply(chorePreparationContext.parse({ owner, state: "available", ...context }));
+      }
       const ownContext = await readD1OwnPreparationContext({
         userId: auth.user.id,
         familyId: auth.user.family_id,

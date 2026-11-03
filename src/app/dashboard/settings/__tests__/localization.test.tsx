@@ -583,7 +583,7 @@ it("AI pending key/model drafts and late saved notice survive language changes w
   try {
     await familyTab();
     await user.click(
-      screen.getByRole("heading", { name: "AI capture" }).closest("summary")!,
+      screen.getByRole("heading", { name: "Family AI" }).closest("summary")!,
     );
     const key = screen.getByLabelText("API key");
     expect(key).toHaveValue("");
@@ -873,7 +873,7 @@ it("retains private family drafts and avoids refetching when tabs change for lan
   mounted("parent", true);
   await familyTab();
   await userEvent.click(
-    screen.getByRole("heading", { name: "AI capture" }).closest("summary")!,
+    screen.getByRole("heading", { name: "Family AI" }).closest("summary")!,
   );
   const model = screen.getByLabelText("Model (optional)");
   await waitFor(() => expect(model).toHaveValue("saved-model"));

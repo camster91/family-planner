@@ -215,3 +215,19 @@ it("reports one semantic partial-close result while legacy callbacks remain unto
   expect(fetch).toHaveBeenCalledTimes(3);
   expect(screen.queryByTestId("scan-dialog")).toBeNull();
 });
+
+it("shows the selected household provider and rejects its smaller upload limit before sending", async () => {
+  global.fetch = jest.fn();
+  render(<I18nProvider locale="en"><ScanFridgeDialog
+    initialContext={{ userId: "fixture_parent", familyId: "fixture_family" }}
+    providerName="fixture-vision.example" maxUploadBytes={5 * 1024 * 1024}
+    onDone={jest.fn()} onClose={jest.fn()}
+  /></I18nProvider>);
+  expect(screen.getByText(/fixture-vision\.example/)).toBeInTheDocument();
+  expect(screen.queryByText(/Anthropic/)).not.toBeInTheDocument();
+  fireEvent.change(screen.getByTestId("scan-file-input"), { target: {
+    files: [new File([new Uint8Array(6 * 1024 * 1024)], "large.png", { type: "image/png" })],
+  } });
+  await screen.findByText("That photo is too large. The limit is 5 MB.");
+  expect(global.fetch).not.toHaveBeenCalled();
+});

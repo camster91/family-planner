@@ -56,7 +56,7 @@ beforeAll(() => {
 })
 
 const PERSONAL = ['Your account', 'Profile', 'Password', 'Language', 'Theme', 'Notifications', 'Privacy & data']
-const FAMILY_LEVEL_HEADINGS = ['Family', 'Family tablet', 'AI capture', 'Calendar feed', 'Subscribed calendars', 'Connected calendars']
+const FAMILY_LEVEL_HEADINGS = ['Family', 'Family tablet', 'Family AI', 'Calendar feed', 'Subscribed calendars', 'Connected calendars']
 
 describe('SettingsClient for a teen', () => {
   beforeEach(() => window.history.replaceState({}, '', '/dashboard/settings'))
@@ -112,7 +112,7 @@ describe('SettingsClient for a teen', () => {
       <SettingsClient viewerRole="parent" sharedDevice={{ hasPin: true }} betaMetrics={{ enabled: true }} aiCaptureSettings />
     )
     await userEvent.click(await screen.findByRole('button', { name: 'Family' }))
-    expect(await screen.findByRole('heading', { name: 'AI capture' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Family AI' })).toBeTruthy()
     expect(screen.getAllByRole('heading', { level: 2, hidden: true }).map((h) => h.textContent)).toEqual([
       'Your account',
       'Family',
@@ -123,7 +123,7 @@ describe('SettingsClient for a teen', () => {
     expect(screen.getByRole('link', { name: /Household/ }).getAttribute('href')).toBe('/dashboard/family/settings')
     expect(screen.getByRole('link', { name: /Invite and family code/ }).getAttribute('href')).toBe('/dashboard/family/invite')
     // Long, rarely used parts start closed.
-    for (const name of ['Calendar feed', 'Subscribed calendars', 'AI capture']) {
+    for (const name of ['Calendar feed', 'Subscribed calendars', 'Family AI']) {
       expect(screen.getByRole('heading', { name }).closest('details')?.open).toBe(false)
     }
     expect(screen.getByText('Tablet PIN')).toBeTruthy()
@@ -138,12 +138,12 @@ describe('SettingsClient for a teen', () => {
     expect(screen.getByRole('switch', { name: 'Share beta usage counts' })).toBeVisible()
   })
 
-  it('hides the AI capture form for a parent unless the server turns it on', async () => {
+  it('hides the Family AI form for a parent unless the server turns it on', async () => {
     const urls = mockApi('parent')
     render(<SettingsClient viewerRole="parent" sharedDevice={null} />)
     await userEvent.click(await screen.findByRole('button', { name: 'Family' }))
     expect(await screen.findByRole('heading', { name: 'Family' })).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'AI capture' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Family AI' })).toBeNull()
     expect(screen.queryByLabelText('API key')).toBeNull()
     await waitFor(() => expect(urls).toContain('/api/family/feed-token'))
     expect(urls).not.toContain('/api/family/ai-settings')

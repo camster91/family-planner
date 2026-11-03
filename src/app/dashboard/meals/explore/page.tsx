@@ -720,6 +720,7 @@ export default function RecipeExplorePage() {
                   recoveryIdentity={libraryOwner.current ? { userId: libraryOwner.current.actorId, familyId: libraryOwner.current.familyId } : undefined}
                   initialDraft={{
                     source_url: preview.source,
+                    ingredientLines: preview.ingredientLines,
                     source_copy: copyImport,
                     servings: preview.servings,
                     title: preview.title,

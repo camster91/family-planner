@@ -130,12 +130,12 @@ export default function RootLayout({
       </head>
       <body className="font-sans">
         <CsrfFetchPatch />
-        <NativeAppLifecycle />
         <ServiceWorkerRegistration />
         <SiteOfflineBanner />
         <ThemeProvider>
           <PostHogProvider>
             <CoreI18nProvider locale="en" persistLocale pseudolocalize={isPseudolocaleEnabled()}>
+              <NativeAppLifecycle />
               <ToastProvider>
                 <div className="min-h-screen bg-[var(--surface-grouped)] text-label-primary antialiased">
                   {children}

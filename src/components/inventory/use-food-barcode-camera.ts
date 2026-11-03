@@ -42,14 +42,24 @@ export function useFoodBarcodeCamera(onCode: (code: FoodBarcode) => void) {
         setError("stopped");
       }
     };
+    const leave = () => {
+      stop();
+      setError("stopped");
+    };
     document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("pagehide", leave);
     return () => {
       document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", leave);
       stop(false);
     };
   }, [stop]);
   async function start() {
     stop();
+    if (document.visibilityState !== "visible") {
+      setError("stopped");
+      return;
+    }
     setError(null);
     setActive(true);
     const own = generation.current;
@@ -140,10 +150,19 @@ export function useFoodBarcodeCamera(onCode: (code: FoodBarcode) => void) {
         }
       }
       void scan();
-    } catch {
+    } catch (error) {
       if (current()) {
         stop();
-        setError("denied");
+        setError(
+          error instanceof Error &&
+            [
+              "NotAllowedError",
+              "PermissionDeniedError",
+              "SecurityError",
+            ].includes(error.name)
+            ? "denied"
+            : "unavailable",
+        );
       }
     }
   }

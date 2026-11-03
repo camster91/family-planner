@@ -482,6 +482,32 @@ it("voice fills draft, never sends automatically, and stops when closing", async
   await user.click(screen.getByRole("button", { name: "Close" }));
   expect(mockRecognition.abort).toHaveBeenCalled();
 });
+it("preserves text typed while voice was listening without submitting either draft", async () => {
+  class Recognition {
+    lang = "";
+    continuous = false;
+    interimResults = false;
+    onresult: any;
+    onerror: any;
+    onend: any;
+    start = jest.fn();
+    abort = jest.fn();
+    constructor() { mockRecognition = this; }
+  }
+  (window as any).SpeechRecognition = Recognition;
+  const user = userEvent.setup();
+  global.fetch = jest.fn() as any;
+  render(<AssistantHost role="parent" />);
+  await openChat(user);
+  await user.click(screen.getByRole("button", { name: "Voice input" }));
+  await user.type(screen.getByLabelText("Your message"), "Keep my typed plan");
+  const { act } = require("@testing-library/react");
+  act(() => mockRecognition.onresult({ results: [[{ transcript: "Older voice plan" }]] }));
+  expect(screen.getByLabelText("Your message")).toHaveValue("Keep my typed plan");
+  expect(screen.getByRole("alert")).toHaveTextContent("Your draft changed while listening");
+  expect(global.fetch).not.toHaveBeenCalled();
+});
+
 it("unconfigured AI is shown honestly and keyboard closes the sheet", async () => {
   const user = userEvent.setup();
   global.fetch = jest.fn(async () =>

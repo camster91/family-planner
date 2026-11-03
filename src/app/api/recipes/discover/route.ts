@@ -1,7 +1,12 @@
+import { geminiProviderApproved } from "@/lib/gemini-policy";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "@/lib/api-auth";
-import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import {
+  recipeExpectedReadOwnerRefusal,
+  recipeReadOwnerHeaders,
+  renewRecipeReadAuthority,
+} from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { fetchFeed } from "@/lib/calendar-import/fetch";
@@ -15,6 +20,7 @@ const headers = { "Cache-Control": "private, no-store" };
 const inputSchema = z
   .object({
     query: z.string().trim().min(2).max(120),
+    preferGrounded: z.boolean().optional(),
     source: z.enum(["all", "BBC Good Food", "Allrecipes", "Serious Eats"]),
   })
   .strict();
@@ -22,8 +28,10 @@ async function discover(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
   const original = Object.freeze({
-    actorId: auth.user.id, familyId: auth.user.family_id,
-    role: auth.user.role, generation: auth.payload.tv ?? 0,
+    actorId: auth.user.id,
+    familyId: auth.user.family_id,
+    role: auth.user.role,
+    generation: auth.payload.tv ?? 0,
   });
   const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
   if (ownerRefusal) return ownerRefusal;
@@ -56,6 +64,18 @@ async function discover(request: NextRequest) {
     );
   const beforeFetch = await renewRecipeReadAuthority(request, original);
   if (beforeFetch) return beforeFetch;
+  if (
+    input.data.preferGrounded === true &&
+    input.data.source === "all" &&
+    geminiProviderApproved() &&
+    process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY !== "0" &&
+    ["parent", "teen"].includes(original.role)
+  ) {
+    const { discoverGoogleRecipes } =
+      await import("@/lib/google-recipe-discovery-server");
+    const grounded = await discoverGoogleRecipes(request, original, input.data.query);
+    if (grounded) return grounded;
+  }
   const selected = recipeSources.filter(
     (source) =>
       input.data.source === "all" || source.name === input.data.source,
@@ -124,7 +144,10 @@ async function discover(request: NextRequest) {
       searchUrl: selected.length === 1 ? reads[0].searchUrl : null,
       sources: reads.map(({ results: _results, ...source }) => source),
     },
-    { status: unavailable ? 422 : 200, headers: recipeReadOwnerHeaders(original) },
+    {
+      status: unavailable ? 422 : 200,
+      headers: recipeReadOwnerHeaders(original),
+    },
   );
 }
 export async function POST(request: NextRequest) {

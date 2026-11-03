@@ -1,7 +1,7 @@
 export class RequestBodyTooLarge extends Error {}
 /** Bound streamed bodies before allocation, including requests without Content-Length. */
 export async function boundedRequestText(
-  request: Request,
+  request: Pick<Request, "headers" | "body" | "text">,
   limit: number,
 ): Promise<string> {
   const declared = Number(request.headers?.get("content-length"));

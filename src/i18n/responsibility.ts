@@ -8,13 +8,13 @@ const en = {
   previewUnavailable:
     "Answers could not be loaded. Open to retry; this is not an empty plan.",
   title: "Who’s handling this?",
-  openTarget: "Open canonical item",
+  openTarget: "View item",
   close: "Close responsibility",
   intro:
     "Confirm the plan together. Naming someone does not mean they have agreed.",
   error:
     "Could not confirm the latest plan. Saved requests are kept. Reload before making another change.",
-  reload: "Reload current plan",
+  reload: "Refresh",
   primary: "Primary",
   coordinator: "Household coordinator",
   backup: "Backup",
@@ -43,6 +43,7 @@ const en = {
   clearCoordinator: "Remove coordinator",
   preview: "Review this change",
   confirm: "Save this answer",
+  change: "Change",
   cancel: "Cancel",
   namingHint:
     "This only names a person. They still need to answer. It does not reassign the task, activate a backup or send a message.",
@@ -70,8 +71,7 @@ const en = {
     "The result is uncertain. Keep the saved request and check it before retrying.",
   refused:
     "The server did not confirm this request. Check it or forget it locally before making a new change.",
-  proof:
-    "The server confirmed that request. The current plan below is a separate, fresh read.",
+  proof: "Answer saved.",
   states: {
     ready: "Not recorded yet. You can retry the exact request.",
     pending: "The outcome is still pending. You can retry the exact request.",
@@ -127,6 +127,7 @@ const es: typeof en = {
   clearCoordinator: "Quitar coordinador",
   preview: "Revisar este cambio",
   confirm: "Guardar esta respuesta",
+  change: "Cambiar",
   cancel: "Cancelar",
   namingHint:
     "Esto solo nombra a una persona. Aún debe responder. No reasigna la tarea, activa un suplente ni envía mensajes.",
@@ -155,8 +156,7 @@ const es: typeof en = {
     "El resultado es incierto. Conserva la solicitud y consúltala antes de reintentar.",
   refused:
     "El servidor no confirmó la solicitud. Consúltala u olvídala localmente antes de hacer un cambio nuevo.",
-  proof:
-    "El servidor confirmó esa solicitud. El plan actual se obtiene por separado.",
+  proof: "Respuesta guardada.",
   states: {
     ready: "Aún no registrada. Puedes reintentar la solicitud exacta.",
     pending:

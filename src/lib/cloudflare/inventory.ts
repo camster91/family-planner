@@ -7,7 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
-import type { InventoryIntakeInput } from "@/lib/inventory-intake-contract";
+import { inventoryIntakeReceipt, type InventoryIntakeInput } from "@/lib/inventory-intake-contract";
 import type { InventoryChangeInput } from "@/lib/inventory-change-contract";
 import {
   cleanItemName,
@@ -36,7 +36,8 @@ import {
 import type { EffectResult } from "@/lib/idempotency";
 import { normalizeFeatures, isFeatureEnabled } from "@/lib/features";
 import type { AssistantProofActor } from "@/lib/assistant-source-proof";
-import { d1WriteCheck } from "./write-check";
+import { d1WriteCheck, isD1WriteConflict } from "./write-check";
+import { captureD1Reads } from "./read-witness";
 import { executeD1PersonEffect, type NativePersonPlan } from "./person-effect";
 import { getD1Database, type D1Store, type SqlValue } from "./database";
 import { withD1ReadClient, type D1ReadClient, type NativeD1 } from "./read-client";
@@ -385,19 +386,20 @@ export function createD1Inventory(
 
 /** Reviewed intake used by scan/UPC/photo flows. Product memory and stock
  * metadata are committed with the item, never as a second best-effort write. */
-export function intakeD1Inventory(
+export async function intakeD1Inventory(
   actor: AssistantProofActor,
   input: InventoryIntakeInput,
   key: string,
   database?: D1Store,
 ) {
   const now = new Date();
-  return executeD1PersonEffect({
+  const store = database ?? (await getD1Database());
+  const result = await executeD1PersonEffect({
     actor,
     action: "inventory.intake.v1",
     input,
     key,
-    database,
+    database: store,
     now,
     authorize: (db) => authorizeD1Inventory(db, actor, true),
     plan: async (db) => {
@@ -405,10 +407,10 @@ export function intakeD1Inventory(
         input.expected_user_id !== actor.userId ||
         input.expected_family_id !== actor.familyId
       )
-        return { status: 403, body: { error: "AUTH_CONTEXT_CHANGED" } };
+        return { status: 403, body: { error: { code: "AUTH_CONTEXT_CHANGED" } } };
       const issued = new Date(input.issued_at).getTime();
       if (!Number.isFinite(issued) || now.getTime() - issued < -60_000 || now.getTime() - issued > IDEMPOTENCY_TTL_MS - 3_600_000)
-        return { status: 409, body: { error: "INTAKE_INTENT_EXPIRED" } };
+        return { status: 409, body: { error: { code: "INTAKE_INTENT_EXPIRED" } } };
       const data = input.item;
       const name = cleanItemName(data.name);
       const ingredientId = await resolveInventoryIngredient(
@@ -419,7 +421,7 @@ export function intakeD1Inventory(
       );
       const product = input.product;
       if (product?.origin === "open-food-facts" && !foodProductLicenseApproved())
-        return { status: 403, body: { error: "PRODUCT_REUSE_DISABLED" } };
+        return { status: 403, body: { error: { code: "PRODUCT_REUSE_DISABLED" } } };
       const productSource = product?.origin === "open-food-facts" ? foodProductSourceUrl(product.barcode) : null;
       const existing = product?.remember
         ? await db.foodProduct.findFirst({ where: { family_id: actor.familyId, barcode: product.barcode } })
@@ -429,7 +431,7 @@ export function intakeD1Inventory(
         : null;
       const same = Boolean(existing && desired && Object.entries(desired).every(([field, value]) => existing[field as keyof typeof desired] === value));
       if (product?.remember && !same && (existing?.revision ?? null) !== product.base_revision)
-        return { status: 409, body: { error: "PRODUCT_CHANGED" } };
+        return { status: 409, body: { error: { code: "PRODUCT_CHANGED" } } };
       const itemId = randomUUID();
       return {
         status: 201,
@@ -448,6 +450,33 @@ export function intakeD1Inventory(
       };
     },
   });
+  if (result.status !== 201) return result;
+  const proof = inventoryIntakeReceipt.safeParse(result.body);
+  const unavailable = (code: string) => ({
+    ...result, status: 409, body: { error: { code } },
+  });
+  if (!proof.success) return unavailable("INTAKE_CONFIRMATION_UNAVAILABLE");
+  // A receipt proves the original save, not that its item still exists. Recheck
+  // current authority and the item together, without changing the saved receipt.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const captured = await captureD1Reads(async (db) => {
+      const refusal = await authorizeD1Inventory(db, actor, true);
+      if (refusal) return { ...result, ...refusal };
+      const item = await db.inventoryItem.findFirst({
+        where: { id: proof.data.itemId, family_id: actor.familyId },
+        select: { id: true },
+      });
+      return item ? result : unavailable("INTAKE_ITEM_REMOVED");
+    }, store as unknown as NativeD1);
+    try {
+      const session = store.withSession("first-primary");
+      await session.batch(captured.checks(session));
+      return captured.value;
+    } catch (error) {
+      if (!isD1WriteConflict(error)) throw error;
+    }
+  }
+  return unavailable("INTAKE_CONFIRMATION_UNAVAILABLE");
 }
 
 export function updateD1Inventory(

@@ -38,3 +38,13 @@ describe('middleware database loading boundary', () => {
     expect(response.status).toBe(403)
   })
 })
+
+it.each([
+  ['/dashboard/calendar?focus=event-1', '/dashboard/calendar?focus=event-1'],
+  ['/dashboard/chores?focus=chore-1', '/dashboard/chores?focus=chore-1'],
+  ['/dashboard/calendar?focus=event-1&delete=1', '/dashboard/calendar'],
+  ['/dashboard/today?token=private', '/dashboard/today'],
+])('signed-out notification return keeps only a strict destination: %s', async (path, expected) => {
+  const response = await middleware(request(path))
+  expect(new URL(response.headers.get('location')!).searchParams.get('redirect')).toBe(expected)
+})

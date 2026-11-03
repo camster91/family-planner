@@ -2,6 +2,35 @@
 
 Request and implementation tracking: #465, parent #128. Cameron's latest request adds iOS companion work to the Android-first programme; the single web/backend/household model remains canonical.
 
+## Local candidate refresh — 2026-11-03
+
+Source `1efe4fc7` aligns the generated iOS Swift package and resolved dependency
+with the installed/locked Capacitor iOS/core/CLI 8.5.3. Regenerate with
+`npx cap sync ios` after dependency updates; do not hand-edit the managed package
+or leave its resolved pin on an older framework. App, Network and Share remain
+the same three plugins. No new native permission, association, account or provider
+was enabled.
+
+Xcode 27.2 (27B52) successfully built the Debug generic iOS Simulator app using
+`CODE_SIGNING_ALLOWED=NO` and `COMPILER_INDEX_STORE_ENABLE=NO`, after the original
+dependency extraction failed for disk space. The six shared-native test suites
+passed (41 tests), and the source plist/project passed `plutil -lint`. Build logs
+and file hashes are in the sibling continuation artifacts, `ios-build.log` and
+`ios-build-evidence.json`. The binary has developer defaults version 1.0/build 1;
+it has only linker ad-hoc simulator signing (no team or sealed resources), not
+a distribution signature or approved release. No simulator
+runtime/device is installed here, so no app launch or physical-device behavior
+is claimed. No signing credentials, store upload or production change occurred.
+
+The shell still loads `https://family.ashbi.ca`; the compiled native source does
+not establish the loaded live web SHA. Verify both identities in a release.
+The Android reminder registration and shared URL validation now have local
+source/tests documented in [ANDROID.md](ANDROID.md). iOS domain association and
+entitlements remain outstanding. Android local-voice preview source exists;
+its real-device noise, distance, permission and lifecycle acceptance remains
+separate. The older capability table below is a dated baseline, not a current
+completion checklist. #473/#138 and original per-platform acceptance remain open.
+
 ## Current local candidate, 2026-10-09
 
 Android and iOS use Capacitor 8.5.2 and the same live HTTPS application, `https://family.ashbi.ca`. Adding these native projects does not deploy any of the accumulated web changes. An installed native app still shows the deployed web version. This is a hybrid app with native capabilities, not an entirely Swift/Kotlin interface. Do not advertise full native parity yet.

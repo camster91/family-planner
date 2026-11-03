@@ -1,5 +1,8 @@
 /** Content-free usage contracts; safe for client and transport type imports. */
 import { z } from "zod";
+import type { GoogleRecipeSearchPricing } from "./google-recipe-search-cost";
+export const AI_USAGE_PRICING_HEADER = "X-AI-Pricing-Report";
+export const AI_USAGE_PRICING_PROTOCOL = "herewoven.managed-pricing.v1";
 export const AI_USAGE_FEEDBACK_HEADER = "X-AI-Feedback-Report";
 export const AI_USAGE_FEEDBACK_PROTOCOL = "herewoven.food-ai-feedback.v1";
 import { memberIdentityIdSchema as id } from "./member-subject-contract";
@@ -85,6 +88,7 @@ export const aiUsageReport = z
     revision: z.number().int().nonnegative(),
     policy: aiUsagePolicy,
     pricingCurrent: z.boolean(),
+    managedPricing: z.boolean().optional(),
     configVersion: z
       .string()
       .regex(/^[a-f0-9]{64}$/)
@@ -103,14 +107,19 @@ export const aiUsageReport = z
   })
   .strict();
 export type AiUsageReport = z.infer<typeof aiUsageReport>;
+export type ProviderUsageStart = {
+  inputBytes: number;
+  maxOutputTokens: number;
+  /** Server-owned native search configuration; never accept from request JSON. */
+  search?: { pricing: GoogleRecipeSearchPricing; queryAllowance: number };
+};
 export type ProviderUsageObserver = {
-  start: (input: {
-    inputBytes: number;
-    maxOutputTokens: number;
-  }) => Promise<void>;
+  start: (input: ProviderUsageStart) => Promise<void>;
   reported: (usage: {
     inputTokens: number | null;
     outputTokens: number | null;
+    searchQueries?: number | null;
+    grounded?: boolean | null;
   }) => void;
   failed: (reason: "timeout" | "error") => void;
 };

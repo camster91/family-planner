@@ -576,6 +576,16 @@ web goal remains active through consolidated QA and verified release.
 
 # Current State
 
+## Shipping consolidation — November 3, 2026
+
+Current execution is [docs/SHIPPING.md](SHIPPING.md) and GitHub #377. One draft
+candidate branch, `release/web-shipping`, preserves the previous connected-workflow
+PR and subsequent local work. This candidate is not merged or deployed. The
+pending routine cleanup still needs browser acceptance; Gemini-off is approved
+but not yet implemented. Older source/check/deployment identities below remain
+dated evidence, not acceptance of this candidate. Six open issues replace 25
+overlapping trackers, with full requirements preserved in the source issues.
+
 ## Repaired candidate ready for hosted QA — 2026-10-22
 
 All currently identified source repairs are complete. The integrated candidate

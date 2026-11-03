@@ -18,11 +18,13 @@ import {
   readScheduleComparisonInTx,
   scheduleEventToken,
   scheduleSnapshotToken,
+  type ScheduleComparisonRow,
 } from "./schedule-source";
 import {
   readScheduleStatuses,
   scheduleStatusToken,
   assessScheduleSourceCoverage,
+  type ScheduleSourceStatus,
 } from "./schedule-status";
 export { SCHEDULE_SOURCE_FRESHNESS_MS } from "./schedule-status";
 export type ScheduleActor = {
@@ -108,6 +110,19 @@ export async function prepareScheduleInTx(
   const statusToken = scheduleStatusToken(statuses);
   if (scheduleStatusToken(before) !== statusToken)
     throw new ScheduleReviewError("STALE");
+  return buildScheduleSnapshot(actor, current.role, scope, rows, statuses, now);
+}
+
+/** Shared projection; each backend owns authorization and snapshot consistency. */
+export function buildScheduleSnapshot(
+  actor: ScheduleActor,
+  role: "parent" | "teen" | "child",
+  scope: ScheduleReviewScope,
+  rows: ScheduleComparisonRow[],
+  statuses: ScheduleSourceStatus[],
+  now: Date,
+) {
+  const statusToken = scheduleStatusToken(statuses);
   if (!rows.some((row) => row.id === scope.targetId))
     throw new ScheduleReviewError("MISSING");
   const { capped, sourcesUnavailable, missingSource } =
@@ -137,7 +152,7 @@ export async function prepareScheduleInTx(
         : ("local" as const),
     repeating: row.recurrence !== null,
     canMove:
-      current.role === "parent" &&
+      role === "parent" &&
       !row.sourceSubscriptionId &&
       row.recurrence === null &&
       !missingSource,
@@ -146,14 +161,14 @@ export async function prepareScheduleInTx(
   const parsedSnapshot = scheduleReviewSnapshot.safeParse({
     protocol: "herewoven.schedule-review.v1",
     owner,
-    role: current.role,
+    role: role,
     timeZone: scope.timeZone,
     range: scope.range,
     coverage,
     events,
     snapshotToken: scheduleSnapshotToken({
       owner,
-      role: current.role,
+      role: role,
       tokenVersion: actor.tokenVersion,
       sourceStatusToken: statusToken,
       timeZone: scope.timeZone,

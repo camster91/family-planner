@@ -1,3 +1,4 @@
+import { expandD1RecurringSeries } from "../../../src/lib/cloudflare/recurring-chores"
 import { readD1IndependentRoutine, saveD1IndependentRoutine } from '../../../src/lib/cloudflare/routine-independent'
 import { readD1RoutineSchedule, saveD1RoutineSchedule } from '../../../src/lib/cloudflare/routine-schedule'
 import { readD1RoutineStack, saveD1RoutineStack } from '../../../src/lib/cloudflare/routine-stack'
@@ -59,5 +60,32 @@ export async function testRoutines(db: D1Store) {
   check((await readD1RoutineStack(parent, currentStackId, day, db))?.status === 200, 'current routine stack read')
   check((await saveD1RoutineStack(parent, stackDraft, 'routine-stack-create-1', now, db)).status === 200, 'current routine stack receipt replay')
 
-  return { independent: true, independentReplay: true, revokedReplayDenied: true, schedule: true, scheduleReplay: true, stack: true, stackReplay: true }
+  // Profile-backed repeating work must use canonical member identity rather
+  // than inventing an account, and expansion must stop when that profile ends.
+  const flagNames=['HOUSEHOLD_PROFILE_CHORE_ENABLED','HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY','HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED','ROUTINE_SCHEDULE_ENABLED','ROUTINE_SCHEDULE_ROLLBACK_READY']
+  const previous=flagNames.map(name=>process.env[name])
+  try {
+    flagNames.forEach(name=>{process.env[name]='1'})
+    await db.prepare(`INSERT INTO HouseholdMember(id,family_id,name,role,age) VALUES ('routine-profile','routine-a','Small child','child',3),('routine-other-profile','routine-b','Private child','child',4)`).run()
+    const profileInput={...scheduleInput,label:'Family evening',steps:[{...scheduleInput.steps[0],client_step_id:'profile-step',subject:{kind:'profile' as const,member_id:'routine-profile'}},{...scheduleInput.steps[0],client_step_id:'parent-step',title:'Prepare tomorrow bags'}]}
+    const profileCreated=await saveD1RoutineSchedule(parent,profileInput,'routine-profile-create-1',now,db,true)
+    check(profileCreated.status===201,'mixed account and email-free profile routine saves')
+    const profileStack=String((profileCreated.body as {stackId:string}).stackId)
+    const root=await db.prepare(`SELECT id,assigned_to FROM Chore WHERE routine_stack_id=? AND assigned_member_id='routine-profile' AND is_template=1`).bind(profileStack).first<{id:string,assigned_to:string|null}>()
+    check(root&&root.assigned_to===null,'profile routine root does not impersonate an account')
+    await expandD1RecurringSeries(root.id,parent.familyId,now,db)
+    const occurrences=await db.prepare(`SELECT id,assigned_to,assigned_member_id,status FROM Chore WHERE recurrence_id=? AND id<>? ORDER BY due_date`).bind(root.id,root.id).all<{id:string,assigned_to:string|null,assigned_member_id:string,status:string}>()
+    check(!!occurrences.results?.length&&occurrences.results.every(row=>row.assigned_to===null&&row.assigned_member_id==='routine-profile'&&row.status==='pending'),'profile recurrence produces assigned pending canonical chores')
+    const count=occurrences.results.length
+    await expandD1RecurringSeries(root.id,parent.familyId,now,db)
+    check((await db.prepare(`SELECT COUNT(*) AS count FROM Chore WHERE recurrence_id=? AND id<>?`).bind(root.id,root.id).first<{count:number}>())?.count===count,'profile recurrence expansion is duplicate-safe')
+    const foreignProfile=await saveD1RoutineSchedule(parent,{...profileInput,steps:[{...profileInput.steps[0],subject:{kind:'profile',member_id:'routine-other-profile'}}]},'routine-profile-foreign-1',now,db,true)
+    check(foreignProfile.status>=400,'routine cannot assign a foreign household profile')
+    await db.prepare(`UPDATE HouseholdMember SET archived_at=? WHERE id='routine-profile'`).bind(+now).run()
+    check(await expandD1RecurringSeries(root.id,parent.familyId,new Date(+now+14*86400000),db)===0,'archived profile does not generate future work')
+  } finally {
+    flagNames.forEach((name,index)=>{if(previous[index]===undefined)delete process.env[name];else process.env[name]=previous[index]})
+  }
+
+  return { mixedProfileRoutine:true, profileRecurrence:true, profileIsolation:true, profileArchiveStopsExpansion:true, independent: true, independentReplay: true, revokedReplayDenied: true, schedule: true, scheduleReplay: true, stack: true, stackReplay: true }
 }

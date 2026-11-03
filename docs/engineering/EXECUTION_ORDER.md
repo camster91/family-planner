@@ -5,7 +5,534 @@ This document orders work; it does not replace acceptance criteria or create a
 second backlog. The current issue directory is in
 `docs/engineering/ISSUE_COMPLETION_LEDGER.md` and programme issue #128.
 
-## Current execution basis — 2026-10-25
+## Current continuation — 2026-11-03
+
+Cameron requested completion of the advanced connected features after the
+recipe-to-meal release preparation. The historical code-only/no-QA restriction
+below is superseded by the later request to verify fixes before release.
+Continue the existing issues, not another feature backlog.
+
+- #125 multi-item review at `f8f2d8d7`: saving a tray with an incomplete earlier
+  item now opens that item and focuses its review selector before any writes.
+  Correction retains the other drafts and normal batch saving. Two affected
+  suites / eight tests passed, including zero writes before validation and two
+  confirmed saves after correction. Twelve actual-component EN/ES browser
+  cases across the six standard sizes passed selection, focus, editing and
+  overflow checks; phone screenshot inspected. TypeScript and scoped lint
+  passed (three existing hook warnings). Artifacts: `barcode-review-selection-*`.
+  These are fabricated transport/component checks, not live provider, native
+  camera, compiled Worker or deployment evidence.
+
+- #125 lookup recovery at `73d9e626`: barcode review now offers immediate
+  **Enter manually** while metadata is pending. It keeps the scanned code and
+  draft, aborts the read, and ignores its late response; an old completion cannot
+  unlock a newer lookup. Four focused suites / 16 tests and 12 actual-component
+  browser checks (EN/ES across six standard sizes) passed. The phone screenshot
+  was inspected; fixtures use fabricated camera/backend responses, with no
+  provider or inventory writes. TypeScript passed with observed exit zero;
+  scoped lint has zero errors and three existing hook warnings. Evidence:
+  `barcode-manual-fallback-*`. The Next.js production build
+  (`npm run build`) passed at `73d9e626`; Cloudflare packaging and deployment
+  were not run for this follow-up. This is not physical-camera/provider acceptance.
+
+- #144 current reconciliation: the November 3 official provider terms still
+  leave the planned Gemini client/grounded-link import arrangement unresolved.
+  Actual source has teen admission and permits key-based Google search when the
+  readiness variable is unset; `wrangler.jsonc` omits it. Corrected release
+  interpretation is in `docs/testing/AI_EVALUATION.md`; no flag/key/provider call
+  changed. Cameron was asked about inactive Gemini versus an alternative for
+  review. The versioned offline evaluation now has retained source/hash evidence:
+  15/15 canonical cases, two suites / five tests passed at `fedc0c16`; provider
+  quality/latency/cost and AI release acceptance remain explicitly unmeasured.
+
+- #141 reward target/read recovery: native collection and owned recovery reads
+  now renew the original actor/household/feature authority after the awaited data
+  query, withholding the projection if it changed. Native notification focus
+  also withholds retired available rewards for parents and rejects invalid costs,
+  matching the existing PostgreSQL focus rules. Real workerd/D1 fixtures pass for
+  session revocation, household movement and explicit feature disablement after
+  rows were read, plus missing/foreign/retired/invalid targets. Earlier reward
+  mutation/notice/rollback coverage also still passes. Three affected suites /
+  67 tests, typecheck, scoped lint and the Cloudflare production build at
+  `19be087c` pass; evidence is `reward-read-renewal-*`.
+  The first fixture incorrectly used an empty feature object as explicit off and
+  its wrapper included an unsupported type member; both harness issues were
+  corrected and rerun. This is response-time authority renewal, not an atomic
+  snapshot spanning every related person or recall of data already delivered.
+  Production and whole-goal acceptance remain open; child update placement is
+  still awaiting Cameron's existing question, with no route access expansion.
+
+- Native reward browser acceptance at application source
+  `73a6dc289b8f4d22bca8b1b1c9c80a709060bde1`: parent form creation → child
+  personal-home (`/dashboard`) claim → parent's inbox exact-target link → parent
+  approval passed on a 390×844 phone. Independent reads confirm redeemed state
+  and child points 100→85 once; inspected screenshots preserve role controls.
+  New local-runtime `--exercise-rewards` fixture (harness `4fdbcf7a`) requires
+  `--seed-smoke`, uses fabricated accounts/points in disposable D1 and denies
+  external egress. App source/config/inputs were unchanged from the successful
+  build; only docs and the local harness differed before bundling that build.
+  Initial browser attempts exposed the existing child route restriction and
+  corrected harness navigation/response-reading races; these are retained logs,
+  not product fixes. Child inbox and `/dashboard/rewards` remain deliberately
+  inaccessible under O-37; their personal home supports claims but does not show
+  the saved approval notification. Cameron was asked whether child updates should
+  stay on personal home or allow a personal inbox/detail view. No access expansion
+  is inferred while that decision is pending. Evidence: `reward-notices-*` and
+  `reward-notices-parent-child-browser.json`. Local runtime stopped with exit130;
+  no provider or production action. Full child notification acceptance is open.
+
+- #141 native reward follow-through: Cloudflare reward create/claim/approval now
+  commit personal in-app notices with the canonical effect and receipt, using
+  witnessed same-household recipients and existing category/quiet-hours policy.
+  All notices link to the exact existing reward focus. Receipt replay does not
+  replan delivery; deleting an inbox notice or enabling a previously muted
+  category does not resend it within the original receipt contract. Roster reads
+  use the existing 100-person reward bound and hold rather than partly deliver.
+  The retained PostgreSQL creation fallback now also uses the newly created
+  canonical reward ID. Real workerd/D1 checks pass for all three audiences,
+  receipt replay/deleted notice, muted preferences, atomic notification-failure
+  rollback, retry after proven rollback, late preference changes, actor revocation
+  and departed claimant suppression. Four affected suites / 68 tests, typecheck
+  and scoped lint pass. Cloudflare production build also passed at source
+  `73a6dc28`; no compiled-browser acceptance is claimed for this change.
+  Evidence: adjacent `reward-notices-*` artifacts.
+  This is native in-app parity, not queued/provider delivery or the stricter
+  event-occurrence/recipient-decision cohort protocol. Its native reward adoption,
+  retention beyond existing receipts, installed-device and production acceptance
+  remain open; no scheduler/provider/configuration is activated.
+
+- #141 chore notification follow-through: ordinary assignment notifications and
+  post-commit approval/return notices now use the existing strict chore-focus
+  destination. This covers the D1 and retained PostgreSQL fallback branches;
+  recipient selection, preference policy and transaction-owned dispatch remain
+  unchanged. The completion helper also shares the target, but it has no current
+  production caller and is not counted as producer coverage. Six affected suites
+  / 77 tests pass (including removed-member refusal and focus authorization),
+  typecheck and scoped lint pass. Clean source `2f6ffb368bf15bd20fc0b69934dd73f8c274d1c1`
+  also passed Cloudflare build/dry bundle. In authenticated local Worker/D1 Chrome,
+  a fabricated parent's newly created chore produced an inbox notification whose
+  Open link rendered that exact task and existing completion/edit controls at
+  390×844 without overflow. The screenshot was inspected. The initial script
+  used the read-only collection endpoint; correcting it to canonical
+  `/api/chores/create` passed without product changes. Evidence is retained under
+  adjacent `chore-notification-links-*` artifacts. External egress was denied;
+  the owned runtime stopped with exit130. No schema, provider, scheduler or
+  deployment change. N2 asynchronous recovery and N3 provider/device acceptance
+  remain open. This does not establish new provider or installed-device delivery.
+
+- Compiled browser continuation at source `3cce250a9351cdbd2e3cda416e07325214a20eae`:
+  fixed the dedicated Review inbox silently losing its editor when quick capture
+  is unavailable. It now explains the state and links to canonical Family AI
+  Settings while preserving recipe recovery. Six affected suites / 80 tests,
+  typecheck, scoped lint, Cloudflare build and Wrangler dry bundle passed.
+  Actual local Worker/D1 Chrome checks passed at 390×844, 800×1280 and 1366×768:
+  explanation visible, Settings opens at the AI section, key remains empty,
+  recipe recovery retained, no horizontal overflow or post-setup API writes.
+  Email-free child plus parent routine steps also saved and persisted in a fresh
+  browser page; the direct Routines destination rendered its loaded content.
+  The first routine script raced router refresh with reload (ERR_ABORTED);
+  the independent-page retry passed without an application change. Evidence:
+  adjacent `review-availability-*` and `verified-profile-routine-*` artifacts.
+  External egress was denied; no real provider call or production write occurred.
+  The prior full-suite result remains attached to its earlier source, not this
+  follow-up. Production promotion and device/provider acceptance remain open.
+
+- D1 migration/recovery rehearsal (#450/#499 release gate): added a local-only
+  Wrangler check from migration 0016 through 0017/0018 with populated fabricated
+  preparation rows, including a legacy invalid step. Upgrade and repeat apply
+  preserve all 98 application tables; invalid edits refuse without mutation,
+  valid repair advances the parent revision. A direct raw-export restore failed
+  on a forward table reference (`RoutineStack`); the verified local restore
+  orders tables/indexes, data, then triggers without rewriting exported statements.
+  Independent restore matches all original rows, schema/index/trigger definitions
+  and the old migration ledger; foreign keys pass and upgrading again preserves
+  data. Strict statement classification and exact guard-error checks pass. The
+  final fixture and lint pass; logs are `preparation-upgrade-*`. BACKUPS and
+  RELEASE_AND_ROLLBACK now distinguish this D1 evidence from historical VPS
+  procedures. This is not production D1/R2 backup integrity, installed-client or
+  live rollback proof. No production data/schema/provider/permission changed.
+- Consolidated release review — source `cc91fc8b`: fresh Cloudflare build,
+  sequential typecheck and full-suite rerun pass (841 suites/8,548 tests;
+  85 suites/562 tests skipped). Lint: zero errors, 76 warnings. The first suite
+  run encountered one ENOSPC reporter failure; after verified-unused disposable
+  Xcode module caches were removed, the unchanged-source rerun passed. Retained
+  iOS app products and evidence were not removed. Local build/input file hashes
+  are recorded in `final-candidate-build-evidence.json`; logs use the
+  `final-candidate-*` prefix. Current PR #622 is still open at `6a6c0b6`, 36
+  commits behind this local source, with an incomplete automated review caused
+  by the review-account quota. Production health is 200 on both app hosts and
+  primary version still reports `18a58fee`. The expanded review packet explicitly
+  covers migrations 0017/0018 and twelve configuration gates; old recipe-only
+  no-migration/rollback statements do not apply. Fresh CI/immutable artifact,
+  integrated browser acceptance, migration/recovery, independent review and
+  release authorization remain open. No push, merge or deployment occurred.
+- Calendar interoperability acceptance (#124): extended the existing native D1
+  fixture through real parser → reconciliation → read-back for weekly Toronto
+  spring/fall DST, stable IDs on replay, moved exception identity, individual and
+  whole-series cancellation, and preservation of local/history/foreign events.
+  Both calendar sync and subscription slices pass in disposable workerd/D1; the
+  same run covers revoke-during-fetch, source replacement, atomic rollback,
+  truncated-input preservation and the subscription access/privacy/cap controls.
+  Five focused Jest suites pass (126 tests). The smoke runner now allows these
+  two existing slices individually. See CALENDAR_INTEROPERABILITY.md for exact
+  scope and `calendar-interop-*` artifacts. Fabricated feeds/provider responses
+  do not establish live-provider, physical-device or full #124 acceptance.
+  No application behavior, credentials, production or external state changed.
+- Routine handoff connection (#464/#450/#499): the assistant now opens the
+  dedicated routine view, and the chores server honors the fixed `view=routines`
+  destination. Routine editor save/return and schedule-manager return links use
+  that same destination. Client state follows changed destination props without
+  resetting a person's tab choice on ordinary refresh. Existing role, feature,
+  draft and save-recovery gates remain intact; no new write path is introduced.
+  Three affected suites pass (54 tests), typecheck passes, and browser component
+  checks pass EN/ES across six sizes for direct routine selection and returning to
+  Today without horizontal overflow. The Spanish phone rendering was inspected.
+  These use an isolated actual-component fixture with a router adapter, not a
+  production household or native device. Evidence: `routine-handoff-*` in the
+  sibling continuation artifacts. Nothing was pushed, merged or deployed.
+- iOS native dependency/build follow-through (#473/#138): `cap sync ios`
+  corrected the generated Swift package from Capacitor 8.5.2 to the installed
+  8.5.3 runtime; Xcode regenerated the exact resolved pin. Candidate `1efe4fc7`
+  passes generic iOS Simulator Debug compilation with distribution signing
+  disabled, source plist/project validation, and six shared-native suites (41
+  tests). Actual Xcode 27.2 was available; no simulator runtime/device is installed.
+  Version 1.0/build 1 are developer defaults, not distribution identity. The first
+  resolver run ultimately failed from disk exhaustion, not source compilation;
+  retry passed after removing six stopped duplicate QA bundles only after exact
+  source/archive/file-SHA verification. Archives and previous QA evidence remain;
+  627,925,179 bytes of duplicate files were reclaimed. `ios-space-recovery.json`
+  records the retained archive hashes. `ios-build-evidence.json` records current
+  source/input hashes and binary metadata. Native installation/permission/lifecycle,
+  signing/store, old-client/rollback and live web identity acceptance remain open.
+  No paid service, live data, signing credential, push, merge or deployment changed.
+- Review-inbox unfinished-input protection (#464/#499): compatibility capture
+  now reports nonblank typed input and in-progress text/photo extraction to its
+  existing host guard, not just parsed previews. Opening Recipes therefore asks
+  before discarding unparsed input; clearing that input removes the warning.
+  Only a boolean is reported, with no duplicate draft store or automatic parse.
+  The normal owned-document boundary and canonical request recovery are unchanged.
+  Six capture/review suites pass (79 tests), typecheck/changed-source lint pass,
+  and the Cloudflare build passes. Chromium checks of the real compatibility
+  editor inside CaptureInboxReview pass EN/ES across all six baseline sizes:
+  cancelling keeps input, confirming opens the recipe destination, no POST is
+  sent, and no horizontal overflow occurs. The Spanish phone screenshot was
+  inspected. Availability and navigation are fixture adapters; this is not live
+  provider, persisted-owned-document, device or complete inbox acceptance.
+  Evidence is in `review-draft-*` in the sibling continuation artifacts. No
+  external state changed; nothing was pushed, merged or deployed.
+- Barcode camera lifecycle (#125): the foreground scanner now refuses hidden
+  starts, explicitly stops on `pagehide`, and retires late permission/detection
+  results without reopening on return. Missing/busy hardware is distinguished
+  from denied permission; EN/ES notices retain typed barcode entry and explain
+  deliberate retry. No background scan or new permission request is introduced.
+  The affected inventory suites pass (19 suites/126 tests), typecheck and the
+  Cloudflare build pass, and changed-source lint has zero errors with three
+  existing BarcodeFoodDialog hook warnings. Actual Chromium rendered the barcode
+  sheet in EN/ES across six baseline sizes with simulated camera denial/missing
+  hardware: manual code → local product read → editable food review works with
+  no write or public product lookup and no horizontal overflow. The phone
+  screenshot was inspected after settling the existing button colour transition.
+  Tests also cover page exit during active preview and pending permission, late
+  detection rejection, no automatic restart and deliberate retry. Evidence is
+  in `camera-lifecycle-*` in the sibling continuation artifacts. Camera/media
+  and product responses are fabricated; actual decoding/permission/hardware,
+  native Back/lock and provider coverage acceptance remain open. No live data,
+  provider, production or store changes occurred.
+- Assistant voice recovery (#464): ordinary browser dictation now has a
+  default 20-second deadline, retires failed/successful recognition callbacks,
+  handles constructor/abort failures and synchronous browser errors, and accepts
+  a final transcript only once. Permission errors stop listening even if the
+  browser never emits an end event. The assistant preserves text edited while
+  listening and explains the retained draft in EN/ES; a later successful draft
+  clears the old voice notice. No transcript auto-sends or mutates household data.
+  Four focused suites pass (64 tests), changed-source lint/typecheck pass, and
+  the Cloudflare build passes. Real Chromium rendered the actual assistant panel
+  across EN/ES and all six baseline sizes: typed-draft preservation, denied-access
+  recovery, successful draft insertion, zero network requests and no horizontal
+  overflow all pass. Phone success and retained-draft screenshots were inspected.
+  This browser fixture uses a simulated speech recognizer and stub router, not
+  physical microphone, native speech, provider, noise/distance or background-wake
+  acceptance. Evidence is in `voice-recovery-*` in the sibling continuation
+  artifacts. Full-suite results below precede this focused follow-up. Nothing
+  was pushed, merged, deployed or enabled externally.
+- Consolidated local candidate check — source `6fe314a1`: the full suite
+  initially found one translation-audit integration failure. Native reminder
+  copy now lives in its own small EN/ES catalog, explicitly checked for key
+  coverage and equal locale keys without loading the legacy catalog into the
+  shell. Its focused component/catalog checks pass (six tests). The full suite
+  rerun passed (841 suites, 8,534 tests; 85 suites/562 tests skipped); see
+  `candidate-tests-repair.log` under the continuation artifacts. Cloudflare
+  production bundling and final typecheck passed. Whole-repository lint reports
+  zero errors and 76 warnings; changed-source lint passes without warnings.
+  An earlier concurrent typecheck raced the build's generated `.next/types`;
+  the sequential post-build rerun passed. No source change was needed for that
+  race. Logs are retained in the sibling
+  `artifacts/connected-family-features-20261103/` directory. This is local
+  candidate evidence, not release CI, provider/device acceptance or deployment.
+  PR #622 remains open at its earlier candidate; these continuation commits
+  are local. Exact release review/approval and the outstanding original issue
+  acceptance remain open. No provider, account, production or store mutations
+  occurred in this check.
+- Connected review follow-through: native weekly reset now includes eligible
+  email-free profiles, preserves child-only chore visibility, filters inactive
+  routine occurrences, and offers event timing/preparation entry points.
+  Its captured source and authority reads are checked before returning a summary.
+  Responsibility mutations now atomically add a minimal “What changed” fact;
+  unchanged answers do not produce duplicate history. Failed history writes
+  roll back the responsibility update and receipt together.
+  Local D1 responsibility, weekly-reset and review-inbox checks passed, including
+  archived-profile exclusion, child isolation, no-op history and failed-write
+  rollback. The affected 23 test suites passed (146 tests; eight existing
+  PostgreSQL integration tests skipped). Typecheck/lint and the Cloudflare build
+  passed. Candidate `9a8c5b34` passed real local Worker/D1 browser checks:
+  weekly review progression/finish/reload and responsibility acceptance,
+  email-free backup, lost-response recovery and reload. Responsibility sheets
+  fit phone/tablet/desktop, and the phone screenshot was inspected. The newly
+  linked weekly-summary entry points also passed rendered round-trips from
+  the review to preparation, timing and responsibility, returning to the same
+  review. Release CI remains outstanding. Nothing was deployed.
+- Food capture #125: native intake now checks the saved item and current
+  authority before confirming new/replayed success. Replaying a deleted item
+  reports `INTAKE_ITEM_REMOVED` without recreating stock; original receipts
+  remain intact. Typed product-conflict/owner/expiry errors match the scanner
+  recovery contract. Native checks pass barcode intake/replay, private product
+  reuse/isolation, correction conflicts, deleted-item retry, consume/Undo and
+  restocking recovery. Eight focused suites pass (25 tests; five existing
+  integration tests skipped), with typecheck and changed-source lint passing.
+  Candidate `ba99cbb9` passed the Cloudflare build and real local Worker/D1
+  browser flow: provider-disabled typed barcode, duplicate-frame-equivalent
+  rescan preserving one draft/quantity, save/reload, private product reuse with
+  fresh stock quantity and removed-item retry. Phone/tablet/desktop did not
+  overflow horizontally; the phone review screenshot was inspected. Broader
+  photo, camera hardware, provider and native acceptance remain outstanding.
+  No product provider was activated or called; no production changes ran.
+- Stock lifecycle follow-through: actual local Worker/D1 browser at `ba99cbb9`
+  passed partial consumption (three cans to two), owned Undo (back to three),
+  and replacement creation in a selected grocery list. The phone screenshot
+  exposed a stacked editor behind the replacement sheet. The editor now
+  suspends while replacement is open, retaining its unsaved fields for return;
+  a regression covers one visible dialog, draft restoration and no stock write.
+  Replacement success also drops the redundant setup hint/list-index link and
+  spaces its remaining Open list/Undo controls. Focused inventory/restock tests
+  passed (28 tests). Candidate `5459fda5` passed the Cloudflare build and real
+  phone browser checks for consume/Undo, one visible replacement dialog, save
+  to the selected grocery list and return to the editor. Updated success-state
+  screenshot inspected. Typecheck passes; changed-source lint has zero errors
+  and four existing hook warnings. Nothing was merged/deployed.
+- Food-photo Settings integration (#125/#144): parent inventory capture now
+  resolves the existing encrypted household AI configuration before the legacy
+  deployment scanner, without switching providers after a failed photo request.
+  It reuses the bounded image transport, usage observer/admission and output
+  parsers. The existing hourly/daily ceilings and separate receipt/package gate
+  remain; revoked sessions or changed settings suppress the returned proposal.
+  The picker names the selected provider and enforces its 5 MB upload limit.
+  No raw image is saved and stock still requires explicit review/intake.
+  Configured does not mean image-capable: unsupported models fail visibly with
+  manual entry available. Local mocked-provider/API/component checks pass 145
+  tests, including shared accounting, quota refusal, no fallback on bad keys,
+  settings changes, no unreviewed writes and provider/size disclosure. Typecheck
+  passes; changed-source lint has zero errors/five existing hook warnings.
+  Candidate `1a9287be` also passed the Cloudflare production build, including
+  TypeScript and Worker bundling. This does not establish a live provider call
+  or rendered photo capture against that artifact.
+  Real provider/model capability, privacy eligibility and hardware acceptance
+  remain separate; no live provider call, key change or deployment occurred.
+- Notification follow-through (#141): the current notification/quiet-hours
+  suites pass (31 suites, 320 tests). Added saved-IANA-zone DST checks to the
+  existing real D1 delivery fixture: both repeated Toronto 01:30 instants stay
+  quiet, the end is exclusive, and spring-forward skips the nonexistent hour.
+  The local Worker/D1 inbox, preferences and exact-calendar-target slices pass,
+  including participant/preference races, revocation, receipt rollback,
+  snooze/delete ownership and unavailable/foreign calendar targets. These slices
+  can now run directly through `read-smoke.mjs --only=notification-inbox,notification-preferences,calendar-events`.
+  No interruptive delivery, provider acceptance or native opening is proven.
+  Source review confirms no `appUrlOpen`/`getLaunchUrl` handler and no Android
+  VIEW intent registration; native cold/warm/sign-in/Back routing remains an
+  implementation gap. Next native work must use the existing strict destination
+  parser and current session/role readers, preserve pending forms and retain
+  OS association/signing/physical-device acceptance as separate gates.
+- Native notification ingress (#141/#473): the shared App plugin adapter now
+  listens before reading the cold launch URL, drops stale launch results after
+  a newer warm event, and cleans up late registrations. Only exact existing
+  notification destinations on the two deployed HTTPS hostnames are admitted;
+  credentials, ports, external origins, encoded aliases and action query data
+  refuse. The root native lifecycle offers a neutral EN/ES Open/Dismiss notice
+  without automatic navigation or persisted link/account data. Opening uses a
+  normal document link, retaining unload guards and canonical access checks.
+  Sign-in now preserves approved notification focus queries; unrelated queries
+  still drop. The affected eight suites pass (122 tests), including superseded
+  launch responses, unsafe links, form retention and signed-out return targets.
+  Typecheck, changed-source lint and the Cloudflare build pass. This is source/component verification,
+  not an installed-device journey. Android VIEW registration, domain association,
+  iOS entitlements, native cold/warm/Back and current/previous binary acceptance
+  remain required. No OS setting, provider, permission, signing or rollout changed.
+- Android reminder registration (#138/#141/#473): the manifest now declares
+  verified HTTPS filters on both supported hosts for the existing reminder
+  path families, retaining the strict raw-URL validator and fresh server access
+  checks. Source/merged manifest tests prevent login/API/shared routes, HTTP,
+  wildcards and unrelated hosts from entering this contract. A compiled device
+  test covers positive and negative package-scoped intent resolution; it does
+  not prove domain verification or actual cold/warm delivery.
+  Capacitor sync, 13 JVM tests, instrumentation compilation, unsigned release
+  APK and AAB builds pass on JDK 21/SDK 36. The first build exhausted local disk;
+  four stopped, packaged QA runtime copies were removed with archives/evidence
+  preserved, then the exact Gradle gates passed on retry. Signing inputs were
+  absent and explicitly unset for the retry. `connectedDebugAndroidTest` was
+  attempted and failed with “No connected devices”; no device case passed.
+  Production signing fingerprints,
+  approved per-host Digital Asset Links publication, device acceptance and iOS
+  entitlements remain separate; no native binary or association was published.
+- Routine history/accessibility (#450/#499): retained legacy `approved` chores
+  now count as done/checked in routine progress and cannot become the guided
+  next step or an open-row completion action. No stored status, history, credit
+  or permission changes. The Guided/List switch now has 44px targets, arrow/
+  Home/End keyboard selection and one tab stop. Six focused suites pass (73
+  tests), with typecheck and changed-source lint passing. A local browser
+  component fixture passed EN/ES at all six required sizes (12 cases), checking
+  truthful progress, unfinished guided selection, no document overflow and no
+  completion writes on view changes; the updated Spanish phone screenshot was
+  inspected with bundled app fonts. Router and data were fixtures, not a live
+  backend or installed app. Exact release build/CI remains part of final QA.
+  Fresh issue reads preserve unfinished profile rotation/credit/linking scope;
+  existing unresolved credit/retention decisions were not inferred or bypassed.
+- Calendar connection recovery (#124/#499): picker replies now require valid,
+  distinct remote calendars; malformed data is not an empty-calendar result.
+  Save/sync replies require the same connection and valid projection; successful
+  sync counts must be nonnegative safe integers. Disconnect requires explicit
+  success before removing the visible row. Malformed replies, transport failures
+  and server errors retain confirmed rows and hold further controls behind the
+  existing canonical refresh action. An uncertain disconnect closes only its
+  confirmation dialog so recovery remains reachable; no automatic write retry.
+  Provider-reported unsuccessful sync uses typed localized feedback rather than
+  rendering raw result text. A refresh is an observation, not proof that an
+  earlier unknown server operation stopped; no new delivery/exact-receipt claim.
+  Four suites pass (34 tests), plus typecheck/lint. Local mocked-response browser
+  checks pass EN/ES at all six sizes (12 cases), including hold, visible retained
+  row, refresh, no repeated write and no horizontal overflow. Phone screenshot
+  inspected. No live provider/OAuth/credential, external calendar or production
+  change occurred; exact release build/CI and provider acceptance remain.
+- Release candidate PR #622 remains separate from this continuation. Its passing
+  checks do not mean it is merged or deployed.
+- Start with #464/#499 connected food planning: existing D1 preview, review,
+  apply and recovery code must be exercised together. The local-only runtime
+  option `--exercise-connected-planning` enables food planning, weekly review
+  and the two queue-owner recovery flags without enabling provider calls or mail.
+- Fresh meal/prep entries now initialize an empty local draft directly; existing
+  drafts and unresolved requests take precedence. Recovery-only links do not
+  create a new draft. This does not send or save a meal automatically.
+- Local checks: typecheck and production build passed; 28 food-planning suites
+  passed (121 tests), with four existing suites/20 tests skipped. An isolated D1
+  browser journey previewed, reviewed and saved a recipe-linked meal. These are
+  local checks, not production activation or full feature acceptance.
+- D1 smoke checks passed for food preview/review/apply/replay, grocery outcomes
+  and undo, source-version guards, weekly progress/recovery, and review-inbox
+  household isolation. Weekly review also passed 64 tests in nine suites.
+- Candidate configuration enables food planning, weekly review and both
+  queue-owner recovery flags. No production configuration has been changed.
+  The updated planner component passed phone/tablet/desktop browser checks and
+  preview/review/save against isolated D1 (router stubbed; backend artifact
+  `6a6c0b61`). Weekly review passed start, step completion, finish and reload
+  against that same isolated runtime. Before release, finish candidate
+  multi-meal/prep journeys and exact-candidate CI; production approval remains
+  a separate gate.
+- D1 migration `0017_event_preparation_lifecycle.sql` now ports preparation
+  identity, source/revision and lifecycle guards. Local native-schema checks
+  cover immutable relationships, plan delete/recreate, task status changes,
+  household movement and failed-batch rollback. Event/chore mutation and
+  deletion, assistant deletion, review inbox and archive/export smoke checks
+  passed with the migration. No production migration has run.
+- Migration `0018_event_preparation_step_bounds.sql` adds canonical 1–99
+  ordering and all-or-none timing-cue validation. Real D1 checks prove stable-ID
+  atomic reorder and rollback to the original links/revision on failure.
+  Chore reads, archive export and assistant-delete guards pass; the oversized
+  legacy-data fixture explicitly restores its temporarily disabled insert guard.
+- The native preparation storage check now requires all 34 source/lifecycle
+  triggers on their expected tables. Parent context reads event backlinks and
+  copied-routine provenance in one primary snapshot with household, role and
+  session-generation checks. Chore context and personal Today now use this
+  reader; fridge mode does not receive parent links. Native checks cover missing
+  guards, stale sessions, foreign households and corrupt/removed routine origins.
+- Preparation source projection and strict state parsing are now shared between
+  PostgreSQL and D1. Native source reads use captured query witnesses and refuse
+  authority/content changes before returning. The native writer commits canonical
+  chores, stable preparation link identities, provenance and its replay receipt
+  in one batch. Real local D1 checks pass for create/reorder/detach, stale review
+  refusal, repeat receipt replay, replay after pause, failed-batch rollback and
+  authority races. Domain tests: 13 suites/66 tests passed, 1 suite/8 tests skipped;
+  TypeScript passed. These are local backend results, not rendered acceptance.
+- Native preparation HTTP context/read/preview/write/picker/recovery now dispatch
+  without PostgreSQL. Discovery preserves literal search and bounded pagination;
+  inspection checks committed receipts before age, pause or target availability.
+  Real D1 checks additionally pass recovery, pickers, profile pagination and
+  routine-copy creation/provenance for an email-free profile. API/domain/component
+  tests: 17 suites/76 tests passed, 1 suite/8 tests skipped; typecheck/lint passed.
+- Built Cloudflare candidate `6741841b` and exercised its real local Worker/D1
+  in Chromium: calendar event → preparation task → review/save → reload passed;
+  phone/tablet/desktop sheets fit the viewport. Dropping the committed PATCH
+  response then using rendered Check status recovered success with exactly one
+  canonical task. Screenshots and evidence are retained under
+  `artifacts/connected-family-features-20261103` beside the checkout. No external
+  provider/mail/network was enabled. The preparation release flag is now enabled
+  in the candidate config only; no production activation or merge has occurred.
+  Profile/routine candidate flags are now enabled after the following local checks:
+  mixed account/profile routine creation and duplicate-safe expansion; foreign
+  profile refusal; archived profile stops new occurrences; native shared-device
+  profile completion/replay and parent authorization checks. The real Worker
+  phone flow created an email-free age-three profile, assigned child and parent
+  steps, reviewed/saved a daily routine and retained it after reload. Removed the
+  repeated review-scope paragraph seen in the screenshot (shared dialog header
+  retains that explanation). Harness `--exercise-profile-routines` is local only.
+  Physical-device acceptance and production rollout remain separate.
+  Continue routine/profile
+  parity and connected capture/review journeys through their existing issues.
+  Do not bypass disabled capability checks to expose incomplete work.
+- Live issue #464 reconciliation found schedule-conflict HTTP still PostgreSQL-only.
+  The existing bounded planner now has native D1 context/read/preview/save/recovery.
+  Complete comparison witnesses guard event identities, newly inserted conflicts,
+  calendar-source status and current actor authority; event/timeline/receipt commit
+  atomically. Real local D1 checks pass stale/phantom conflict refusal, canonical
+  move/epoch, exact replay, cross-family and child restrictions, failed-write
+  rollback, recovery after target deletion/pause, and revoked-session refusal.
+  API/domain/component checks pass 16 suites/141 tests (one PostgreSQL suite/six
+  tests skipped); typecheck and changed-source lint pass. The schedule readiness
+  flag was subsequently enabled in candidate configuration after building
+  `aa5bdc67` and testing the real local Worker/D1 calendar → timing review →
+  alternative → confirm flow. Phone/tablet/desktop confirmation fit, a dropped
+  committed response recovered through Check saved request, and canonical event
+  times persisted after reload with duration unchanged. The phone screenshot
+  exposed redundant zero-minute buffer details; confirmation now omits those
+  when no buffers were entered. Production activation remains separate.
+  No provider refresh, external calendar write, production migration or deployment
+  was performed. Evidence: `schedule-*` in the continuation artifact directory.
+- Responsibility/backup native review found real gaps in #464: hidden/filtered
+  picker results incorrectly determined canonical participation, recovery loaded
+  a possibly deleted target before its receipt, and source/member/feature reads
+  were not all guarded at commit. Eligibility now resolves actual participants
+  and requested subjects independently of bounded discovery. Scalar source reads
+  (including empty eligibility sets, recurrence roots, actor/family and metadata)
+  are witnessed in the effect/receipt batch; reads/recovery validate together.
+  Storage readiness requires all 25 lifecycle guards on their expected tables.
+  Local D1 verifies child self-acceptance, parent-recorded age-three profile intent,
+  archive retirement, search/hidden-picker preservation, feature-change rollback,
+  absent-guard refusal and recovery after deletion/pause/intent expiry. Revoked
+  sessions cannot inspect receipts. Domain/API/components: 62 tests passed;
+  eight PostgreSQL tests skipped. Expanded real D1 checks also cover pickup
+  acceptance/closed refusal, handoff coordinator naming without implied consent,
+  own acceptance and child/private-field isolation. Built candidate `2d91a16d`
+  passed the actual browser chore → own answer → email-free backup →
+  parent-recorded answer flow, including lost-response recovery and reload.
+  Phone/tablet/desktop fit. The screenshot then prompted a smaller answered state:
+  existing answers keep their provenance while change controls collapse, and
+  technical success/link wording is replaced with plain language. Candidate
+  responsibility is now enabled; production activation and exact final-candidate
+  rendering/CI remain distinct. Evidence is retained as `responsibility-*` in the
+  continuation artifact directory. Completed temporary runtimes were stopped and
+  disposable extracted copies removed only after their archives were verified.
+- Keep live Google/provider eligibility, signed native builds, physical-device
+  behavior and store publication explicit. Existing source is not evidence
+  those external requirements are complete.
+
+## Historical execution basis — 2026-10-25
 
 A fresh GitHub metadata read confirms **all seventeen foundation issues
 #147–#163 are closed**. In particular, #150/#151/#152/#160/#163 are no longer

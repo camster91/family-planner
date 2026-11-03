@@ -335,9 +335,17 @@ export default function AssistantPanel({
     lastPerformanceNow.current = now;
     return now;
   };
+  const voiceStartedText = React.useRef("");
   const voice = useVoiceDraft(
     panelOpen && tab === "chat" && !busy,
-    (t) => setText(t),
+    (transcript) => {
+      if (textRef.current !== voiceStartedText.current) {
+        setError({ kind: "voice", key: "voiceDraftChanged" });
+        return;
+      }
+      setText(transcript);
+      setError((current) => current?.kind === "voice" ? null : current);
+    },
     (code) => setError({ kind: "voice", key: code }),
   );
   React.useEffect(() => {
@@ -1505,6 +1513,7 @@ export default function AssistantPanel({
                     window.dispatchEvent(
                       new Event("herewoven:voice-input-start"),
                     );
+                    voiceStartedText.current = textRef.current;
                     voice.start();
                   }}
                   aria-pressed={voice.listening}

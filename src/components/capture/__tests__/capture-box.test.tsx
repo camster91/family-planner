@@ -1387,3 +1387,16 @@ it('refuses an oversized initial write reply before decoding and leaves recovery
   expect(decode).not.toHaveBeenCalled(); expect(onSaved).not.toHaveBeenCalled();
   expect(await screen.findByTestId('capture-recovery')).toBeTruthy();
 });
+
+it('reports unparsed input to its host and clears the warning when the input is cleared', async () => {
+  mockFetch(() => 200)
+  const pending = jest.fn()
+  render(<CaptureBox onDraftStateChange={pending} />)
+  const input = await screen.findByRole('textbox')
+  await waitFor(() => expect(input).toBeEnabled())
+  fireEvent.change(input, { target: { value: 'School pickup tomorrow' } })
+  await waitFor(() => expect(pending).toHaveBeenLastCalledWith(true))
+  fireEvent.change(input, { target: { value: '  ' } })
+  await waitFor(() => expect(pending).toHaveBeenLastCalledWith(false))
+  expect((global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
+})

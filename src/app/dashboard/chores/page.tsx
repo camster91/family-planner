@@ -331,6 +331,7 @@ async function renderChoresPage(
   }
   return (
     <ChoresContent
+      requestedRoutineView={params.view === "routines"}
       ownedCheck={ownedCheck}
       notificationFocus={notificationFocus}
       preparationContextEnabled={

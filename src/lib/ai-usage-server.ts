@@ -1,3 +1,6 @@
+import { withGeminiRecipeDefaults } from "./gemini-recipe-defaults";
+import { reserveProviderCost, settleProviderCost } from "./ai-search-metering";
+import type { ProviderUsageStart } from "./ai-usage-contract";
 import { isAiUsageReady, isAiUsageAdopted } from "./ai-usage-gates";
 /** Request reservations and parent reporting, with no prompt/model/URL storage. */
 import { randomUUID } from "node:crypto";
@@ -7,7 +10,6 @@ import { resolveCaptureConfig, type CaptureConfig } from "./capture";
 import {
   aiUsagePolicy,
   defaultAiUsagePolicy,
-  estimateAiMicrousd,
   reportedTokenCount,
   type AiUsagePolicy,
   type ProviderUsageObserver,
@@ -116,7 +118,7 @@ export async function reserveAiUsage(
   actor: AiUsageActor,
   config: CaptureConfig,
   job: "assistant" | "capture_text" | "capture_photo",
-  input: { inputBytes: number; maxOutputTokens: number },
+  input: ProviderUsageStart,
   now = new Date(),
 ) {
   if (isD1UsageDb(db))
@@ -169,21 +171,17 @@ export async function reserveAiUsage(
     );
     if (!policy.enabled) throw new AiUsageError("AI_PAUSED");
     const pricingCurrent = pricedConfigHash === aiConfigHash(config);
-    const activePricing = pricingCurrent
+    const activePricing = withGeminiRecipeDefaults(pricingCurrent
       ? policy
       : {
           ...policy,
           inputRateMicrousdPerMillion: null,
           outputRateMicrousdPerMillion: null,
-        };
+        }, config, now.getTime());
     // This is a conservative application estimate, not a provider billing cap.
     // Vision billing/tokenization may differ; unknown actuals retain reservation.
-    const reserve = estimateAiMicrousd(
-      input.inputBytes + 1024,
-      input.maxOutputTokens,
-      activePricing,
-    );
-    if (policy.monthlyBudgetMicrousd !== null && reserve === null)
+    const { reserved: reserve, searchPricing } = reserveProviderCost(input, activePricing, config.model);
+    if (activePricing.monthlyBudgetMicrousd !== null && reserve === null)
       throw new AiUsageError("AI_PRICE_UNAVAILABLE");
     const rows = await tx.$queryRaw<
       Array<{
@@ -203,10 +201,10 @@ export async function reserveAiUsage(
     if (
       counts.family_day >= policy.dailyLimit ||
       counts.user_day >= policy.userDailyLimit ||
-      (policy.monthlyBudgetMicrousd !== null &&
+      (activePricing.monthlyBudgetMicrousd !== null &&
         (counts.unknown_cost > 0 ||
           BigInt(counts.month_cost) + BigInt(reserve!) >
-            BigInt(policy.monthlyBudgetMicrousd)))
+            BigInt(activePricing.monthlyBudgetMicrousd)))
     )
       throw new AiUsageError("AI_QUOTA_REACHED", 429);
     const id = randomUUID();
@@ -214,7 +212,7 @@ export async function reserveAiUsage(
       VALUES (${id},${actor.familyId},${actor.userId},${job},${now},${activePricing.inputRateMicrousdPerMillion}::bigint,${activePricing.outputRateMicrousdPerMillion}::bigint,${reserve}::bigint)`;
     // Lazy bounded retention, never a scheduler or cleanup of another family.
     await tx.$executeRaw`DELETE FROM "AiUsageRequest" WHERE "id" IN (SELECT "id" FROM "AiUsageRequest" WHERE "family_id"=${actor.familyId} AND "created_at"<${window.retention} ORDER BY "created_at","id" LIMIT 500)`;
-    return { id, policy: activePricing, policyRevision: revision };
+    return { id, policy: activePricing, policyRevision: revision, searchPricing };
   });
 }
 export function createAiUsageJob(
@@ -232,6 +230,8 @@ export function createAiUsageJob(
     "unconfirmed";
   let inputTokens: number | null = null,
     outputTokens: number | null = null;
+  let searchQueries: number | null = null;
+  let grounded: boolean | null = null;
   const observer: ProviderUsageObserver = {
     async start(input) {
       if (reservation || startedAt !== null)
@@ -254,6 +254,8 @@ export function createAiUsageJob(
       providerStatus = "response";
       inputTokens = reportedTokenCount(usage.inputTokens);
       outputTokens = reportedTokenCount(usage.outputTokens);
+      searchQueries = reportedTokenCount(usage.searchQueries);
+      grounded = typeof usage.grounded === "boolean" ? usage.grounded : null;
     },
     failed(reason) {
       providerStatus = reason;
@@ -319,10 +321,10 @@ export function createAiUsageJob(
         elapsed <= 300000
           ? Math.floor(elapsed)
           : null;
-      const cost =
-        inputTokens === null || outputTokens === null
-          ? null
-          : estimateAiMicrousd(inputTokens, outputTokens, reservation.policy);
+      const cost = settleProviderCost(
+        { inputTokens, outputTokens, searchQueries, grounded },
+        reservation.policy, reservation.searchPricing,
+      );
       const outcome =
         status >= 200 && status < 300
           ? "accepted"

@@ -13,8 +13,11 @@ const en = {
   draftUnsubmitted:
     "Not submitted yet. Open the original editor to finish or discard this draft.",
   leaveCapture:
-    "Opening Recipes will leave this unfinished preview. Saved requests stay available. Leave this preview?",
+    "Opening Recipes will leave this unfinished draft. Saved requests stay available. Leave this draft?",
   capture: "Quick add reviews",
+  captureUnavailable: "Quick add isn’t available right now. Use Add or ask for manual entry, or check your family’s AI settings.",
+  captureSettings: "Family AI settings",
+  leaveCaptureSettings: "Opening Settings will leave this unfinished draft. Leave this draft?",
   captureHint:
     "Review notices and quick-add suggestions here, or check earlier saved requests. Adding anything still needs your confirmation.",
   recipeDrafts: "Review recipe imports",
@@ -71,6 +74,9 @@ const es: typeof en = {
   leaveCapture:
     "Abrir Recetas dejará este borrador sin terminar. Las solicitudes guardadas se conservan. ¿Salir del borrador?",
   capture: "Revisar captura rápida",
+  captureUnavailable: "La captura rápida no está disponible ahora. Usa Añadir o preguntar para introducir datos manualmente, o revisa los ajustes de IA de tu familia.",
+  captureSettings: "Ajustes de IA familiar",
+  leaveCaptureSettings: "Abrir Ajustes dejará este borrador sin terminar. ¿Salir del borrador?",
   captureHint:
     "Revisa avisos y sugerencias o consulta solicitudes guardadas. Para añadir algo debes confirmarlo.",
   recipeDrafts: "Revisar recetas importadas",

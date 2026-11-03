@@ -17,6 +17,45 @@ function start() {
   fireEvent.change(screen.getByLabelText("Printed barcode"), { target: { value: "036000291452" } });
   fireEvent.click(screen.getByRole("button", { name: "Add code to review" }));
 }
+it("lets manual entry retire a stalled lookup without losing the code or accepting a late result", async () => {
+  let finish!: (value: unknown) => void;
+  let signal: AbortSignal | undefined;
+  global.fetch = jest.fn((_url, init) => {
+    signal = init?.signal as AbortSignal;
+    return new Promise(resolve => { finish = resolve; });
+  }) as unknown as typeof fetch;
+  const view = render(<I18nProvider locale="en"><BarcodeFoodDialog initialContext={context} onClose={jest.fn()} onDone={jest.fn()} /></I18nProvider>);
+  start();
+  await act(async () => { await Promise.resolve(); });
+  expect(screen.getByLabelText("Food name")).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  expect(signal?.aborted).toBe(true);
+  expect(screen.getByLabelText("Food name")).toBeEnabled();
+  fireEvent.change(screen.getByLabelText("Food name"), { target: { value: "My oats" } });
+  expect(screen.getByText(/036000291452/)).toBeInTheDocument();
+  await act(async () => { finish({ ok: true, status: 200, json: async () => ({ context, barcode: "00036000291452", product: null, publicLookupAvailable: false }) }); });
+  expect(screen.getByLabelText("Food name")).toHaveValue("My oats");
+  expect(screen.queryByText(/No product details found/)).not.toBeInTheDocument();
+  expect(mockIntake).not.toHaveBeenCalled();
+  view.unmount();
+});
+
+it("does not let a retired lookup unlock a newer lookup", async () => {
+  const finish: Array<(value: unknown) => void> = [];
+  global.fetch = jest.fn(() => new Promise(resolve => { finish.push(resolve); })) as unknown as typeof fetch;
+  const view = render(<I18nProvider locale="en"><BarcodeFoodDialog initialContext={context} onClose={jest.fn()} onDone={jest.fn()} /></I18nProvider>);
+  start();
+  await act(async () => { await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  fireEvent.click(screen.getByRole("button", { name: /Refresh household/ }));
+  await act(async () => { await Promise.resolve(); });
+  await act(async () => { finish[0]({ ok: false, status: 503 }); });
+  expect(screen.getByLabelText("Food name")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Enter manually" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Enter manually" }));
+  expect(screen.getByLabelText("Food name")).toBeEnabled();
+  view.unmount();
+});
 it("releases a product read stalled in its body and preserves manual review", async () => {
   let finish!: (value: unknown) => void;
   const body = new Promise(resolve => { finish = resolve; });

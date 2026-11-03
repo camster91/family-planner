@@ -374,7 +374,7 @@ export function InventoryRestockSheet({
       testId="inventory-restock-sheet"
     >
       <div className="space-y-4">
-        <p className="text-footnote text-label-secondary">{c.hint}</p>
+        {!result && <p className="text-footnote text-label-secondary">{c.hint}</p>}
         {notice && (
           <p
             role={
@@ -520,7 +520,7 @@ export function InventoryRestockSheet({
           </>
         )}
         {result && (
-          <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
             <a
               className="inline-flex min-h-[44px] items-center underline"
               href={`/dashboard/lists/${encodeURIComponent(result.listId)}`}
@@ -556,6 +556,7 @@ export function InventoryRestockSheet({
             {c.leaveUndo}
           </button>
         )}
+        {!result && (
         <a
           className="inline-flex min-h-[44px] items-center underline"
           href="/dashboard/lists"
@@ -564,6 +565,7 @@ export function InventoryRestockSheet({
         >
           {c.lists} ↗
         </a>
+        )}
       </div>
     </Dialog>
   );

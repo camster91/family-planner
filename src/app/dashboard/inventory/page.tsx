@@ -1,9 +1,8 @@
+import { readInventoryPhotoProvider, foodDocumentsAllowed } from "@/lib/inventory-photo-provider";
 import { getServerUser } from "@/lib/supabase/server";
 import { canWriteInventory } from "@/lib/inventory";
 import {
   canScanInventory,
-  isFoodDocumentCaptureConfigured,
-  isInventoryScanConfigured,
 } from "@/lib/inventory-scan";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { FeatureGate } from "@/components/ui/feature-gate";
@@ -17,8 +16,8 @@ export const dynamic = "force-dynamic";
  * teens get the add/edit/delete controls, children read. The API enforces the
  * same roles, so hiding controls is only a courtesy.
  *
- * "Scan fridge" (#265) is shown only to parents and only when the deployment
- * has a scan provider key; the scan route answers 404 otherwise.
+ * Photo capture is parent-only and uses household AI settings when present,
+ * otherwise the explicitly configured legacy deployment scanner.
  */
 export default async function InventoryPage({
   searchParams,
@@ -43,6 +42,8 @@ export default async function InventoryPage({
   );
   const user = await getServerUser();
   if (!user) return null;
+  const photoProvider = user.family_id && canScanInventory(user.role)
+    ? await readInventoryPhotoProvider(user.family_id) : null;
   return (
     <FeatureGate featureKey="inventory">
       <InventoryClient
@@ -66,9 +67,12 @@ export default async function InventoryPage({
           user.role,
           "/dashboard/meals/recipes",
         )}
-        canScan={canScanInventory(user.role) && isInventoryScanConfigured()}
+        scanProviderName={photoProvider?.kind === "household"
+          ? new URL(photoProvider.config.baseUrl).hostname : "Anthropic"}
+        scanMaxBytes={photoProvider?.kind === "household" ? 5 * 1024 * 1024 : undefined}
+        canScan={canScanInventory(user.role) && !!photoProvider}
         canCaptureDocuments={
-          canScanInventory(user.role) && isFoodDocumentCaptureConfigured()
+          canScanInventory(user.role) && foodDocumentsAllowed(photoProvider)
         }
       />
     </FeatureGate>

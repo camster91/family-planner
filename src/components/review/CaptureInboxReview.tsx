@@ -15,6 +15,10 @@ const Capture = React.lazy(() =>
  * Hiding beneath a sibling overlay preserves its in-memory draft and exact intents. */
 export default function CaptureInboxReview({ active }: { active: boolean }) {
   const [hasDraft, setHasDraft] = React.useState(false);
+  const [captureUnavailable, setCaptureUnavailable] = React.useState(false);
+  const onAvailabilityChange = React.useCallback((value: "available" | "unavailable" | "retry") => {
+    setCaptureUnavailable(value === "unavailable");
+  }, []);
   const router = useDraftAwareRouter();
   const copy = useReviewInboxText(),
     params = useSearchParams();
@@ -34,8 +38,20 @@ export default function CaptureInboxReview({ active }: { active: boolean }) {
     >
       <p className="text-body text-label-secondary">{copy.captureHint}</p>
       <React.Suspense fallback={<p role="status">{copy.loadingReview}</p>}>
-        <Capture open={!hidden} onDraftStateChange={setHasDraft} />
+        <Capture open={!hidden} onDraftStateChange={setHasDraft} onAvailabilityChange={onAvailabilityChange} />
       </React.Suspense>
+      {captureUnavailable && (
+        <div className="rounded-xl border border-separator p-4 space-y-2">
+          <p role="status" className="text-body text-label-secondary">{copy.captureUnavailable}</p>
+          <Link href="/dashboard/settings#ai-capture" className="btn-plain min-h-11"
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              if (hasDraft && !window.confirm(copy.leaveCaptureSettings)) return;
+              void router.push("/dashboard/settings#ai-capture");
+            }}>{copy.captureSettings}</Link>
+        </div>
+      )}
       <div className="border-t border-[var(--surface-separator)] pt-4">
         <p className="text-footnote text-label-secondary">{copy.recipeHint}</p>
         <Link

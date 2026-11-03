@@ -91,8 +91,10 @@ export function routineStacks(chores: Step[]) {
     });
 }
 
-const isDone = (chore: Step) =>
-  chore.status === "completed" || chore.status === "verified";
+// Historical approved rows are retained by the canonical chore readers. They
+// represent checked work, not another completion opportunity.
+const isChecked = (chore: Step) => ["verified", "approved"].includes(chore.status);
+const isDone = (chore: Step) => chore.status === "completed" || isChecked(chore);
 
 function isProfileOnlyStep(
   chore: Pick<
@@ -198,7 +200,7 @@ export function RoutineStacks({
           <p className="text-footnote text-label-secondary">
             {profilePaused
               ? profileText(profileChorePauseMessage(chore.actionAvailability))
-              : chore.status === "verified"
+              : isChecked(chore)
                 ? routineText("checked")
                 : done
                   ? routineText("doneWaiting")
@@ -255,13 +257,21 @@ export function RoutineStacks({
             className="flex min-h-[44px] items-center gap-1 rounded-xl bg-[var(--surface-fill-secondary)] p-1"
             role="radiogroup"
             aria-label={routineText("viewMode")}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const mode = event.key === "Home" ? "guided" : event.key === "End" ? "list" : viewMode === "guided" ? "list" : "guided";
+              setViewMode(mode);
+              event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[mode === "guided" ? 0 : 1]?.focus();
+            }}
           >
             <button
               type="button"
               role="radio"
               aria-checked={viewMode === "guided"}
+              tabIndex={viewMode === "guided" ? 0 : -1}
               onClick={() => setViewMode("guided")}
-              className={`min-h-[36px] rounded-lg px-3 text-footnote font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${viewMode === "guided" ? "bg-[var(--surface-elevated)] text-label-primary shadow-sm" : "text-label-secondary"}`}
+              className={`min-h-[44px] rounded-lg px-3 text-footnote font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${viewMode === "guided" ? "bg-[var(--surface-elevated)] text-label-primary shadow-sm" : "text-label-secondary"}`}
             >
               {routineText("guided")}
             </button>
@@ -269,8 +279,9 @@ export function RoutineStacks({
               type="button"
               role="radio"
               aria-checked={viewMode === "list"}
+              tabIndex={viewMode === "list" ? 0 : -1}
               onClick={() => setViewMode("list")}
-              className={`min-h-[36px] rounded-lg px-3 text-footnote font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${viewMode === "list" ? "bg-[var(--surface-elevated)] text-label-primary shadow-sm" : "text-label-secondary"}`}
+              className={`min-h-[44px] rounded-lg px-3 text-footnote font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${viewMode === "list" ? "bg-[var(--surface-elevated)] text-label-primary shadow-sm" : "text-label-secondary"}`}
             >
               {routineText("list")}
             </button>
@@ -295,9 +306,7 @@ export function RoutineStacks({
       )}
       {stacks.map((stack) => {
         const done = stack.steps.filter(isDone).length;
-        const checked = stack.steps.filter(
-          (c) => c.status === "verified",
-        ).length;
+        const checked = stack.steps.filter(isChecked).length;
         const next = stack.steps.find((c) => !isDone(c))?.id;
         const lastOrder = Math.max(
           0,

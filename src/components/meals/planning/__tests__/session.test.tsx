@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-/** Authored/unrun. Controller races; no app, storage or network execution. */
+/** Controller races and launch behavior with isolated storage/network fixtures. */
 jest.mock("@/lib/food-planning/browser", () => ({
   browserFoodRecovery: jest.fn(),
 }));
@@ -24,13 +24,14 @@ import {
   context,
   now,
   receipt,
+  makeEntry,
 } from "@/lib/food-planning/__tests__/recovery-fixture";
 import {
   makePreview,
   makeReview,
 } from "@/lib/food-planning/__tests__/view-fixture";
 import type { FoodJournalEntry } from "@/lib/food-planning/recovery-contract";
-function fixture() {
+function fixture(empty = false) {
   const draft = newFoodDraft("2026-10-22", "UTC");
   draft.slots[0].key = "dinner";
   draft.slots[0].recipeId = "recipe-a";
@@ -45,7 +46,11 @@ function fixture() {
       }),
     }),
   ];
+  if (empty) rows = [];
   const journal = {
+    stage: jest.fn(async (entry: FoodJournalEntry) => {
+      rows.push(entry);
+    }),
     initialize: jest.fn(async () =>
       rows.map((row) => ({ ...row, reviewRequired: true })),
     ),
@@ -132,4 +137,56 @@ it("keeps a matching successful save known without depending on a second receipt
   expect(result.current.confirmed["food_request_123456789"]).toEqual(receipt());
   expect(journal.inspect).not.toHaveBeenCalled();
   expect(saved).toHaveBeenCalledTimes(1);
+});
+
+it("opens a fresh planner at the requested day without an extra Start action", async () => {
+  const { journal } = fixture(true);
+  const { result } = renderHook(() => useFoodPlanningSession(jest.fn()));
+  await act(async () => {
+    await result.current.load({ day: "2026-10-24", mode: "prep" });
+  });
+  expect(result.current.draft?.mode).toBe("prep");
+  expect(result.current.draft?.slots[0].date).toBe("2026-10-24");
+  expect(journal.stage).toHaveBeenCalledTimes(1);
+  expect(readFoodPreview).not.toHaveBeenCalled();
+  expect(sendFoodIntent).not.toHaveBeenCalled();
+});
+it("keeps a saved draft instead of replacing it with the launch context", async () => {
+  const { journal, draft } = fixture();
+  const { result } = renderHook(() => useFoodPlanningSession(jest.fn()));
+  await act(async () => {
+    await result.current.load({ day: "2026-10-24", mode: "prep" });
+  });
+  expect(result.current.draft).toEqual(draft);
+  expect(journal.stage).not.toHaveBeenCalled();
+});
+it("does not create a draft for a recovery-only or paused entry", async () => {
+  const { journal } = fixture(true);
+  const { result } = renderHook(() => useFoodPlanningSession(jest.fn()));
+  await act(async () => {
+    await result.current.load();
+  });
+  expect(journal.stage).not.toHaveBeenCalled();
+  jest
+    .mocked(readFoodRecoveryContext)
+    .mockResolvedValue({ ...context(), enabled: false });
+  await act(async () => {
+    await result.current.load({ day: "2026-10-24", mode: "meals" });
+  });
+  expect(journal.stage).not.toHaveBeenCalled();
+  expect(result.current.draft).toBeNull();
+});
+
+it("keeps an unresolved save visible instead of starting another plan", async () => {
+  const { journal } = fixture(true);
+  const pending = { ...makeEntry(), reviewRequired: true };
+  journal.initialize.mockResolvedValue([pending]);
+  journal.snapshot.mockResolvedValue([pending]);
+  const { result } = renderHook(() => useFoodPlanningSession(jest.fn()));
+  await act(async () => {
+    await result.current.load({ day: "2026-10-24", mode: "prep" });
+  });
+  expect(result.current.draft).toBeNull();
+  expect(journal.stage).not.toHaveBeenCalled();
+  expect(sendFoodIntent).not.toHaveBeenCalled();
 });

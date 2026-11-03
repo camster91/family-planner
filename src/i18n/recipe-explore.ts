@@ -3,6 +3,25 @@ import { useTranslation } from "@/i18n";
 
 /** Explore-page controls and safe recovery copy. Recipe/source content stays verbatim. */
 export const recipeExploreEnglish = {
+  inlineOwnerChanged:
+    "Your session or household changed. Close this form and reopen it before continuing.",
+  inlineBack: "← Back to recipes",
+  inlineUse: "Review and save for this meal",
+  inlineMore: "More recipes",
+  inlineSearch: "Search",
+  inlineSources: "Find published recipes online.",
+  inlineGoogle: "Search Google ↗",
+  groundedTitle: "Recipes found with Google",
+  groundedSuggestions: "Google search suggestions",
+  groundedSource: "Open source",
+  groundedPreview: "Preview source",
+  inlinePaste: "Have a recipe link?",
+  inlineUrl: "Recipe link",
+  inlinePreview: "Preview recipe",
+  inlinePartial:
+    "Some recipe sites are unavailable. You can try again or paste a recipe link.",
+  inlineEmpty: "No recipes found. Try a different search or paste a link.",
+
   savedWork: "Continue saved recipe work",
   allSources: "All supported sites",
   partialSearch:
@@ -44,6 +63,11 @@ export const recipeExploreEnglish = {
   subtitle:
     "Find something to cook. Keep your favourites in your household recipe box.",
   findOnline: "Find online",
+  quickMeal: "Quick meal",
+  alreadySaved:
+    "Already in your household recipes. Use it without importing another copy.",
+  useSaved: "Use saved recipe",
+  saved: "Saved",
   searchPrompt: "What would you like to cook?",
   searchPlaceholder: "Chicken, pasta, quick dinners…",
   source: "Source",
@@ -96,6 +120,26 @@ export const recipeExploreEnglish = {
 export type RecipeExploreMessage = keyof typeof recipeExploreEnglish;
 
 export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
+  inlineOwnerChanged:
+    "Tu sesión o tu hogar ha cambiado. Cierra este formulario y vuelve a abrirlo.",
+  inlineBack: "← Volver a las recetas",
+  inlineUse: "Revisar y guardar para esta comida",
+  inlineMore: "Más recetas",
+  inlineSearch: "Buscar",
+  inlineSources: "Encuentra recetas publicadas en línea.",
+  inlineGoogle: "Buscar en Google ↗",
+  groundedTitle: "Recetas encontradas con Google",
+  groundedSuggestions: "Sugerencias de búsqueda de Google",
+  groundedSource: "Abrir fuente",
+  groundedPreview: "Vista previa de la fuente",
+  inlinePaste: "¿Tienes un enlace a una receta?",
+  inlineUrl: "Enlace de la receta",
+  inlinePreview: "Vista previa",
+  inlinePartial:
+    "Algunos sitios no están disponibles. Inténtalo de nuevo o pega un enlace.",
+  inlineEmpty:
+    "No se encontraron recetas. Prueba otra búsqueda o pega un enlace.",
+
   savedWork: "Continuar una receta guardada",
   allSources: "Todos los sitios compatibles",
   partialSearch:
@@ -138,6 +182,11 @@ export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
   subtitle:
     "Encuentra algo para cocinar. Guarda tus favoritas en la caja de recetas de tu familia.",
   findOnline: "Buscar en línea",
+  quickMeal: "Comida rápida",
+  alreadySaved:
+    "Ya está en las recetas de tu hogar. Úsala sin importar otra copia.",
+  useSaved: "Usar receta guardada",
+  saved: "Guardadas",
   searchPrompt: "¿Qué te gustaría cocinar?",
   searchPlaceholder: "Pollo, pasta, cenas rápidas…",
   source: "Fuente",

@@ -90,12 +90,21 @@ export async function readD1IndependentCatalog(actor: Actor, cursor: string | nu
     if (!user || user.family_id !== actor.familyId || user.role !== "parent" || user.token_version !== actor.tokenVersion) return null;
     const family = await db.family.findUnique({ where: { id: actor.familyId }, select: { features: true } });
     if (!family || (parse<Record<string, unknown>>(family.features) ?? {}).chores === false) return null;
-    const rows = await db.chore.findMany({ where: { family_id: actor.familyId, recurrence_id: { not: null }, ...(cursor ? { id: { gt: cursor } } : {}) }, select: { id: true, title: true, routine_series_config: true }, orderBy: { id: "asc" }, take: 21 });
+    // Match the PostgreSQL catalog: canonical roots only (recurrence_id = id),
+    // never generated copies, plain recurring chores or routine-stack steps
+    // (stack membership is decided by the series config, as in PostgreSQL).
+    const rows = await db.chore.findMany({ where: { family_id: actor.familyId, recurrence_id: { not: null }, ...(cursor ? { id: { gt: cursor } } : {}) }, select: { id: true, title: true, recurrence_id: true, routine_series_config: true }, orderBy: { id: "asc" }, take: 21 });
     return rows;
   }, store as unknown as NativeD1);
   if (!capture.value) return fail(403, "ROUTINE_PARENT_REQUIRED");
   const page = capture.value.slice(0, 20);
-  return { status: 200, body: routineIndependentCatalog.parse({ protocol: ROUTINE_INDEPENDENT_PROTOCOL, userId: actor.userId, familyId: actor.familyId, steps: page.map((row) => { const config = routineStepSeriesConfig.safeParse(parse(row.routine_series_config)); const detached = config.success && config.data.stack_id === null; return { rootId: row.id, title: detached ? config.data.content.title : row.title, revision: detached ? config.data.revision : null, state: detached ? config.data.state : "unsupported", schedule: detached ? config.data.schedule : null }; }), nextCursor: capture.value.length > 20 ? page.at(-1)!.id : null }) };
+  // Filter after paging so the cursor still advances over every scanned row.
+  const roots = page.filter((row) => {
+    if (row.recurrence_id !== row.id) return false;
+    const raw = parse<{ stack_id?: unknown }>(row.routine_series_config);
+    return raw !== null && (raw.stack_id ?? null) === null;
+  });
+  return { status: 200, body: routineIndependentCatalog.parse({ protocol: ROUTINE_INDEPENDENT_PROTOCOL, userId: actor.userId, familyId: actor.familyId, steps: roots.map((row) => { const config = routineStepSeriesConfig.safeParse(parse(row.routine_series_config)); const detached = config.success && config.data.stack_id === null; return { rootId: row.id, title: detached ? config.data.content.title : row.title, revision: detached ? config.data.revision : null, state: detached ? config.data.state : "unsupported", schedule: detached ? config.data.schedule : null }; }), nextCursor: capture.value.length > 20 ? page.at(-1)!.id : null }) };
 }
 
 /** Read-only exact-key review for a detached routine request. */

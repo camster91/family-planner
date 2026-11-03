@@ -9,7 +9,7 @@ import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventDuration } from '@/components/calendar/EventDuration'
-import { eventFormRange, toDateOnlyLocal } from '@/lib/dates'
+import { eventFormRange, parseDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
 export default function CreateEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
@@ -32,6 +32,12 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
   const sheetNavigation = usePendingFormNavigation()
   const navigation = inSheet ? sheetNavigation : directNavigation
   useEffect(() => { onBusyChange?.(loading) }, [loading, onBusyChange])
+  // Start on the day the person came from (?date=YYYY-MM-DD) or today, so a
+  // new event needs only a title (#499). Set after mount to keep SSR stable.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('date')
+    setStartDate((current) => current || (requested && parseDateOnly(requested) ? requested : toDateOnlyLocal(new Date())))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

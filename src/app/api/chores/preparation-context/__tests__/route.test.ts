@@ -1,4 +1,15 @@
-/** Authored/unrun. Admission/projection cases; real isolation is separate DB work. */
+jest.mock("@/lib/storage-backend", () => ({ storageBackend: jest.fn(() => "postgres") }));
+jest.mock("@/lib/cloudflare/chore-read-policy", () => ({
+  d1EventPreparationStorageAvailable: jest.fn(async () => true),
+  readD1OwnPreparationContext: jest.fn(async () => ({})),
+}));
+jest.mock("@/lib/cloudflare/preparation-context", () => ({
+  readD1ParentPreparationContext: jest.fn(async () => ({backlinks: {"task-a":"event-a"}, origins:{}})),
+}));
+import { storageBackend } from "@/lib/storage-backend";
+import { readD1ParentPreparationContext } from "@/lib/cloudflare/preparation-context";
+import { d1EventPreparationStorageAvailable } from "@/lib/cloudflare/chore-read-policy";
+/** Admission/projection cases; native isolation also runs in D1 smoke fixtures. */
 jest.mock(
   "next/server",
   () => require("@/__tests__/helpers/two-household").nextServerMock,
@@ -56,6 +67,7 @@ function request(body: unknown = { ids: ["task-a"] }) {
 }
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(storageBackend).mockReturnValue("postgres");
   actor();
   tx.$queryRaw.mockResolvedValue([{ ready: true }]);
   (prisma!.$transaction as jest.Mock).mockImplementation((run) => run(tx));
@@ -132,3 +144,19 @@ it.each([
     expect(readOwnPreparationContext).not.toHaveBeenCalled();
   },
 );
+
+it("uses the native parent projection with the authenticated generation", async () => {
+  jest.mocked(storageBackend).mockReturnValue("d1");
+  const response = await POST(request());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({state:"available",backlinks:{"task-a":"event-a"},origins:{}});
+  expect(readD1ParentPreparationContext).toHaveBeenCalledWith({userId:"person-a",familyId:"family-a",role:"parent",tokenVersion:3,choreIds:["task-a"]});
+  expect(prisma!.$transaction).not.toHaveBeenCalled();
+});
+it("keeps a partially migrated native database paused", async () => {
+  jest.mocked(storageBackend).mockReturnValue("d1");
+  jest.mocked(d1EventPreparationStorageAvailable).mockResolvedValueOnce(false);
+  const response = await POST(request());
+  expect(await response.json()).toMatchObject({state:"paused",backlinks:{},origins:{}});
+  expect(readD1ParentPreparationContext).not.toHaveBeenCalled();
+});

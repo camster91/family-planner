@@ -51,6 +51,21 @@ interface RemoteCalendar {
   primary: boolean;
 }
 
+function isRemoteCalendar(value: unknown): value is RemoteCalendar {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Partial<RemoteCalendar>;
+  return typeof row.id === "string" && row.id.length > 0 && typeof row.name === "string" && typeof row.primary === "boolean";
+}
+
+function syncCount(value: unknown): number | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const counts = value as Record<string, unknown>;
+  const values = [counts.created, counts.updated, counts.deleted];
+  if (!values.every(n => typeof n === "number" && Number.isSafeInteger(n) && n >= 0)) return null;
+  const total = (values as number[]).reduce((a, b) => a + b, 0);
+  return Number.isSafeInteger(total) ? total : null;
+}
+
 type LoadState = "loading" | "available" | "unavailable" | "failed";
 
 function isNullableString(value: unknown): value is string | null {
@@ -240,6 +255,15 @@ export default function CalendarSyncSection({
     }
   }, [load, onProviderReturn]);
 
+  // An unreadable write response is not proof of failure or success. Refresh
+  // canonical state before enabling another command; never automatically retry.
+  const holdUnconfirmed = () => {
+    setNotice(null);
+    setError(null);
+    setDisconnecting(null);
+    setLoadError(settingsFeedback("calendarChangeUnconfirmed"));
+  };
+
   const replace = (c: Connection | null | undefined) => {
     if (!c) return;
     setConnections((prev) => prev.map((x) => (x.id === c.id ? c : x)));
@@ -279,9 +303,12 @@ export default function CalendarSyncSection({
         setError(settingsResponseError(data.error, "pickerFailed"));
         return;
       }
-      const cals: RemoteCalendar[] = Array.isArray(data.calendars)
-        ? data.calendars
-        : [];
+      if (!Array.isArray(data.calendars) || !data.calendars.every(isRemoteCalendar) ||
+          new Set(data.calendars.map((item: RemoteCalendar) => item.id)).size !== data.calendars.length) {
+        setError(settingsFeedback("pickerFailed"));
+        return;
+      }
+      const cals: RemoteCalendar[] = data.calendars;
       const initial =
         c.calendar_id ?? cals.find((x) => x.primary)?.id ?? cals[0]?.id ?? "";
       setPicking({ id: c.id, calendars: cals, value: initial });
@@ -311,14 +338,19 @@ export default function CalendarSyncSection({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(settingsResponseError(data.error, "connectionSaveFailed"));
+        if (res.status >= 500) holdUnconfirmed();
+        else setError(settingsResponseError(data.error, "connectionSaveFailed"));
+        return false;
+      }
+      if (!isConnection(data.connection) || data.connection.id !== id) {
+        holdUnconfirmed();
         return false;
       }
       replace(data.connection);
       setNotice(success);
       return true;
     } catch {
-      setError(settingsFeedback("connectionSaveFailed"));
+      holdUnconfirmed();
       return false;
     } finally {
       setBusy(null);
@@ -336,25 +368,33 @@ export default function CalendarSyncSection({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(settingsResponseError(data.error, "syncFailed"));
+        if (res.status >= 500) holdUnconfirmed();
+        else setError(settingsResponseError(data.error, "syncFailed"));
         return;
       }
-      replace(data.connection);
       const r = data.result;
+      if (!isConnection(data.connection) || data.connection.id !== c.id || !r ||
+          !["ok", "error", "reauth_required", "not_ready", "superseded"].includes(r.status)) {
+        holdUnconfirmed();
+        return;
+      }
       if (r?.status === "ok") {
-        const inCount = r.pulled.created + r.pulled.updated + r.pulled.deleted;
-        const outCount = r.pushed.created + r.pushed.updated + r.pushed.deleted;
+        const inCount = syncCount(r.pulled);
+        const outCount = syncCount(r.pushed);
+        if (inCount === null || outCount === null) { holdUnconfirmed(); return; }
+        replace(data.connection);
         setNotice(
           settingsFeedback(inCount === 1 ? "syncedOne" : "syncedMany", {
             inCount,
             outCount,
           }),
         );
-      } else if (r?.error) {
-        setError({ raw: String(r.error) });
+      } else {
+        replace(data.connection);
+        setError(settingsFeedback(r.status === "reauth_required" ? "reconnectFallback" : "syncFailed"));
       }
     } catch {
-      setError(settingsFeedback("syncFailed"));
+      holdUnconfirmed();
     } finally {
       setBusy(null);
     }
@@ -371,9 +411,11 @@ export default function CalendarSyncSection({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(settingsResponseError(data.error, "connectionRemoveFailed"));
+        if (res.status >= 500) holdUnconfirmed();
+        else setError(settingsResponseError(data.error, "connectionRemoveFailed"));
         return;
       }
+      if (data.success !== true) { holdUnconfirmed(); return; }
       setConnections((prev) => prev.filter((x) => x.id !== c.id));
       setDisconnecting(null);
       focusCalendarSection("calendar-sync-heading");
@@ -381,7 +423,7 @@ export default function CalendarSyncSection({
         settingsFeedback("disconnected", { provider: c.provider_label }),
       );
     } catch {
-      setError(settingsFeedback("connectionRemoveFailed"));
+      holdUnconfirmed();
     } finally {
       setBusy(null);
     }

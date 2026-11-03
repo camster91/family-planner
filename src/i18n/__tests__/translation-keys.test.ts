@@ -10,6 +10,7 @@ import path from 'path'
 import { messages } from '@/i18n'
 import { emergencyMessages } from '@/i18n/emergency'
 import { routineScheduleMessages } from '@/i18n/routine-schedule'
+import { nativeReminderMessages } from '@/i18n/native-reminder'
 import { calendarPageMessages } from '@/i18n/calendar-page'
 
 const SRC = path.join(__dirname, '..', '..')
@@ -82,7 +83,9 @@ describe('translation keys', () => {
       .filter(([key, files]) => files.some(file => {
         // Validate scoped keys only where that translator is explicitly bound.
         // Other files still resolve against the global dictionary.
-        const routeMessage = file === 'app/dashboard/emergency/page.tsx'
+        const routeMessage = file === 'components/providers/native-app-lifecycle.tsx'
+          ? lookup(nativeReminderMessages.en, key)
+          : file === 'app/dashboard/emergency/page.tsx'
           ? lookup(emergencyMessages.en, key)
           : ['components/calendar/CalendarReadScope.tsx', 'components/calendar/EventNotificationFocus.tsx'].includes(file)
             ? lookup(calendarPageMessages.en, key)
@@ -103,8 +106,15 @@ describe('translation keys', () => {
     }
   })
 
+  it('native reminder calls use their scoped catalog', () => {
+    const text = fs.readFileSync(path.join(SRC, 'components/providers/native-app-lifecycle.tsx'), 'utf8')
+    for (const match of text.matchAll(T_CALL)) {
+      expect(text.slice(match.index)).toMatch(/^t\(\s*(['"])[A-Za-z0-9_.]+\1, undefined, nativeReminderMessages\)/)
+    }
+  })
+
   it('Spanish has the same keys as English', () => {
-    for (const catalog of [messages, emergencyMessages, routineScheduleMessages, calendarPageMessages]) {
+    for (const catalog of [messages, emergencyMessages, routineScheduleMessages, calendarPageMessages, nativeReminderMessages]) {
       const en = leafKeys(catalog.en).sort()
       const es = leafKeys(catalog.es).sort()
       expect(es.filter((k) => !en.includes(k))).toEqual([])

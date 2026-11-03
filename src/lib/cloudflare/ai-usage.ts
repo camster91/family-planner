@@ -1,3 +1,6 @@
+import { withGeminiRecipeDefaults } from "../gemini-recipe-defaults";
+import { reserveProviderCost, settleProviderCost } from "../ai-search-metering";
+import type { ProviderUsageStart } from "../ai-usage-contract";
 /** Native D1 AI usage reservations.  Prompts, provider replies and secrets
  * never enter this store; only bounded usage metadata and policy state do. */
 import { randomUUID } from "node:crypto";
@@ -164,7 +167,7 @@ export async function reserveD1AiUsage(
   actor: D1AiUsageActor,
   config: CaptureConfig,
   job: UsageJob,
-  input: { inputBytes: number; maxOutputTokens: number },
+  input: ProviderUsageStart,
   now = new Date(),
 ) {
   if (!isAiUsageReady() || process.env.FAMILY_AI_PROVIDER_DISABLED === "1")
@@ -192,19 +195,15 @@ export async function reserveD1AiUsage(
   const saved = await readD1AiUsagePolicy(db, actor.familyId);
   if (!saved.policy.enabled) throw new AiUsageError("AI_PAUSED");
   const priced = saved.pricedConfigHash === aiConfigHash(config);
-  const active = priced
+  const active = withGeminiRecipeDefaults(priced
     ? saved.policy
     : {
         ...saved.policy,
         inputRateMicrousdPerMillion: null,
         outputRateMicrousdPerMillion: null,
-      };
-  const reserve = estimateAiMicrousd(
-    input.inputBytes + 1024,
-    input.maxOutputTokens,
-    active,
-  );
-  if (saved.policy.monthlyBudgetMicrousd !== null && reserve === null)
+      }, config, now.getTime());
+  const { reserved: reserve, searchPricing } = reserveProviderCost(input, active, config.model);
+  if (active.monthlyBudgetMicrousd !== null && reserve === null)
     throw new AiUsageError("AI_PRICE_UNAVAILABLE");
   const id = randomUUID();
   const store = sessionOf(db);
@@ -236,10 +235,10 @@ export async function reserveD1AiUsage(
         AND (SELECT COUNT(*) FROM "AiUsageRequest" r WHERE r.family_id=?1 AND r.created_at>=?15) < policy.daily_limit
         AND (SELECT COUNT(*) FROM "AiUsageRequest" r WHERE r.user_id=?3 AND r.created_at>=?15) < policy.user_daily_limit
         AND (
-          policy.monthly_budget_microusd IS NULL OR
+          ?17 IS NULL OR
           (
             (SELECT COUNT(*) FROM "AiUsageRequest" r WHERE r.family_id=?1 AND r.created_at>=?16 AND r.estimated_microusd IS NULL AND r.reserved_microusd IS NULL)=0
-            AND CAST(COALESCE((SELECT SUM(COALESCE(r.estimated_microusd,r.reserved_microusd,0)) FROM "AiUsageRequest" r WHERE r.created_at>=?16 AND (r.family_id=?1 OR r.user_id=?3)),0) AS INTEGER) + COALESCE(?8,0) <= policy.monthly_budget_microusd
+            AND CAST(COALESCE((SELECT SUM(COALESCE(r.estimated_microusd,r.reserved_microusd,0)) FROM "AiUsageRequest" r WHERE r.created_at>=?16 AND (r.family_id=?1 OR r.user_id=?3)),0) AS INTEGER) + COALESCE(?8,0) <= ?17
           )
         )
       RETURNING id`,
@@ -261,6 +260,7 @@ export async function reserveD1AiUsage(
       family?.capture_ai_model ?? null,
       window.day,
       window.month,
+      sqlMicros(active.monthlyBudgetMicrousd),
     )
     .first<{ id: string }>();
   if (!inserted) {
@@ -288,7 +288,7 @@ export async function reserveD1AiUsage(
     )
     .bind(actor.familyId, window.retention)
     .run();
-  return { id, policy: active, policyRevision: saved.revision };
+  return { id, policy: active, policyRevision: saved.revision, searchPricing };
 }
 
 export function createD1AiUsageJob(
@@ -305,6 +305,8 @@ export function createD1AiUsageJob(
     "unconfirmed";
   let inputTokens: number | null = null;
   let outputTokens: number | null = null;
+  let searchQueries: number | null = null;
+  let grounded: boolean | null = null;
   const observer: ProviderUsageObserver = {
     async start(input) {
       if (reservation || startedAt !== null)
@@ -319,6 +321,8 @@ export function createD1AiUsageJob(
       providerStatus = "response";
       inputTokens = reportedTokenCount(usage.inputTokens);
       outputTokens = reportedTokenCount(usage.outputTokens);
+      searchQueries = reportedTokenCount(usage.searchQueries);
+      grounded = typeof usage.grounded === "boolean" ? usage.grounded : null;
     },
     failed(reason) {
       providerStatus = reason;
@@ -373,10 +377,10 @@ export function createD1AiUsageJob(
         elapsed <= 300000
           ? Math.floor(elapsed)
           : null;
-      const cost =
-        inputTokens === null || outputTokens === null
-          ? null
-          : estimateAiMicrousd(inputTokens, outputTokens, reservation.policy);
+      const cost = settleProviderCost(
+        { inputTokens, outputTokens, searchQueries, grounded },
+        reservation.policy, reservation.searchPricing,
+      );
       const outcome =
         status >= 200 && status < 300
           ? "accepted"

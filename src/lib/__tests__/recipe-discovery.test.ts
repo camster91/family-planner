@@ -149,3 +149,17 @@ it("preserves meaningful recipe query values while deduplicating tracking varian
     },
   ]);
 });
+
+test("excludes collection navigation from individual recipe search results", () => {
+  expect(
+    extractRecipeLinks(
+      `<a href="/recipes/collection/autumn-recipes">Autumn recipes</a><a href="/recipes/category/soups">Soups</a><a href="/recipes/vegetable-soup">Vegetable soup</a>`,
+      "https://www.bbcgoodfood.com/search?q=soup",
+    ),
+  ).toEqual([
+    {
+      title: "Vegetable soup",
+      url: "https://www.bbcgoodfood.com/recipes/vegetable-soup",
+    },
+  ]);
+});

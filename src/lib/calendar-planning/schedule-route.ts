@@ -1,3 +1,14 @@
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  authorizeD1ScheduleActor,
+  validatedD1ScheduleRead,
+  d1ScheduleStorageAvailable,
+  readD1ScheduleSnapshot,
+  previewD1ScheduleQuery,
+} from "@/lib/cloudflare/schedule-source";
+import { writeD1ScheduleMove } from "@/lib/cloudflare/schedule-write";
+import { reviewD1ScheduleRequest } from "@/lib/cloudflare/schedule-recovery";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -63,13 +74,18 @@ export async function handleScheduleHttp(
       refusal.headers.set("Cache-Control", "private, no-store");
       return refusal;
     }
-    if (!prisma) throw new ScheduleReviewError("UNAVAILABLE");
+    const native = storageBackend() === "d1";
+    if (!native && !prisma) throw new ScheduleReviewError("UNAVAILABLE");
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
       tokenVersion: auth.payload.tv ?? 0,
     };
-    const current = await authorizeScheduleReceipt(prisma, actor);
+    const current = native
+      ? await validatedD1ScheduleRead((db) =>
+          authorizeD1ScheduleActor(db, actor),
+        )
+      : await authorizeScheduleReceipt(prisma!, actor);
     const owner = scheduleReviewOwner(request, auth.payload, {
       ...auth.user,
       role: current.role,
@@ -83,7 +99,9 @@ export async function handleScheduleHttp(
             current.calendarEnabled &&
             scheduleReviewWritingEnabled() &&
             owner !== null &&
-            (await scheduleStorageAvailable(prisma)),
+            (native
+              ? await d1ScheduleStorageAvailable()
+              : await scheduleStorageAvailable(prisma!)),
           owner,
           userId: actor.userId,
           familyId: actor.familyId,
@@ -98,7 +116,14 @@ export async function handleScheduleHttp(
         JSON.parse(await boundedRequestText(request, 65536)),
       );
       return NextResponse.json(
-        await reviewScheduleRequest(prisma, actor, input.entry, owner.scope),
+        native
+          ? await reviewD1ScheduleRequest(actor, input.entry, owner.scope)
+          : await reviewScheduleRequest(
+              prisma!,
+              actor,
+              input.entry,
+              owner.scope,
+            ),
         { headers },
       );
     }
@@ -115,7 +140,9 @@ export async function handleScheduleHttp(
       });
       return NextResponse.json(
         scheduleReadReply.parse(
-          await readScheduleSnapshot(prisma, actor, scope),
+          native
+            ? await readD1ScheduleSnapshot(actor, scope)
+            : await readScheduleSnapshot(prisma!, actor, scope),
         ),
         { headers },
       );
@@ -126,7 +153,9 @@ export async function handleScheduleHttp(
       );
       return NextResponse.json(
         scheduleReadReply.parse(
-          await previewScheduleQuery(prisma, actor, query),
+          native
+            ? await previewD1ScheduleQuery(actor, query)
+            : await previewScheduleQuery(prisma!, actor, query),
         ),
         { headers },
       );
@@ -138,8 +167,15 @@ export async function handleScheduleHttp(
     )
       throw new ScheduleReviewError("FORBIDDEN");
     const { key, error } = readIdempotencyKey(request);
-    if (error) return error;
-    if (!key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
+    if (error) {
+      error.headers.set("Cache-Control", "private, no-store");
+      return error;
+    }
+    if (!key) {
+      const reply = idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
+      reply.headers.set("Cache-Control", "private, no-store");
+      return reply;
+    }
     const command = scheduleMoveCommand.parse(
       JSON.parse(await boundedRequestText(request, 32768)),
     );
@@ -148,8 +184,12 @@ export async function handleScheduleHttp(
       command.owner.familyId !== actor.familyId
     )
       throw new ScheduleReviewError("FORBIDDEN");
+    if (native) {
+      const result = await writeD1ScheduleMove(actor, command, key);
+      return NextResponse.json(result.body, { status: result.status, headers });
+    }
     const response = await withIdempotency(
-      prisma,
+      prisma!,
       key,
       {
         scope: `user:${actor.userId}`,
@@ -191,6 +231,11 @@ export async function handleScheduleHttp(
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) {
+      const response = idempotencyError(error.code);
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
     if (
       error instanceof SyntaxError ||
       error instanceof z.ZodError ||

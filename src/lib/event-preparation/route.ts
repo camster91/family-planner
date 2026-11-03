@@ -1,3 +1,15 @@
+import { storageBackend } from "@/lib/storage-backend";
+import {
+  authorizeD1PreparationActor,
+  readD1PreparationSource,
+  validatedD1PreparationRead,
+} from "@/lib/cloudflare/preparation-source";
+import { readD1PreparationPicker } from "@/lib/cloudflare/preparation-picker";
+import { reviewD1PreparationRequest } from "@/lib/cloudflare/preparation-recovery";
+import { writeD1EventPreparation } from "@/lib/cloudflare/preparation-write";
+import { d1EventPreparationStorageAvailable } from "@/lib/cloudflare/chore-read-policy";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
 import { readPreparationPicker } from "./picker";
 import { preparationPickerQuery } from "./picker-contract";
 import { preparationReceiptMatches } from "./receipt-server";
@@ -70,13 +82,18 @@ export async function handlePreparationHttp(
       refusal.headers.set("Cache-Control", "private, no-store");
       return refusal;
     }
-    if (!prisma) throw new EventPreparationError("UNAVAILABLE");
+    const native = storageBackend() === "d1";
+    if (!native && !prisma) throw new EventPreparationError("UNAVAILABLE");
     const actor = {
       userId: auth.user.id,
       familyId: auth.user.family_id,
       tokenVersion: auth.payload.tv ?? 0,
     };
-    const current = await authorizePreparationReceipt(prisma, actor);
+    const current = native
+      ? await validatedD1PreparationRead((db) =>
+          authorizeD1PreparationActor(db, actor),
+        )
+      : await authorizePreparationReceipt(prisma!, actor);
     const owner = eventPreparationOwner(request, auth.payload, {
       ...auth.user,
       role: "parent",
@@ -93,8 +110,10 @@ export async function handlePreparationHttp(
             current.domainsEnabled &&
             eventPreparationWritingEnabled() &&
             owner !== null &&
-            (await eventPreparationStorageAvailable(prisma)) &&
-            (await scheduleStorageAvailable(prisma)),
+            (native
+              ? await d1EventPreparationStorageAvailable(await getD1Database())
+              : (await eventPreparationStorageAvailable(prisma!)) &&
+                (await scheduleStorageAvailable(prisma!))),
         }),
         { headers },
       );
@@ -110,7 +129,14 @@ export async function handlePreparationHttp(
         ),
       );
       return NextResponse.json(
-        await reviewPreparationRequest(prisma, actor, input.entry, owner.scope),
+        native
+          ? await reviewD1PreparationRequest(actor, input.entry, owner.scope)
+          : await reviewPreparationRequest(
+              prisma!,
+              actor,
+              input.entry,
+              owner.scope,
+            ),
         { headers },
       );
     }
@@ -121,11 +147,16 @@ export async function handlePreparationHttp(
       if (new Set(params.keys()).size !== [...params.keys()].length)
         throw new EventPreparationError("INVALID");
       return NextResponse.json(
-        await readPreparationPicker(
-          prisma,
-          actor,
-          preparationPickerQuery.parse(Object.fromEntries(params)),
-        ),
+        native
+          ? await readD1PreparationPicker(
+              actor,
+              preparationPickerQuery.parse(Object.fromEntries(params)),
+            )
+          : await readPreparationPicker(
+              prisma!,
+              actor,
+              preparationPickerQuery.parse(Object.fromEntries(params)),
+            ),
         { headers },
       );
     }
@@ -164,19 +195,28 @@ export async function handlePreparationHttp(
           scope = scopeForPreparationCommand(command);
         }
       }
-      const reply = await prisma.$transaction(async (tx) => {
-        await openPreparationActorInTx(tx, actor);
-        const prepared = await prepareEventPreparationInTx(tx, actor, scope);
-        return {
-          view: preparationView(prepared, now),
-          effects: command
-            ? planEventPreparation(command, prepared.context, now)
-            : null,
-          requestHash: command
-            ? hashIdempotentRequest(PREPARATION_ACTION, command)
-            : null,
-        };
+      const project = (
+        prepared: Awaited<ReturnType<typeof prepareEventPreparationInTx>>,
+      ) => ({
+        view: preparationView(prepared, now),
+        effects: command
+          ? planEventPreparation(command, prepared.context, now)
+          : null,
+        requestHash: command
+          ? hashIdempotentRequest(PREPARATION_ACTION, command)
+          : null,
       });
+      const reply = native
+        ? project(await readD1PreparationSource(actor, scope))
+        : await prisma!.$transaction(async (tx) => {
+            await openPreparationActorInTx(tx, actor);
+            const prepared = await prepareEventPreparationInTx(
+              tx,
+              actor,
+              scope,
+            );
+            return project(prepared);
+          });
       return NextResponse.json(preparationReadReply.parse(reply), { headers });
     }
 
@@ -204,8 +244,12 @@ export async function handlePreparationHttp(
       command.owner.familyId !== actor.familyId
     )
       throw new EventPreparationError("FORBIDDEN");
+    if (native) {
+      const result = await writeD1EventPreparation(actor, command, key);
+      return NextResponse.json(result.body, { status: result.status, headers });
+    }
     const response = await withIdempotency(
-      prisma,
+      prisma!,
       key,
       {
         scope: `user:${actor.userId}`,
@@ -248,6 +292,11 @@ export async function handlePreparationHttp(
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (error) {
+    if (error instanceof D1PersonReceiptError) {
+      const response = idempotencyError(error.code);
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
     if (
       error instanceof SyntaxError ||
       error instanceof z.ZodError ||

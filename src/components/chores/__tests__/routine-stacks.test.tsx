@@ -262,3 +262,29 @@ it('never merges unrelated series or standalone same-title chores and preserves 
   expect(screen.queryAllByRole('link')).toHaveLength(0)
   expect(document.querySelectorAll('details')).toHaveLength(0)
 })
+
+it('retains legacy approved history as checked and guides only to unfinished work', async () => {
+  const complete = jest.fn(), openRow = jest.fn((id: string) => <span>{id}</span>)
+  render(<RoutineStacks chores={[
+    step('already-approved', 1, { status: 'approved' as Chore['status'], routine_stack_id: 'stack-a' }),
+    step('next-task', 2, { routine_stack_id: 'stack-a' }),
+  ]} userRole="parent" currentUserId="adult" locale="en-CA" onComplete={complete} renderOpenRow={openRow} />)
+  expect(screen.getByText('1 of 2 done · 1 checked')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Done: already-approved' })).toBeNull()
+  expect(openRow).not.toHaveBeenCalledWith('already-approved')
+  await userEvent.click(screen.getByRole('radio', { name: 'Guided' }))
+  const current = document.querySelector('[data-guided-step="true"]')
+  expect(current).toHaveTextContent('next-task')
+  expect(complete).not.toHaveBeenCalled()
+})
+
+it('supports keyboard selection with one tab stop in the routine view switch', async () => {
+  render(<RoutineStacks chores={[step('task', 1)]} userRole="teen" currentUserId="adult" locale="en-CA" onComplete={jest.fn()} />)
+  const list = screen.getByRole('radio', { name: 'List' }), guided = screen.getByRole('radio', { name: 'Guided' })
+  expect(list).toHaveAttribute('tabindex', '0'); expect(guided).toHaveAttribute('tabindex', '-1')
+  list.focus(); await userEvent.keyboard('{ArrowLeft}')
+  expect(guided).toHaveFocus(); expect(guided).toHaveAttribute('aria-checked', 'true')
+  expect(list).toHaveAttribute('tabindex', '-1')
+  await userEvent.keyboard('{End}')
+  expect(list).toHaveFocus(); expect(list).toHaveAttribute('aria-checked', 'true')
+})

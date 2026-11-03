@@ -36,11 +36,13 @@ export default function FoodPlanningSheet({
   mode,
   onClose,
   onSaved,
+  startNew = false,
 }: {
   day: string;
   mode: "meals" | "prep";
   onClose: () => void;
   onSaved: () => void;
+  startNew?: boolean;
 }) {
   const router = useDraftAwareRouter();
   const text = useFoodPlanningSheetText();
@@ -51,8 +53,9 @@ export default function FoodPlanningSheet({
     [forget, setForget] = React.useState<string | null>(null),
     [acknowledged, setAcknowledged] = React.useState(false),
     [reload, setReload] = React.useState(false);
+  const initialPlan = React.useRef(startNew ? { day, mode } : undefined);
   React.useEffect(() => {
-    void latest.current.load();
+    void latest.current.load(initialPlan.current);
   }, []);
   async function close() {
     await navigateAfterOwnedDrafts(onClose);
@@ -331,27 +334,29 @@ export default function FoodPlanningSheet({
                   </>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <button
-                  type="button"
-                  className="btn-secondary min-h-[44px]"
-                  disabled={index === 0}
-                  onClick={() => setPosition(index - 1)}
-                >
-                  {text("previous")}
-                </button>
-                <span>
-                  {index + 1} / {draft.slots.length}
-                </span>
-                <button
-                  type="button"
-                  className="btn-secondary min-h-[44px]"
-                  disabled={index + 1 === draft.slots.length}
-                  onClick={() => setPosition(index + 1)}
-                >
-                  {text("next")}
-                </button>
-              </div>
+              {draft.slots.length > 1 && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary min-h-[44px]"
+                    disabled={index === 0}
+                    onClick={() => setPosition(index - 1)}
+                  >
+                    {text("previous")}
+                  </button>
+                  <span>
+                    {index + 1} / {draft.slots.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-secondary min-h-[44px]"
+                    disabled={index + 1 === draft.slots.length}
+                    onClick={() => setPosition(index + 1)}
+                  >
+                    {text("next")}
+                  </button>
+                </div>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {draft.mode === "meals" && (
                   <>

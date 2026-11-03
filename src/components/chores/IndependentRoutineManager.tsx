@@ -396,6 +396,16 @@ export default function IndependentRoutineManager({
       )
         await clearDraft();
       if (!live(token)) return;
+      // Only a canonical confirmed receipt retires this exact local request.
+      // Failed storage/authority checks leave recovery available and block new writes.
+      await store.current!.dismiss(entry.key);
+      if (!live(token)) return;
+      setEntries((old) => old.filter((value) => value.key !== entry.key));
+      setReviews((old) => {
+        const next = { ...old };
+        delete next[entry.key];
+        return next;
+      });
       setEditorOpen(false);
       setControl(null);
       setNotice(t("saved"));

@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNotNull;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.security.NetworkSecurityPolicy;
@@ -42,6 +43,30 @@ public class AppIdentityInstrumentedTest {
         assertNotNull("Launcher intent does not resolve", component);
         assertEquals(PACKAGE, component.getPackageName());
         assertEquals(MainActivity.class.getName(), component.getClassName());
+    }
+
+    @Test
+    public void reminderLinksResolveOnlyInsideDeclaredHostsAndPaths() {
+        PackageManager pm = appContext().getPackageManager();
+        for (String host : new String[]{"herewoven.com", "family.ashbi.ca"}) {
+            for (String path : new String[]{"/dashboard/today", "/dashboard/calendar?focus=fixture-event",
+                    "/dashboard/chores?focus=fixture-chore", "/dashboard/rewards?focus=fixture-reward",
+                    "/dashboard/lists/fixture-list", "/dashboard/meals/recipes/fixture-recipe"}) {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://" + host + path));
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                intent.setPackage(PACKAGE);
+                ComponentName component = intent.resolveActivity(pm);
+                assertNotNull("Missing reminder route " + path, component);
+                assertEquals(MainActivity.class.getName(), component.getClassName());
+            }
+        }
+        for (String url : new String[]{"https://evil.example/dashboard/today", "http://herewoven.com/dashboard/today",
+                "https://herewoven.com/login", "https://herewoven.com/api/events", "https://herewoven.com/device/today"}) {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
+            intent.setPackage(PACKAGE);
+            org.junit.Assert.assertNull("Unexpected app route " + url, intent.resolveActivity(pm));
+        }
     }
 
     @Test

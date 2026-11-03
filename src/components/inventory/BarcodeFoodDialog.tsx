@@ -84,6 +84,12 @@ export function BarcodeFoodDialog({
   } | null>(null);
   const flight = useRef(false);
   const readingRef = useRef(false);
+  const productRead = useRef<AbortController | null>(null);
+  const reviewItem = useRef<HTMLSelectElement | null>(null);
+  const [reviewCorrection, setReviewCorrection] = useState(0);
+  useEffect(() => {
+    if (reviewCorrection) reviewItem.current?.focus();
+  }, [reviewCorrection]);
   const requests = useRef(new Set<AbortController>());
   const live = useRef(true);
   const suspendedRef = useRef(suspended);
@@ -172,6 +178,7 @@ export function BarcodeFoodDialog({
     readingRef.current = true;
     setReading(true);
     const request = new AbortController();
+    productRead.current = request;
     requests.current.add(request);
     const currentRequest = () => live.current && !suspendedRef.current && !request.signal.aborted;
     try {
@@ -253,8 +260,11 @@ export function BarcodeFoodDialog({
         setMessage(barcodeFeedback("detailsUnavailable"));
     } finally {
       requests.current.delete(request);
-      readingRef.current = false;
-      if (live.current) setReading(false);
+      if (productRead.current === request) {
+        productRead.current = null;
+        readingRef.current = false;
+        if (live.current) setReading(false);
+      }
     }
   }
   async function add(code: FoodBarcode) {
@@ -333,13 +343,15 @@ export function BarcodeFoodDialog({
       purchased_on: row.purchased || null,
       opened_on: row.opened || null,
     });
-    if (
-      chosen.some(
-        (row) =>
-          !attempts.current.has(row.id) &&
-          !createInventorySchema.safeParse(item(row)).success,
-      )
-    ) {
+    const needsReview = chosen.find(
+      (row) =>
+        !attempts.current.has(row.id) &&
+        !createInventorySchema.safeParse(item(row)).success,
+    );
+    if (needsReview) {
+      setSelected(needsReview.id);
+      setReview(true);
+      setReviewCorrection((value) => value + 1);
       setMessage(barcodeFeedback("reviewRequired"));
       return;
     }
@@ -530,7 +542,7 @@ export function BarcodeFoodDialog({
             </button>
             {camera.error && (
               <p role="status">
-                {text("cameraUnavailable")}
+                {text(camera.error === "denied" ? "cameraDenied" : camera.error === "stopped" ? "cameraStopped" : "cameraUnavailable")}
               </p>
             )}
             <label className="block text-subhead">
@@ -583,6 +595,7 @@ export function BarcodeFoodDialog({
             <label className="block text-subhead">
               {text("currentItem")}
               <select
+                ref={reviewItem}
                 value={current.id}
                 className="input-field min-h-[44px] w-full"
                 disabled={saving || reading}
@@ -604,9 +617,16 @@ export function BarcodeFoodDialog({
               </p>
             )}
             {reading && (
-              <p role="status">
-                {text("reading")}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p role="status">{text("reading")}</p>
+                <button type="button" className="btn-plain min-h-[44px]" onClick={() => {
+                  productRead.current?.abort();
+                  productRead.current = null;
+                  readingRef.current = false;
+                  setReading(false);
+                  setMessage(barcodeFeedback("manualReady"));
+                }}>{text("enterManually")}</button>
+              </div>
             )}
             {current.lookupAvailable && !current.code.restricted && (
               <button

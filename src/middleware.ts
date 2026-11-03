@@ -1,3 +1,4 @@
+import { notificationDestination } from '@/lib/notification-destination'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
@@ -250,7 +251,7 @@ async function handle(request: NextRequest, requestId: string): Promise<NextResp
 
   if (isProtectedRoute && !isAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
-    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname)
+    redirectUrl.searchParams.set('redirect', notificationDestination(request.nextUrl.pathname + request.nextUrl.search) ?? request.nextUrl.pathname)
     return NextResponse.redirect(redirectUrl)
   }
 

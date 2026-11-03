@@ -12,7 +12,7 @@
  * No remote bindings, provider credentials, mail transport, or external
  * network are enabled. The only URL exposed is a loopback address.
  */
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import {
@@ -70,7 +70,14 @@ function usage() {
       "",
       "The archive must be the opt-in cloudflare-local-runtime artifact.",
       "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
+      "--exercise-rewards places those fabricated accounts in one household with rewards enabled and 100 child points; requires --seed-smoke.",
+      "--exercise-connected-planning enables provider-free food planning and weekly review in the disposable runtime only.",
+      "--exercise-responsibility enables responsibility and profile chores in the disposable runtime only.",
+      "--exercise-schedule-review enables calendar conflict review in the disposable runtime only.",
+      "--exercise-event-preparation enables event preparation and profile chores in the disposable runtime only.",
+      "--exercise-profile-routines enables profile chores and routine scheduling in the disposable runtime only.",
       "--exercise-profile-setup enables the email-free profile flow in this disposable runtime only.",
+      "--exercise-recipe-search enables a fabricated Google response with fake pricing/key; all external network stays blocked.",
       "The process stays alive until SIGINT/SIGTERM and prints one JSON URL line.",
     ].join("\n"),
   );
@@ -92,7 +99,37 @@ if (!runtimeArchive) {
   process.exit(2);
 }
 const seedSmoke = process.argv.includes("--seed-smoke");
+const exerciseRewards = process.argv.includes("--exercise-rewards");
+if (exerciseRewards && !seedSmoke) throw new Error("--exercise-rewards requires --seed-smoke");
+const exerciseProfileRoutines = process.argv.includes("--exercise-profile-routines");
 const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
+// Explicitly fabricated, network-isolated provider exercise. Never use real keys.
+const exerciseConnectedPlanning = process.argv.includes("--exercise-connected-planning");
+const exerciseResponsibility = process.argv.includes("--exercise-responsibility");
+const exerciseScheduleReview = process.argv.includes("--exercise-schedule-review");
+const exerciseEventPreparation = process.argv.includes("--exercise-event-preparation");
+const exerciseGeminiSetup = process.argv.includes("--exercise-gemini-setup");
+const exerciseRecipeSearch = exerciseGeminiSetup || process.argv.includes("--exercise-recipe-search");
+const recipeFixtureConfig = {
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+  model: "gemini-3.8-flash",
+  apiKey: "fabricated-local-recipe-search-key",
+};
+const recipeFixturePricing = {
+  model: recipeFixtureConfig.model,
+  inputMicrousdPerMillion: "1000000",
+  outputMicrousdPerMillion: "2000000",
+  searchMicrousdPerUnit: "14000",
+  searchBilling: "query",
+};
+const recipeFixtureApproval = {
+  configVersion: createHmac("sha256", FAKE_JWT_SECRET).update(JSON.stringify([
+    "herewoven.ai-pricing.v1", recipeFixtureConfig.baseUrl,
+    recipeFixtureConfig.model, recipeFixtureConfig.apiKey,
+  ])).digest("hex"),
+  validUntil: new Date(Date.now() + 86400000).toISOString(),
+  pricing: recipeFixturePricing,
+};
 
 const safeChildEnv = {
   PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -436,10 +473,34 @@ function localMiniflareOptions(instance, workers) {
   for (const worker of options.workers) {
     worker.dev.outboundService = {
       type: "fetcher",
-      handler: async () =>
-        new Response("External network disabled in local runtime", {
-          status: 403,
-        }),
+      handler: async (request) => {
+        // Host-only evidence line (no path, query, headers or body) so a local
+        // run can show which providers the Worker attempted to contact.
+        try {
+          console.error(JSON.stringify({ outbound: new URL(request.url).host, method: request.method }));
+        } catch {
+          /* Unparseable URL: still denied below. */
+        }
+        if (exerciseGeminiSetup && request.method === "GET" &&
+            request.url === "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash" &&
+            request.headers.get("x-goog-api-key") === recipeFixtureConfig.apiKey) {
+          return Response.json({name: "models/gemini-3.8-flash"});
+        }
+        if (exerciseRecipeSearch && request.method === "POST" &&
+            request.url === "https://generativelanguage.googleapis.com/v1beta/interactions" &&
+            request.headers.get("x-goog-api-key") === recipeFixtureConfig.apiKey) {
+          return Response.json({
+            status: "completed",
+            usage: {total_input_tokens: 100, total_output_tokens: 50, total_thought_tokens: 20},
+            steps: [
+              {type: "google_search_call", arguments: {queries: ["fixture soup", "fixture soup"]}},
+              {type: "google_search_result", result: [{search_suggestions: '<div>Fabricated Google suggestion fixture</div>'}]},
+              {type: "model_output", content: [{type: "text", text: "Try fixture soup.", annotations: [{type: "url_citation", url: "https://example.com/fixture-soup", title: "Fabricated soup source", start_index: 0, end_index: 17}]}]},
+            ],
+          });
+        }
+        return new Response("External network disabled in local runtime", {status: 403});
+      },
     };
     worker.dev.unsafeRegisterWorker = false;
   }
@@ -603,6 +664,7 @@ async function seedSmokeAccounts(app, passwordCompute) {
     notes: false,
     emergency: true,
     inventory: true,
+    ...(exerciseRewards ? { rewards: true, gamification: true } : {}),
   });
   await db.batch([
     db
@@ -642,6 +704,10 @@ async function seedSmokeAccounts(app, passwordCompute) {
         SMOKE_CHILD_FAMILY.id,
         now,
       ),
+  ]);
+  if (exerciseRewards) await db.batch([
+    db.prepare(`UPDATE User SET family_id=?1 WHERE id=?2`).bind(SMOKE_CHILD_FAMILY.id, SMOKE_PARENT.id),
+    db.prepare(`UPDATE User SET xp=100 WHERE id=?1`).bind(SMOKE_CHILD.id),
   ]);
 }
 
@@ -730,7 +796,27 @@ try {
       CRON_SECRET: "fabricated-local-runtime-cron-secret",
       RELEASE_SHA: sourceSha ?? "local-runtime",
       NEXT_TELEMETRY_DISABLED: "1",
+      ...(exerciseConnectedPlanning ? { FAMILY_FOOD_PLANNING_READY: "1", FAMILY_WEEKLY_RESET_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
+      ...(exerciseProfileRoutines ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED: "1", ROUTINE_SCHEDULE_ENABLED: "1", ROUTINE_SCHEDULE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
+      ...(exerciseResponsibility ? { FAMILY_RESPONSIBILITY_READY: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
+      ...(exerciseScheduleReview ? { FAMILY_SCHEDULE_REVIEW_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
+      ...(exerciseEventPreparation ? { FAMILY_EVENT_PREPARATION_READY: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
       ...(exerciseProfileSetup ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1" } : {}),
+      ...(exerciseRecipeSearch ? {
+        FAMILY_AI_PROVIDER_DISABLED: "0",
+        FAMILY_AI_USAGE_READY: "1",
+        FAMILY_AI_USAGE_ROLLBACK_READY: "1",
+        FAMILY_GOOGLE_RECIPE_SEARCH_READY: "1",
+        FAMILY_GOOGLE_RECIPE_SEARCH_PRICING: JSON.stringify(recipeFixtureApproval),
+        CAPTURE_AI_KEY: recipeFixtureConfig.apiKey,
+        CAPTURE_AI_BASE_URL: recipeFixtureConfig.baseUrl,
+        CAPTURE_AI_MODEL: recipeFixtureConfig.model,
+      } : {}),
+      ...(exerciseGeminiSetup ? {
+        CAPTURE_AI_SETTINGS_ENABLED: "1",
+        CAPTURE_AI_KEY: "",
+        FAMILY_GOOGLE_RECIPE_SEARCH_PRICING: "",
+      } : {}),
     },
     assetRouting,
   );
@@ -776,15 +862,21 @@ try {
     host: "127.0.0.1",
     externalEgress: "denied",
     email: "off",
-    providerCalls: "disabled",
+    providerCalls: exerciseRecipeSearch ? "fabricated-google-only" : "disabled",
+    connectedPlanning: exerciseConnectedPlanning ? "test-rollout-enabled" : "default",
+    responsibility: exerciseResponsibility ? "test-rollout-enabled" : "default",
+    scheduleReview: exerciseScheduleReview ? "test-rollout-enabled" : "default",
+    eventPreparation: exerciseEventPreparation ? "test-rollout-enabled" : "default",
+    profileRoutines: exerciseProfileRoutines ? "test-rollout-enabled" : "default",
     profileSetup: exerciseProfileSetup ? "test-rollout-enabled" : "default",
+    rewards: exerciseRewards ? "fabricated-shared-household" : "default",
   };
   if (seedSmoke) {
     metadata.smokeAccounts = {
       parentEmail: SMOKE_PARENT.email,
       childEmail: SMOKE_CHILD.email,
       password: SMOKE_PASSWORD,
-      parentFamily: null,
+      parentFamily: exerciseRewards ? SMOKE_CHILD_FAMILY.id : null,
       childFamily: SMOKE_CHILD_FAMILY.id,
     };
   }

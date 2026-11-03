@@ -48,6 +48,23 @@ export async function readPreparationStateInTx(
         PlanRow[]
       >`SELECT "id", "revision", "reviewed_event_source" FROM "EventPreparation" WHERE "family_id"=${familyId} AND "event_id"=${eventId}`;
   if (!plans.length) return null;
+  const plan = plans[0];
+  const rows = lock
+    ? await tx.$queryRaw<
+        LinkRow[]
+      >`SELECT "id", "chore_id", "position", "cue_anchor", "cue_direction", "cue_minutes" FROM "EventPreparationStep" WHERE "family_id"=${familyId} AND "preparation_id"=${plan.id} ORDER BY "position", "id" LIMIT 100 FOR UPDATE`
+    : await tx.$queryRaw<
+        LinkRow[]
+      >`SELECT "id", "chore_id", "position", "cue_anchor", "cue_direction", "cue_minutes" FROM "EventPreparationStep" WHERE "family_id"=${familyId} AND "preparation_id"=${plan.id} ORDER BY "position", "id" LIMIT 100`;
+  return parsePreparationState(plans, rows);
+}
+
+/** Same strict state parser for both storage backends. */
+export function parsePreparationState(
+  plans: PlanRow[],
+  rows: LinkRow[],
+): PreparationState | null {
+  if (!plans.length) return null;
   if (
     plans.length !== 1 ||
     !id.safeParse(plans[0].id).success ||
@@ -58,13 +75,6 @@ export async function readPreparationStateInTx(
   )
     throw new EventPreparationError("UNAVAILABLE");
   const plan = plans[0];
-  const rows = lock
-    ? await tx.$queryRaw<
-        LinkRow[]
-      >`SELECT "id", "chore_id", "position", "cue_anchor", "cue_direction", "cue_minutes" FROM "EventPreparationStep" WHERE "family_id"=${familyId} AND "preparation_id"=${plan.id} ORDER BY "position", "id" LIMIT 100 FOR UPDATE`
-    : await tx.$queryRaw<
-        LinkRow[]
-      >`SELECT "id", "chore_id", "position", "cue_anchor", "cue_direction", "cue_minutes" FROM "EventPreparationStep" WHERE "family_id"=${familyId} AND "preparation_id"=${plan.id} ORDER BY "position", "id" LIMIT 100`;
   if (
     rows.length > 99 ||
     new Set(rows.map((row) => row.chore_id)).size !== rows.length ||

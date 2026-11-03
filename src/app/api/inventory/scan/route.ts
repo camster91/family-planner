@@ -1,3 +1,7 @@
+import { readInventoryPhotoProvider, foodDocumentsAllowed } from "@/lib/inventory-photo-provider";
+import { CaptureError, draftFoodFromImage } from "@/lib/capture";
+import { createAiUsageJob, AiUsageError, type AiUsageJob } from "@/lib/ai-usage-server";
+import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
 import {
   FOOD_PHOTO_PROTOCOL,
@@ -20,8 +24,6 @@ import {
   INVENTORY_SCAN_USER_PER_HOUR,
   InventoryScanError,
   canScanInventory,
-  isFoodDocumentCaptureConfigured,
-  resolveInventoryScanConfig,
   scanFridgePhoto,
   type InventoryScanMime,
 } from "@/lib/inventory-scan";
@@ -104,6 +106,21 @@ async function readFoodForm(request: NextRequest): Promise<FormData> {
  * any model text or a user/household id.
  */
 export async function POST(request: NextRequest) {
+  const meter: { current: AiUsageJob } = { current: undefined };
+  try {
+    let response = await handlePOST(request, job => { meter.current = job; });
+    if (response.ok && meter.current && !(await meter.current.replyAllowed()))
+      response = inventoryError(409, "INVENTORY_SCAN_FORBIDDEN", "AI settings changed. Reopen food capture.");
+    await meter.current?.finish(response.status);
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  } catch {
+    await meter.current?.finish(500);
+    return inventoryError(500, "INTERNAL_ERROR", "Food capture is unavailable. Add food by hand.");
+  }
+}
+
+async function handlePOST(request: NextRequest, setMeter: (job: AiUsageJob) => void) {
   const started = Date.now();
   try {
     const deviceRefusal = await refusePairedDevice(request);
@@ -118,8 +135,10 @@ export async function POST(request: NextRequest) {
       return error;
     }
 
-    const config = resolveInventoryScanConfig();
-    if (!config)
+    if (!canScanInventory(auth.user.role))
+      return inventoryError(403, "INVENTORY_SCAN_FORBIDDEN", INVENTORY_SCAN_FORBIDDEN_MESSAGE);
+    const provider = await readInventoryPhotoProvider(auth.user.family_id);
+    if (!provider)
       return inventoryError(
         404,
         "INVENTORY_SCAN_DISABLED",
@@ -208,7 +227,7 @@ export async function POST(request: NextRequest) {
         "Choose a supported food-photo capture mode.",
       );
     }
-    if (documentMode && !isFoodDocumentCaptureConfigured()) {
+    if (documentMode && !foodDocumentsAllowed(provider)) {
       return inventoryError(
         404,
         "INVENTORY_SCAN_DISABLED",
@@ -245,6 +264,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (provider?.kind === "household" && blob.size > 5 * 1024 * 1024)
+      return inventoryError(413, "IMAGE_TOO_LARGE", "That photo is too large. The limit is 5 MB.");
     const bytes = new Uint8Array(await blob.arrayBuffer());
     // Type from magic bytes, never the client-declared MIME.
     const sniffed = sniffImageType(bytes);
@@ -296,11 +317,11 @@ export async function POST(request: NextRequest) {
     const day = new Date().toISOString().slice(0, 10);
     const endOfDay = Date.parse(`${day}T00:00:00Z`) + DAY_MS;
     const daily =
-      config.dailyLimit === 0
+      provider.dailyLimit === 0
         ? { allowed: false, retryAfterMs: endOfDay - Date.now() }
         : await checkScanRate(
             `inventory-scan:day:${familyId}:${day}`,
-            config.dailyLimit,
+            provider.dailyLimit,
             DAY_MS,
           );
     if (!daily.allowed) {
@@ -313,12 +334,16 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const result = await scanFridgePhoto(
-        { bytes, mime: sniffed.mime as InventoryScanMime },
-        config,
-        fetch,
-        mode as FoodPhotoMode | "fridge",
-      );
+      const image = { bytes, mime: sniffed.mime as InventoryScanMime };
+      const meter = provider.kind === "household"
+        ? createAiUsageJob(d1 ?? prisma!, {
+            userId, familyId, role: auth.user.role, generation: auth.payload?.tv ?? 0,
+          }, provider.config, "capture_photo")
+        : undefined;
+      if (meter) setMeter(meter);
+      const result = provider.kind === "household"
+        ? await draftFoodFromImage(image, provider.config, mode as FoodPhotoMode | "fridge", meter?.observer)
+        : await scanFridgePhoto(image, provider.config, fetch, mode as FoodPhotoMode | "fridge");
       // A slow provider read cannot outlive a revoked role/session/household.
       const [fresh, refusal] = await authenticateWithFamily(request);
       if (refusal) {
@@ -328,8 +353,9 @@ export async function POST(request: NextRequest) {
       if (
         fresh.user.id !== auth.user.id ||
         fresh.user.family_id !== auth.user.family_id ||
+        (fresh.payload?.tv ?? 0) !== (auth.payload?.tv ?? 0) ||
         !canScanInventory(fresh.user.role) ||
-        (documentMode && !isFoodDocumentCaptureConfigured())
+        (documentMode && !foodDocumentsAllowed(provider))
       ) {
         return inventoryError(
           403,
@@ -337,6 +363,9 @@ export async function POST(request: NextRequest) {
           "Food capture access changed. Reopen capture.",
         );
       }
+      const latestProvider = await readInventoryPhotoProvider(fresh.user.family_id);
+      if (!latestProvider || JSON.stringify(latestProvider) !== JSON.stringify(provider))
+        return inventoryError(409, "INVENTORY_SCAN_FORBIDDEN", "Photo settings changed. Reopen food capture.");
       const currentGate = await featureGate(fresh.user.family_id, "inventory");
       if (currentGate) {
         currentGate.headers.set("Cache-Control", "private, no-store");
@@ -357,6 +386,8 @@ export async function POST(request: NextRequest) {
         dropped: result.dropped,
       });
     } catch (err) {
+      if (err instanceof CaptureError || err instanceof AiUsageError)
+        return inventoryError(err.status, "SCAN_PROVIDER_UNAVAILABLE", "Food capture is unavailable. Check AI settings or add food by hand.");
       if (err instanceof InventoryScanError) {
         log.warn("inventory.scan.failed", {
           code: err.code,

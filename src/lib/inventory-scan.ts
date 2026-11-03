@@ -70,6 +70,17 @@ export interface InventoryScanConfig {
 
 const MODEL_ID_RE = /^[a-z0-9][a-z0-9.-]{0,63}$/;
 
+/** Same deployment ceiling applies to legacy and household photo providers. */
+export function inventoryScanDailyLimit(env: Record<string, string | undefined> = process.env) {
+  const rawLimit = env.INVENTORY_SCAN_DAILY_LIMIT?.trim();
+  const n = rawLimit ? Number(rawLimit) : NaN;
+  const dailyLimit =
+    Number.isInteger(n) && n >= 0 && n <= INVENTORY_SCAN_MAX_DAILY_LIMIT
+      ? n
+      : INVENTORY_SCAN_DEFAULT_DAILY_LIMIT;
+  return dailyLimit;
+}
+
 /** Effective configuration, or null when the feature is off (no key). */
 export function resolveInventoryScanConfig(
   env: Record<string, string | undefined> = process.env,
@@ -81,12 +92,7 @@ export function resolveInventoryScanConfig(
     rawModel && MODEL_ID_RE.test(rawModel)
       ? rawModel
       : INVENTORY_SCAN_DEFAULT_MODEL;
-  const rawLimit = env.INVENTORY_SCAN_DAILY_LIMIT?.trim();
-  const n = rawLimit ? Number(rawLimit) : NaN;
-  const dailyLimit =
-    Number.isInteger(n) && n >= 0 && n <= INVENTORY_SCAN_MAX_DAILY_LIMIT
-      ? n
-      : INVENTORY_SCAN_DEFAULT_DAILY_LIMIT;
+  const dailyLimit = inventoryScanDailyLimit(env);
   return { apiKey, model, dailyLimit };
 }
 

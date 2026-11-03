@@ -366,7 +366,7 @@ export async function testChoreDelete(db: D1Store) {
             `SELECT revision FROM "EventPreparation" WHERE id='delete-plan'`,
           )
           .first<{ revision: number }>()
-      )?.revision === 4,
+      )?.revision === 5,
     "dependent cascade retains parent plan/revision by contract",
   );
   await seed("delete-reclaim");

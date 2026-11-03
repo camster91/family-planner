@@ -1,5 +1,7 @@
 "use client";
 import {
+  AI_USAGE_PRICING_HEADER,
+  AI_USAGE_PRICING_PROTOCOL,
   AI_USAGE_FEEDBACK_HEADER,
   AI_USAGE_FEEDBACK_PROTOCOL,
 } from "@/lib/ai-usage-contract";
@@ -124,6 +126,7 @@ export function AiUsagePanel({
           signal: controller.signal,
           headers: {
             [AI_USAGE_FEEDBACK_HEADER]: AI_USAGE_FEEDBACK_PROTOCOL,
+            [AI_USAGE_PRICING_HEADER]: AI_USAGE_PRICING_PROTOCOL,
             ...(body ? { "Content-Type": "application/json" } : {}),
           },
           ...(body ? { body } : {}),
@@ -384,7 +387,10 @@ export function AiUsagePanel({
                 : {unknownTokens}.
               </p>
               <p className="text-footnote text-label-secondary">
-                {copy(
+                {data.managedPricing ? copy(
+                  "Gemini estimates include tokens and Google searches using maintained standard rates. Your Google invoice may differ. Unfinished calls keep their reservation.",
+                  "Las estimaciones de Gemini incluyen tokens y búsquedas de Google con tarifas estándar actualizadas. Tu factura de Google puede diferir. Las llamadas pendientes conservan su reserva.",
+                ) : copy(
                   "Costs use the USD token rates you enter, not provider invoices. Image billing and missing token reports can differ. Unfinished calls keep their quota reservation.",
                   "Los costos usan tus tarifas de tokens en USD, no facturas del proveedor. Las fotos y los tokens no reportados pueden diferir. Las llamadas sin terminar conservan su reserva.",
                 )}
@@ -483,7 +489,7 @@ export function AiUsagePanel({
                     ),
                     1000000,
                   )}
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  {!data.managedPricing && <div className="grid gap-4 sm:grid-cols-2">
                     {field(
                       "input",
                       copy(
@@ -500,9 +506,12 @@ export function AiUsagePanel({
                       ),
                       1000,
                     )}
-                  </div>
+                  </div>}
                   <p className="text-footnote text-label-secondary">
-                    {copy(
+                    {data.managedPricing ? copy(
+                      "Gemini pricing is handled automatically. A blank limit restores the US$5 monthly estimate limit. Set zero or pause household AI to stop new calls.",
+                      "Los precios de Gemini se gestionan automáticamente. Un límite vacío restaura el límite mensual estimado de 5 USD. Usa cero o pausa la IA familiar para detener nuevas llamadas.",
+                    ) : copy(
                       "Leave the cost limit blank to use request limits only. Both rates must be supplied together. Saving binds them to the provider you just reviewed; changing its model or key requires review again.",
                       "Deja el límite de costo vacío para usar solo límites de llamadas. Completa ambas tarifas. Guardar las vincula al proveedor revisado; cambiar su modelo o clave exige revisarlas de nuevo.",
                     )}

@@ -3,6 +3,8 @@ import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 // Controlled presentation only. Barcode IDs, drafts, protocols and licences stay literal.
 const en = {
+  enterManually: "Enter manually",
+  manualReady: "Your barcode is kept. Enter the food details below.",
   contextFailed: "Could not check your household. Retry or add food manually.",
   detailsFound: "Product details found. Compare them with your draft and apply them explicitly.",
   householdChanged: "Current household product: {name}. Your edits are kept; review before saving again.",
@@ -27,7 +29,9 @@ const en = {
   cameraPrivacy: "Camera frames stay on this device. Unsupported or denied camera access always has typed entry.",
   stopCamera: "Stop camera",
   startCamera: "Start camera",
-  cameraUnavailable: "Camera unavailable or stopped. Enter the printed code, or tap Start camera to try again.",
+  cameraUnavailable: "Camera scanning is unavailable. Enter the printed code below.",
+  cameraDenied: "Camera access was denied. You can enter the printed code below or allow camera access in your browser settings.",
+  cameraStopped: "Camera stopped. Your review is kept. Enter the printed code or tap Start camera to scan again.",
   printedCode: "Printed barcode",
   format: "Code format",
   standardDigits: "12, 13 or 14 digits",
@@ -71,6 +75,8 @@ const en = {
 };
 export type BarcodeFoodMessage = keyof typeof en;
 const es: Record<BarcodeFoodMessage, string> = {
+  enterManually: "Introducir a mano",
+  manualReady: "Se conserva el código. Introduce los datos del alimento abajo.",
   contextFailed: "No pudimos comprobar tu hogar. Reintenta o añade alimentos a mano.",
   detailsFound: "Se encontraron datos. Compáralos con el borrador y aplícalos expresamente.",
   householdChanged: "Producto actual del hogar: {name}. Se conservan tus cambios; revísalos antes de guardar.",
@@ -95,7 +101,9 @@ const es: Record<BarcodeFoodMessage, string> = {
   cameraPrivacy: "Las imágenes de cámara permanecen en este dispositivo. Siempre puedes escribir el código si la cámara no está disponible.",
   stopCamera: "Detener cámara",
   startCamera: "Iniciar cámara",
-  cameraUnavailable: "La cámara no está disponible o se detuvo. Escribe el código o pulsa Iniciar cámara.",
+  cameraUnavailable: "El escaneo con cámara no está disponible. Escribe el código impreso abajo.",
+  cameraDenied: "Se denegó el acceso a la cámara. Escribe el código impreso abajo o permite el acceso en los ajustes del navegador.",
+  cameraStopped: "La cámara se detuvo. Se conserva tu revisión. Escribe el código o pulsa Iniciar cámara para escanear de nuevo.",
   printedCode: "Código impreso",
   format: "Formato",
   standardDigits: "12, 13 o 14 dígitos",

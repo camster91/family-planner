@@ -300,3 +300,70 @@ it('does not save or sync an old calendar when no writable calendars remain', as
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(screen.getByText(/Old calendar/)).toBeTruthy()
 })
+
+describe('calendar command response confirmation', () => {
+  it.each([
+    {},
+    { connection: { ...MINE, id: 'another-connection' }, result: { status: 'ok' } },
+    { connection: MINE, result: { status: 'ok', pulled: { created: '2', updated: 0, deleted: 0 }, pushed: { created: 0, updated: 0, deleted: 0 } } },
+    { connection: MINE, result: { status: 'ok', pulled: { created: -1, updated: 0, deleted: 0 }, pushed: { created: 0, updated: 0, deleted: 0 } } },
+  ])('keeps confirmed rows and requires a fresh read after an invalid sync reply', async body => {
+    const calls = mockApi(200, [{ ...MINE, calendar_id: 'primary', calendar_name: 'Home', status: 'ok' }])
+    const original = global.fetch
+    global.fetch = jest.fn(async (input, init) => String(input).endsWith('/sync')
+      ? ({ ok: true, status: 200, json: async () => body }) as Response
+      : original(input, init)) as typeof fetch
+    render(<CalendarSyncSection />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Sync now: Google Calendar' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('We could not confirm the calendar change.')
+    expect(screen.getByText('Google Calendar · Home')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sync now: Google Calendar' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry connected calendars' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sync now: Google Calendar' })).toBeEnabled())
+    expect((global.fetch as jest.Mock).mock.calls.filter(([url]) => String(url).endsWith('/sync'))).toHaveLength(1)
+    expect(calls.filter(call => call.method === 'GET')).toHaveLength(2)
+  })
+
+  it('does not treat malformed remote calendars as a genuinely empty picker', async () => {
+    mockApi(); const original = global.fetch
+    global.fetch = jest.fn(async (input, init) => String(input).endsWith('/calendars')
+      ? ({ ok: true, status: 200, json: async () => ({ calendars: [{ id: 'primary', name: { private: 'provider payload' }, primary: true }] }) }) as Response
+      : original(input, init)) as typeof fetch
+    render(<CalendarSyncSection />)
+    await userEvent.click(await screen.findByRole('button', { name: /Choose calendar/ }))
+    expect(await screen.findByText('Could not load your calendars')).toBeTruthy()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByText('provider payload')).toBeNull()
+  })
+})
+
+it('does not remove a connection after an unconfirmed disconnect and never resends it', async () => {
+  mockApi(200, [{ ...MINE, calendar_id: 'primary', calendar_name: 'Home' }]); const original = global.fetch
+  global.fetch = jest.fn(async (input, init) => init?.method === 'DELETE'
+    ? ({ ok: true, status: 200, json: async () => ({}) }) as Response
+    : original(input, init)) as typeof fetch
+  render(<CalendarSyncSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Disconnect Google Calendar' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('We could not confirm the calendar change.')
+  expect(screen.getByText('Google Calendar · Home')).toBeTruthy()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Retry connected calendars' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Disconnect Google Calendar' })).toBeEnabled())
+  expect((global.fetch as jest.Mock).mock.calls.filter(([,init]) => init?.method === 'DELETE')).toHaveLength(1)
+})
+
+it('keeps the chosen calendar open after a malformed save instead of starting sync', async () => {
+  mockApi(); const original = global.fetch
+  global.fetch = jest.fn(async (input, init) => init?.method === 'PATCH'
+    ? ({ ok: true, status: 200, json: async () => ({ connection: { id: 'conn-1' } }) }) as Response
+    : original(input, init)) as typeof fetch
+  render(<CalendarSyncSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Choose calendar for Google Calendar' }))
+  expect(await screen.findByLabelText('Calendar to sync')).toHaveValue('primary')
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('We could not confirm the calendar change.')
+  expect(screen.getByLabelText('Calendar to sync')).toHaveValue('primary')
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  expect((global.fetch as jest.Mock).mock.calls.some(([url]) => String(url).endsWith('/sync'))).toBe(false)
+})

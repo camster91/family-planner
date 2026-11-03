@@ -1,6 +1,11 @@
+import { findSavedRecipeSource } from "@/lib/saved-recipe-source";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateWithFamily } from "@/lib/api-auth";
-import { recipeExpectedReadOwnerRefusal, recipeReadOwnerHeaders, renewRecipeReadAuthority } from "@/lib/recipe-read-authority";
+import {
+  recipeExpectedReadOwnerRefusal,
+  recipeReadOwnerHeaders,
+  renewRecipeReadAuthority,
+} from "@/lib/recipe-read-authority";
 import { featureGate } from "@/lib/feature-gate-server";
 import { checkRateLimit } from "@/lib/rate-limit-db";
 import { canEditRecipe } from "@/lib/recipes";
@@ -17,8 +22,10 @@ async function preview(request: NextRequest) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) return error;
   const original = Object.freeze({
-    actorId: auth.user.id, familyId: auth.user.family_id,
-    role: auth.user.role, generation: auth.payload.tv ?? 0,
+    actorId: auth.user.id,
+    familyId: auth.user.family_id,
+    role: auth.user.role,
+    generation: auth.payload.tv ?? 0,
   });
   const ownerRefusal = recipeExpectedReadOwnerRefusal(request, original);
   if (ownerRefusal) return ownerRefusal;
@@ -49,7 +56,7 @@ async function preview(request: NextRequest) {
     );
   }
   const input = z
-    .object({ url: z.string().max(1500) })
+    .object({ url: z.string().max(1500), preferSaved: z.boolean().optional() })
     .strict()
     .safeParse(body);
   const url = input.success ? publicRecipeUrl(input.data.url) : null;
@@ -61,6 +68,19 @@ async function preview(request: NextRequest) {
   const beforeFetch = await renewRecipeReadAuthority(request, original);
   if (beforeFetch) return beforeFetch;
   try {
+    if (input.success && input.data.preferSaved) {
+      const existingRecipe = await findSavedRecipeSource(
+        original.familyId,
+        url,
+      );
+      const afterLookup = await renewRecipeReadAuthority(request, original);
+      if (afterLookup) return afterLookup;
+      if (existingRecipe)
+        return NextResponse.json(
+          { existingRecipe },
+          { headers: recipeReadOwnerHeaders(original) },
+        );
+    }
     // Shared transport pins public DNS addresses, validates each redirect,
     // caps response bytes and enforces a timeout. No cookies or credentials.
     const page = await fetchFeed(url, {

@@ -20,6 +20,10 @@ export async function openRoutineSchedule(
   request: NextRequest,
   requireOwner = false,
   ownerKind: "schedule" | "independent" = "schedule",
+  /** Read-only recovery-context checks: the managers re-verify owner and
+   * storage around every action (15-24 reads per save), so they need their
+   * own bucket or a few ordinary actions exhaust the shared limit (#450). */
+  contextRead = false,
 ) {
   const [auth, error] = await authenticateWithFamily(request);
   if (error) {
@@ -37,8 +41,11 @@ export async function openRoutineSchedule(
       response: routineError(404, "ROUTINE_SCHEDULE_UNAVAILABLE"),
     };
   if (
-    !(await checkRateLimit(`routine-schedules:${auth.user.id}`, 120, 60_000))
-      .allowed
+    !(
+      await (contextRead
+        ? checkRateLimit(`routine-context:${auth.user.id}`, 900, 60_000)
+        : checkRateLimit(`routine-schedules:${auth.user.id}`, 120, 60_000))
+    ).allowed
   )
     return { ok: false as const, response: routineError(429, "RATE_LIMITED") };
   const baseOwner = routineScheduleOwner(request, auth.payload, auth.user);

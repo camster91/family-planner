@@ -1,4 +1,6 @@
 import {
+  intakeD1Inventory,
+  readD1FoodProduct,
   adjustD1Inventory,
   createD1Inventory,
   deleteD1Inventory,
@@ -9,6 +11,7 @@ import {
   undoD1InventoryAdjustment,
   updateD1Inventory,
 } from "../../../src/lib/cloudflare/inventory";
+import { inventoryIntakeInput } from "../../../src/lib/inventory-intake-contract";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
 
 function check(value: unknown, message: string): asserts value {
@@ -161,7 +164,39 @@ export async function testInventory(db: D1Store) {
     (await deleteD1Inventory(actor, item.id, "inventory-delete", db)).status === 200,
     "inventory delete",
   );
+  const intake = inventoryIntakeInput.parse({
+    protocol: "herewoven.inventory-intake.v1",
+    expected_user_id: actor.userId,
+    expected_family_id: actor.familyId,
+    issued_at: new Date().toISOString(),
+    item: { name: "Private barcode beans", amount: 2, unit: "cans", location: "pantry" },
+    product: { barcode: "00036000291452", brand: "Private label", package_size: "400 g", origin: "manual", remember: true, base_revision: null },
+  });
+  const saved = await intakeD1Inventory(actor, intake, "inventory-intake-save", db);
+  check(saved.status === 201, "reviewed barcode intake saves");
+  const intakeId = (saved.body as { itemId: string }).itemId;
+  const remembered = await readD1FoodProduct(actor, intake.product!.barcode, db);
+  check(remembered.product?.name === intake.item.name && remembered.product.revision === 0, "private correction available on rescan");
+  check(!(await readD1FoodProduct(foreign, intake.product!.barcode, db)).product, "private correction household isolation");
+  const intakeReplay = await intakeD1Inventory(actor, intake, "inventory-intake-save", db);
+  check(intakeReplay.status === 201 && intakeReplay.replayed && (intakeReplay.body as {itemId:string}).itemId === intakeId, "intake retry retains original item");
+  const changed = { ...intake, item: { ...intake.item, name: "Corrected private beans" }, product: { ...intake.product!, base_revision: 0 } };
+  check((await intakeD1Inventory(actor, changed, "inventory-intake-correction", db)).status === 201, "reviewed private correction saves");
+  const stale = await intakeD1Inventory(actor, { ...changed, item: { ...changed.item, name: "Stale correction" } }, "inventory-intake-stale", db);
+  check(stale.status === 409 && (stale.body as {error:{code:string}}).error.code === "PRODUCT_CHANGED", "stale product conflict uses scanner contract");
+  check(!(await db.prepare(`SELECT id FROM InventoryItem WHERE name='Stale correction'`).first()), "conflict does not save stock");
+  check((await intakeD1Inventory(child, { ...intake, expected_user_id: child.userId }, "inventory-intake-child", db)).status === 403, "child cannot intake");
+  const wrongOwner = await intakeD1Inventory(actor, { ...intake, expected_family_id: foreign.familyId }, "inventory-intake-owner", db);
+  check(wrongOwner.status === 403 && (wrongOwner.body as {error:{code:string}}).error.code === "AUTH_CONTEXT_CHANGED", "intake refuses owner changes with typed code");
+  await db.prepare(`DELETE FROM InventoryItem WHERE id=?`).bind(intakeId).run();
+  const removed = await intakeD1Inventory(actor, intake, "inventory-intake-save", db);
+  check(removed.status === 409 && removed.replayed && (removed.body as {error:{code:string}}).error.code === "INTAKE_ITEM_REMOVED", "deleted intake replay is not false success");
+  check(!(await db.prepare(`SELECT id FROM InventoryItem WHERE id=?`).bind(intakeId).first()), "deleted intake is never recreated by retry");
   return {
+    barcodeIntake: true,
+    privateCorrection: true,
+    productConflict: true,
+    removedIntakeReplay: true,
     householdIsolation: true,
     roleGate: true,
     receiptReplay: true,

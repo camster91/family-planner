@@ -193,9 +193,9 @@ export async function testFinanceArchiveExport(db: D1Store) {
       )
       .bind(stamp, stamp + 3600000),
     db.prepare(`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source,revision) VALUES
-      ('archive-prep-plan','archive-family-a','archive-prep-event','source-v1',2)`),
+      ('archive-prep-plan','archive-family-a','archive-prep-event','${'a'.repeat(64)}',2)`),
     db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position,cue_anchor,cue_direction,cue_minutes) VALUES
-      ('archive-prep-step','archive-family-a','archive-prep-plan','archive-prep-chore',0,'event_start','before',15)`),
+      ('archive-prep-step','archive-family-a','archive-prep-plan','archive-prep-chore',1,'start','before',15)`),
     db
       .prepare(
         `INSERT INTO "ResponsibilityState"(id,family_id,chore_id,source_token,revision,coordinator_id) VALUES

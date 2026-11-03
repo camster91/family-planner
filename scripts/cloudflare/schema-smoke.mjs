@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Structural D1 foundation check; does not claim PostgreSQL trigger parity. */
 import assert from 'node:assert/strict'
+import { checkPreparationLifecycle } from './fixtures/preparation-lifecycle.mjs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -110,11 +111,12 @@ try {
   await assert.rejects(db.prepare(`UPDATE "HouseholdMember" SET erasure_user_id=NULL WHERE id='schema-own'`).run(), /Erasure ownership/)
   await db.prepare(`INSERT INTO "HouseholdMember" (id,family_id,name) VALUES ('schema-linked','schema-a','Fabricated linked child')`).run()
   await db.prepare(`INSERT INTO "HouseholdMemberAccountLink" (member_id,user_id,family_id,verified_at) VALUES ('schema-linked','schema-user','schema-a',1)`).run()
+  const preparationLifecycle = await checkPreparationLifecycle(db)
   // The composite user FK must be deferred: deleting a family both clears its
   // users' memberships and cascades linked profiles in the same transaction.
   await db.prepare(`DELETE FROM "Family" WHERE id='schema-a'`).run()
   assert.equal((await db.prepare(`SELECT count(*) AS n FROM "HouseholdMemberAccountLink"`).first()).n, 0)
   assert.equal((await db.prepare(`SELECT family_id FROM "User" WHERE id='schema-user'`).first()).family_id, null)
   assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, [])
-  console.log(JSON.stringify({ models: models.length, columns, canonicalColumns:columns-portedIgnoredColumns, portedIgnoredColumns, nativeLifecycleColumns:nativeLifecycleCount, uniqueKeys, relations, foreignKeysValid: true, crossHouseholdLinkRefused: true, retryKeyUnique: true, millisecondDefaults: true, arrayDefaults: true, uuidDefaults: true, typedChecks: true, immutableProfile: true, erasureGuard: true, linkedFamilyDeletion: true, remaining: 'PostgreSQL-only custom checks/triggers and feature writers still require conversion' }))
+  console.log(JSON.stringify({ preparationLifecycle, models: models.length, columns, canonicalColumns:columns-portedIgnoredColumns, portedIgnoredColumns, nativeLifecycleColumns:nativeLifecycleCount, uniqueKeys, relations, foreignKeysValid: true, crossHouseholdLinkRefused: true, retryKeyUnique: true, millisecondDefaults: true, arrayDefaults: true, uuidDefaults: true, typedChecks: true, immutableProfile: true, erasureGuard: true, linkedFamilyDeletion: true, remaining: 'PostgreSQL-only custom checks/triggers and feature writers still require conversion' }))
 } finally { await mf.dispose() }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { googleRecipeDiscoverySchema } from "./google-recipe-search-response";
 export const recipeImportIssue = z.enum([
   "title-shortened",
   "description-shortened",
@@ -75,6 +76,7 @@ const publicLink = z
   });
 export const recipeDiscoveryResponse = z
   .object({
+    grounded: googleRecipeDiscoverySchema.optional(),
     results: z
       .array(
         z
@@ -102,3 +104,13 @@ export const recipeDiscoveryResponse = z
       .optional(),
   })
   .strict();
+
+/** A canonical household recipe, not an AI or publisher-generated identifier. */
+export const savedPreviewRecipeSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  title: z.string().min(1),
+  prep_time: z.number().finite().nonnegative().nullable(),
+  cook_time: z.number().finite().nonnegative().nullable(),
+  servings: z.number().finite().positive().nullable(),
+  source_url: z.string().max(1500).url(),
+});

@@ -1,3 +1,13 @@
+import { readD1PreparationPicker } from "../../../src/lib/cloudflare/preparation-picker"
+import { reviewD1PreparationRequest } from "../../../src/lib/cloudflare/preparation-recovery"
+import { hashIdempotentRequest } from "../../../src/lib/idempotency-hash"
+import { PREPARATION_ACTION } from "../../../src/lib/event-preparation/http"
+import { writeD1EventPreparation } from "../../../src/lib/cloudflare/preparation-write"
+import { EVENT_PREPARATION_PROTOCOL } from "../../../src/lib/event-preparation/contract"
+import { readD1PreparationSource } from "../../../src/lib/cloudflare/preparation-source"
+import { readD1ParentPreparationContext } from '../../../src/lib/cloudflare/preparation-context'
+import { d1EventPreparationStorageAvailable } from '../../../src/lib/cloudflare/chore-read-policy'
+import { preparationCopyFactId } from '../../../src/lib/event-preparation/origin'
 import { readD1KidDashboardData } from '../../../src/lib/cloudflare/kid-dashboard'
 import { hiddenD1RoutineOccurrenceIds,scheduledOnceD1RoutineOccurrenceIds,hydrateD1ChoreProfileMembers,readD1ChoreStreaks,readD1OwnPreparationContext } from '../../../src/lib/cloudflare/chore-read-policy'
 import { readD1ChoreNotificationFocus,renewD1ChoreReadOwner } from '../../../src/lib/cloudflare/chore-read-owner'
@@ -62,12 +72,118 @@ export async function testChoreReads(db:D1Store){
   const kid=await readD1KidDashboardData('chore-read-a','chore-read-teen',now,false,db)
   check(kid[0].length===1&&kid[0][0].id==='chore-read-visible-teen'&&kid[1].length===1&&kid[1][0].id==='chore-read-own-catch-up'&&kid[2][0]?.title==='School concert'&&kid[3].length===0,'kid home preserves own bounded work, hidden routine policy, shared event summaries and rewards gating')
   await db.prepare(`INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES ('chore-read-plan','chore-read-a','chore-read-event',?1)`).bind('a'.repeat(64)).run()
-  await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES ('chore-read-plan-step','chore-read-a','chore-read-plan','chore-read-visible-teen',0)`).run()
+  await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES ('chore-read-plan-step','chore-read-a','chore-read-plan','chore-read-visible-teen',1)`).run()
   const cues=await readD1OwnPreparationContext({userId:'chore-read-teen',familyId:'chore-read-a',role:'teen',choreIds:['chore-read-visible-teen','chore-read-visible-parent','chore-read-foreign']},db)
   check(Object.keys(cues).length===1&&cues['chore-read-visible-teen']?.eventTitle==='School concert','kid preparation cue is limited to their actual assigned canonical work')
+  stage='parent preparation context'
+  check(await d1EventPreparationStorageAvailable(db),'complete native preparation storage is ready')
+  const guard=await db.prepare(`SELECT sql FROM sqlite_master WHERE name='EventPreparationStep_bounds_update'`).first<{sql:string}>()
+  check(guard?.sql,'bounds trigger exists')
+  await db.prepare(`DROP TRIGGER "EventPreparationStep_bounds_update"`).run()
+  check(!await d1EventPreparationStorageAvailable(db),'partial native preparation storage is refused')
+  await db.prepare(guard.sql).run()
+  const preparationActor={userId:'chore-read-parent',familyId:'chore-read-a',role:'parent',tokenVersion:0,choreIds:['chore-read-visible-teen','chore-read-foreign']}
+  const linked=await readD1ParentPreparationContext(preparationActor,db)
+  check(Object.keys(linked.backlinks).length===1&&linked.backlinks['chore-read-visible-teen']==='chore-read-event','parent sees only household event backlinks')
+  for(const override of [{userId:'chore-read-teen'},{familyId:'chore-read-b'},{tokenVersion:1},{role:'child'}]) {
+    const denied=await readD1ParentPreparationContext({...preparationActor,...override},db)
+    check(!Object.keys(denied.backlinks).length&&!Object.keys(denied.origins).length,'role, household and stale-generation parent reads withheld')
+  }
+  await db.prepare(`INSERT INTO "RoutineStack"(id,family_id,label,fingerprint) VALUES ('chore-read-stack','chore-read-a','School morning',?1)`).bind('a'.repeat(64)).run()
+  await db.prepare(`UPDATE "Chore" SET routine_stack_id='chore-read-stack' WHERE id='chore-read-visible-parent'`).run()
+  const factId=preparationCopyFactId('chore-read-a','chore-read-visible-teen')
+  const fact={timeline:1,actorKind:'person',target:{kind:'chore',id:'chore-read-visible-teen'},routineCopy:{stackId:'chore-read-stack',sourceChoreId:'chore-read-visible-parent',occurrenceDay:'2026-10-28'}}
+  await db.prepare(`INSERT INTO "Activity"(id,family_id,user_id,type,title,metadata,created_at) VALUES (?1,'chore-read-a','chore-read-parent','preparation_routine_copied','Fixture copy',?2,?3)`).bind(factId,JSON.stringify(fact),day).run()
+  const copied=await readD1ParentPreparationContext(preparationActor,db)
+  check(copied.origins['chore-read-visible-teen']?.state==='available','valid routine source is discoverable')
+  await db.prepare(`UPDATE "Chore" SET routine_stack_id=NULL WHERE id='chore-read-visible-parent'`).run()
+  const removed=await readD1ParentPreparationContext(preparationActor,db)
+  check(removed.origins['chore-read-visible-teen']?.state==='unavailable'&&!JSON.stringify(removed.origins).includes('School morning'),'removed routine source keeps copy fact without disclosing stale label')
+  await db.prepare(`UPDATE "Activity" SET metadata='invalid json' WHERE id=?1`).bind(factId).run()
+  check(!Object.keys((await readD1ParentPreparationContext(preparationActor,db)).origins).length,'corrupt provenance never becomes a link')
+  stage='native preparation source'
+  const sourceActor={userId:'chore-read-parent',familyId:'chore-read-a',tokenVersion:0}
+  const sourceScope={eventId:'chore-read-event',timeZone:'America/Toronto',memberProtocol:2 as const,choreIds:['chore-read-visible-parent'],subjects:[],routine:null}
+  const source=await readD1PreparationSource(sourceActor,sourceScope,db)
+  check(source.state?.links.length===1&&source.context.complete&&source.context.tasks.length===2,'source includes selected and already-linked canonical chores')
+  check(source.tasks.every(row=>row.task.linkable)&&source.context.tasks.find(row=>row.id==='chore-read-visible-parent')?.dateEditable,'source preserves eligibility and once-only retiming')
+  const stable=await readD1PreparationSource(sourceActor,sourceScope,db)
+  check(stable.context.viewToken===source.context.viewToken,'unchanged native source has a stable review token')
+  await db.prepare(`UPDATE "Chore" SET title='Changed after review' WHERE id='chore-read-visible-parent'`).run()
+  const updated=await readD1PreparationSource(sourceActor,sourceScope,db)
+  check(updated.context.viewToken!==source.context.viewToken,'canonical content change invalidates the reviewed source')
+  const foreign=await readD1PreparationSource(sourceActor,{...sourceScope,choreIds:['chore-read-foreign']},db)
+  check(!foreign.context.complete&&!JSON.stringify(foreign).includes('PRIVATE FOREIGN'),'foreign selected work is incomplete and never disclosed')
+  for(const override of [{userId:'chore-read-teen'},{familyId:'chore-read-b'},{tokenVersion:1}]){
+    let denied=false
+    try{await readD1PreparationSource({...sourceActor,...override},sourceScope,db)}catch{denied=true}
+    check(denied,'source refuses teen, foreign household and revoked session')
+  }
+  stage='native preparation write'
+  process.env.FAMILY_EVENT_PREPARATION_READY='1'
+  process.env.QUEUE_OWNER_RECOVERY_ENABLED='1'
+  process.env.QUEUE_OWNER_RECOVERY_ROLLBACK_READY='1'
+  const writeScope={...sourceScope,choreIds:['chore-read-visible-parent','chore-read-visible-teen']}
+  const writeSource=await readD1PreparationSource(sourceActor,writeScope,db)
+  const command={protocol:EVENT_PREPARATION_PROTOCOL,owner:{userId:sourceActor.userId,familyId:sourceActor.familyId},memberProtocol:2,action:'set-plan',eventId:writeScope.eventId,timeZone:writeScope.timeZone,issuedAt:now.toISOString(),eventSourceToken:writeSource.context.event.sourceToken,expectedToken:writeSource.context.viewToken,eventChangeDecision:'keep-dates',steps:['chore-read-visible-parent','chore-read-visible-teen'].map(choreId=>({kind:'existing',choreId,sourceToken:writeSource.context.tasks.find(task=>task.id===choreId)!.sourceToken,cue:null,retimeTo:null}))}
+  const picker=await readD1PreparationPicker(sourceActor,{kind:'tasks',eventId:sourceScope.eventId,timeZone:sourceScope.timeZone,memberProtocol:'2',search:'Changed after review'},db)
+  check(picker.items.length===1&&picker.items[0].id==='chore-read-visible-parent','native task picker finds current household work')
+  const literal=await readD1PreparationPicker(sourceActor,{kind:'accounts',eventId:sourceScope.eventId,timeZone:sourceScope.timeZone,memberProtocol:'2',search:'%'},db)
+  check(literal.items.length===0,'picker treats percent as literal text rather than a wildcard')
+  const people=await readD1PreparationPicker(sourceActor,{kind:'accounts',eventId:sourceScope.eventId,timeZone:sourceScope.timeZone,memberProtocol:'2',search:''},db)
+  check(people.items.length===2&&!JSON.stringify(people).includes('PRIVATE FOREIGN'),'account picker stays within the household')
+  const entry={kind:'event-preparation' as const,key:'preparation-write-fixture-1',body:JSON.stringify(command),requestHash:hashIdempotentRequest(PREPARATION_ACTION,command)}
+  const review=await reviewD1PreparationRequest(sourceActor,entry,'a'.repeat(64),db,now)
+  check(review.state==='ready'&&review.canRetry,'unsent exact current request is recoverable')
+  const written=await writeD1EventPreparation(sourceActor,command,'preparation-write-fixture-1',db,now)
+  check(written.status===200&&!written.replayed&&written.body.receipt.planId==='chore-read-plan','native preparation write committed')
+  const steps=await db.prepare(`SELECT id,chore_id,position FROM EventPreparationStep WHERE preparation_id='chore-read-plan' ORDER BY position`).all<{id:string,chore_id:string,position:number}>()
+  check(steps.results?.length===2&&steps.results[1].id==='chore-read-plan-step'&&steps.results[0].position===1&&steps.results[1].position===2,'reorder retains link identity and valid positions')
+  const replay=await writeD1EventPreparation(sourceActor,command,'preparation-write-fixture-1',db,now)
+  check(replay.replayed&&JSON.stringify(replay.body)===JSON.stringify(written.body),'same request replays receipt without duplicate changes')
+  check((await reviewD1PreparationRequest(sourceActor,entry,'a'.repeat(64),db,now)).state==='committed','lost-response inspection identifies an already committed save')
+  let staleDenied=false
+  try{await writeD1EventPreparation(sourceActor,command,'preparation-write-fixture-stale',db,now)}catch{staleDenied=true}
+  check(staleDenied,'old review cannot write again under a new request key')
+  const detachSource=await readD1PreparationSource(sourceActor,{...sourceScope,choreIds:[]},db)
+  const detach={...command,expectedToken:detachSource.context.viewToken,eventSourceToken:detachSource.context.event.sourceToken,eventChangeDecision:null,steps:[]}
+  await writeD1EventPreparation(sourceActor,detach,'preparation-write-fixture-detach',db,now)
+  check(!await db.prepare(`SELECT id FROM EventPreparation WHERE id='chore-read-plan'`).first()&&!!await db.prepare(`SELECT id FROM Chore WHERE id='chore-read-visible-teen'`).first(),'detach deletes only the preparation plan and retains canonical work')
+  const newSubject={kind:'account' as const,accountId:sourceActor.userId}
+  const createScope={...sourceScope,choreIds:[],subjects:[newSubject]}
+  const createSource=await readD1PreparationSource(sourceActor,createScope,db)
+  const createCommand={...command,eventChangeDecision:null,expectedToken:createSource.context.viewToken,eventSourceToken:createSource.context.event.sourceToken,steps:[{kind:'new',clientId:'new-native-step',title:'Pack concert bag',description:null,subject:newSubject,points:null,difficulty:'easy',icon:null,durationMinutes:5,dueDay:'2026-10-28',cue:null}]}
+  const failBatch:D1Store={prepare:db.prepare.bind(db),batch:db.batch.bind(db),withSession(){const session=db.withSession('first-primary');return{prepare:session.prepare.bind(session),batch(statements){return session.batch([...statements,session.prepare(`INSERT INTO Family(id,name,invite_code) VALUES ('chore-read-a','duplicate','duplicate')`)])}}}}
+  let rolledBack=false
+  try{await writeD1EventPreparation(sourceActor,createCommand,'preparation-write-fixture-create',failBatch,now)}catch{rolledBack=true}
+  check(rolledBack&&!await db.prepare(`SELECT id FROM Chore WHERE title='Pack concert bag'`).first()&&!await db.prepare(`SELECT id FROM IdempotencyRecord WHERE key='preparation-write-fixture-create'`).first(),'failed atomic batch retains neither partial chore nor receipt')
+  const creation=await writeD1EventPreparation(sourceActor,createCommand,'preparation-write-fixture-create',db,now)
+  const createdTask=await db.prepare(`SELECT c.status,c.frequency,c.assigned_to FROM Chore c JOIN EventPreparationStep s ON s.chore_id=c.id WHERE c.title='Pack concert bag'`).first<{status:string,frequency:string,assigned_to:string}>()
+  check(creation.body.receipt.createdCount===1&&createdTask?.status==='pending'&&createdTask.frequency==='once'&&createdTask.assigned_to===sourceActor.userId,'creation persists a real canonical once-only task linked to the event')
+  stage='native routine copy to email-free profile'
+  process.env.HOUSEHOLD_PROFILE_CHORE_ENABLED='1'
+  process.env.HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY='1'
+  await db.prepare(`UPDATE Chore SET routine_stack_id='chore-read-stack',routine_order=1 WHERE id='chore-read-visible-parent'`).run()
+  const profileSubject={kind:'profile' as const,memberId:'chore-read-profile-1'}
+  const reuseScope={...sourceScope,choreIds:[],subjects:[profileSubject],routine:{stackId:'chore-read-stack',occurrenceDay:'2026-10-28'}}
+  const reuseSource=await readD1PreparationSource(sourceActor,reuseScope,db)
+  check(reuseSource.context.routine?.steps.length===1&&reuseSource.context.routine.steps[0].copyable,'native routine source retains exact eligible occurrence')
+  const reuseCommand={...command,action:'reuse-routine',eventChangeDecision:null,expectedToken:reuseSource.context.viewToken,eventSourceToken:reuseSource.context.event.sourceToken,stackId:reuseScope.routine.stackId,sourceToken:reuseSource.context.routine!.sourceToken,occurrenceDay:reuseScope.routine.occurrenceDay,steps:[{sourceId:'chore-read-visible-parent',sourceToken:reuseSource.context.routine!.steps[0].sourceToken,clientId:'profile-copy',subject:profileSubject,points:null,dueDay:'2026-10-28',cue:null}]}
+  const reused=await writeD1EventPreparation(sourceActor,reuseCommand,'preparation-write-fixture-profile',db,now)
+  const profileCopy=await db.prepare(`SELECT c.id,c.assigned_to,c.routine_stack_id,c.frequency,c.status FROM Chore c JOIN EventPreparationStep s ON s.chore_id=c.id WHERE c.assigned_member_id='chore-read-profile-1' AND s.preparation_id=?`).bind(reused.body.receipt.planId).first<{id:string,assigned_to:null,routine_stack_id:null,frequency:string,status:string}>()
+  check(profileCopy&&profileCopy.assigned_to===null&&profileCopy.routine_stack_id===null&&profileCopy.frequency==='once'&&profileCopy.status==='pending','routine copy creates independent pending work for an email-free profile')
+  check(!!await db.prepare(`SELECT id FROM Activity WHERE id=? AND type='preparation_routine_copied'`).bind(preparationCopyFactId(sourceActor.familyId,profileCopy.id)).first(),'routine copy provenance commits with the canonical task')
+  const profilePage=await readD1PreparationPicker(sourceActor,{kind:'profiles',eventId:sourceScope.eventId,timeZone:sourceScope.timeZone,memberProtocol:'2',search:'Profile'},db)
+  check(profilePage.items.length===20&&!!profilePage.next,'profile picker preserves bounded pagination')
+  process.env.FAMILY_EVENT_PREPARATION_READY='0'
+  check((await writeD1EventPreparation(sourceActor,command,'preparation-write-fixture-1',db,now)).replayed,'receipt survives source removal and feature pause')
+  check((await reviewD1PreparationRequest(sourceActor,entry,'a'.repeat(64),db,new Date(+now+86400000))).state==='committed','historical success is inspected before command age, target and readiness checks')
   let changed=false
   const racing:D1Store={prepare:db.prepare.bind(db),batch:db.batch.bind(db),withSession(){const session=db.withSession('first-primary');return{prepare:session.prepare.bind(session),async batch(statements){if(!changed){changed=true;await db.prepare(`UPDATE "User" SET token_version=1 WHERE id='chore-read-parent'`).run()}return session.batch(statements)}}}}
+  let sourceRaceDenied=false
+  try{await readD1PreparationSource(sourceActor,sourceScope,racing)}catch{sourceRaceDenied=true}
+  check(sourceRaceDenied,'source witness refuses a session revoked between source read and return')
   check(await readD1ChoreNotificationFocus(parent,'chore-read-visible-parent',racing)===null&&!await renewD1ChoreReadOwner(parent,db),'authority changed during private focus invalidates the captured read')
-  return{visibleCapAfter240Hidden:true,evidenceRetained:true,scopedDatePolicy:true,profileBatch61:true,compositeRelationBatch61:true,foreignProfileRefusal:true,scheduledOncePolicy:true,streakMarkers:true,parentAndTeenFocus:true,hiddenAndForeignFocusRefusal:true,privateMetadataStrip:true,atomicOwnerRace:true,kidHomeReads:true,ownedPreparationCue:true}
+  return{visibleCapAfter240Hidden:true,evidenceRetained:true,scopedDatePolicy:true,profileBatch61:true,compositeRelationBatch61:true,foreignProfileRefusal:true,scheduledOncePolicy:true,streakMarkers:true,parentAndTeenFocus:true,hiddenAndForeignFocusRefusal:true,privateMetadataStrip:true,atomicOwnerRace:true,kidHomeReads:true,ownedPreparationCue:true,parentPreparationContext:true,nativePreparationSource:true,nativePreparationWrites:true,preparationPickers:true,preparationRecovery:true,profileRoutineCopy:true,preparationSourceRace:true,preparationStorageGuard:true,routineProvenance:true}
  }catch(cause){throw new Error(`${stage}: ${cause instanceof Error?cause.stack:"unknown fixture failure"}`)}
 }

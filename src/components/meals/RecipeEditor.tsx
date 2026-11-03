@@ -19,6 +19,8 @@ import type { ReviewReceiptState } from "@/lib/review-document-store";
 import type { RecipeOption } from "./RecipePicker";
 import type { RecipeDetailData } from "./RecipeDetail";
 
+import { recipeIngredientDraft } from "@/lib/recipe-ingredient-draft";
+
 interface IngredientDraft {
   key: number;
   clientId?: string;
@@ -43,6 +45,8 @@ function toMinutes(value: string): number | null | "invalid" {
  * Exported for tests.
  */
 export type RecipeEditorProps = {
+  /** Explicit owning workflow action; defaults to saving only the recipe. */
+  submitLabel?: string;
   expectedRecipeOwner?: import("@/lib/recipe-owner-contract").RecipeOwner;
   onOwnerHold?: () => void;
   recoveryIdentity?: { userId: string; familyId: string };
@@ -50,6 +54,7 @@ export type RecipeEditorProps = {
   onCreated?: (recipe: RecipeOption & { source_url?: string | null }) => void;
   initialRecipe?: RecipeDetailData;
   initialDraft?: {
+    ingredientLines?: string[];
     source_url?: string;
     source_copy?: boolean;
     servings?: number | null;
@@ -87,6 +92,7 @@ export function RecipeEditor(props: RecipeEditorProps) {
 }
 
 function RecipeEditorForm({
+  submitLabel,
   expectedRecipeOwner,
   onOwnerHold,
   onCreated,
@@ -115,7 +121,7 @@ function RecipeEditorForm({
   const baseId = React.useId();
   const titleRef = React.useRef<HTMLInputElement>(null);
   const nextKey = React.useRef(
-    initialOwnedDraft?.lines.length ?? initialRecipe?.ingredients.length ?? 1,
+    initialOwnedDraft?.lines.length ?? initialRecipe?.ingredients.length ?? (initialDraft?.ingredientLines?.length || 1),
   );
   const [title, setTitle] = React.useState(
     initialOwnedDraft?.title ??
@@ -182,7 +188,9 @@ function RecipeEditorForm({
             ingredientId: line.ingredient.id,
             originalName: line.ingredient.name,
           }))
-        : [{ key: 0, name: "", amount: "1", unit: "", note: "" }],
+        : initialDraft?.ingredientLines?.length
+          ? initialDraft.ingredientLines.map((line, key) => ({ key, ...recipeIngredientDraft(line) }))
+          : [{ key: 0, name: "", amount: "1", unit: "", note: "" }],
   );
   const originalLines = React.useRef(lines);
   const sourceUrl = initialOwnedDraft
@@ -1091,7 +1099,7 @@ function RecipeEditorForm({
           onClick={() => void submit()}
           className="btn-tinted flex-1 min-h-[44px]"
         >
-          {saving ? text("saving") : text("saveRecipe")}
+          {saving ? text("saving") : (submitLabel ?? text("saveRecipe"))}
         </button>
       </div>
     </fieldset>

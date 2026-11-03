@@ -432,6 +432,24 @@ for (const locale of ["en", "es"] as const) {
         await dialog
           .getByLabel(editorText.description)
           .fill("Draft description retained while the save is pending.");
+        // Imported unquantified ingredients must be reviewed rather than guessed.
+        await expect(
+          dialog
+            .getByRole("group", {
+              name: editorText.ingredientGroup.replace("{number}", "2"),
+              exact: true,
+            })
+            .getByLabel(editorText.amount, { exact: true }),
+        ).toHaveValue("");
+        await dialog
+          .getByRole("button", {
+            name: editorText.removeIngredient.replace("{number}", "2"),
+            exact: true,
+          })
+          .click();
+        await expect(
+          dialog.getByLabel(editorText.method, { exact: true }),
+        ).toHaveValue(/Salt to taste/);
         await expectTargets(page, dialog);
         await expectNoSeriousAxe(page, info, `${locale}-editor-before-save`);
 

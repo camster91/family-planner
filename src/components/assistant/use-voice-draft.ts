@@ -40,14 +40,21 @@ export function useVoiceDraft(
   const stop = React.useCallback(() => {
     if (deadline.current !== null) clearTimeout(deadline.current);
     deadline.current = null;
-    if (recognition.current) {
-      recognition.current.onresult = null;
-      recognition.current.onerror = null;
-      recognition.current.onend = null;
-      recognition.current.abort();
-    }
+    const active = recognition.current;
     recognition.current = null;
     setListening(false);
+    if (active) {
+      active.onresult = null;
+      active.onerror = null;
+      active.onend = null;
+      // Some browsers throw if recognition has already ended. Retire local
+      // callbacks first so cleanup cannot keep a stale listening session alive.
+      try {
+        active.abort();
+      } catch {
+        /* Already stopped or unavailable. */
+      }
+    }
   }, []);
   React.useEffect(() => {
     if (!enabled) stop();
@@ -78,7 +85,13 @@ export function useVoiceDraft(
       errorRef.current("voiceUnavailableError");
       return;
     }
-    const r = new Constructor();
+    let r: Recognition;
+    try {
+      r = new Constructor();
+    } catch {
+      errorRef.current("voiceStartFailed");
+      return;
+    }
     recognition.current = r;
     r.lang = language || navigator.language || "en-US";
     r.continuous = false;
@@ -90,12 +103,17 @@ export function useVoiceDraft(
         .map((row) => row[0]?.transcript ?? "")
         .join(" ")
         .trim();
+      stop();
       if (text) textRef.current(text.slice(0, 2000));
+      else errorRef.current("voiceNoInput");
     };
     r.onerror = (e) => {
       if (recognition.current !== r) return;
+      stop();
       errorRef.current(
-        e.error === "not-allowed" ? "voiceDenied" : "voiceNoInput",
+        ["not-allowed", "service-not-allowed"].includes(e.error)
+          ? "voiceDenied"
+          : "voiceNoInput",
       );
     };
     r.onend = () => {
@@ -107,19 +125,25 @@ export function useVoiceDraft(
     };
     try {
       r.start();
+      // A browser may synchronously end or fail during start().
+      if (recognition.current !== r) return;
       setListening(true);
-      if (maxListenMs !== undefined)
-        deadline.current = setTimeout(
-          () => {
-            if (recognition.current !== r) return;
-            stop();
-            errorRef.current("voiceNoInput");
-          },
-          Math.max(
-            1000,
-            Math.min(30000, Number.isFinite(maxListenMs) ? maxListenMs : 20000),
+      deadline.current = setTimeout(
+        () => {
+          if (recognition.current !== r) return;
+          stop();
+          errorRef.current("voiceNoInput");
+        },
+        Math.max(
+          1000,
+          Math.min(
+            30000,
+            typeof maxListenMs === "number" && Number.isFinite(maxListenMs)
+              ? maxListenMs
+              : 20000,
           ),
-        );
+        ),
+      );
     } catch {
       stop();
       errorRef.current("voiceStartFailed");

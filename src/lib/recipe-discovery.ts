@@ -213,6 +213,14 @@ export function extractRecipeLinks(
         link.password
       )
         continue;
+      // Publisher navigation collections are not recipes. They often contain
+      // nested Recipe teasers but no ingredients or directions of their own.
+      if (
+        /\/recipes?\/(?:collection|collections|category|categories)(?:\/|$)/i.test(
+          link.pathname,
+        )
+      )
+        continue;
       if (!(
         /\/recipes?\/[^/]+/.test(link.pathname) ||
         /-recipe(?:-\d+)?$/.test(link.pathname)

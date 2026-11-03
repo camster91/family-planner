@@ -244,7 +244,10 @@ export function useFoodPlanningSession(onSaved: () => void) {
       }, 1000);
     return () => clearTimeout(timer);
   }, [draft, busy, flush, issue, failed]);
-  async function load() {
+  async function load(initial?: {
+    day: string;
+    mode: FoodEditorDraft["mode"];
+  }) {
     await perform(async (current) => {
       setPreview(null);
       setReview(null);
@@ -276,6 +279,11 @@ export function useFoodPlanningSession(onSaved: () => void) {
           ? foodDraftPayload.parse(JSON.parse(local.current.body)).draft
           : null,
       );
+      // A deliberate new-plan entry already supplies the date and mode. Seed
+      // only an empty journal; existing drafts and uncertain saves take priority.
+      if (initial && next.enabled && entries.length === 0) {
+        await createDraft(next, initial.day, initial.mode, current);
+      }
     });
   }
   function change(next: FoodEditorDraft, keepPreview = false) {
@@ -300,30 +308,40 @@ export function useFoodPlanningSession(onSaved: () => void) {
     setReview(null);
     setIssue(null);
   }
+  async function createDraft(
+    ctx: FoodRecoveryContext,
+    day: string,
+    mode: FoodEditorDraft["mode"],
+    current: () => boolean,
+  ) {
+    if (!store.current || local.current)
+      throw new Error("Food draft already exists");
+    const value = newFoodDraft(
+        day,
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+        mode,
+      ),
+      entry = foodDraftEntry.parse({
+        kind: "local-food-draft",
+        key: newIdempotencyKey(),
+        body: JSON.stringify({
+          userId: ctx.userId,
+          familyId: ctx.familyId,
+          draft: value,
+        }),
+      });
+    await store.current.stage(entry);
+    if (!current()) return;
+    local.current = entry;
+    showDraft(value);
+    await synchronize(false);
+  }
   async function start(day: string, mode: FoodEditorDraft["mode"]) {
     await perform(async (current) => {
       const ctx = await fresh();
       if (!ctx.enabled || !store.current || local.current)
         throw new Error("Food editing paused");
-      const value = newFoodDraft(
-          day,
-          Intl.DateTimeFormat().resolvedOptions().timeZone,
-          mode,
-        ),
-        entry = foodDraftEntry.parse({
-          kind: "local-food-draft",
-          key: newIdempotencyKey(),
-          body: JSON.stringify({
-            userId: ctx.userId,
-            familyId: ctx.familyId,
-            draft: value,
-          }),
-        });
-      await store.current.stage(entry);
-      if (!current()) return;
-      local.current = entry;
-      showDraft(value);
-      await synchronize(false);
+      await createDraft(ctx, day, mode, current);
     });
   }
   async function previewDraft() {

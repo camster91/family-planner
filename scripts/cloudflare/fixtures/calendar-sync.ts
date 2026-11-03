@@ -88,5 +88,53 @@ export async function testCalendarSync(db: D1Store) {
     try { await db.prepare(`UPDATE "Event" SET ${assignment} WHERE id='sync-history'`).run() } catch { refused = true }
     check(refused, 'integer bounded event epoch')
   }
-  return { workerPrivateAddressRefused: true, initialImport: true, identityAndEpoch: true, unchanged: true, conditional304: true, invalidFeedPreserved: true, truncatedPreserved: true, atomicStatusRollback: true, revokedDuringFetch: true, changedSource: true, historyAndHouseholdIsolation: true, boundedLargeImport: 600, staleSelection: true }
+  // Exercise parsing and native D1 reconciliation together across both Toronto
+  // clock changes. These are fabricated feeds, never provider requests.
+  for (const fixture of [
+    { id: 'spring', now: '2026-03-01T12:00:00Z', start: '20260301', middle: '20260308', last: '20260315', moved: '20260309',
+      expected: ['2026-03-01T14:00:00.000Z', '2026-03-08T13:00:00.000Z', '2026-03-15T13:00:00.000Z'], movedUtc: '2026-03-09T15:00:00.000Z' },
+    { id: 'fall', now: '2026-10-25T12:00:00Z', start: '20261025', middle: '20261101', last: '20261108', moved: '20261102',
+      expected: ['2026-10-25T13:00:00.000Z', '2026-11-01T14:00:00.000Z', '2026-11-08T14:00:00.000Z'], movedUtc: '2026-11-02T16:00:00.000Z' },
+  ]) {
+    const id = `sync-dst-${fixture.id}`
+    const uid = `dst-${fixture.id}@fixture.test`
+    await db.prepare(`INSERT INTO "CalendarSubscription" (id,family_id,created_by,name,url_enc) VALUES (?1,?2,?3,'DST fixture',?4)`)
+      .bind(id, actor.familyId, actor.userId, encryptSecret('https://calendar.example.test/dst')).run()
+    const master = ['BEGIN:VEVENT', `UID:${uid}`, `DTSTART;TZID=America/Toronto:${fixture.start}T090000`,
+      `DTEND;TZID=America/Toronto:${fixture.start}T100000`, 'RRULE:FREQ=WEEKLY;COUNT=3', 'SUMMARY:Family activity', 'END:VEVENT']
+    const wire = (events: string[]) => ['BEGIN:VCALENDAR', 'VERSION:2.0', ...events, 'END:VCALENDAR', ''].join('\r\n')
+    const run = (events: string[]) => syncD1CalendarSubscription(id, actor.familyId,
+      options(wire(events), { now: new Date(fixture.now), timeZone: 'America/Toronto' }), db)
+    type DstRow = { id: string; start_time: number; end_time: number; source_occurrence_start: number }
+    const rows = async () => (await db.prepare(`SELECT id,start_time,end_time,source_occurrence_start FROM "Event"
+      WHERE family_id=?1 AND source_subscription_id=?2 ORDER BY source_occurrence_start`).bind(actor.familyId, id).all<DstRow>()).results
+    const initial = await run(master)
+    const before = await rows()
+    check(initial?.created === 3 && before.length === 3, `${fixture.id}: exactly three occurrences`)
+    check(JSON.stringify(before.map(row => new Date(row.start_time).toISOString())) === JSON.stringify(fixture.expected), `${fixture.id}: Toronto wall time preserved`)
+    check(before.every(row => row.end_time - row.start_time === 3600000), `${fixture.id}: duration preserved`)
+    const repeat = await run(master)
+    check(repeat?.created === 0 && repeat.updated === 0 && repeat.deleted === 0 &&
+      JSON.stringify(await rows()) === JSON.stringify(before), `${fixture.id}: repeated sync retains all identities`)
+    const exceptions = [...master,
+      'BEGIN:VEVENT', `UID:${uid}`, `RECURRENCE-ID;TZID=America/Toronto:${fixture.middle}T090000`,
+      `DTSTART;TZID=America/Toronto:${fixture.moved}T110000`, `DTEND;TZID=America/Toronto:${fixture.moved}T120000`,
+      'SUMMARY:Moved family activity', 'END:VEVENT',
+      'BEGIN:VEVENT', `UID:${uid}`, `RECURRENCE-ID;TZID=America/Toronto:${fixture.last}T090000`,
+      `DTSTART;TZID=America/Toronto:${fixture.last}T090000`, 'STATUS:CANCELLED', 'END:VEVENT']
+    const changed = await run(exceptions)
+    const after = await rows()
+    check(changed?.updated === 1 && changed.deleted === 1 && changed.created === 0 && after.length === 2,
+      `${fixture.id}: move updates and cancellation removes only its occurrence`)
+    check(after[0].id === before[0].id && after[1].id === before[1].id &&
+      after[1].source_occurrence_start === before[1].source_occurrence_start &&
+      new Date(after[1].start_time).toISOString() === fixture.movedUtc, `${fixture.id}: moved occurrence keeps original identity`)
+    const replay = await run(exceptions)
+    check(replay?.created === 0 && replay.updated === 0 && replay.deleted === 0, `${fixture.id}: exception replay is idempotent`)
+    const cancelled = await run(master.map(line => line === 'END:VEVENT' ? 'STATUS:CANCELLED\r\nEND:VEVENT' : line))
+    check(cancelled?.deleted === 2 && (await rows()).length === 0, `${fixture.id}: cancelled series removes remaining instances`)
+  }
+  check((await db.prepare(`SELECT id FROM "Event" WHERE id IN ('sync-history','sync-local','sync-foreign-event')`).all()).results.length === 3,
+    'DST reconciliation leaves unrelated history, manual and foreign events unchanged')
+  return { torontoDstRecurrence: ["spring", "fall"], movedIdentityPreserved: true, occurrenceAndSeriesCancellation: true, exceptionReplay: true, workerPrivateAddressRefused: true, initialImport: true, identityAndEpoch: true, unchanged: true, conditional304: true, invalidFeedPreserved: true, truncatedPreserved: true, atomicStatusRollback: true, revokedDuringFetch: true, changedSource: true, historyAndHouseholdIsolation: true, boundedLargeImport: 600, staleSelection: true }
 }

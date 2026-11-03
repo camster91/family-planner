@@ -1,3 +1,13 @@
+// Gemini is OFF for this release (#144). These cases cover the retained,
+// not-yet-approved path, so they opt in explicitly; the off cases opt out.
+let mockGeminiApproved = true;
+jest.mock("@/lib/gemini-policy", () => {
+  const actual = jest.requireActual("@/lib/gemini-policy");
+  return { ...actual, geminiProviderApproved: () => mockGeminiApproved };
+});
+jest.mock("@/lib/saved-recipe-source", () => ({
+  findSavedRecipeSource: jest.fn(async () => null),
+}));
 jest.mock(
   "next/server",
   () => require("@/__tests__/helpers/two-household").nextServerMock,
@@ -176,59 +186,180 @@ it("refuses unsupported all-source payloads and oversize queries before publishe
 });
 
 // Authority-wait regression source authored UNRUN; no provider traffic executed.
-it.each([['preview', 'family_id', 'family-B'], ['discover', 'family_id', 'family-B'], ['preview', 'role', 'child'], ['discover', 'role', 'teen'], ['preview', 'token_version', 1], ['discover', 'token_version', 1]])('refuses %s results after %s changes during a publisher wait', async (mode, field, value) => {
+it.each([
+  ["preview", "family_id", "family-B"],
+  ["discover", "family_id", "family-B"],
+  ["preview", "role", "child"],
+  ["discover", "role", "teen"],
+  ["preview", "token_version", 1],
+  ["discover", "token_version", 1],
+])(
+  "refuses %s results after %s changes during a publisher wait",
+  async (mode, field, value) => {
+    mockFetch.mockImplementation(async () => {
+      db.find("user", "parent-a")![field] = value;
+      return {
+        notModified: false,
+        body: '<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup"}</script><a href="/recipes/soup">Fixture soup</a>',
+      };
+    });
+    const response = await (mode === "preview" ? POST : discover)(
+      req({
+        as: "parentA",
+        method: "POST",
+        body:
+          mode === "preview"
+            ? { url: "https://example.org/soup" }
+            : { query: "rice", source: "BBC Good Food" },
+      }),
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "RECIPE_SCOPE_CHANGED",
+    });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(db.writes).toHaveLength(0);
+  },
+);
+it("refuses preview when Meals becomes disabled during the publisher wait", async () => {
   mockFetch.mockImplementation(async () => {
-    db.find('user', 'parent-a')![field] = value;
-    return { notModified: false, body: '<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup"}</script><a href="/recipes/soup">Fixture soup</a>' };
+    (featureGate as jest.Mock).mockResolvedValue(
+      new (require("next/server").NextResponse)("", { status: 403 }),
+    );
+    return {
+      notModified: false,
+      body: '<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup"}</script>',
+    };
   });
-  const response = await (mode === 'preview' ? POST : discover)(req({ as: 'parentA', method: 'POST', body: mode === 'preview' ? { url: 'https://example.org/soup' } : { query: 'rice', source: 'BBC Good Food' } }));
-  expect(response.status).toBe(409);
-  expect(await response.json()).toMatchObject({ code: 'RECIPE_SCOPE_CHANGED' });
-  expect(response.headers.get('cache-control')).toBe('private, no-store');
-  expect(mockFetch).toHaveBeenCalledTimes(1);
-  expect(db.writes).toHaveLength(0);
-});
-it('refuses preview when Meals becomes disabled during the publisher wait', async () => {
-  mockFetch.mockImplementation(async () => {
-    (featureGate as jest.Mock).mockResolvedValue(new (require('next/server').NextResponse)('', { status: 403 }));
-    return { notModified: false, body: '<script type="application/ld+json">{"@type":"Recipe","name":"Fixture soup"}</script>' };
-  });
-  const response = await POST(req({ as: 'parentA', method: 'POST', body: { url: 'https://example.org/soup' } }));
+  const response = await POST(
+    req({
+      as: "parentA",
+      method: "POST",
+      body: { url: "https://example.org/soup" },
+    }),
+  );
   expect(response.status).toBe(403);
   expect(mockFetch).toHaveBeenCalledTimes(1);
   expect(db.writes).toHaveLength(0);
 });
-it('does not contact a publisher after the original role changes during rate limiting', async () => {
+it("does not contact a publisher after the original role changes during rate limiting", async () => {
   (checkRateLimit as jest.Mock).mockImplementationOnce(async () => {
-    db.find('user', 'parent-a')!.role = 'child';
+    db.find("user", "parent-a")!.role = "child";
     return { allowed: true };
   });
-  const response = await POST(req({ as: 'parentA', method: 'POST', body: { url: 'https://example.org/soup' } }));
+  const response = await POST(
+    req({
+      as: "parentA",
+      method: "POST",
+      body: { url: "https://example.org/soup" },
+    }),
+  );
   expect(response.status).toBe(409);
   expect(mockFetch).not.toHaveBeenCalled();
 });
 
 // Authored UNRUN: optional owner continuity rejects before outbound traffic.
-it.each([['preview', POST, { url: 'https://example.org/soup' }],
-  ['discover', discover, { query: 'soup', source: 'BBC Good Food' }]] as const)(
-  'refuses a foreign expected %s owner before publisher requests', async (_kind, handle, body) => {
-    const response = await handle(req({ as: 'parentA', method: 'POST', body, headers: {
-      'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-b', familyId: 'family-B', role: 'parent', generation: 0 }),
-    } }));
+it.each([
+  ["preview", POST, { url: "https://example.org/soup" }],
+  ["discover", discover, { query: "soup", source: "BBC Good Food" }],
+] as const)(
+  "refuses a foreign expected %s owner before publisher requests",
+  async (_kind, handle, body) => {
+    const response = await handle(
+      req({
+        as: "parentA",
+        method: "POST",
+        body,
+        headers: {
+          "X-Herewoven-Recipe-Owner": JSON.stringify({
+            protocol: "herewoven.recipe-owner.v1",
+            actorId: "parent-b",
+            familyId: "family-B",
+            role: "parent",
+            generation: 0,
+          }),
+        },
+      }),
+    );
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } });
+    expect(await response.json()).toEqual({
+      error: { code: "RECIPE_OWNER_CHANGED" },
+    });
     expect(mockFetch).not.toHaveBeenCalled();
     expect(db.writes).toHaveLength(0);
-  });
+  },
+);
 
 // Authored UNRUN: preview continuity also applies when obtaining recipe review context.
-it('refuses a different original session before returning recipe review context', async () => {
-  const { GET } = await import('@/app/api/review-documents/context/route');
-  const response = await GET(req({ as: 'parentA', path: '/api/review-documents/context', query: { domain: 'recipe' }, headers: {
-    'X-Herewoven-Recipe-Owner': JSON.stringify({ protocol: 'herewoven.recipe-owner.v1', actorId: 'parent-a', familyId: 'family-A', role: 'parent', generation: 99 }),
-  } }));
+it("refuses a different original session before returning recipe review context", async () => {
+  const { GET } = await import("@/app/api/review-documents/context/route");
+  const response = await GET(
+    req({
+      as: "parentA",
+      path: "/api/review-documents/context",
+      query: { domain: "recipe" },
+      headers: {
+        "X-Herewoven-Recipe-Owner": JSON.stringify({
+          protocol: "herewoven.recipe-owner.v1",
+          actorId: "parent-a",
+          familyId: "family-A",
+          role: "parent",
+          generation: 99,
+        }),
+      },
+    }),
+  );
   expect(response.status).toBe(409);
-  expect(await response.json()).toEqual({ error: { code: 'RECIPE_OWNER_CHANGED' } });
+  expect(await response.json()).toEqual({
+    error: { code: "RECIPE_OWNER_CHANGED" },
+  });
   expect(db.writes).toHaveLength(0);
   expect(mockFetch).not.toHaveBeenCalled();
+});
+
+it("offers a household source match before publisher egress only when opted in", async () => {
+  const { findSavedRecipeSource } = require("@/lib/saved-recipe-source");
+  const saved = {
+    id: "saved-a",
+    title: "Saved soup",
+    prep_time: 5,
+    cook_time: 20,
+    servings: 4,
+    source_url: "https://example.org/soup",
+  };
+  findSavedRecipeSource.mockResolvedValueOnce(saved);
+  const response = await POST(
+    req({
+      as: "parentA",
+      method: "POST",
+      body: { url: "https://example.org/soup", preferSaved: true },
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ existingRecipe: saved });
+  expect(findSavedRecipeSource).toHaveBeenCalledWith(
+    "family-A",
+    "https://example.org/soup",
+  );
+  expect(mockFetch).not.toHaveBeenCalled();
+  expect(db.writes).toHaveLength(0);
+});
+
+jest.mock('@/lib/google-recipe-discovery-server',()=>({discoverGoogleRecipes:jest.fn(async()=>new Response(JSON.stringify({results:[],source:'Google'}),{status:200}))}));
+it('only opts compatible discovery callers into configured Google search',async()=>{
+ const {discoverGoogleRecipes}=await import('@/lib/google-recipe-discovery-server');
+ const prior=process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY;
+ try {
+  process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY='1';
+  const legacy=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all'}}));
+  expect(legacy.status).toBe(200);expect(discoverGoogleRecipes).not.toHaveBeenCalled();
+  const modern=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all',preferGrounded:true}}));
+  expect(modern.status).toBe(200);expect(discoverGoogleRecipes).toHaveBeenCalledTimes(1);
+  expect(jest.mocked(discoverGoogleRecipes).mock.calls[0][1]).toMatchObject({familyId:'family-A',actorId:'parent-a'});
+  // #144: with Gemini off, a grounded preference falls back to the fixed sources.
+  mockGeminiApproved=false;
+  const off=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all',preferGrounded:true}}));
+  expect(off.status).toBe(200);expect(discoverGoogleRecipes).toHaveBeenCalledTimes(1);
+ } finally {mockGeminiApproved=true;if(prior===undefined)delete process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY;else process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY=prior;}
 });

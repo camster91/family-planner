@@ -1,3 +1,5 @@
+import { AI_USAGE_PRICING_HEADER, AI_USAGE_PRICING_PROTOCOL } from "@/lib/ai-usage-contract";
+import { withGeminiRecipeDefaults, defaultGeminiRecipePricing } from "@/lib/gemini-recipe-defaults";
 import { readFoodAiFeedbackCounts } from "@/lib/food-planning/ai-feedback";
 import { readD1FoodAiFeedbackCounts } from "@/lib/cloudflare/food-ai-feedback";
 import { NextRequest, NextResponse } from "next/server";
@@ -182,9 +184,10 @@ async function run(request: NextRequest, write: boolean) {
             process.env.FAMILY_AI_PROVIDER_DISABLED === "1" ||
             !saved.policy.enabled,
           revision: saved.revision,
-          policy: saved.policy,
-          pricingCurrent: Boolean(
-            config && saved.pricedConfigHash === aiConfigHash(config),
+          policy: config ? withGeminiRecipeDefaults(saved.policy, config) : saved.policy,
+          ...(request.headers.get(AI_USAGE_PRICING_HEADER) === AI_USAGE_PRICING_PROTOCOL ? { managedPricing: Boolean(config && !process.env.FAMILY_GOOGLE_RECIPE_SEARCH_PRICING && defaultGeminiRecipePricing(config)) } : {}),
+    pricingCurrent: Boolean(
+            config && (defaultGeminiRecipePricing(config) || saved.pricedConfigHash === aiConfigHash(config)),
           ),
           configVersion: config ? aiConfigHash(config) : null,
           suggestionFeedback:
@@ -335,9 +338,10 @@ async function runD1(
       process.env.FAMILY_AI_PROVIDER_DISABLED === "1" ||
       !saved.policy.enabled,
     revision: saved.revision,
-    policy: saved.policy,
+    policy: config ? withGeminiRecipeDefaults(saved.policy, config) : saved.policy,
+    ...(request.headers.get(AI_USAGE_PRICING_HEADER) === AI_USAGE_PRICING_PROTOCOL ? { managedPricing: Boolean(config && !process.env.FAMILY_GOOGLE_RECIPE_SEARCH_PRICING && defaultGeminiRecipePricing(config)) } : {}),
     pricingCurrent: Boolean(
-      config && saved.pricedConfigHash === aiConfigHash(config),
+      config && (defaultGeminiRecipePricing(config) || saved.pricedConfigHash === aiConfigHash(config)),
     ),
     configVersion: config ? aiConfigHash(config) : null,
     suggestionFeedback:

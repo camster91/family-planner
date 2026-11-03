@@ -8,6 +8,9 @@
  * enough XP.
  */
 import { randomUUID } from "node:crypto";
+import { notificationDeliverySelect, notificationDeliveryDecision } from "@/lib/notification-delivery-policy";
+import { rewardNotificationDestination } from "@/lib/notification-destination";
+import { prepareD1NotificationRow } from "./notification-delivery";
 import type { EffectResult } from "@/lib/idempotency";
 import type { AssistantProofActor } from "@/lib/assistant-source-proof";
 import { isFeatureEnabled, normalizeFeatures } from "@/lib/features";
@@ -130,6 +133,10 @@ export async function readD1Rewards(actor: D1RewardActor, options: RewardReadOpt
       ? encodeRewardCursor(actor.familyId, options.status ?? null, { created_at: dateValue((resultRows[resultRows.length - 1] as any).created_at)!, id: (resultRows[resultRows.length - 1] as any).id })
       : null;
   }
+  // The row query may outlive the original session/household/feature check.
+  // Never disclose its projection after authority has changed during that wait.
+  const renewed = await authorizedRead(actor, async () => true, store);
+  if (renewed.refusal) return renewed.refusal;
   return { status: 200, body };
 }
 
@@ -166,6 +173,8 @@ export async function readD1RewardNotificationFocus(
     reward.claimed_by === actor.userId;
   if (
     !visible ||
+    (status === "available" && !active) ||
+    !Number.isSafeInteger(reward.cost) || Number(reward.cost) < 0 ||
     !["available", "claimed", "approved", "redeemed"].includes(
       String(status),
     )
@@ -211,6 +220,29 @@ function commandSource(command: RewardActionCommand | undefined, row: any) {
   return null;
 }
 
+/** Read inside person-effect's witnessed plan; policy, membership and source
+ * are checked again by the same atomic batch. Receipt replay never runs this.
+ * This is in-app delivery, not asynchronous/provider event admission. */
+async function rewardNotices(db: D1ReadClient, actor: D1RewardActor,
+  audience: { kind: "others" } | { kind: "parents" } | { kind: "claimant"; id: string | null },
+  rewardId: string, title: string, message: string, now: Date,
+) {
+  const recipients = await db.user.findMany({
+    where: { family_id: actor.familyId,
+      ...(audience.kind === "others" ? { id: { not: actor.userId } } : audience.kind === "parents" ? { role: "parent" } : { id: audience.id ?? "" }),
+    },
+    select: { id: true, ...notificationDeliverySelect("reward") },
+    orderBy: { id: "asc" }, take: 101,
+  });
+  // Match the existing reward roster bound; never silently notify a partial set.
+  if (recipients.length > 100) throw new Error("Reward notification roster held");
+  const decisions = recipients.map(person => ({ id: person.id, policy: notificationDeliveryDecision(person, "reward", now) }));
+  return (session: Pick<D1Store, "prepare">) => decisions.flatMap(person => prepareD1NotificationRow(session, {
+    userId: person.id, familyId: actor.familyId, title, message, type: "reward",
+    actionUrl: rewardNotificationDestination(rewardId),
+  }, person.policy, now).statements);
+}
+
 export function createD1Reward(actor: D1RewardActor, input: { name: string; description?: string; cost: number; icon?: string }, key: string | null, database?: D1Store): Promise<NativePersonResult> {
   return executeD1PersonEffect({
     actor, action: "reward.create", input, key, database,
@@ -223,12 +255,15 @@ export function createD1Reward(actor: D1RewardActor, input: { name: string; desc
         family_id: actor.familyId, name: input.name, description: input.description?.trim() || null, cost: input.cost,
         icon: input.icon || "gift", status: "available", is_active: true, created_by: actor.userId, claimed_by: null,
         claimed_at: null, approved: false, approved_by: null, approved_at: null, redeemed_at: null, created_at: now };
+      const notifications = await rewardNotices(db, actor, { kind: "others" }, id,
+        "New Reward Available!", `${input.name} is now available for ${input.cost} points`, now);
       return {
         status: 200,
         body: { reward: rewardDto(row, creator, null) },
         effects: session => [
           d1WriteCheck(session, `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND family_id=?2 AND role=?3 AND token_version=?4)`, [actor.userId, actor.familyId, actor.role, actor.generation]),
           session.prepare(`INSERT INTO "Reward" (id,notification_generation,family_id,name,description,cost,icon,status,is_active,created_by,approved,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,'available',1,?8,0,?9)`).bind(id, generation, actor.familyId, input.name, input.description?.trim() || null, input.cost, input.icon || "gift", actor.userId, now.getTime()),
+          ...notifications(session),
         ],
       };
     },
@@ -273,6 +308,8 @@ export function claimD1Reward(actor: D1RewardActor, input: { rewardId: string },
       if (!Number.isSafeInteger(cost) || cost < 0) return failure(400, "Reward is not available");
       if (Number(user.xp ?? 0) < cost) return failure(400, "Not enough points for this reward");
       const now = new Date(), next = { ...current, status: "claimed", claimed_by: actor.userId, claimed_at: now };
+      const notifications = await rewardNotices(db, actor, { kind: "parents" }, input.rewardId,
+        `${user.name} claimed a reward!`, `${user.name} claimed "${current.name}" for ${cost} points.`, now);
       return {
         status: 200,
         body: { reward: rewardDto(next, (current as any).creator, user), xp: Number(user.xp) - cost },
@@ -283,6 +320,7 @@ export function claimD1Reward(actor: D1RewardActor, input: { rewardId: string },
           d1WriteCheck(session, "changes()=1"),
           session.prepare(`UPDATE "User" SET xp=xp-?1 WHERE id=?2 AND family_id=?3 AND role=?4 AND token_version=?5 AND xp>=?1`).bind(cost, actor.userId, actor.familyId, actor.role, actor.generation),
           d1WriteCheck(session, "changes()=1"),
+          ...notifications(session),
         ],
       };
     },
@@ -300,6 +338,8 @@ export function approveD1Reward(actor: D1RewardActor, input: { rewardId: string 
       if (mismatch) return mismatch;
       if (current.status !== "claimed") return failure(400, "Reward must be claimed before approval");
       const now = new Date(), next = { ...current, status: "redeemed", approved: true, approved_by: actor.userId, approved_at: now, redeemed_at: now };
+      const notifications = await rewardNotices(db, actor, { kind: "claimant", id: current.claimed_by }, input.rewardId,
+        "Reward Approved!", `Your parent approved "${current.name}". Enjoy your reward!`, now);
       return {
         status: 200,
         body: { reward: rewardDto(next, (current as any).creator, (current as any).claimer) },
@@ -308,6 +348,7 @@ export function approveD1Reward(actor: D1RewardActor, input: { rewardId: string 
           d1WriteCheck(session, `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND family_id=?2 AND role='parent' AND token_version=?3)`, [actor.userId, actor.familyId, actor.generation]),
           session.prepare(`UPDATE "Reward" SET status='redeemed',approved=1,approved_by=?3,approved_at=?4,redeemed_at=?4 WHERE id=?1 AND family_id=?2 AND status='claimed'${command ? " AND notification_generation=?5 AND (claimed_by=?6 OR (claimed_by IS NULL AND ?6 IS NULL))" : ""}`).bind(...(command ? [input.rewardId, actor.familyId, actor.userId, now.getTime(), command.sourceGeneration, command.expectedClaimantId] : [input.rewardId, actor.familyId, actor.userId, now.getTime()])),
           d1WriteCheck(session, "changes()=1"),
+          ...notifications(session),
         ],
       };
     },

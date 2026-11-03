@@ -6,6 +6,37 @@ Discovery, current-provider configuration/permission, household beta evidence an
 acceptance remain separate. No account/provider call, credential read/change,
 sync, calendar write, migration, scheduler or activation occurred in this pass.
 
+## Local native-D1 acceptance — 2026-11-03
+
+The current application parser and subscription writer were exercised together
+in disposable workerd/D1 with fabricated feeds and no external provider access.
+Both Toronto transitions (March 8 and November 1, 2026) preserve a weekly 09:00
+wall time, the expected UTC offsets and one-hour duration. Repeated imports keep
+all three row identities. Moving the middle occurrence to another day retains
+its original recurrence identity; cancelling the last deletes only that row.
+Replaying those exceptions makes no further changes, and cancelling the master
+removes the two remaining instances. Unrelated manual events, historical rows and
+another household's events remain intact.
+
+The same native fixture passed conditional 304 handling, malformed/truncated-feed
+preservation, atomic status/write rollback, access revocation during fetch, source
+replacement refusal and a 600-occurrence import with bounded D1 values. The
+subscription fixture also passed the concurrent ten-source limit, encrypted URL
+projection, teen URL privacy, foreign-household concealment and imported-only
+atomic removal. These checks are executable with:
+
+```sh
+node scripts/cloudflare/read-smoke.mjs --only=calendar-sync,calendar-subscriptions
+```
+
+Five focused parser/sync/HTTP/provider-adapter Jest suites also passed (126 tests).
+Provider responses in those tests are simulated. Logs are retained as
+`calendar-interop-*` in the sibling `artifacts/connected-family-features-20261103/`.
+This supersedes historical unrun wording only for the cases actually exercised;
+it does not establish live Google/Microsoft grants, Apple calendar behavior,
+physical-device/offline UI, household discovery, feed-export capacity or full
+#124 acceptance. No production integration or credentials changed.
+
 ## Unverified feed-format follow-through — 2026-10-24
 
 The existing read-only household ICS export now folds text and long RRULE

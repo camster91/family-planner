@@ -166,6 +166,8 @@ describe('Rewards idempotency', () => {
     expect(db.rows('reward').filter((row) => row.name === input.name)).toHaveLength(1)
     expect(writesTo('reward').filter((write) => write.op === 'create')).toHaveLength(1)
     expect(send).toHaveBeenCalledTimes(2)
+    const createdId = db.rows('reward').find(row => row.name === input.name)!.id
+    for (const [notice] of send.mock.calls) expect(notice.actionUrl).toBe(`/dashboard/rewards?focus=${createdId}`)
   })
 
   it('rejects a changed create body under the same key without a second row', async () => {

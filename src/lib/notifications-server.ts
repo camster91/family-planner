@@ -1,3 +1,4 @@
+import { choreNotificationDestination } from '@/lib/notification-destination'
 import { deliverNotification, type NotificationInput } from '@/lib/notification-delivery'
 import { logRouteError } from '@/lib/api-error'
 
@@ -38,6 +39,7 @@ export class NotificationServiceServer {
         title: 'Chore Completed!',
         message: `${assignee.name} completed "${chore.title}"`,
         type: 'chore',
+        actionUrl: choreNotificationDestination(chore.id),
       })
     }
 
@@ -48,6 +50,7 @@ export class NotificationServiceServer {
       title: 'Great Job!',
       message: `You completed "${chore.title}"`,
       type: 'reward',
+      actionUrl: choreNotificationDestination(chore.id),
     })
   }
 
@@ -58,6 +61,7 @@ export class NotificationServiceServer {
       title: 'New Chore Assigned',
       message: `${assignedBy.name} assigned you "${chore.title}" (due ${new Date(chore.due_date).toLocaleDateString()})`,
       type: 'chore',
+      actionUrl: choreNotificationDestination(chore.id),
     })
   }
 }

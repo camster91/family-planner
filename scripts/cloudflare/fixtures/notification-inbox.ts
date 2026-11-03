@@ -12,6 +12,19 @@ export async function testNotificationInbox(db: D1Store) {
   const delivered = await deliverD1Notification(input, now, db)
   check(delivered.delivered && delivered.quiet && delivered.notification.action_url === input.actionUrl && !delivered.notification.read, 'quiet notice retained with canonical output')
   const id = delivered.notification.id
+  // Exercise the actual native delivery reader, including SQLite booleans and
+  // saved IANA zones, rather than only the pure quiet-hours function.
+  await db.prepare(`UPDATE "User" SET quiet_hours_time_zone='America/Toronto',quiet_hours_start='01:00',quiet_hours_end='02:00' WHERE id='inbox-teen'`).run()
+  for (const [instant, expected] of [
+    ['2026-11-01T05:30:00Z', true], ['2026-11-01T06:30:00Z', true],
+    ['2026-11-01T07:00:00Z', false], ['2026-03-08T06:59:00Z', true],
+    ['2026-03-08T07:00:00Z', false],
+  ] as const) {
+    const result = await deliverD1Notification(input, new Date(instant), db)
+    check(result.delivered && result.quiet === expected, 'saved-zone DST delivery decision '+instant)
+    check((await mutateD1NotificationInbox(teen, { kind: 'delete', id: result.notification.id }, db)).status === 200, 'remove isolated DST fixture')
+  }
+  await db.prepare(`UPDATE "User" SET quiet_hours_time_zone='UTC',quiet_hours_start='22:00',quiet_hours_end='07:00' WHERE id='inbox-teen'`).run()
   const count = async () => (await db.prepare(`SELECT count(*) AS n FROM "Notification" WHERE user_id='inbox-teen'`).first<{ n: number }>())!.n
   await db.prepare(`UPDATE "User" SET notify_chores=0,notify_events=0,notify_messages=0 WHERE id='inbox-teen'`).run()
   for (const type of ['chore','reward','event','message'] as const) check(!(await deliverD1Notification({ ...input, type }, now, db)).delivered, 'muted category '+type)

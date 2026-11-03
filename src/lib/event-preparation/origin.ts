@@ -13,7 +13,7 @@ import { eventPreparationReady } from "./owner";
 import { eventPreparationStorageAvailable } from "./storage";
 import type { PreparationRoutineOrigins } from "./origin-contract";
 export const PREPARATION_COPY_ACTION = "preparation_routine_copied";
-const originFact = z
+export const preparationOriginFact = z
   .object({
     timeline: z.literal(1),
     actorKind: z.literal("person"),
@@ -41,7 +41,7 @@ export async function recordPreparationRoutineCopyInTx(
   origin: { stackId: string; sourceChoreId: string; occurrenceDay: string },
   now: Date,
 ) {
-  const metadata = originFact.parse({
+  const metadata = preparationOriginFact.parse({
     timeline: 1,
     actorKind: "person",
     target: { kind: "chore", id: choreId },
@@ -104,7 +104,7 @@ export async function readPreparationRoutineOrigins(
     ORDER BY c."id" LIMIT 300`;
   const accepted = new Map<
     string,
-    { origin: z.infer<typeof originFact>["routineCopy"]; copiedAt: string }
+    { origin: z.infer<typeof preparationOriginFact>["routineCopy"]; copiedAt: string }
   >();
   const allowed = new Set(ids);
   for (const row of rows) {
@@ -118,7 +118,7 @@ export async function readPreparationRoutineOrigins(
     )
       continue;
     try {
-      const parsed = originFact.parse(JSON.parse(row.metadata));
+      const parsed = preparationOriginFact.parse(JSON.parse(row.metadata));
       if (
         parsed.target.id !== row.chore_id ||
         parsed.routineCopy.sourceChoreId === row.chore_id

@@ -2,13 +2,15 @@
 import * as React from 'react'
 import { render, screen } from '@testing-library/react'
 import TodayBoardPage from '../page'
+import { readPreparationBacklinks } from '@/lib/event-preparation/discovery'
+jest.mock('@/lib/event-preparation/discovery', () => ({ readPreparationBacklinks: jest.fn(async () => ({})) }))
 
 jest.mock('next/server', () => ({ after: jest.fn() }))
-jest.mock('@/lib/supabase/server', () => ({ getServerUser: async () => ({ id: 'p' }) }))
+jest.mock('@/lib/supabase/server', () => ({ getServerActor: async () => ({ id: 'p', tokenVersion: 3 }) }))
 jest.mock('@/lib/prisma', () => ({ prisma: { user: { findUnique: async () => ({ role: 'parent', family_id: 'f' }) } } }))
 jest.mock('@/lib/calendar-import/sync', () => ({ refreshStaleSubscriptions: jest.fn() }))
 jest.mock('@/lib/recurringChores', () => ({ topUpHouseholdSeries: jest.fn() }))
-jest.mock('../board-snapshot', () => ({ loadTodayBoard: async () => ({ links: { calendar: null, chores: null }, chores: [] }) }))
+jest.mock('../board-snapshot', () => ({ loadTodayBoard: async () => ({ links: { calendar: '/dashboard/calendar', chores: '/dashboard/chores' }, chores: [] }) }))
 jest.mock('../home-summary-data', () => ({ loadHomeSummary: async () => ({ chores: [
   { id: 'own', assigneeId: 'p', status: 'pending' },
   { id: 'own-done', assigneeId: 'p', status: 'verified' },
@@ -33,4 +35,13 @@ it('puts household plans before optional setup so Today is content-first', async
   render(await TodayBoardPage({ searchParams: Promise.resolve({ mode: 'fridge' }) }))
   expect(screen.queryByTestId('summary')).toBeNull()
   expect(JSON.parse(screen.getByTestId('board').getAttribute('data-excluded')!)).toEqual([])
+})
+
+it('binds parent preparation links to the verified session and omits them in fridge mode', async () => {
+  jest.mocked(readPreparationBacklinks).mockClear()
+  await TodayBoardPage({ searchParams: Promise.resolve({}) })
+  expect(readPreparationBacklinks).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({userId:'p',familyId:'f',tokenVersion:3}))
+  jest.mocked(readPreparationBacklinks).mockClear()
+  await TodayBoardPage({ searchParams: Promise.resolve({mode:'fridge'}) })
+  expect(readPreparationBacklinks).not.toHaveBeenCalled()
 })

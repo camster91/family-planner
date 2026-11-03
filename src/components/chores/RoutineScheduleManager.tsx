@@ -416,6 +416,16 @@ export default function RoutineScheduleManager({
       )
         await clearDraft();
       if (!mounted.current || token !== epoch.current) return;
+      // Only a canonical confirmed receipt retires this exact local request.
+      // Failed storage/authority checks leave recovery available and block new writes.
+      await store.current!.dismiss(entry.key);
+      if (!mounted.current || token !== epoch.current) return;
+      setEntries((old) => old.filter((value) => value.key !== entry.key));
+      setReviews((old) => {
+        const next = { ...old };
+        delete next[entry.key];
+        return next;
+      });
       setEditorOpen(false);
       setControl(null);
       setNotice(t("saved"));
@@ -537,7 +547,7 @@ export default function RoutineScheduleManager({
   return (
     <section className="space-y-5 min-w-0">
       <Link
-        href="/dashboard/chores"
+        href="/dashboard/chores?view=routines"
         className="inline-flex min-h-[44px] items-center text-body text-label-secondary"
       >
         {t("return")}
@@ -723,7 +733,7 @@ export default function RoutineScheduleManager({
                   <p className="text-body text-label-secondary">
                     {t(row.state)}
                     {row.stepCount
-                      ? ` · ${t("stepsCount", { count: row.stepCount })}`
+                      ? ` · ${row.stepCount === 1 ? t("stepsCountOne") : t("stepsCount", { count: row.stepCount })}`
                       : ""}
                   </p>
                   {row.schedule && (
