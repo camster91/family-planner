@@ -821,7 +821,7 @@ try {
     host: "127.0.0.1",
     externalEgress: "denied",
     email: "off",
-    providerCalls: "disabled",
+    providerCalls: exerciseRecipeSearch ? "fabricated-google-only" : "disabled",
     profileSetup: exerciseProfileSetup ? "test-rollout-enabled" : "default",
   };
   if (seedSmoke) {
