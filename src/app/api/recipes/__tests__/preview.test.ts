@@ -338,3 +338,17 @@ it("offers a household source match before publisher egress only when opted in",
   expect(mockFetch).not.toHaveBeenCalled();
   expect(db.writes).toHaveLength(0);
 });
+
+jest.mock('@/lib/google-recipe-discovery-server',()=>({discoverGoogleRecipes:jest.fn(async()=>new Response(JSON.stringify({results:[],source:'Google'}),{status:200}))}));
+it('only opts compatible discovery callers into configured Google search',async()=>{
+ const {discoverGoogleRecipes}=await import('@/lib/google-recipe-discovery-server');
+ const prior=process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY;
+ try {
+  process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY='1';
+  const legacy=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all'}}));
+  expect(legacy.status).toBe(200);expect(discoverGoogleRecipes).not.toHaveBeenCalled();
+  const modern=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all',preferGrounded:true}}));
+  expect(modern.status).toBe(200);expect(discoverGoogleRecipes).toHaveBeenCalledTimes(1);
+  expect(jest.mocked(discoverGoogleRecipes).mock.calls[0][1]).toMatchObject({familyId:'family-A',actorId:'parent-a'});
+ } finally {if(prior===undefined)delete process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY;else process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY=prior;}
+});

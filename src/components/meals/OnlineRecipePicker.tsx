@@ -123,7 +123,7 @@ export function OnlineRecipePicker({
           },
           body: JSON.stringify(
             kind === "search"
-              ? { query: query.trim(), source: "all" }
+              ? { query: query.trim(), source: "all", preferGrounded: true }
               : { url: link, preferSaved: true },
           ),
         },
