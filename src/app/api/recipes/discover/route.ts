@@ -66,11 +66,13 @@ async function discover(request: NextRequest) {
   if (
     input.data.preferGrounded === true &&
     input.data.source === "all" &&
-    process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "1"
+    process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY !== "0" &&
+    ["parent", "teen"].includes(original.role)
   ) {
     const { discoverGoogleRecipes } =
       await import("@/lib/google-recipe-discovery-server");
-    return discoverGoogleRecipes(request, original, input.data.query);
+    const grounded = await discoverGoogleRecipes(request, original, input.data.query);
+    if (grounded) return grounded;
   }
   const selected = recipeSources.filter(
     (source) =>

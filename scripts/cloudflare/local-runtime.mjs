@@ -95,7 +95,8 @@ if (!runtimeArchive) {
 const seedSmoke = process.argv.includes("--seed-smoke");
 const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
 // Explicitly fabricated, network-isolated provider exercise. Never use real keys.
-const exerciseRecipeSearch = process.argv.includes("--exercise-recipe-search");
+const exerciseGeminiSetup = process.argv.includes("--exercise-gemini-setup");
+const exerciseRecipeSearch = exerciseGeminiSetup || process.argv.includes("--exercise-recipe-search");
 const recipeFixtureConfig = {
   baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
   model: "gemini-3.8-flash",
@@ -460,6 +461,11 @@ function localMiniflareOptions(instance, workers) {
     worker.dev.outboundService = {
       type: "fetcher",
       handler: async (request) => {
+        if (exerciseGeminiSetup && request.method === "GET" &&
+            request.url === "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash" &&
+            request.headers.get("x-goog-api-key") === recipeFixtureConfig.apiKey) {
+          return Response.json({name: "models/gemini-3.8-flash"});
+        }
         if (exerciseRecipeSearch && request.method === "POST" &&
             request.url === "https://generativelanguage.googleapis.com/v1beta/interactions" &&
             request.headers.get("x-goog-api-key") === recipeFixtureConfig.apiKey) {
@@ -775,6 +781,11 @@ try {
         CAPTURE_AI_KEY: recipeFixtureConfig.apiKey,
         CAPTURE_AI_BASE_URL: recipeFixtureConfig.baseUrl,
         CAPTURE_AI_MODEL: recipeFixtureConfig.model,
+      } : {}),
+      ...(exerciseGeminiSetup ? {
+        CAPTURE_AI_SETTINGS_ENABLED: "1",
+        CAPTURE_AI_KEY: "",
+        FAMILY_GOOGLE_RECIPE_SEARCH_PRICING: "",
       } : {}),
     },
     assetRouting,

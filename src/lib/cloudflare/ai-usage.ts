@@ -1,3 +1,4 @@
+import { withGeminiRecipeDefaults } from "../gemini-recipe-defaults";
 import { reserveProviderCost, settleProviderCost } from "../ai-search-metering";
 import type { ProviderUsageStart } from "../ai-usage-contract";
 /** Native D1 AI usage reservations.  Prompts, provider replies and secrets
@@ -194,15 +195,15 @@ export async function reserveD1AiUsage(
   const saved = await readD1AiUsagePolicy(db, actor.familyId);
   if (!saved.policy.enabled) throw new AiUsageError("AI_PAUSED");
   const priced = saved.pricedConfigHash === aiConfigHash(config);
-  const active = priced
+  const active = withGeminiRecipeDefaults(priced
     ? saved.policy
     : {
         ...saved.policy,
         inputRateMicrousdPerMillion: null,
         outputRateMicrousdPerMillion: null,
-      };
+      }, config, now.getTime());
   const { reserved: reserve, searchPricing } = reserveProviderCost(input, active, config.model);
-  if (saved.policy.monthlyBudgetMicrousd !== null && reserve === null)
+  if (active.monthlyBudgetMicrousd !== null && reserve === null)
     throw new AiUsageError("AI_PRICE_UNAVAILABLE");
   const id = randomUUID();
   const store = sessionOf(db);
@@ -234,10 +235,10 @@ export async function reserveD1AiUsage(
         AND (SELECT COUNT(*) FROM "AiUsageRequest" r WHERE r.family_id=?1 AND r.created_at>=?15) < policy.daily_limit
         AND (SELECT COUNT(*) FROM "AiUsageRequest" r WHERE r.user_id=?3 AND r.created_at>=?15) < policy.user_daily_limit
         AND (
-          policy.monthly_budget_microusd IS NULL OR
+          ?17 IS NULL OR
           (
             (SELECT COUNT(*) FROM "AiUsageRequest" r WHERE r.family_id=?1 AND r.created_at>=?16 AND r.estimated_microusd IS NULL AND r.reserved_microusd IS NULL)=0
-            AND CAST(COALESCE((SELECT SUM(COALESCE(r.estimated_microusd,r.reserved_microusd,0)) FROM "AiUsageRequest" r WHERE r.created_at>=?16 AND (r.family_id=?1 OR r.user_id=?3)),0) AS INTEGER) + COALESCE(?8,0) <= policy.monthly_budget_microusd
+            AND CAST(COALESCE((SELECT SUM(COALESCE(r.estimated_microusd,r.reserved_microusd,0)) FROM "AiUsageRequest" r WHERE r.created_at>=?16 AND (r.family_id=?1 OR r.user_id=?3)),0) AS INTEGER) + COALESCE(?8,0) <= ?17
           )
         )
       RETURNING id`,
@@ -259,6 +260,7 @@ export async function reserveD1AiUsage(
       family?.capture_ai_model ?? null,
       window.day,
       window.month,
+      sqlMicros(active.monthlyBudgetMicrousd),
     )
     .first<{ id: string }>();
   if (!inserted) {

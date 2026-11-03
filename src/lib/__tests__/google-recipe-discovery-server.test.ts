@@ -12,7 +12,7 @@ jest.mock("../prisma", () => ({
 jest.mock("../storage-backend", () => ({ storageBackend: () => "postgres" }));
 jest.mock("../cloudflare/database", () => ({ getD1Database: jest.fn() }));
 jest.mock("../capture", () => ({
-  resolveCaptureConfig: jest.fn(() => ({ model: "fixture" })),
+  resolveCaptureConfig: jest.fn(() => ({ model: "fixture", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai" })),
 }));
 jest.mock("../google-recipe-search-config", () => ({
   approvedGoogleRecipePricing: jest.fn(() => ({ model: "fixture" })),
@@ -31,7 +31,7 @@ jest.mock("../recipe-read-authority", () => ({
 jest.mock("../device-route", () => ({
   refusePairedDevice: jest.fn(async () => null),
 }));
-import { discoverGoogleRecipes } from "../google-recipe-discovery-server";
+import { discoverGoogleRecipes as discoverGoogleRecipesOrFallback } from "../google-recipe-discovery-server";
 import { createAiUsageJob } from "../ai-usage-server";
 import { searchGoogleRecipes } from "../google-recipe-search";
 import { renewRecipeReadAuthority } from "../recipe-read-authority";
@@ -47,6 +47,11 @@ const original = {
 const request = new Request(
   "http://localhost/api/recipes/discover",
 ) as NextRequest;
+async function discoverGoogleRecipes(...args: Parameters<typeof discoverGoogleRecipesOrFallback>) {
+  const result = await discoverGoogleRecipesOrFallback(...args);
+  if (!result) throw new Error("Expected a Google response, not publisher fallback");
+  return result;
+}
 const meter = {
   observer: {},
   replyAllowed: jest.fn(async () => true),

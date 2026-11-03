@@ -1,3 +1,4 @@
+import { withGeminiRecipeDefaults } from "./gemini-recipe-defaults";
 import { reserveProviderCost, settleProviderCost } from "./ai-search-metering";
 import type { ProviderUsageStart } from "./ai-usage-contract";
 import { isAiUsageReady, isAiUsageAdopted } from "./ai-usage-gates";
@@ -170,17 +171,17 @@ export async function reserveAiUsage(
     );
     if (!policy.enabled) throw new AiUsageError("AI_PAUSED");
     const pricingCurrent = pricedConfigHash === aiConfigHash(config);
-    const activePricing = pricingCurrent
+    const activePricing = withGeminiRecipeDefaults(pricingCurrent
       ? policy
       : {
           ...policy,
           inputRateMicrousdPerMillion: null,
           outputRateMicrousdPerMillion: null,
-        };
+        }, config, now.getTime());
     // This is a conservative application estimate, not a provider billing cap.
     // Vision billing/tokenization may differ; unknown actuals retain reservation.
     const { reserved: reserve, searchPricing } = reserveProviderCost(input, activePricing, config.model);
-    if (policy.monthlyBudgetMicrousd !== null && reserve === null)
+    if (activePricing.monthlyBudgetMicrousd !== null && reserve === null)
       throw new AiUsageError("AI_PRICE_UNAVAILABLE");
     const rows = await tx.$queryRaw<
       Array<{
@@ -200,10 +201,10 @@ export async function reserveAiUsage(
     if (
       counts.family_day >= policy.dailyLimit ||
       counts.user_day >= policy.userDailyLimit ||
-      (policy.monthlyBudgetMicrousd !== null &&
+      (activePricing.monthlyBudgetMicrousd !== null &&
         (counts.unknown_cost > 0 ||
           BigInt(counts.month_cost) + BigInt(reserve!) >
-            BigInt(policy.monthlyBudgetMicrousd)))
+            BigInt(activePricing.monthlyBudgetMicrousd)))
     )
       throw new AiUsageError("AI_QUOTA_REACHED", 429);
     const id = randomUUID();

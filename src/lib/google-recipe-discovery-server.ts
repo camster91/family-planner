@@ -57,7 +57,8 @@ export async function discoverGoogleRecipes(
           },
         });
     const config = resolveCaptureConfig(family);
-    const pricing = config ? approvedGoogleRecipePricing(config) : null;
+    if (!config || !["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/openai"].includes(config.baseUrl)) return null;
+    const pricing = approvedGoogleRecipePricing(config);
     if (!family || !config || !pricing)
       return failure(
         503,

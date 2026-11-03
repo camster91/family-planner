@@ -1,5 +1,17 @@
 # Recipe-to-meal candidate review
 
+## Current revision — household Gemini setup (November 3)
+
+Cameron clarified that entering and saving a Gemini key in Settings should connect recipe discovery without a separate server-price approval. This revision supersedes the activation approach described in the earlier candidate audit below. PR #622 is draft; its older head passed Build & Test but six meal browser checks failed because they still follow the earlier form. Updated journeys are awaiting rerun.
+
+The current working revision adds a parent-only Gemini preset and bounded fixed-host model-metadata validation before storing the encrypted key. It rechecks household authority after the provider wait. Metadata validation is not proof that Google billing/search quota is enabled; real grounded search may still return a provider denial. No real Google key or paid generation was used in development.
+
+A maintained standard-rate catalog for Gemini 3.8 Flash supplies token and per-query estimates and a default US$5 monthly estimate limit, preserving existing lower limits and pauses. Rates were verified against https://aistudio.google.com/docs/pricing#gemini-3.8-flash on November 3; the catalog expires December 3 pending review. No shared Google free allowance is counted as a household entitlement. The atomic D1 admission query uses the effective limit, and the usage screen displays managed pricing instead of asking the family for token rates. Unknown outcomes retain reservations; this is an application estimate, not a provider-enforced billing cap.
+
+The candidate Cloudflare configuration enables the Family AI Settings entry and existing usage ledger gates; tables already exist in D1 migration 0005. It does not add a provider credential. `FAMILY_GOOGLE_RECIPE_SEARCH_READY=0` remains a kill switch; an explicit server pricing override remains supported. Clearing the family key restores publisher discovery unless a separately configured deployment fallback key exists. Verification of this new candidate, updated browser checks and a new exact artifact remain pending; the older c5e22637 artifact below must not be promoted as this revision.
+
+## Earlier candidate audit
+
 Status: **Not ready for Google activation or production promotion.** Local implementation, consolidated checks and exact final artifact verification passed; GitHub CI and real provider acceptance remain separate.
 
 Repository: `camster91/family-planner`, branch `design/connected-workflows-20261102`. Base is the existing household backend and approved connected-workflow study in this directory. No database migration or additional household data store. No changes to calling/native app scope.

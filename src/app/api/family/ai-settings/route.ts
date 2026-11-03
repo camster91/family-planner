@@ -10,6 +10,9 @@ import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 import { boundedRequestText, RequestBodyTooLarge } from '@/lib/bounded-request-text'
 
+import { GEMINI_BASE_URL, GEMINI_DEFAULT_MODEL, isGeminiBaseUrl } from '@/lib/gemini-settings'
+import { checkGeminiKey } from '@/lib/gemini-key-check'
+
 export const dynamic = 'force-dynamic'
 
 // These settings are small configuration values. Keep the request bounded
@@ -31,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   let family: Awaited<ReturnType<typeof readD1AiSettings>> | null
   if (storageBackend() === 'd1') {
-    try { family = await readD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }) }
+    try { family = await readD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 }) }
     catch (err) { if (err instanceof D1FamilySettingsError) return NextResponse.json({ error: err.code }, { status: err.status }); throw err }
   } else family = await prisma!.family.findUnique({
     where: { id: auth.user.family_id },
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Clearing removes the key and the provider overrides.
     if (body?.clear === true) {
-      if (storageBackend() === 'd1') await updateD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, { capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null })
+      if (storageBackend() === 'd1') await updateD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 }, { capture_ai_key_enc: null, capture_ai_base_url: null, capture_ai_model: null })
       else await prisma!.family.update({
         where: { id: auth.user.family_id },
         data: {
@@ -95,8 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     const rawKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : ''
-    const baseUrl = typeof body?.baseUrl === 'string' ? body.baseUrl.trim() : ''
-    const model = typeof body?.model === 'string' ? body.model.trim() : ''
+    let baseUrl = typeof body?.baseUrl === 'string' ? body.baseUrl.trim() : ''
+    let model = typeof body?.model === 'string' ? body.model.trim() : ''
 
     if (
       rawKey.length > AI_KEY_MAX_LENGTH ||
@@ -119,6 +122,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (body?.provider === 'gemini') {
+      let keyToCheck = rawKey
+      if (!keyToCheck) {
+        const existing = storageBackend() === 'd1'
+          ? await readD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 })
+          : await prisma!.family.findUnique({ where: { id: auth.user.family_id }, select: { capture_ai_key_enc: true, capture_ai_base_url: true } })
+        // Never send a different provider's retained key to Google.
+        if (isGeminiBaseUrl(existing?.capture_ai_base_url ?? '')) keyToCheck = decryptSecret(existing?.capture_ai_key_enc) ?? ''
+      }
+      if (!keyToCheck) return NextResponse.json({ error: 'Enter a Gemini API key' }, { status: 400 })
+      const checked = await checkGeminiKey(keyToCheck)
+      if (checked !== 'valid') return NextResponse.json({ error: checked === 'invalid' ? 'Google did not accept that key. Check its API permissions and try again.' : 'Google could not be reached. Your saved settings have not changed.' }, { status: checked === 'invalid' ? 400 : 503 })
+      const [current, currentError] = await authenticateWithFamily(request)
+      if (currentError) return currentError
+      if (current.user.id !== auth.user.id || current.user.family_id !== auth.user.family_id || current.user.role !== 'parent' || (current.payload?.tv ?? 0) !== (auth.payload?.tv ?? 0)) return NextResponse.json({ error: 'Your household access changed. Refresh and try again.' }, { status: 409 })
+      baseUrl = GEMINI_BASE_URL
+      model = GEMINI_DEFAULT_MODEL
+    }
+
     const data: Record<string, string | null> = {
       capture_ai_base_url: baseUrl || null,
       capture_ai_model: model || null,
@@ -129,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     const updated = storageBackend() === 'd1'
-      ? await updateD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload.tv ?? 0 }, data)
+      ? await updateD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 }, data)
       : await prisma!.family.update({
       where: { id: auth.user.family_id },
       data,

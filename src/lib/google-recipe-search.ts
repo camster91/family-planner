@@ -11,7 +11,7 @@ export async function searchGoogleRecipes(
   pricing: GoogleRecipeSearchPricing,
   observer: ProviderUsageObserver,
 ) {
-  if (process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY !== "1" ||
+  if (process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0" ||
       process.env.FAMILY_AI_PROVIDER_DISABLED === "1")
     throw new Error("Google recipe discovery is not enabled");
   if (!["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/openai"].includes(config.baseUrl) ||
@@ -27,7 +27,7 @@ export async function searchGoogleRecipes(
     tools:[{type:"google_search"}],generation_config:{max_output_tokens:2048},
   });
   await observer.start({inputBytes:new TextEncoder().encode(body).byteLength,maxOutputTokens:2048,search:{pricing,queryAllowance:4}});
-  if (process.env.FAMILY_AI_PROVIDER_DISABLED === "1" || process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY !== "1") throw new Error("AI is paused");
+  if (process.env.FAMILY_AI_PROVIDER_DISABLED === "1" || process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0") throw new Error("AI is paused");
   const signal = AbortSignal.timeout(30000);
   try {
     const result = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{

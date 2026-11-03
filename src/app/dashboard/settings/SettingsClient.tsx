@@ -1,6 +1,7 @@
 "use client";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { isClockFormat } from "@/lib/clock-format";
+import { isGeminiBaseUrl } from "@/lib/gemini-settings";
 import { PRODUCT_BRAND } from "@/lib/brand";
 
 import {
@@ -351,6 +352,7 @@ export default function SettingsClient({
   const [aiKey, setAiKey] = useState("");
   const [aiKeyHint, setAiKeyHint] = useState<string | null>(null);
   const [aiConfigured, setAiConfigured] = useState(false);
+  const [aiProvider, setAiProvider] = useState<"gemini" | "custom">("gemini");
   const [aiBaseUrl, setAiBaseUrl] = useState("");
   const [aiModel, setAiModel] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
@@ -433,6 +435,7 @@ export default function SettingsClient({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d) return;
+        setAiProvider(!d.configured || isGeminiBaseUrl(d.baseUrl ?? "") ? "gemini" : "custom");
         setAiConfigured(Boolean(d.configured));
         setAiKeyHint(d.keyHint ?? null);
         setAiBaseUrl(d.baseUrl ?? "");
@@ -453,6 +456,7 @@ export default function SettingsClient({
           clear
             ? { clear: true }
             : {
+                ...(aiProvider === "gemini" ? { provider: "gemini" } : {}),
                 apiKey: aiKey.trim(),
                 baseUrl: aiBaseUrl.trim(),
                 model: aiModel.trim(),
@@ -464,6 +468,8 @@ export default function SettingsClient({
         throw new SettingsFeedbackError(
           settingsResponseError(data.error, "aiSaveFailed"),
         );
+      setAiBaseUrl(data.baseUrl ?? "");
+      setAiModel(data.model ?? "");
       setAiConfigured(Boolean(data.configured));
       setAiKeyHint(data.keyHint ?? null);
       setAiKey("");
@@ -1138,6 +1144,14 @@ export default function SettingsClient({
             >
               <div className="space-y-4">
                 <div>
+                  <label htmlFor="aiProvider" className="block text-sm font-medium mb-2">{copy("aiProvider")}</label>
+                  <select id="aiProvider" className="input-field w-full" value={aiProvider} onChange={(event) => setAiProvider(event.target.value as "gemini" | "custom")}>
+                    <option value="gemini">{copy("geminiProvider")}</option>
+                    <option value="custom">{copy("aiOtherProvider")}</option>
+                  </select>
+                  {aiProvider === "gemini" && <p className="text-xs text-label-tertiary mt-2">{copy("geminiSetup")}</p>}
+                </div>
+                <div>
                   <label
                     htmlFor="aiKey"
                     className="block text-sm font-medium text-foreground mb-2"
@@ -1162,6 +1176,7 @@ export default function SettingsClient({
                   </p>
                 </div>
 
+                {aiProvider === "custom" && <>
                 <div>
                   <label
                     htmlFor="aiBaseUrl"
@@ -1209,6 +1224,7 @@ export default function SettingsClient({
                   <div>{copy("deepseekHint")}</div>
                 </div>
 
+                </>}
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => saveAiSettings(false)}

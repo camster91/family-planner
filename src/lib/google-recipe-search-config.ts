@@ -1,3 +1,4 @@
+import { defaultGeminiRecipePricing } from "./gemini-recipe-defaults";
 /** Server-managed, expiring price approval. Never populated from browser input. */
 import { z } from "zod";
 import type { CaptureConfig } from "./capture";
@@ -14,9 +15,10 @@ export function approvedGoogleRecipePricing(
   config: CaptureConfig,
   now = Date.now(),
 ) {
-  if (process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY !== "1") return null;
+  if (process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0") return null;
   const raw = process.env.FAMILY_GOOGLE_RECIPE_SEARCH_PRICING;
-  if (!raw || raw.length > 4096) return null;
+  if (!raw) return defaultGeminiRecipePricing(config, now);
+  if (raw.length > 4096) return null;
   try {
     const value = approval.parse(JSON.parse(raw));
     const expiry = Date.parse(value.validUntil);

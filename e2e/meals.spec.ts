@@ -201,6 +201,7 @@ async function expectMealCreateRequest(
       "protocol",
       "recipe_name",
       ...(expected.recipe_id !== undefined ? ["recipe_id"] : []),
+      ...(expected.servings !== undefined ? ["servings"] : []),
     ].sort(),
   );
 }
@@ -360,7 +361,9 @@ test.describe("meals (parent)", () => {
       .getByRole("button", { name: addSlotName("breakfast") })
       .click();
     await expect(dialog(page)).toBeVisible();
-    await expect(dialog(page).getByLabel("Recipe (optional)")).toHaveValue("");
+    await dialog(page)
+      .getByRole("button", { name: "Quick meal", exact: true })
+      .click();
     await dialog(page).getByLabel("Recipe name").fill(`${PREFIX} porridge`);
     const posted = page.waitForRequest(
       (r) => r.url().endsWith("/api/meals/create") && r.method() === "POST",
@@ -417,6 +420,9 @@ test.describe("meals (parent)", () => {
     await todayCard(page)
       .getByRole("button", { name: addSlotName("lunch") })
       .click();
+    await dialog(page)
+      .getByRole("button", { name: "Search saved recipes", exact: true })
+      .click();
     const picker = dialog(page).getByLabel("Recipe (optional)");
     await expect(
       picker.locator("option", { hasText: "Tomato soup" }),
@@ -438,7 +444,12 @@ test.describe("meals (parent)", () => {
       meal_type: "lunch",
       recipe_id: L.recipeSoup,
       recipe_name: `${PREFIX} soup night`,
+      servings: 4,
     });
+    await page
+      .getByTestId("meal-confirmation")
+      .getByRole("button", { name: "Back to meal plan" })
+      .click();
     await expect(slotRows(page, "lunch")).toContainText(
       "Lunch · Recipe · 10 min prep",
     );
@@ -473,6 +484,9 @@ test.describe("meals (parent)", () => {
     await todayCard(page)
       .getByRole("button", { name: addSlotName("snack") })
       .click();
+    await dialog(page)
+      .getByRole("button", { name: "Search saved recipes", exact: true })
+      .click();
     await dialog(page).getByRole("button", { name: "New recipe" }).click();
     const panel = dialog(page).getByTestId("recipe-quick-create");
     await panel.getByLabel("Recipe name").fill(`${PREFIX} trail mix`);
@@ -484,6 +498,9 @@ test.describe("meals (parent)", () => {
       .fill(`${PREFIX} almonds`);
     await panel.getByRole("button", { name: "Save recipe" }).click();
     await expect(panel).toBeHidden();
+    await dialog(page)
+      .getByRole("button", { name: "Search saved recipes", exact: true })
+      .click();
     const picker = dialog(page).getByLabel("Recipe (optional)");
     await expect(picker.locator("option:checked")).toHaveText(
       `${PREFIX} trail mix`,
@@ -492,6 +509,10 @@ test.describe("meals (parent)", () => {
       `${PREFIX} trail mix`,
     );
     await dialog(page).getByRole("button", { name: "Save" }).click();
+    await page
+      .getByTestId("meal-confirmation")
+      .getByRole("button", { name: "Back to meal plan" })
+      .click();
     await expect(slotRows(page, "snack")).toContainText(
       "Snack · Recipe · 5 min prep",
     );
@@ -507,12 +528,19 @@ test.describe("meals (parent)", () => {
     await todayCard(page)
       .getByRole("button", { name: addSlotName("dinner") })
       .click();
+    await dialog(page)
+      .getByRole("button", { name: "Quick meal", exact: true })
+      .click();
     await dialog(page).getByLabel("Recipe name").fill(`${PREFIX} tacos`);
     await dialog(page).getByRole("button", { name: "Save" }).click();
     await expect(slotRows(page, "dinner")).toHaveCount(1);
 
     await todayCard(page)
       .getByRole("button", { name: `Add another dinner, ${TODAY_LONG}` })
+      .click();
+    await dialog(page).locator("summary").filter({ hasText: "Change" }).click();
+    await dialog(page)
+      .getByRole("button", { name: "Quick meal", exact: true })
       .click();
     await expect(dialog(page).getByLabel("Meal", { exact: true })).toHaveValue(
       "dinner",

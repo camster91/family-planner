@@ -25,6 +25,9 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
+jest.mock('@/lib/gemini-key-check', () => ({ checkGeminiKey: jest.fn() }))
+import { checkGeminiKey } from '@/lib/gemini-key-check'
+
 import { POST } from '../route'
 import { authenticateWithFamily } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
@@ -128,4 +131,36 @@ describe('POST /api/family/ai-settings bounds and compatibility', () => {
     expect(response.status).toBe(400)
     expect(mockUpdate).not.toHaveBeenCalled()
   })
+})
+
+
+describe('Gemini preset', () => {
+  it('validates a new key and saves the supported endpoint and model', async () => {
+    (checkGeminiKey as jest.Mock).mockResolvedValue('valid')
+    const response = await POST(request({ provider: 'gemini', apiKey: 'fabricated-gemini-key' }))
+    expect(response.status).toBe(200)
+    expect(checkGeminiKey).toHaveBeenCalledWith('fabricated-gemini-key')
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ capture_ai_base_url: 'https://generativelanguage.googleapis.com/v1beta/openai', capture_ai_model: 'gemini-3.8-flash' }) }))
+  })
+  it.each(['invalid', 'unavailable'])('preserves saved settings when key check is %s', async (result) => {
+    (checkGeminiKey as jest.Mock).mockResolvedValue(result)
+    const response = await POST(request({ provider: 'gemini', apiKey: 'fabricated-gemini-key' }))
+    expect(response.status).toBe(result === 'invalid' ? 400 : 503)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+})
+
+
+it('does not persist a verified key after household access changes during verification', async () => {
+  (checkGeminiKey as jest.Mock).mockResolvedValue('valid')
+  mockAuth.mockResolvedValueOnce([{ user: { id: 'parent-a', role: 'parent', family_id: 'family-a' }, payload: { tv: 0 } }, null])
+  mockAuth.mockResolvedValueOnce([{ user: { id: 'parent-a', role: 'parent', family_id: 'family-b' }, payload: { tv: 1 } }, null])
+  expect((await POST(request({ provider: 'gemini', apiKey: 'fabricated-gemini-key' }))).status).toBe(409)
+  expect(mockUpdate).not.toHaveBeenCalled()
+})
+it('never sends another provider retained key to Google', async () => {
+  (prisma as any).family.findUnique.mockResolvedValue({ capture_ai_key_enc: encryptSecret('fabricated-other-provider-key'), capture_ai_base_url: 'https://provider.example/v1' })
+  expect((await POST(request({ provider: 'gemini' }))).status).toBe(400)
+  expect(checkGeminiKey).not.toHaveBeenCalled()
+  expect(mockUpdate).not.toHaveBeenCalled()
 })
