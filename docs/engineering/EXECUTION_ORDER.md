@@ -12,6 +12,17 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- #125 multi-item review at `f8f2d8d7`: saving a tray with an incomplete earlier
+  item now opens that item and focuses its review selector before any writes.
+  Correction retains the other drafts and normal batch saving. Two affected
+  suites / eight tests passed, including zero writes before validation and two
+  confirmed saves after correction. Twelve actual-component EN/ES browser
+  cases across the six standard sizes passed selection, focus, editing and
+  overflow checks; phone screenshot inspected. TypeScript and scoped lint
+  passed (three existing hook warnings). Artifacts: `barcode-review-selection-*`.
+  These are fabricated transport/component checks, not live provider, native
+  camera, compiled Worker or deployment evidence.
+
 - #125 lookup recovery at `73d9e626`: barcode review now offers immediate
   **Enter manually** while metadata is pending. It keeps the scanned code and
   draft, aborts the read, and ignores its late response; an old completion cannot
