@@ -103,6 +103,8 @@ it.each(["forward Tab", "backward Tab", "Escape"])(
       const inner = await screen.findByRole("dialog", {
         name: "Review grocery ingredients",
       });
+      expect(outer.contains(inner)).toBe(false);
+      expect(inner.parentElement?.parentElement).toBe(document.body);
       await within(inner).findByRole("button", {
         name: "Add selected ingredients",
       });

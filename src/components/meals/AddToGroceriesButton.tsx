@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { z } from "zod";
 import { useRecipeGroceriesText, type RecipeGroceriesMessage } from "@/i18n/recipe-groceries";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
@@ -383,8 +384,9 @@ export function AddToGroceriesButton({
         </span>
       </button>
 
-      <Dialog
-        open={reviewOpen}
+      {/* A transformed parent sheet must not become this fixed sheet's viewport. */}
+      {reviewOpen && createPortal(<Dialog
+        open
         onClose={closeReview}
         title={text("title")}
         closeLabel={text("close")}
@@ -501,7 +503,7 @@ export function AddToGroceriesButton({
         >
           {text("cancel")}
         </button>
-      </Dialog>
+      </Dialog>, document.body)}
 
       <div role="status" aria-live="polite" className="empty:hidden">
         {summary && (
