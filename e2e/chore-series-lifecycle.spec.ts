@@ -317,15 +317,29 @@ async function createWeeklyAnchor(
     mondayTarget,
     create,
   ]);
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      new URL(response.url()).pathname === "/api/chores/create",
-  );
+  // Capture the body at the network layer: the app navigates right after a
+  // successful create, which can evict the body before response.json() runs.
+  let resolveCreate!: (value: { status: number; body: any }) => void;
+  const created = new Promise<{ status: number; body: any }>((resolve) => {
+    resolveCreate = resolve;
+  });
+  await page.route("**/api/chores/create", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const upstream = await route.fetch();
+    const text = await upstream.text();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+    resolveCreate({ status: upstream.status(), body: parsed });
+    await route.fulfill({ response: upstream, body: text });
+  });
   await create.click();
-  const response = await responsePromise;
-  const body = await response.json();
-  expect(response.status(), JSON.stringify(body)).toBe(200);
+  const { status, body } = await created;
+  await page.unroute("**/api/chores/create");
+  expect(status, JSON.stringify(body)).toBe(200);
   const anchorId = body.chore?.id as string | undefined;
   expect(anchorId).toEqual(expect.any(String));
   await expect(page).toHaveURL(/\/dashboard\/chores\/?$/);

@@ -425,7 +425,7 @@ test.describe("meals (parent)", () => {
       .getByRole("button", { name: addSlotName("lunch") })
       .click();
     await dialog(page)
-      .getByRole("button", { name: "Search saved recipes", exact: true })
+      .getByRole("button", { name: /^(Saved|Search saved recipes)$/ })
       .click();
     const picker = dialog(page).getByLabel("Recipe (optional)");
     await expect(
@@ -491,7 +491,7 @@ test.describe("meals (parent)", () => {
       .getByRole("button", { name: addSlotName("snack") })
       .click();
     await dialog(page)
-      .getByRole("button", { name: "Search saved recipes", exact: true })
+      .getByRole("button", { name: /^(Saved|Search saved recipes)$/ })
       .click();
     await dialog(page).getByRole("button", { name: "New recipe" }).click();
     const panel = dialog(page).getByTestId("recipe-quick-create");
@@ -505,7 +505,7 @@ test.describe("meals (parent)", () => {
     await panel.getByRole("button", { name: "Save recipe" }).click();
     await expect(panel).toBeHidden();
     await dialog(page)
-      .getByRole("button", { name: "Search saved recipes", exact: true })
+      .getByRole("button", { name: /^(Saved|Search saved recipes)$/ })
       .click();
     const picker = dialog(page).getByLabel("Recipe (optional)");
     await expect(picker.locator("option:checked")).toHaveText(

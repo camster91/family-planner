@@ -224,6 +224,14 @@ for (const locale of ["en", "es"] as const) {
         exact: true,
       });
       await expect(create).toBeDisabled();
+      // #499: the start date defaults to today; clear it to see both hints.
+      await expect(page.locator("#startDate")).toHaveValue(
+        /^\d{4}-\d{2}-\d{2}$/,
+      );
+      await expect(
+        page.getByText(text("requiredTitle"), { exact: true }),
+      ).toBeVisible();
+      await page.locator("#startDate").fill("");
       await expect(
         page.getByText(text("requiredBoth"), { exact: true }),
       ).toBeVisible();
