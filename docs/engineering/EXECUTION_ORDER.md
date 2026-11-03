@@ -76,6 +76,20 @@ Continue the existing issues, not another feature backlog.
   or rendered photo capture against that artifact.
   Real provider/model capability, privacy eligibility and hardware acceptance
   remain separate; no live provider call, key change or deployment occurred.
+- Notification follow-through (#141): the current notification/quiet-hours
+  suites pass (31 suites, 320 tests). Added saved-IANA-zone DST checks to the
+  existing real D1 delivery fixture: both repeated Toronto 01:30 instants stay
+  quiet, the end is exclusive, and spring-forward skips the nonexistent hour.
+  The local Worker/D1 inbox, preferences and exact-calendar-target slices pass,
+  including participant/preference races, revocation, receipt rollback,
+  snooze/delete ownership and unavailable/foreign calendar targets. These slices
+  can now run directly through `read-smoke.mjs --only=notification-inbox,notification-preferences,calendar-events`.
+  No interruptive delivery, provider acceptance or native opening is proven.
+  Source review confirms no `appUrlOpen`/`getLaunchUrl` handler and no Android
+  VIEW intent registration; native cold/warm/sign-in/Back routing remains an
+  implementation gap. Next native work must use the existing strict destination
+  parser and current session/role readers, preserve pending forms and retain
+  OS association/signing/physical-device acceptance as separate gates.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
