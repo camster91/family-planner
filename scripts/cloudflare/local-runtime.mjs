@@ -72,6 +72,7 @@ function usage() {
       "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
       "--exercise-connected-planning enables provider-free food planning and weekly review in the disposable runtime only.",
       "--exercise-event-preparation enables event preparation and profile chores in the disposable runtime only.",
+      "--exercise-profile-routines enables profile chores and routine scheduling in the disposable runtime only.",
       "--exercise-profile-setup enables the email-free profile flow in this disposable runtime only.",
       "--exercise-recipe-search enables a fabricated Google response with fake pricing/key; all external network stays blocked.",
       "The process stays alive until SIGINT/SIGTERM and prints one JSON URL line.",
@@ -95,6 +96,7 @@ if (!runtimeArchive) {
   process.exit(2);
 }
 const seedSmoke = process.argv.includes("--seed-smoke");
+const exerciseProfileRoutines = process.argv.includes("--exercise-profile-routines");
 const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
 // Explicitly fabricated, network-isolated provider exercise. Never use real keys.
 const exerciseConnectedPlanning = process.argv.includes("--exercise-connected-planning");
@@ -776,6 +778,7 @@ try {
       RELEASE_SHA: sourceSha ?? "local-runtime",
       NEXT_TELEMETRY_DISABLED: "1",
       ...(exerciseConnectedPlanning ? { FAMILY_FOOD_PLANNING_READY: "1", FAMILY_WEEKLY_RESET_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
+      ...(exerciseProfileRoutines ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED: "1", ROUTINE_SCHEDULE_ENABLED: "1", ROUTINE_SCHEDULE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
       ...(exerciseEventPreparation ? { FAMILY_EVENT_PREPARATION_READY: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
       ...(exerciseProfileSetup ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1" } : {}),
       ...(exerciseRecipeSearch ? {
@@ -841,6 +844,7 @@ try {
     providerCalls: exerciseRecipeSearch ? "fabricated-google-only" : "disabled",
     connectedPlanning: exerciseConnectedPlanning ? "test-rollout-enabled" : "default",
     eventPreparation: exerciseEventPreparation ? "test-rollout-enabled" : "default",
+    profileRoutines: exerciseProfileRoutines ? "test-rollout-enabled" : "default",
     profileSetup: exerciseProfileSetup ? "test-rollout-enabled" : "default",
   };
   if (seedSmoke) {

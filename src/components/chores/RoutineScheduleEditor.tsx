@@ -700,9 +700,6 @@ export function RoutineScheduleEditor({
                   </ul>
                 </section>
               )}
-              <p className="text-footnote text-label-secondary">
-                {t(draft.stackId ? "scope" : "newScope")}
-              </p>
             </div>
           )}
         </fieldset>

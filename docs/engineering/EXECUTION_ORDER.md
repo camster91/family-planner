@@ -75,7 +75,15 @@ Continue the existing issues, not another feature backlog.
   `artifacts/connected-family-features-20261103` beside the checkout. No external
   provider/mail/network was enabled. The preparation release flag is now enabled
   in the candidate config only; no production activation or merge has occurred.
-  Profile chore flags still need their broader profile-flow release acceptance.
+  Profile/routine candidate flags are now enabled after the following local checks:
+  mixed account/profile routine creation and duplicate-safe expansion; foreign
+  profile refusal; archived profile stops new occurrences; native shared-device
+  profile completion/replay and parent authorization checks. The real Worker
+  phone flow created an email-free age-three profile, assigned child and parent
+  steps, reviewed/saved a daily routine and retained it after reload. Removed the
+  repeated review-scope paragraph seen in the screenshot (shared dialog header
+  retains that explanation). Harness `--exercise-profile-routines` is local only.
+  Physical-device acceptance and production rollout remain separate.
   Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.
