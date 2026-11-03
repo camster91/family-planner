@@ -169,7 +169,7 @@ export async function createReward(
   input: CreateRewardInput,
   actor: RewardActor,
   recordId: string | null,
-): Promise<RewardMutation> {
+): Promise<RewardMutation & { createdRewardId?: string }> {
   // Mutation results/receipts retain scalar effect history only. Current
   // display people are added by the shared HTTP response boundary, not stored.
   const notificationPlan = await prepareRewardCreationNotifications(db, actor);
@@ -195,7 +195,7 @@ export async function createReward(
     const result: EffectResult = { status: 200, body: { reward } };
     if (notificationPlan) await recordRewardCreationNotificationsInTx(tx, notificationPlan, reward);
     await storeReceipt(tx, recordId, result);
-    return { result, applied: true, notificationHandled: notificationPlan !== null };
+    return { result, applied: true, createdRewardId: reward.id, notificationHandled: notificationPlan !== null };
   });
 }
 

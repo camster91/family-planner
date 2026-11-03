@@ -55,5 +55,61 @@ export async function testRewards(db: D1Store) {
   const balance = await db.prepare(`SELECT xp FROM User WHERE id='rewards-child'`).first<{ xp: number }>();
   check(balance?.xp === 35, "points deducted once");
 
-  return { read: true, create: true, update: true, claim: true, approval: true, receipts: true, points: true, householdIsolation: true };
+  const notices = await db.prepare(`SELECT user_id,title,action_url FROM Notification WHERE user_id IN ('rewards-parent','rewards-child','rewards-foreign') ORDER BY created_at,id`).all<{user_id:string;title:string;action_url:string}>();
+  check(notices.results.length === 3, "one notice per accepted create, claim and approval; receipt replays send none");
+  for (const [title, recipient] of [["New Reward Available!", child.userId], ["Rewards Child claimed a reward!", parent.userId], ["Reward Approved!", child.userId]]) {
+    const notice = notices.results.find(row => row.title === title);
+    check(notice?.user_id === recipient && notice.action_url === `/dashboard/rewards?focus=${rewardId}`, "notification keeps its authorized audience and exact reward");
+  }
+  await db.prepare(`DELETE FROM Notification WHERE action_url=?1`).bind(`/dashboard/rewards?focus=${rewardId}`).run();
+  await createD1Reward(parent, input, "reward-create-key", db);
+  await claimD1Reward(child, {rewardId}, "reward-claim-key", undefined, db);
+  await approveD1Reward(parent, {rewardId}, "reward-approve-key", undefined, db);
+  check((await db.prepare(`SELECT count(*) AS n FROM Notification WHERE action_url=?1`).bind(`/dashboard/rewards?focus=${rewardId}`).first<{n:number}>())?.n === 0, "deleting inbox rows does not authorize resend on receipt replay");
+
+  await db.prepare(`UPDATE User SET notify_chores=0 WHERE id=?1`).bind(child.userId).run();
+  const muted = await createD1Reward(parent, {name:"Muted reward",cost:1}, "reward-muted-key", db);
+  check(muted.status === 200, "muted notification does not block reward creation");
+  const mutedId = (muted.body as any).reward.id;
+  await db.prepare(`UPDATE User SET notify_chores=1 WHERE id=?1`).bind(child.userId).run();
+  await createD1Reward(parent, {name:"Muted reward",cost:1}, "reward-muted-key", db);
+  check((await db.prepare(`SELECT count(*) AS n FROM Notification WHERE action_url=?1`).bind(`/dashboard/rewards?focus=${mutedId}`).first<{n:number}>())?.n === 0, "enabling preferences does not replay muted reward notice");
+
+  await db.prepare(`CREATE TRIGGER rewards_notice_failure BEFORE INSERT ON Notification WHEN NEW.title='New Reward Available!' BEGIN SELECT RAISE(ABORT,'fixture notice failure'); END`).run();
+  let failed = false;
+  try { await createD1Reward(parent, {name:"Rollback reward",cost:1}, "reward-notice-rollback", db); } catch { failed = true; }
+  await db.prepare(`DROP TRIGGER rewards_notice_failure`).run();
+  check(failed, "notification failure refuses the atomic command");
+  check((await db.prepare(`SELECT count(*) AS n FROM Reward WHERE name='Rollback reward'`).first<{n:number}>())?.n === 0, "failed notice rolls back reward");
+  check((await db.prepare(`SELECT count(*) AS n FROM IdempotencyRecord WHERE key='reward-notice-rollback'`).first<{n:number}>())?.n === 0, "failed notice rolls back receipt");
+  check((await createD1Reward(parent, {name:"Rollback reward",cost:1}, "reward-notice-rollback", db)).status === 200, "original command can succeed after a proven atomic rollback");
+
+  // Change a recipient after planning but before the atomic witness check.
+  const racing = (sql: string): D1Store => ({
+    prepare: db.prepare.bind(db), batch: db.batch.bind(db),
+    withSession() {
+      const session = db.withSession("first-primary"); let fired = false;
+      return { prepare: session.prepare.bind(session), async batch(statements) {
+        if (!fired) { fired = true; await db.prepare(sql).run(); }
+        return session.batch(statements);
+      } };
+    },
+  });
+  const raced = await createD1Reward(parent, {name:"Preference changed",cost:1}, "reward-pref-race", racing(`UPDATE User SET notify_chores=0 WHERE id='rewards-child'`));
+  check(raced.status === 200, "preference race replans canonical reward safely");
+  check((await db.prepare(`SELECT count(*) AS n FROM Notification WHERE action_url=?1`).bind(`/dashboard/rewards?focus=${(raced.body as any).reward.id}`).first<{n:number}>())?.n === 0, "late muted preference suppresses notification");
+  await db.prepare(`UPDATE User SET notify_chores=1 WHERE id=?1`).bind(child.userId).run();
+  const revoked = await createD1Reward(parent, {name:"Revoked creator",cost:1}, "reward-revoked-race", racing(`UPDATE User SET token_version=1 WHERE id='rewards-parent'`));
+  check(revoked.status === 401, "late actor revocation refuses reward and fanout");
+  check((await db.prepare(`SELECT count(*) AS n FROM Reward WHERE name='Revoked creator'`).first<{n:number}>())?.n === 0, "revoked actor leaves no reward");
+  await db.prepare(`UPDATE User SET token_version=0 WHERE id=?1`).bind(parent.userId).run();
+
+  await claimD1Reward(child, {rewardId:mutedId}, "reward-depart-claim", undefined, db);
+  await db.prepare(`UPDATE User SET family_id=?1 WHERE id=?2`).bind(foreign.familyId, child.userId).run();
+  const beforeDepartureApproval = await db.prepare(`SELECT count(*) AS n FROM Notification WHERE user_id=?1`).bind(child.userId).first<{n:number}>();
+  check((await approveD1Reward(parent, {rewardId:mutedId}, "reward-depart-approve", undefined, db)).status === 200, "parent can finish canonical approval after claimant departure");
+  const afterDepartureApproval = await db.prepare(`SELECT count(*) AS n FROM Notification WHERE user_id=?1`).bind(child.userId).first<{n:number}>();
+  check(beforeDepartureApproval?.n === afterDepartureApproval?.n, "departed claimant receives no old-household approval content");
+
+  return { read: true, create: true, update: true, claim: true, approval: true, receipts: true, points: true, householdIsolation: true, notificationTargets:true, replayNoResend:true, muted:true, notificationRollback:true, departedClaimant:true, preferenceRace:true, revokedActor:true };
 }

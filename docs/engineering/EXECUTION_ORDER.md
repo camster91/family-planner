@@ -12,6 +12,24 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- #141 native reward follow-through: Cloudflare reward create/claim/approval now
+  commit personal in-app notices with the canonical effect and receipt, using
+  witnessed same-household recipients and existing category/quiet-hours policy.
+  All notices link to the exact existing reward focus. Receipt replay does not
+  replan delivery; deleting an inbox notice or enabling a previously muted
+  category does not resend it within the original receipt contract. Roster reads
+  use the existing 100-person reward bound and hold rather than partly deliver.
+  The retained PostgreSQL creation fallback now also uses the newly created
+  canonical reward ID. Real workerd/D1 checks pass for all three audiences,
+  receipt replay/deleted notice, muted preferences, atomic notification-failure
+  rollback, retry after proven rollback, late preference changes, actor revocation
+  and departed claimant suppression. Four affected suites / 68 tests, typecheck
+  and scoped lint pass. Evidence: adjacent `reward-notices-*` artifacts.
+  This is native in-app parity, not queued/provider delivery or the stricter
+  event-occurrence/recipient-decision cohort protocol. Its native reward adoption,
+  retention beyond existing receipts, installed-device and production acceptance
+  remain open; no scheduler/provider/configuration is activated.
+
 - #141 chore notification follow-through: ordinary assignment notifications and
   post-commit approval/return notices now use the existing strict chore-focus
   destination. This covers the D1 and retained PostgreSQL fallback branches;

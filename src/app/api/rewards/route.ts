@@ -1,3 +1,4 @@
+import { rewardNotificationDestination } from "@/lib/notification-destination"
 import { readBoundedJson, RequestBodyTooLargeError } from "@/lib/bounded-body"
 import { projectRewardPeople } from "@/lib/reward-people"
 import { withRewardReadAccess } from "@/lib/reward-read-access"
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
     const actor: RewardActor = { familyId: auth.user.family_id, userId: auth.user.id, role: auth.user.role, tokenVersion: auth.payload.tv ?? 0 }
     let applied = false
     let notificationHandled = false
+    let createdRewardId: string | undefined
     const response = await withIdempotency(
       prisma!,
       key,
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
       parsed.data,
       async ({ recordId }) => {
         const mutation = await createReward(prisma!, parsed.data, actor, recordId)
+        createdRewardId = mutation.createdRewardId
         applied = mutation.applied
         notificationHandled = mutation.notificationHandled === true
         return mutation.result
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
     )
 
     // Notify family members about new reward
-    if (applied && !notificationHandled) {
+    if (applied && !notificationHandled && createdRewardId) {
       try {
         const members = await prisma!.user.findMany({
           where: { family_id: auth.user.family_id, id: { not: auth.user.id } },
@@ -143,6 +146,7 @@ export async function POST(request: NextRequest) {
             title: 'New Reward Available!',
             message: `${parsed.data.name} is now available for ${parsed.data.cost} points`,
             type: 'reward',
+            actionUrl: rewardNotificationDestination(createdRewardId),
           })
         }
       } catch (err) {
