@@ -13,7 +13,7 @@ const en = {
   draftUnsubmitted:
     "Not submitted yet. Open the original editor to finish or discard this draft.",
   leaveCapture:
-    "Opening Recipes will leave this unfinished preview. Saved requests stay available. Leave this preview?",
+    "Opening Recipes will leave this unfinished draft. Saved requests stay available. Leave this draft?",
   capture: "Quick add reviews",
   captureHint:
     "Review notices and quick-add suggestions here, or check earlier saved requests. Adding anything still needs your confirmation.",

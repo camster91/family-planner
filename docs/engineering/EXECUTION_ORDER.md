@@ -12,6 +12,21 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Review-inbox unfinished-input protection (#464/#499): compatibility capture
+  now reports nonblank typed input and in-progress text/photo extraction to its
+  existing host guard, not just parsed previews. Opening Recipes therefore asks
+  before discarding unparsed input; clearing that input removes the warning.
+  Only a boolean is reported, with no duplicate draft store or automatic parse.
+  The normal owned-document boundary and canonical request recovery are unchanged.
+  Six capture/review suites pass (79 tests), typecheck/changed-source lint pass,
+  and the Cloudflare build passes. Chromium checks of the real compatibility
+  editor inside CaptureInboxReview pass EN/ES across all six baseline sizes:
+  cancelling keeps input, confirming opens the recipe destination, no POST is
+  sent, and no horizontal overflow occurs. The Spanish phone screenshot was
+  inspected. Availability and navigation are fixture adapters; this is not live
+  provider, persisted-owned-document, device or complete inbox acceptance.
+  Evidence is in `review-draft-*` in the sibling continuation artifacts. No
+  external state changed; nothing was pushed, merged or deployed.
 - Barcode camera lifecycle (#125): the foreground scanner now refuses hidden
   starts, explicitly stops on `pagehide`, and retires late permission/detection
   results without reopening on return. Missing/busy hardware is distinguished

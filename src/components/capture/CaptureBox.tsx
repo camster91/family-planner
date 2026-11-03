@@ -254,8 +254,11 @@ export function LegacyCaptureBox({
     return () => extraction?.activity({ busy: false, hasInput: false });
   }, [extraction, busy, photoBusy, text]);
   React.useEffect(() => {
-    onDraftStateChange?.(draft !== null || (photoEvents?.length ?? 0) > 0);
-  }, [draft, photoEvents, onDraftStateChange]);
+    onDraftStateChange?.(
+      Boolean(text.trim()) || busy || photoBusy ||
+      draft !== null || (photoEvents?.length ?? 0) > 0,
+    );
+  }, [text, busy, photoBusy, draft, photoEvents, onDraftStateChange]);
   const [photoNote, setPhotoNote] = React.useState<string | null>(null);
   const [photoOffset, setPhotoOffset] = React.useState(0);
   React.useEffect(() => setPhotoOffset(0), [photoEvents]);
