@@ -59,6 +59,8 @@ export const recipeExploreEnglish = {
   subtitle:
     "Find something to cook. Keep your favourites in your household recipe box.",
   findOnline: "Find online",
+  quickMeal: "Quick meal",
+  saved: "Saved",
   searchPrompt: "What would you like to cook?",
   searchPlaceholder: "Chicken, pasta, quick dinners…",
   source: "Source",
@@ -169,6 +171,8 @@ export const recipeExploreSpanish: Record<RecipeExploreMessage, string> = {
   subtitle:
     "Encuentra algo para cocinar. Guarda tus favoritas en la caja de recetas de tu familia.",
   findOnline: "Buscar en línea",
+  quickMeal: "Comida rápida",
+  saved: "Guardadas",
   searchPrompt: "¿Qué te gustaría cocinar?",
   searchPlaceholder: "Pollo, pasta, cenas rápidas…",
   source: "Fuente",

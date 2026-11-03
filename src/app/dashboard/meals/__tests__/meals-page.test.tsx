@@ -1828,3 +1828,46 @@ test.each([false, true])(
     });
   },
 );
+
+test("empty slot starts with discovery and keeps quick meals behind an explicit choice", async () => {
+  const user = userEvent.setup();
+  const { calls } = setup({ meals: [] });
+  await user.click(
+    within(await todayCard()).getByRole("button", {
+      name: /^Add dinner Nothing planned ?,/i,
+    }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  const discovery = await within(dialog).findByRole("searchbox", {
+    name: "What would you like to cook?",
+  });
+  expect(discovery).toBeVisible();
+  expect(within(dialog).getByLabelText("Recipe name")).not.toBeVisible();
+  const date = within(dialog).getByLabelText("Date");
+  expect(date).not.toBeVisible();
+  await user.click(date.closest("details")!.querySelector("summary")!);
+  expect(date).toBeVisible();
+  expect(date).toHaveValue(today);
+  await user.click(within(dialog).getByRole("button", { name: "Quick meal" }));
+  expect(discovery).not.toBeVisible();
+  const name = within(dialog).getByLabelText("Recipe name");
+  expect(name).toBeVisible();
+  await user.type(name, "Leftover soup");
+  await user.click(within(dialog).getByRole("button", { name: "Find online" }));
+  await user.click(within(dialog).getByRole("button", { name: "Quick meal" }));
+  expect(name).toHaveValue("Leftover soup");
+  await user.click(within(dialog).getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(
+      calls.filter((c) => c.url === "/api/meals/create" && c.method === "POST"),
+    ).toHaveLength(1),
+  );
+  expect(
+    calls.find((c) => c.url === "/api/meals/create" && c.method === "POST")!
+      .body,
+  ).toMatchObject({
+    date: today,
+    meal_type: "dinner",
+    recipe_name: "Leftover soup",
+  });
+});

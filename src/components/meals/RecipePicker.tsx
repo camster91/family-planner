@@ -41,6 +41,7 @@ export function RecipePicker({
   onChange,
   onPlanImportedRecipe,
   planLabel,
+  quickMeal,
   canCreate = true,
   initiallyOnline = false,
   initialRecipe,
@@ -53,6 +54,7 @@ export function RecipePicker({
   onChange: (recipe: RecipeOption | null) => void;
   onPlanImportedRecipe?: (recipe: RecipeOption) => void;
   planLabel?: string;
+  quickMeal?: React.ReactNode;
   /** Parents and teens may create recipes (O-7); the API enforces it. */
   canCreate?: boolean;
   /** Empty meal slots start with discovery; other pickers retain saved recipes. */
@@ -73,6 +75,7 @@ export function RecipePicker({
   const [onlineVisited, setOnlineVisited] = React.useState(
     initiallyOnline && canCreate,
   );
+  const [quick, setQuick] = React.useState(false);
   const onlineSaving = React.useRef(false);
   const [onlinePending, setOnlinePending] = React.useState(false);
   const [onlineEditing, setOnlineEditing] = React.useState(false);
@@ -173,15 +176,20 @@ export function RecipePicker({
         >
           <button
             type="button"
-            className={online ? "btn-tinted min-h-11" : "btn-filled min-h-11"}
-            aria-pressed={!online}
+            className={
+              !online && !quick ? "btn-filled min-h-11" : "btn-tinted min-h-11"
+            }
+            aria-pressed={!online && !quick}
+            aria-label={exploreText("searchSaved")}
             disabled={disabled || onlinePending || creating || onlineEditing}
             onClick={() => {
-              if (!onlineSaving.current && !isMutationPending?.())
+              if (!onlineSaving.current && !isMutationPending?.()) {
+                setQuick(false);
                 setOnline(false);
+              }
             }}
           >
-            {exploreText("searchSaved")}
+            {quickMeal ? exploreText("saved") : exploreText("searchSaved")}
           </button>
           <button
             type="button"
@@ -190,6 +198,7 @@ export function RecipePicker({
             disabled={disabled || onlinePending || creating || onlineEditing}
             onClick={() => {
               if (!onlineSaving.current && !isMutationPending?.()) {
+                setQuick(false);
                 setOnlineVisited(true);
                 setOnline(true);
               }
@@ -197,8 +206,25 @@ export function RecipePicker({
           >
             {exploreText("findOnline")}
           </button>
+          {quickMeal && (
+            <button
+              type="button"
+              className={quick ? "btn-filled min-h-11" : "btn-tinted min-h-11"}
+              aria-pressed={quick}
+              disabled={disabled || onlinePending || creating || onlineEditing}
+              onClick={() => {
+                if (onlineSaving.current || isMutationPending?.()) return;
+                setOnline(false);
+                setQuick(true);
+                onChange(null);
+              }}
+            >
+              {exploreText("quickMeal")}
+            </button>
+          )}
         </div>
       )}
+      {quickMeal && <div hidden={!quick}>{quickMeal}</div>}
       {onlineVisited && (
         <div hidden={!online}>
           <React.Suspense fallback={<p role="status">{t("common.loading")}</p>}>
@@ -217,7 +243,7 @@ export function RecipePicker({
           </React.Suspense>
         </div>
       )}
-      <div hidden={online}>
+      <div hidden={online || quick}>
         <label
           htmlFor={selectId}
           className="text-subhead text-label-secondary mb-1 block"

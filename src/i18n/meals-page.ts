@@ -4,6 +4,7 @@ import { useTranslation } from "@/i18n";
 // Display only: never translate record names, stored dates, meal type codes or quantities.
 export const mealsPageEnglish = {
   planMeal: "Plan meal",
+  changeSlot: "Change",
   mealPlanned: "Meal planned",
   mealPlannedHint:
     "Check what you have before adding ingredients to your grocery list.",
@@ -59,6 +60,7 @@ export const mealsPageEnglish = {
 };
 export const mealsPageSpanish: Record<keyof typeof mealsPageEnglish, string> = {
   planMeal: "Planificar comida",
+  changeSlot: "Cambiar",
   mealPlanned: "Comida planificada",
   mealPlannedHint:
     "Comprueba lo que tienes antes de añadir ingredientes a la lista de compras.",

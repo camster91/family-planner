@@ -317,6 +317,25 @@ function MealModal({
     } else onSave(data);
   };
 
+  const mealNameField = (
+    <div>
+      <label
+        htmlFor={`${titleId}-name`}
+        className="text-subhead text-label-secondary mb-1 block"
+      >
+        {t("meals.addRecipeName")}
+      </label>
+      <input
+        id={`${titleId}-name`}
+        type="text"
+        value={recipe_name}
+        onChange={(e) => setRecipeName(e.target.value)}
+        placeholder={t("meals.addRecipeName")}
+        className="w-full input-apple"
+      />
+    </div>
+  );
+
   if (confirmedMeal) {
     const finish = () => {
       if (!groceryPendingRef.current) onCreated();
@@ -402,89 +421,63 @@ function MealModal({
           disabled={busy || (mode === "add" && !creation.ready)}
           className="space-y-4 min-w-0"
         >
-          {mode === "add" && !recipe && (
-            <React.Suspense
-              fallback={
-                <p role="status" className="text-footnote text-label-secondary">
-                  {t("common.loading")}
-                </p>
-              }
-            >
-              <MealDescriptionDraft
-                enabled={!busy && creation.ready}
-                contextKey={creation.contextKey}
-                onApply={(draft) => {
-                  if (busy || isBusy() || recipe || !creation.ready) return;
-                  setRecipeName(draft.recipe_name);
-                  if (draft.date) setDate(draft.date);
-                  if (draft.meal_type) setMealType(draft.meal_type);
-                  if (draft.servings !== undefined) {
-                    servingsEdited.current = true;
-                    setServings(String(draft.servings));
-                  }
-                }}
-              />
-            </React.Suspense>
-          )}
           {initial?.batch_id && (
             <p className="text-subhead text-label-secondary">
               {tBulk("detachNotice")}
             </p>
           )}
-          <div>
-            <label
-              htmlFor={`${titleId}-date`}
-              className="text-subhead text-label-secondary mb-1 block"
-            >
-              {t("meals.date")}
-            </label>
-            <input
-              id={`${titleId}-date`}
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full input-apple"
-              required
-            />
-          </div>
+          <details
+            className="rounded-xl border border-[var(--surface-separator)] px-3"
+            open={mode === "edit" ? true : undefined}
+          >
+            <summary className="min-h-11 cursor-pointer content-center text-subhead">
+              {date} · {text(meal_type)}{" "}
+              <span className="text-[var(--accent-text)] ml-2">
+                {text("changeSlot")}
+              </span>
+            </summary>
+            <div className="grid gap-3 sm:grid-cols-2 pb-3">
+              <div>
+                <label
+                  htmlFor={`${titleId}-date`}
+                  className="text-subhead text-label-secondary mb-1 block"
+                >
+                  {t("meals.date")}
+                </label>
+                <input
+                  id={`${titleId}-date`}
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full input-apple"
+                  required
+                />
+              </div>
 
-          <div>
-            <label
-              htmlFor={`${titleId}-type`}
-              className="text-subhead text-label-secondary mb-1 block"
-            >
-              {text("meal")}
-            </label>
-            <select
-              id={`${titleId}-type`}
-              value={meal_type}
-              onChange={(e) => setMealType(e.target.value as MealType)}
-              className="w-full input-apple"
-            >
-              {MEAL_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {text(t)}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label
+                  htmlFor={`${titleId}-type`}
+                  className="text-subhead text-label-secondary mb-1 block"
+                >
+                  {text("meal")}
+                </label>
+                <select
+                  id={`${titleId}-type`}
+                  value={meal_type}
+                  onChange={(e) => setMealType(e.target.value as MealType)}
+                  className="w-full input-apple"
+                >
+                  {MEAL_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {text(t)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </details>
 
-          <div>
-            <label
-              htmlFor={`${titleId}-name`}
-              className="text-subhead text-label-secondary mb-1 block"
-            >
-              {t("meals.addRecipeName")}
-            </label>
-            <input
-              id={`${titleId}-name`}
-              type="text"
-              value={recipe_name}
-              onChange={(e) => setRecipeName(e.target.value)}
-              placeholder={t("meals.addRecipeName")}
-              className="w-full input-apple"
-            />
-          </div>
+          {(mode === "edit" || recipe) && mealNameField}
 
           <React.Suspense
             fallback={
@@ -499,6 +492,41 @@ function MealModal({
                 mode === "add" ? handlePlanImportedRecipe : undefined
               }
               planLabel={mode === "add" ? text("planMeal") : undefined}
+              quickMeal={
+                mode === "add" ? (
+                  <div className="space-y-4">
+                    {!recipe && mealNameField}
+                    {mode === "add" && !recipe && (
+                      <React.Suspense
+                        fallback={
+                          <p
+                            role="status"
+                            className="text-footnote text-label-secondary"
+                          >
+                            {t("common.loading")}
+                          </p>
+                        }
+                      >
+                        <MealDescriptionDraft
+                          enabled={!busy && creation.ready}
+                          contextKey={creation.contextKey}
+                          onApply={(draft) => {
+                            if (busy || isBusy() || recipe || !creation.ready)
+                              return;
+                            setRecipeName(draft.recipe_name);
+                            if (draft.date) setDate(draft.date);
+                            if (draft.meal_type) setMealType(draft.meal_type);
+                            if (draft.servings !== undefined) {
+                              servingsEdited.current = true;
+                              setServings(String(draft.servings));
+                            }
+                          }}
+                        />
+                      </React.Suspense>
+                    )}
+                  </div>
+                ) : undefined
+              }
               value={recipe?.id ?? null}
               onChange={handleRecipeChange}
               initialRecipe={initial?.recipe ?? defaultRecipe ?? null}
