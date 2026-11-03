@@ -70,6 +70,7 @@ function usage() {
       "",
       "The archive must be the opt-in cloudflare-local-runtime artifact.",
       "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
+      "--exercise-rewards places those fabricated accounts in one household with rewards enabled and 100 child points; requires --seed-smoke.",
       "--exercise-connected-planning enables provider-free food planning and weekly review in the disposable runtime only.",
       "--exercise-responsibility enables responsibility and profile chores in the disposable runtime only.",
       "--exercise-schedule-review enables calendar conflict review in the disposable runtime only.",
@@ -98,6 +99,8 @@ if (!runtimeArchive) {
   process.exit(2);
 }
 const seedSmoke = process.argv.includes("--seed-smoke");
+const exerciseRewards = process.argv.includes("--exercise-rewards");
+if (exerciseRewards && !seedSmoke) throw new Error("--exercise-rewards requires --seed-smoke");
 const exerciseProfileRoutines = process.argv.includes("--exercise-profile-routines");
 const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
 // Explicitly fabricated, network-isolated provider exercise. Never use real keys.
@@ -654,6 +657,7 @@ async function seedSmokeAccounts(app, passwordCompute) {
     notes: false,
     emergency: true,
     inventory: true,
+    ...(exerciseRewards ? { rewards: true, gamification: true } : {}),
   });
   await db.batch([
     db
@@ -693,6 +697,10 @@ async function seedSmokeAccounts(app, passwordCompute) {
         SMOKE_CHILD_FAMILY.id,
         now,
       ),
+  ]);
+  if (exerciseRewards) await db.batch([
+    db.prepare(`UPDATE User SET family_id=?1 WHERE id=?2`).bind(SMOKE_CHILD_FAMILY.id, SMOKE_PARENT.id),
+    db.prepare(`UPDATE User SET xp=100 WHERE id=?1`).bind(SMOKE_CHILD.id),
   ]);
 }
 
@@ -854,13 +862,14 @@ try {
     eventPreparation: exerciseEventPreparation ? "test-rollout-enabled" : "default",
     profileRoutines: exerciseProfileRoutines ? "test-rollout-enabled" : "default",
     profileSetup: exerciseProfileSetup ? "test-rollout-enabled" : "default",
+    rewards: exerciseRewards ? "fabricated-shared-household" : "default",
   };
   if (seedSmoke) {
     metadata.smokeAccounts = {
       parentEmail: SMOKE_PARENT.email,
       childEmail: SMOKE_CHILD.email,
       password: SMOKE_PASSWORD,
-      parentFamily: null,
+      parentFamily: exerciseRewards ? SMOKE_CHILD_FAMILY.id : null,
       childFamily: SMOKE_CHILD_FAMILY.id,
     };
   }
