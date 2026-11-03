@@ -12,6 +12,21 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- iOS native dependency/build follow-through (#473/#138): `cap sync ios`
+  corrected the generated Swift package from Capacitor 8.5.2 to the installed
+  8.5.3 runtime; Xcode regenerated the exact resolved pin. Candidate `1efe4fc7`
+  passes generic iOS Simulator Debug compilation with distribution signing
+  disabled, source plist/project validation, and six shared-native suites (41
+  tests). Actual Xcode 27.2 was available; no simulator runtime/device is installed.
+  Version 1.0/build 1 are developer defaults, not distribution identity. The first
+  resolver run ultimately failed from disk exhaustion, not source compilation;
+  retry passed after removing six stopped duplicate QA bundles only after exact
+  source/archive/file-SHA verification. Archives and previous QA evidence remain;
+  627,925,179 bytes of duplicate files were reclaimed. `ios-space-recovery.json`
+  records the retained archive hashes. `ios-build-evidence.json` records current
+  source/input hashes and binary metadata. Native installation/permission/lifecycle,
+  signing/store, old-client/rollback and live web identity acceptance remain open.
+  No paid service, live data, signing credential, push, merge or deployment changed.
 - Review-inbox unfinished-input protection (#464/#499): compatibility capture
   now reports nonblank typed input and in-progress text/photo extraction to its
   existing host guard, not just parsed previews. Opening Recipes therefore asks
