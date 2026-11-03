@@ -128,6 +128,8 @@ export function OnlineRecipePicker({
           ),
         },
         512 * 1024,
+        // Native search has a 30s provider deadline plus auth/metering work.
+        { timeoutMs: kind === "search" ? 45000 : 15000 },
       );
       if (abort.signal.aborted || own !== generation.current) return;
       if (response.kind !== "reply") throw new Error("unavailable");

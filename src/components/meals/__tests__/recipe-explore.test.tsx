@@ -101,6 +101,15 @@ it("finds source searches, reads a recipe, embeds only sandboxed original, and s
   expect(screen.getByLabelText("Method")).toHaveValue(
     "Ingredients\n½ cup rice\nSalt to taste\n\nStir then simmer.",
   );
+  const rice = screen.getByRole("group", { name: "Ingredient 1" });
+  expect(within(rice).getByLabelText("Amount")).toHaveValue("");
+  expect(within(rice).getByLabelText("Ingredient")).toHaveValue("½ cup rice");
+  await user.type(within(rice).getByLabelText("Amount"), "0.5");
+  await user.type(within(rice).getByLabelText("Unit"), "cup");
+  await user.clear(within(rice).getByLabelText("Ingredient"));
+  await user.type(within(rice).getByLabelText("Ingredient"), "rice");
+  // No invented quantity for salt: retain the original in Method instead.
+  await user.click(screen.getByRole("button", { name: "Remove ingredient 2" }));
   await user.click(screen.getByRole("button", { name: /Save recipe/i }));
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toMatchObject({
@@ -109,7 +118,10 @@ it("finds source searches, reads a recipe, embeds only sandboxed original, and s
     prep_time: 15,
     cook_time: 30,
   });
-  expect((calls[0] as { ingredients?: unknown }).ingredients).toBeUndefined();
+  expect((calls[0] as { ingredients?: unknown }).ingredients).toEqual([
+    expect.objectContaining({ name: "rice", amount: 0.5, unit: "cup" }),
+  ]);
+  expect((calls[0] as { instructions: string }).instructions).toContain("Salt to taste");
   expect(
     await screen.findByRole("link", { name: "Open saved recipe" }),
   ).toHaveAttribute("href", "/dashboard/meals/recipes/new-fixture");

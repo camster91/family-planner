@@ -95,6 +95,8 @@ test("search → publisher preview → existing reviewed save returns a real rec
     ),
   );
   await screen.findByText("2 carrots");
+  expect(request.mock.calls[0][3]).toEqual({ timeoutMs: 45000 });
+  expect(request.mock.calls[1][3]).toEqual({ timeoutMs: 15000 });
   expect(request.mock.calls[1][1].headers).toEqual(
     expect.objectContaining({ [RECIPE_OWNER_HEADER]: JSON.stringify(owner) }),
   );
