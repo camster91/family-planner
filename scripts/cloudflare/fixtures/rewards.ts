@@ -1,5 +1,5 @@
 import type { D1Store } from "../../../src/lib/cloudflare/database";
-import { approveD1Reward, claimD1Reward, createD1Reward, readD1Rewards, updateD1Reward } from "../../../src/lib/cloudflare/rewards";
+import { approveD1Reward, claimD1Reward, createD1Reward, readD1Rewards, readD1RewardNotificationFocus, updateD1Reward } from "../../../src/lib/cloudflare/rewards";
 
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -32,6 +32,42 @@ export async function testRewards(db: D1Store) {
   check(childRead.status === 200 && (childRead.body as any).rewards[0].claimer === null, "child can inspect available reward");
   const foreignTarget = await readD1Rewards(parent, { rewardId: "reward-foreign", status: null, paging: { ok: true, paged: false } }, db);
   check(foreignTarget.status === 200 && (foreignTarget.body as any).rewards.length === 0, "foreign reward is hidden");
+
+  check((await readD1RewardNotificationFocus(parent, "reward-existing", db))?.id === "reward-existing", "current reward notification target resolves");
+  check(await readD1RewardNotificationFocus(parent, "reward-foreign", db) === null, "foreign notification target is neutral");
+  check(await readD1RewardNotificationFocus(parent, "missing-reward", db) === null, "deleted notification target is neutral");
+  await db.prepare(`UPDATE Reward SET is_active=0 WHERE id='reward-existing'`).run();
+  check(await readD1RewardNotificationFocus(parent, "reward-existing", db) === null, "retired available reward is neutral for parents too");
+  await db.prepare(`UPDATE Reward SET is_active=1,cost=-1 WHERE id='reward-existing'`).run();
+  check(await readD1RewardNotificationFocus(parent, "reward-existing", db) === null, "invalid reward cost never becomes an actionable focus");
+  await db.prepare(`UPDATE Reward SET cost=20 WHERE id='reward-existing'`).run();
+
+  // Revoke authority only after the reward query has returned its snapshot.
+  const duringRead = (sql: string): D1Store => ({
+    prepare: db.prepare.bind(db), batch: db.batch.bind(db),
+    withSession() {
+      const session = db.withSession("first-primary");
+      return { batch: session.batch.bind(session), prepare(query) {
+        const original = session.prepare(query);
+        if (!query.includes('SELECT r.*')) return original;
+        const wrap = (statement: typeof original): typeof original => ({
+          bind: (...values) => wrap(statement.bind(...values)),
+          first: statement.first.bind(statement), run: statement.run.bind(statement),
+          async all<T>() { const result = await statement.all<T>(); await db.prepare(sql).run(); return result; },
+        });
+        return wrap(original);
+      } };
+    },
+  });
+  const revokedRead = await readD1Rewards(parent, {status:null,paging:{ok:true,paged:false}}, duringRead(`UPDATE User SET token_version=1 WHERE id='rewards-parent'`));
+  check(revokedRead.status === 401 && !(revokedRead.body as any).rewards, "session revoked during data read discloses no rewards");
+  await db.prepare(`UPDATE User SET token_version=0 WHERE id='rewards-parent'`).run();
+  const movedRead = await readD1RewardNotificationFocus(parent, "reward-existing", duringRead(`UPDATE User SET family_id='rewards-family-b' WHERE id='rewards-parent'`));
+  check(movedRead === null, "household change during focused read is neutral");
+  await db.prepare(`UPDATE User SET family_id='rewards-family-a' WHERE id='rewards-parent'`).run();
+  const disabledRead = await readD1Rewards(parent, {status:null,paging:{ok:true,paged:false}}, duringRead(`UPDATE Family SET features='{"rewards":false,"gamification":false}' WHERE id='rewards-family-a'`));
+  check(disabledRead.status === 403 && !(disabledRead.body as any).rewards, "feature disabled during data read discloses no rewards");
+  await db.prepare(`UPDATE Family SET features=?1 WHERE id='rewards-family-a'`).bind(features).run();
 
   const input = { name: "Movie night", description: "Pick the family film", cost: 15, icon: "film" };
   const created = await createD1Reward(parent, input, "reward-create-key", db);
@@ -111,5 +147,5 @@ export async function testRewards(db: D1Store) {
   const afterDepartureApproval = await db.prepare(`SELECT count(*) AS n FROM Notification WHERE user_id=?1`).bind(child.userId).first<{n:number}>();
   check(beforeDepartureApproval?.n === afterDepartureApproval?.n, "departed claimant receives no old-household approval content");
 
-  return { read: true, create: true, update: true, claim: true, approval: true, receipts: true, points: true, householdIsolation: true, notificationTargets:true, replayNoResend:true, muted:true, notificationRollback:true, departedClaimant:true, preferenceRace:true, revokedActor:true };
+  return { read: true, create: true, update: true, claim: true, approval: true, receipts: true, points: true, householdIsolation: true, notificationTargets:true, replayNoResend:true, muted:true, notificationRollback:true, departedClaimant:true, preferenceRace:true, revokedActor:true, neutralStaleTargets:true, readAuthorityRenewal:true };
 }

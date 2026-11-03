@@ -12,6 +12,22 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- #141 reward target/read recovery: native collection and owned recovery reads
+  now renew the original actor/household/feature authority after the awaited data
+  query, withholding the projection if it changed. Native notification focus
+  also withholds retired available rewards for parents and rejects invalid costs,
+  matching the existing PostgreSQL focus rules. Real workerd/D1 fixtures pass for
+  session revocation, household movement and explicit feature disablement after
+  rows were read, plus missing/foreign/retired/invalid targets. Earlier reward
+  mutation/notice/rollback coverage also still passes. Three affected suites /
+  67 tests, typecheck and scoped lint pass; evidence is `reward-read-renewal-*`.
+  The first fixture incorrectly used an empty feature object as explicit off and
+  its wrapper included an unsupported type member; both harness issues were
+  corrected and rerun. This is response-time authority renewal, not an atomic
+  snapshot spanning every related person or recall of data already delivered.
+  Production and whole-goal acceptance remain open; child update placement is
+  still awaiting Cameron's existing question, with no route access expansion.
+
 - Native reward browser acceptance at application source
   `73a6dc289b8f4d22bca8b1b1c9c80a709060bde1`: parent form creation → child
   personal-home (`/dashboard`) claim → parent's inbox exact-target link → parent

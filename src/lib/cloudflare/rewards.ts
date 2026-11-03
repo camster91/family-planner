@@ -133,6 +133,10 @@ export async function readD1Rewards(actor: D1RewardActor, options: RewardReadOpt
       ? encodeRewardCursor(actor.familyId, options.status ?? null, { created_at: dateValue((resultRows[resultRows.length - 1] as any).created_at)!, id: (resultRows[resultRows.length - 1] as any).id })
       : null;
   }
+  // The row query may outlive the original session/household/feature check.
+  // Never disclose its projection after authority has changed during that wait.
+  const renewed = await authorizedRead(actor, async () => true, store);
+  if (renewed.refusal) return renewed.refusal;
   return { status: 200, body };
 }
 
@@ -169,6 +173,8 @@ export async function readD1RewardNotificationFocus(
     reward.claimed_by === actor.userId;
   if (
     !visible ||
+    (status === "available" && !active) ||
+    !Number.isSafeInteger(reward.cost) || Number(reward.cost) < 0 ||
     !["available", "claimed", "approved", "redeemed"].includes(
       String(status),
     )
