@@ -10,6 +10,14 @@ A maintained standard-rate catalog for Gemini 3.8 Flash supplies token and per-q
 
 The candidate Cloudflare configuration enables the Family AI Settings entry and existing usage ledger gates; tables already exist in D1 migration 0005. It does not add a provider credential. `FAMILY_GOOGLE_RECIPE_SEARCH_READY=0` remains a kill switch; an explicit server pricing override remains supported. Clearing the family key restores publisher discovery unless a separately configured deployment fallback key exists. The Next build, OpenNext bundle and Wrangler dry run passed for source `4e259d68aa15a454ca7d356d5d0f4214c93313c9`. Its local archive is `gemini-runtime/local-runtime.tar.gz` in the adjacent artifacts directory. Authenticated Chrome checks against that actual local Worker/D1 runtime saved a fabricated key through Settings, rejected an invalid key without changing configuration, automatically applied maintained pricing and the default budget, rendered cited search results, and refused another search after lowering the budget. Google outbound responses were intercepted fixtures; this is not live provider or production acceptance. Phone/tablet/desktop captures and `gemini-setup.json` record the evidence. The older c5e22637 artifact below must not be promoted as this revision. Updated GitHub checks remain pending.
 
+### Consolidated verification
+
+- Full local suite: 836 suites / 8,471 tests passed; 85 suites / 562 tests skipped.
+- Phone meal journeys: all 14 checks passed. Wider meal run: 21 passed; four discovery checks initially rejected the earlier build identity. After a clean build at `236c3eba143f25f468b3d944fabd9e43152f6513`, all four English/Spanish tablet/desktop discovery journeys passed (7 checks including auth setup).
+- Current-head Next production build passed. The subsequent patch only formats the two browser test files and updates evidence.
+- GitHub found formatting differences in those test files; corrected locally. Updated required CI checks remain necessary before release.
+- No merge or deployment performed. No live Google key, billing eligibility or production publisher acceptance is claimed.
+
 ## Earlier candidate audit
 
 Status: **Not ready for Google activation or production promotion.** Local implementation, consolidated checks and exact final artifact verification passed; GitHub CI and real provider acceptance remain separate.

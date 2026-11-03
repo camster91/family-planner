@@ -447,9 +447,9 @@ for (const locale of ["en", "es"] as const) {
             exact: true,
           })
           .click();
-        await expect(dialog.getByLabel(editorText.method, { exact: true })).toHaveValue(
-          /Salt to taste/,
-        );
+        await expect(
+          dialog.getByLabel(editorText.method, { exact: true }),
+        ).toHaveValue(/Salt to taste/);
         await expectTargets(page, dialog);
         await expectNoSeriousAxe(page, info, `${locale}-editor-before-save`);
 
