@@ -30,7 +30,7 @@ import { storageBackend } from "@/lib/storage-backend";
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
-    const opened = await openRoutineSchedule(request);
+    const opened = await openRoutineSchedule(request, false, "schedule", true);
     if (!opened.ok) return opened.response;
     let pointsEnabled = false;
     if (storageBackend() === "d1") {
