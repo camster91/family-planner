@@ -1,6 +1,6 @@
 # Recipe-to-meal candidate review
 
-Status: **Not ready for Google activation or production promotion.** Local implementation and fixture verification exist; exact final artifact/CI and real provider acceptance remain separate.
+Status: **Not ready for Google activation or production promotion.** Local implementation, consolidated checks and exact final artifact verification passed; GitHub CI and real provider acceptance remain separate.
 
 Repository: `camster91/family-planner`, branch `design/connected-workflows-20261102`. Base is the existing household backend and approved connected-workflow study in this directory. No database migration or additional household data store. No changes to calling/native app scope.
 
@@ -23,11 +23,11 @@ Repository: `camster91/family-planner`, branch `design/connected-workflows-20261
 | Household ownership/recovery | Parent access, foreign-household 404 and anonymous 401 in local Worker; source lookup scoped to family; route checks before/after waits; fixture server tests cover revocation. |
 | Responsive layout | Source/editor/grocery/grounded-result checks at 390×844, 800×1280, 1366×768. Google iframe screenshot check explicitly awaits frame content. No physical-device/native acceptance claimed. |
 
-Evidence lives in the adjacent local `artifacts/connected-workflows-20261102/` directory; checkpoint details and exact source identities are in README.md. Distinguish publisher/API fixtures from actual auth/D1 writes. The retained Google Worker archive is `6717f5ef`; subsequent harness-label/docs edits and the discovery-timeout correction are not in that archive. Do not deploy it as the final candidate.
+Evidence lives in the adjacent local `artifacts/connected-workflows-20261102/` directory; checkpoint details and exact source identities are in README.md. Distinguish publisher/API fixtures from actual auth/D1 writes. The final local Worker archive is `final-runtime/local-runtime.tar.gz`, built from clean commit `c5e226377df38cdabe4f08444c2c43191e89588d`. SHA-256: `26258cb8d866513c0be8a716a6eac9c87dda9ca9e7d9900282308e8ccfe3ea78`. Older archives are historical evidence only. This archive is local verification evidence, not a GitHub-built production release.
 
 ## Remaining release work
 
-1. Observe consolidated checks and fix failures. Rebuild/package the exact final source after the timeout correction; verify source manifest/checksum before promotion.
+1. Completed locally: 834 suites / 8,455 tests passed (85 suites / 562 tests skipped); production Next build, OpenNext bundle and Wrangler dry run passed. Full lint has zero errors and 76 existing warnings. Exact final Worker authenticated search/cost/budget checks passed using an intercepted fabricated Google response. Obtain the required GitHub Build & Test check for the published candidate.
 2. Prepare/publish a reviewable PR with exact checks and configuration boundaries. No PR currently exists for this branch; no merge or deployment is claimed.
 3. Before enabling Google, verify a real supported provider configuration and current rates, authorize any paid activation, and test citations/suggestion presentation and publisher previews with actual provider output. Keep the activation flag off otherwise.
 4. Verify production publisher coverage and post-release household flows only in an explicitly authorized target. Local Miniflare/Chrome evidence does not establish production or native acceptance.
