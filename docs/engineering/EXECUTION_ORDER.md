@@ -20,7 +20,8 @@ Continue the existing issues, not another feature backlog.
   session revocation, household movement and explicit feature disablement after
   rows were read, plus missing/foreign/retired/invalid targets. Earlier reward
   mutation/notice/rollback coverage also still passes. Three affected suites /
-  67 tests, typecheck and scoped lint pass; evidence is `reward-read-renewal-*`.
+  67 tests, typecheck, scoped lint and the Cloudflare production build at
+  `19be087c` pass; evidence is `reward-read-renewal-*`.
   The first fixture incorrectly used an empty feature object as explicit off and
   its wrapper included an unsupported type member; both harness issues were
   corrected and rerun. This is response-time authority renewal, not an atomic

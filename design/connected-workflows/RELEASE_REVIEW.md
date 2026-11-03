@@ -1,5 +1,18 @@
 # Recipe-to-meal candidate review
 
+## Reward read/target recovery — November 3
+
+Source `19be087c` renews native reward read authority after its awaited query and
+withholds retired/invalid notification targets. Real workerd/D1 fixtures passed
+for mid-read session revocation, household change and feature disablement, plus
+neutral missing/foreign/retired/invalid targets. Three affected suites / 67 tests,
+typecheck, scoped lint and Cloudflare production build passed. The latest browser
+journey remains attached to application source `73a6dc28`; this follow-up has
+native database acceptance, not a new rendered acceptance claim. Evidence is
+`reward-read-renewal-*`. Release status remains **Not ready**. Child update
+placement, live provider eligibility/acceptance (#144 re-read), device gates,
+production recovery and updated release checks remain outstanding.
+
 ## Native reward follow-through — November 3
 
 Source `73a6dc28` adds missing Cloudflare in-app reward creation, claim and
