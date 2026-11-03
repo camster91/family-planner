@@ -186,7 +186,6 @@ export function RecipePicker({
               !online && !quick ? "btn-filled min-h-11" : "btn-tinted min-h-11"
             }
             aria-pressed={!online && !quick}
-            aria-label={exploreText("searchSaved")}
             disabled={disabled || onlinePending || creating || onlineEditing}
             onClick={() => {
               if (!onlineSaving.current && !isMutationPending?.()) {

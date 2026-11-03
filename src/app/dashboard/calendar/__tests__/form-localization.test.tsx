@@ -71,6 +71,9 @@ it("localizes real create controls and required-field hints without changing the
   renderLocale(<CreateEventPage />);
   expect(screen.getByRole("heading", { name: "Nuevo evento" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Crear evento" })).toBeDisabled();
+  // #499: the start date defaults to today; clearing it restores both hints.
+  expect(screen.getByText("Añade un título primero.")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Inicio"), { target: { value: "" } });
   expect(
     screen.getByText("Añade un título y una fecha de inicio primero."),
   ).toBeVisible();

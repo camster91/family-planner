@@ -26,7 +26,7 @@ describe('New event form', () => {
     const user = userEvent.setup()
     render(<CreateEventPage />)
     await user.type(screen.getByLabelText('Title'), 'Pending event')
-    await user.type(screen.getByLabelText('Start'), '2099-10-05')
+    await user.clear(screen.getByLabelText('Start')); await user.type(screen.getByLabelText('Start'), '2099-10-05')
     await user.click(screen.getByRole('button', { name: 'Create Event' }))
 
     expect(screen.getByTestId('calendar-create-back-busy')).toHaveProperty('textContent', 'Calendar')
@@ -40,11 +40,16 @@ describe('New event form', () => {
     const user = userEvent.setup()
     render(<CreateEventPage />)
     const submit = screen.getByRole('button', { name: 'Create Event' }) as HTMLButtonElement
+    const start = document.getElementById('startDate') as HTMLInputElement
+    // #499: the start date defaults to today, so only a title is missing.
+    expect(start.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(submit.disabled).toBe(true)
+    expect(screen.getByText('Add a title first.')).toBeTruthy()
+    await user.clear(start)
     expect(screen.getByText('Add a title and a start date first.')).toBeTruthy()
     await user.type(screen.getByLabelText('Title'), 'Soccer')
     expect(screen.getByText('Add a start date first.')).toBeTruthy()
-    await user.type(document.getElementById('startDate') as HTMLInputElement, '2099-10-05')
+    await user.type(start, '2099-10-05')
     expect(submit.disabled).toBe(false)
     expect(screen.queryByText(/ first\.$/)).toBeNull()
   })
@@ -53,7 +58,7 @@ describe('New event form', () => {
     const user = userEvent.setup()
     render(<CreateEventPage />)
     await user.type(screen.getByLabelText('Title'), 'Soccer')
-    await user.type(document.getElementById('startDate') as HTMLInputElement, '2099-10-05')
+    await user.clear(document.getElementById('startDate') as HTMLInputElement); await user.type(document.getElementById('startDate') as HTMLInputElement, '2099-10-05')
     await user.type(document.getElementById('startTime') as HTMLInputElement, '17:30')
     await user.click(screen.getByTestId('event-details-section').querySelector('summary')!)
     await user.type(document.getElementById('endDate') as HTMLInputElement, '2099-10-05')

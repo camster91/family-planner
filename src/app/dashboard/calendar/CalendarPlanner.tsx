@@ -438,7 +438,14 @@ export function CalendarPlanner({
               </div>
             </details>
           )}
-          <Link href="/dashboard/calendar/create" className="btn-filled">
+          <Link
+            href={
+              view === "day"
+                ? `/dashboard/calendar/create?date=${encodeURIComponent(date)}`
+                : "/dashboard/calendar/create"
+            }
+            className="btn-filled"
+          >
             {msg("add")}
           </Link>
         </div>

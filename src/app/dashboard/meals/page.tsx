@@ -152,6 +152,7 @@ function MealModal({
 }) {
   const { t } = useTranslation();
   const text = useMealsPageText();
+  const displayLocale = useDisplayLocale();
   const [confirmedMeal, setConfirmedMeal] = React.useState<{
     mealId: string;
     recipeId: string;
@@ -432,7 +433,20 @@ function MealModal({
             open={mode === "edit" ? true : undefined}
           >
             <summary className="min-h-11 cursor-pointer content-center text-subhead">
-              {date} · {text(meal_type)}{" "}
+              {(() => {
+                // Show the stored day in the viewer's language (#499); the
+                // stored value stays an ISO date.
+                const day = parseDateOnly(date);
+                return day
+                  ? new Intl.DateTimeFormat(displayLocale, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      timeZone: "UTC",
+                    }).format(day)
+                  : date;
+              })()}{" "}
+              · {text(meal_type)}{" "}
               <span className="text-[var(--accent-text)] ml-2">
                 {text("changeSlot")}
               </span>
