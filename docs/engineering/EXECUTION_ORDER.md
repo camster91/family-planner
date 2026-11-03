@@ -105,6 +105,20 @@ Continue the existing issues, not another feature backlog.
   when no buffers were entered. Production activation remains separate.
   No provider refresh, external calendar write, production migration or deployment
   was performed. Evidence: `schedule-*` in the continuation artifact directory.
+- Responsibility/backup native review found real gaps in #464: hidden/filtered
+  picker results incorrectly determined canonical participation, recovery loaded
+  a possibly deleted target before its receipt, and source/member/feature reads
+  were not all guarded at commit. Eligibility now resolves actual participants
+  and requested subjects independently of bounded discovery. Scalar source reads
+  (including empty eligibility sets, recurrence roots, actor/family and metadata)
+  are witnessed in the effect/receipt batch; reads/recovery validate together.
+  Storage readiness requires all 25 lifecycle guards on their expected tables.
+  Local D1 verifies child self-acceptance, parent-recorded age-three profile intent,
+  archive retirement, search/hidden-picker preservation, feature-change rollback,
+  absent-guard refusal and recovery after deletion/pause/intent expiry. Revoked
+  sessions cannot inspect receipts. Domain/API/components: 62 tests passed;
+  eight PostgreSQL tests skipped. The responsibility feature remains disabled
+  pending final native and rendered acceptance; no deployment is implied.
 - Keep live Google/provider eligibility, signed native builds, physical-device
   behavior and store publication explicit. Existing source is not evidence
   those external requirements are complete.
