@@ -108,7 +108,7 @@ export const inventoryEnglish = {
     "Something went wrong while scanning. Try again, or add items by hand.",
   scanNetwork:
     "Couldn't reach the scanner. Check your connection and try again.",
-  photoLarge: "That photo is too large. The limit is 8 MB.",
+  photoLarge: "That photo is too large. The limit is {limit} MB.",
   tryPhoto: "Try another photo",
   anotherPhoto: "Scan another photo",
   scanAllAdded: "Everything from this photo was added.",
@@ -393,7 +393,7 @@ export const inventorySpanish: Record<InventoryMessage, string> = {
     "Algo salió mal al escanear. Inténtalo de nuevo o añade los alimentos a mano.",
   scanNetwork:
     "No pudimos contactar con el escáner. Revisa tu conexión e inténtalo de nuevo.",
-  photoLarge: "Esa foto es demasiado grande. El límite es de 8 MB.",
+  photoLarge: "Esa foto es demasiado grande. El límite es de {limit} MB.",
   tryPhoto: "Probar otra foto",
   anotherPhoto: "Escanear otra foto",
   scanAllAdded: "Se añadieron todos los alimentos de esta foto.",

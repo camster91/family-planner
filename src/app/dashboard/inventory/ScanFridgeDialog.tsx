@@ -194,6 +194,8 @@ export function ScanFridgeDialog({
   suspended = false,
   onVerifyAccess,
   canCaptureDocuments = false,
+  providerName = "Anthropic",
+  maxUploadBytes = MAX_UPLOAD_BYTES,
   onClose,
   onDone,
   onFeedback,
@@ -202,6 +204,8 @@ export function ScanFridgeDialog({
   suspended?: boolean;
   onVerifyAccess?: () => void;
   canCaptureDocuments?: boolean;
+  providerName?: string;
+  maxUploadBytes?: number;
   onClose: () => void;
   onDone: (message: string) => void;
   /** Opt-in semantic feedback; legacy consumers still receive their original English string. */
@@ -346,7 +350,7 @@ export function ScanFridgeDialog({
         const image = await prepareImage(file);
         // Late decoding must never start an upload after its foreground deadline.
         if (!current() || signal.aborted) throw new Error("Retired photo preparation");
-        if (image.size > MAX_UPLOAD_BYTES) return { kind: "large" as const };
+        if (image.size > maxUploadBytes) return { kind: "large" as const };
         const form = new FormData();
         form.append("image", image, "food.jpg");
         if (captureMode !== "fridge") {
@@ -374,7 +378,7 @@ export function ScanFridgeDialog({
         return;
       }
       if (result.kind === "large") {
-        setPhase({ step: "error", message: feedback("photoLarge") });
+        setPhase({ step: "error", message: feedback("photoLarge", { limit: Math.floor(maxUploadBytes / (1024 * 1024)) }) });
         return;
       }
       const { res, body: response } = result;
@@ -698,7 +702,7 @@ export function ScanFridgeDialog({
               data-testid="scan-privacy-note"
             >
               {copy("scanPrivacy", {
-                provider: "Anthropic",
+                provider: providerName,
                 brand: PRODUCT_BRAND.name,
               })}
             </p>

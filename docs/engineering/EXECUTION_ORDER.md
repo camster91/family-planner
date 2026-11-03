@@ -58,13 +58,21 @@ Continue the existing issues, not another feature backlog.
   to the selected grocery list and return to the editor. Updated success-state
   screenshot inspected. Typecheck passes; changed-source lint has zero errors
   and four existing hook warnings. Nothing was merged/deployed.
-- Next food-capture integration gap: `inventory-scan.ts` still resolves only
-  deployment `INVENTORY_SCAN_ANTHROPIC_API_KEY`, while the household Settings
-  key uses `resolveCaptureConfig` for other capture. Investigate reuse of the
-  existing encrypted provider transport for reviewed food photos under #125/#144;
-  preserve parent-only eligibility, separate receipt/document consent, usage
-  limits, redaction and no-provider/manual fallback. Do not enable a provider or
-  infer image capability merely from a saved text-model key.
+- Food-photo Settings integration (#125/#144): parent inventory capture now
+  resolves the existing encrypted household AI configuration before the legacy
+  deployment scanner, without switching providers after a failed photo request.
+  It reuses the bounded image transport, usage observer/admission and output
+  parsers. The existing hourly/daily ceilings and separate receipt/package gate
+  remain; revoked sessions or changed settings suppress the returned proposal.
+  The picker names the selected provider and enforces its 5 MB upload limit.
+  No raw image is saved and stock still requires explicit review/intake.
+  Configured does not mean image-capable: unsupported models fail visibly with
+  manual entry available. Local mocked-provider/API/component checks pass 145
+  tests, including shared accounting, quota refusal, no fallback on bad keys,
+  settings changes, no unreviewed writes and provider/size disclosure. Typecheck
+  passes; changed-source lint has zero errors/five existing hook warnings.
+  Real provider/model capability, privacy eligibility and hardware acceptance
+  remain separate; no live provider call, key change or deployment occurred.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,

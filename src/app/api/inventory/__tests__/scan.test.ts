@@ -1,3 +1,6 @@
+jest.mock("@/lib/outbound-url", () => ({ assertPublicProviderUrl: jest.fn(async () => undefined) }));
+jest.mock("@/lib/safe-fetch", () => ({ safeFetch: (...args: Parameters<typeof fetch>) => global.fetch(...args), isUnsafeAddressError: () => false }));
+import { encryptSecret } from "@/lib/secret-box";
 // POST /api/inventory/scan (#265): kill switch, feature gate, roles (parent
 // only), paired-device refusal, upload size/type checks, rate limits and the
 // daily spend cap per household, provider failures and malformed output, and
@@ -626,6 +629,62 @@ describe("document-mode compatibility and privacy gate", () => {
       capture_mode: "package",
       items: [{ amount: null, unit: null, package_size: "500 g" }],
     });
+    expect(db.writes).toHaveLength(0);
+  });
+});
+
+
+describe("household Settings photo provider", () => {
+  function configure() {
+    const family = db.tables.family[0];
+    family.capture_ai_key_enc = encryptSecret("fixture-household-photo-key");
+    family.capture_ai_base_url = "https://generativelanguage.googleapis.com/v1beta/openai";
+    family.capture_ai_model = "fixture-image-model";
+    return family;
+  }
+  function response(data: unknown) {
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(data) } }], usage: { prompt_tokens: 100, completion_tokens: 30 } }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+  it("uses the encrypted household provider without the legacy scanner key and writes only suggestions", async () => {
+    configure();
+    delete process.env.INVENTORY_SCAN_ANTHROPIC_API_KEY;
+    fetchMock.mockImplementation(async () => response(GOOD));
+    const result = await POST(scanReq("parentA"));
+    expect(result.status).toBe(200);
+    expect((await result.json()).items[0].name).toBe("Milk");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+    expect(db.writes).toHaveLength(0);
+  });
+  it("keeps the deployment daily ceiling for a household-owned key", async () => {
+    configure();
+    process.env.INVENTORY_SCAN_DAILY_LIMIT = "0";
+    const result = await POST(scanReq("parentA"));
+    expect(result.status).toBe(429);
+    expect(await errorCode(result)).toBe("SCAN_DAILY_LIMIT");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("does not switch providers when the household key is unreadable", async () => {
+    const family = configure();
+    family.capture_ai_key_enc = "invalid-ciphertext";
+    const result = await POST(scanReq("parentA"));
+    expect(result.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("does not return suggestions after household provider settings changed", async () => {
+    const family = configure();
+    fetchMock.mockImplementation(async () => { family.capture_ai_model = "changed-model"; return response(GOOD); });
+    const result = await POST(scanReq("parentA"));
+    expect(result.status).toBe(409);
+    expect(await errorCode(result)).toBe("INVENTORY_SCAN_FORBIDDEN");
+  });
+  it("keeps unsupported household image models recoverable without a fallback provider call", async () => {
+    configure();
+    fetchMock.mockImplementation(async () => new Response("fixture unsupported image", { status: 400 }));
+    const result = await POST(scanReq("parentA"));
+    expect(result.status).toBe(502);
+    expect(await errorCode(result)).toBe("SCAN_PROVIDER_UNAVAILABLE");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(db.writes).toHaveLength(0);
   });
 });

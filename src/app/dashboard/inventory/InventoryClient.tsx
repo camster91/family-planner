@@ -181,6 +181,8 @@ type InventoryClientProps = {
   canOpenRecipes: boolean
   intakeContext?: { userId: string; familyId: string }
   canScan?: boolean
+  scanProviderName?: string
+  scanMaxBytes?: number
   canCaptureDocuments?: boolean
   recoveryRequired?: boolean
 }
@@ -192,6 +194,8 @@ function InventoryContent({
   canWrite,
   canOpenRecipes,
   canScan = false,
+  scanProviderName,
+  scanMaxBytes,
   canCaptureDocuments = false,
   intakeContext,
 }: InventoryClientProps) {
@@ -636,7 +640,7 @@ function InventoryContent({
       </Dialog>}
 
       {barcodeScanning && <BarcodeFoodDialog onVerifyAccess={() => void load()} suspended={readBlocked} initialContext={intakeContext} onClose={() => setBarcodeScanning(false)} onDone={(count) => { setBarcodeScanning(false); afterChange(feedback('barcodeAdded', { count })); }} />}
-      {scanning && <ScanFridgeDialog onVerifyAccess={() => void load()} suspended={readBlocked} canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
+      {scanning && <ScanFridgeDialog providerName={scanProviderName} maxUploadBytes={scanMaxBytes} onVerifyAccess={() => void load()} suspended={readBlocked} canCaptureDocuments={canCaptureDocuments} initialContext={intakeContext} onClose={() => setScanning(false)} onDone={(message) => afterChange({ raw: message })} onFeedback={afterChange} />}
 
       {cookingOpen && cookingSource && mealsOn && canWrite && intakeContext && <InventoryCookingSheet key={JSON.stringify(cookingSource)} source={cookingSource} context={intakeContext} items={ready?.items ?? []} capped={ready?.capped ?? false} suspended={readBlocked || !!editing || !!stockChange} disabled={recoveryBlocked || refreshing || refreshFailed || !ready} onClose={() => setCookingOpen(false)} onChoose={item => { if (!readBlocked && !recoveryBlocked && !refreshing && !refreshFailed) setEditing({ mode: 'edit', item }) }} />}
 
