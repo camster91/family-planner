@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { CaptureConfig } from "./capture";
 import { aiConfigHash } from "./ai-usage-hash";
 import { googleRecipeSearchPricing } from "./google-recipe-search-cost";
+import { geminiProviderApproved } from "./gemini-policy";
 const approval = z
   .object({
     configVersion: z.string().regex(/^[a-f0-9]{64}$/),
@@ -15,7 +16,8 @@ export function approvedGoogleRecipePricing(
   config: CaptureConfig,
   now = Date.now(),
 ) {
-  if (process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0") return null;
+  if (!geminiProviderApproved() || process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0")
+    return null;
   const raw = process.env.FAMILY_GOOGLE_RECIPE_SEARCH_PRICING;
   if (!raw) return defaultGeminiRecipePricing(config, now);
   if (raw.length > 4096) return null;

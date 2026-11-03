@@ -86,3 +86,14 @@ condition = "AND"
 paths = ['''^docs/plans/import\-review\-ui\.md$''']
 regexTarget = "line"
 regexes = ['''(?m)^\+?The\ API\ path,\ body\ keys,\ parent/family\ guards,\ identity\ checks,\ importer\ ownership,$''']
+
+[[allowlists]]
+description = "Exact fake schedule-review retry ID in the disposable local runtime fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^scripts/cloudflare/fixtures/schedule-review\.ts$''']
+regexTarget = "secret"
+# Client retry identifier for a fabricated loopback-only D1 fixture; it never
+# authenticates anything. Exact value only, so the rest of the file and the
+# full PR history stay scanned.
+regexes = ['''^schedule_move_001$''']

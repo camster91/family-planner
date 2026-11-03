@@ -1,3 +1,10 @@
+// Gemini is OFF for this release (#144). These cases cover the retained,
+// not-yet-approved path, so they opt in explicitly; the off cases opt out.
+let mockGeminiApproved = true;
+jest.mock("@/lib/gemini-policy", () => {
+  const actual = jest.requireActual("@/lib/gemini-policy");
+  return { ...actual, geminiProviderApproved: () => mockGeminiApproved };
+});
 import { checkGeminiKey } from "../gemini-key-check";
 const oldFetch = global.fetch;
 afterEach(() => { global.fetch = oldFetch; });
@@ -21,4 +28,13 @@ it("refuses unexpected model data and bounded oversized responses", async () => 
   expect(await checkGeminiKey("fabricated-key")).toBe("unavailable");
   global.fetch = jest.fn(async () => new Response("x".repeat(40000)));
   expect(await checkGeminiKey("fabricated-key")).toBe("unavailable");
+});
+
+it("sends nothing to Google while Gemini is off", async () => {
+  mockGeminiApproved = false;
+  global.fetch = jest.fn();
+  try {
+    expect(await checkGeminiKey("fabricated-key")).toBe("unavailable");
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally { mockGeminiApproved = true; }
 });

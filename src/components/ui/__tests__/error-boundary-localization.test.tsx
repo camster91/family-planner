@@ -44,3 +44,22 @@ it('retains a caller-supplied fallback', () => {
   expect(screen.getByText('Fixture custom recovery')).toBeTruthy()
   expect(screen.queryByText('Something went wrong')).toBeNull()
 })
+
+// #499: notFound()/redirect() inside /dashboard showed "Something went wrong".
+class Outer extends React.Component<{ children: React.ReactNode }, { caught: string | null }> {
+  state = { caught: null as string | null }
+  static getDerivedStateFromError(error: { digest?: string }) { return { caught: error.digest ?? 'none' } }
+  render() { return this.state.caught ? <p>Outer caught {this.state.caught}</p> : this.props.children }
+}
+it.each(['NEXT_HTTP_ERROR_FALLBACK;404', 'NEXT_REDIRECT;replace;/login;307;', 'NEXT_NOT_FOUND'])(
+  'passes the framework signal %s to Next.js instead of showing a failure',
+  (digest) => {
+    function Signal(): React.ReactNode { throw Object.assign(new Error(digest), { digest }) }
+    render(<I18nProvider locale="en" persistLocale={false}>
+      <Outer><ErrorBoundary><Signal /></ErrorBoundary></Outer>
+    </I18nProvider>)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText(`Outer caught ${digest}`)).toBeTruthy()
+    expect(log.error).not.toHaveBeenCalled()
+  },
+)

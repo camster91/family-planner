@@ -89,6 +89,9 @@ test("list deletion committed before response loss still offers a working Undo",
   const bounds = await deleteButton.boundingBox();
   expect(bounds?.width).toBeGreaterThanOrEqual(44);
   expect(bounds?.height).toBeGreaterThanOrEqual(44);
+  // The row's actions stay disabled until its list state settles; focusing a
+  // disabled button is a no-op, which made this step flaky on desktop.
+  await expect(deleteButton).toBeEnabled();
   await deleteButton.focus();
   await expect(deleteButton).toBeFocused();
   await page.keyboard.press("Enter");

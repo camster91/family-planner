@@ -21,6 +21,7 @@ import type { AssistantReferenceCatalog } from "./assistant-references";
 import { captureTextReview, capturePhotoReview, type CaptureTextReview, type CapturePhotoReview, type CaptureEventReview } from './capture-review-contract'
 import { decryptSecret } from './secret-box'
 import { assertPublicProviderUrl } from './outbound-url'
+import { geminiBlocked, GEMINI_DISABLED_MESSAGE } from './gemini-policy'
 import { isUnsafeAddressError, safeFetch } from './safe-fetch'
 import type { AssistantTodayTransportContext } from './assistant-context-schema'
 
@@ -74,6 +75,15 @@ type CaptureSettingsInput = CaptureSettingsRow | null | undefined
 // Build the effective config for a family, falling back to the deployment-level
 // environment only if the family has not set anything.
 export function resolveCaptureConfig(row?: CaptureSettingsInput): CaptureConfig | null {
+  const resolved = resolveRawCaptureConfig(row)
+  // #144: Gemini stays off pending provider clarification, whether it comes
+  // from a household key or the deployment fallback. Callers already treat
+  // null as "AI unavailable" and keep their manual paths.
+  if (resolved && geminiBlocked(resolved.baseUrl)) return null
+  return resolved
+}
+
+function resolveRawCaptureConfig(row?: CaptureSettingsInput): CaptureConfig | null {
   const familyKey = decryptSecret(row?.capture_ai_key_enc)
   const envBaseUrl = process.env.CAPTURE_AI_BASE_URL?.trim() || DEFAULT_BASE_URL
   const envModel = process.env.CAPTURE_AI_MODEL?.trim() || DEFAULT_MODEL
@@ -196,6 +206,8 @@ async function callModelTransport(
   if (process.env.FAMILY_AI_PROVIDER_DISABLED === '1') throw new CaptureError('AI is paused. Use the app controls instead.', 503)
   if (isAiUsageAdopted() && !observer) throw new CaptureError('AI usage needs a compatible request. Refresh before trying again.', 503)
   const { apiKey, baseUrl, model } = config
+  // Defense in depth for configs not built by resolveCaptureConfig (#144).
+  if (geminiBlocked(baseUrl)) throw new CaptureError(GEMINI_DISABLED_MESSAGE, 503)
 
   if (config.userSuppliedUrl) {
     try {

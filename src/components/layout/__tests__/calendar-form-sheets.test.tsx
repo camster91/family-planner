@@ -15,6 +15,7 @@ it('uses localized sheet controls and preserves canonical event submission and p
   render(<I18nProvider locale="es"><EventCreateSheet /></I18nProvider>)
   expect(screen.getByRole('dialog', { name: 'Nuevo evento' })).toBeInTheDocument()
   await user.type(screen.getByLabelText('Título'), 'Fixture meeting')
+  await user.clear(screen.getByLabelText('Inicio'))
   await user.type(screen.getByLabelText('Inicio'), '2026-12-15')
   await user.click(screen.getByRole('button', { name: 'Crear evento' }))
   expect(fetch).toHaveBeenCalledWith('/api/events', expect.objectContaining({ method: 'POST' }))

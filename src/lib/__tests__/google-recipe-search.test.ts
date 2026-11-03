@@ -1,3 +1,10 @@
+// Gemini is OFF for this release (#144). These cases cover the retained,
+// not-yet-approved path, so they opt in explicitly; the off cases opt out.
+let mockGeminiApproved = true;
+jest.mock("@/lib/gemini-policy", () => {
+  const actual = jest.requireActual("@/lib/gemini-policy");
+  return { ...actual, geminiProviderApproved: () => mockGeminiApproved };
+});
 import { searchGoogleRecipes } from "../google-recipe-search";
 import { parseGoogleRecipeDiscovery, readGoogleRecipeUsage } from "../google-recipe-search-response";
 const config={baseUrl:"https://generativelanguage.googleapis.com/v1beta/openai",model:"gemini-3.8-flash",apiKey:"fixture-secret",userSuppliedUrl:false};
@@ -47,3 +54,13 @@ it("accounts for usage even when grounded display is invalid",async()=>{
 it("does not treat absent completed steps as free searches",()=>{expect(readGoogleRecipeUsage({status:"completed",steps:[]})).toMatchObject({searchQueries:null,grounded:null});});
 
 it("rejects per-request search pricing for a query-priced model",async()=>{await expect(searchGoogleRecipes("soup",config,{...pricing,searchBilling:"grounded-request"},meter())).rejects.toThrow("configuration");expect(global.fetch).not.toHaveBeenCalled();});
+
+it("never dispatches while Gemini is off, even when the search flag is ready", async () => {
+  mockGeminiApproved = false;
+  const observer = meter();
+  try {
+    await expect(searchGoogleRecipes("soup", config, pricing, observer)).rejects.toThrow();
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(observer.start).not.toHaveBeenCalled();
+  } finally { mockGeminiApproved = true; }
+});

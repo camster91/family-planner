@@ -1,3 +1,9 @@
+// #144: Gemini is off for this release; these cases cover the retained path.
+let mockGeminiApproved = true;
+jest.mock("../gemini-policy", () => {
+  const actual = jest.requireActual("../gemini-policy");
+  return { ...actual, geminiProviderApproved: () => mockGeminiApproved };
+});
 jest.mock(
   "next/server",
   () => require("@/__tests__/helpers/two-household").nextServerMock,
@@ -128,4 +134,15 @@ it("settles failed provider attempts without leaking upstream text", async () =>
   expect(result.status).toBe(502);
   expect(JSON.stringify(await result.json())).not.toContain("PRIVATE");
   expect(meter.finish).toHaveBeenCalledWith(502);
+});
+
+it("falls back to publisher sources without any configuration read while Gemini is off (#144)", async () => {
+  mockGeminiApproved = false;
+  try {
+    expect(await discoverGoogleRecipesOrFallback(request, original, "soup")).toBeNull();
+    expect(searchGoogleRecipes).not.toHaveBeenCalled();
+    expect(createAiUsageJob).not.toHaveBeenCalled();
+  } finally {
+    mockGeminiApproved = true;
+  }
 });

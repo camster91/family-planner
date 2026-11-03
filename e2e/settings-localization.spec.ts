@@ -1218,6 +1218,8 @@ test.describe("parentA connected calendars", () => {
         ).toBeVisible();
         s.reply("POST", conPath + "/sync", {
           body: {
+            // Replies must carry the canonical connection (b6944cb).
+            connection: connection({ push_mode: "all" }),
             result: {
               status: "ok",
               pulled: { created: 2, updated: 1, deleted: 4 },
@@ -1237,26 +1239,38 @@ test.describe("parentA connected calendars", () => {
             { exact: true },
           ),
         ).toBeVisible();
-        s.reply("POST", conPath + "/sync", {
-          body: { result: { status: "future", error: RAW } },
+        // An unknown result status or a 5xx is unconfirmed (b6944cb): hold
+        // further changes until an explicit refresh, and never show raw
+        // provider text.
+        const refreshConnections = section.getByRole("button", {
+          name: msg(locale, "retryCalendarConnections"),
+          exact: true,
         });
-        await own
-          .getByRole("button", {
-            name: msg(locale, "syncLabel", { provider: "Google Calendar" }),
-            exact: true,
-          })
-          .click();
-        await expect(section.getByText(RAW, { exact: true })).toBeVisible();
-        s.reply("POST", conPath + "/sync", { status: 503, body: {} });
-        await own
-          .getByRole("button", {
-            name: msg(locale, "syncLabel", { provider: "Google Calendar" }),
-            exact: true,
-          })
-          .click();
-        await expect(
-          section.getByText(msg(locale, "syncFailed"), { exact: true }),
-        ).toBeVisible();
+        for (const reply of [
+          {
+            body: {
+              connection: connection({ push_mode: "all" }),
+              result: { status: "future", error: RAW },
+            },
+          },
+          { status: 503, body: {} },
+        ]) {
+          s.reply("POST", conPath + "/sync", reply);
+          await own
+            .getByRole("button", {
+              name: msg(locale, "syncLabel", { provider: "Google Calendar" }),
+              exact: true,
+            })
+            .click();
+          await expect(
+            section.getByText(msg(locale, "calendarChangeUnconfirmed"), {
+              exact: true,
+            }),
+          ).toBeVisible();
+          await expect(section.getByText(RAW, { exact: true })).toHaveCount(0);
+          await refreshConnections.click();
+          await expect(refreshConnections).toHaveCount(0);
+        }
         s.reply("GET", conPath + "/calendars", { body: { calendars: [] } });
         await own
           .getByRole("button", {
@@ -1406,7 +1420,8 @@ test.describe("parentA connected calendars", () => {
           .getByRole("button", { name: msg(next, "cancel"), exact: true })
           .click();
         expect(s.count("DELETE", conPath)).toBe(0);
-        s.reply("DELETE", conPath, { body: {} });
+        // Only an explicit success confirms a disconnect (b6944cb).
+        s.reply("DELETE", conPath, { body: { success: true } });
         await disconnect.click();
         removal = page.getByRole("alertdialog");
         await removal
@@ -1419,7 +1434,8 @@ test.describe("parentA connected calendars", () => {
           ),
         ).toBeVisible();
         s.assertLast("DELETE", conPath);
-        expect(s.count("GET", "/api/calendar/connections")).toBe(1);
+        // Initial read plus the two explicit refreshes after unconfirmed syncs.
+        expect(s.count("GET", "/api/calendar/connections")).toBe(3);
         await capture(page, info, "connections-synthetic-disconnected");
       });
       test(`${locale}: all eight provider-return outcomes and unknown query remain mounted`, async ({

@@ -438,7 +438,7 @@ describe("/dashboard/meals", () => {
       }
       const dialog = screen.getByRole("dialog");
       await user.click(
-        within(dialog).getByRole("button", { name: "Search saved recipes" }),
+        within(dialog).getByRole("button", { name: /^(Saved|Search saved recipes)$/ }),
       );
       await user.click(
         within(dialog).getByRole("button", { name: "New recipe" }),
@@ -553,7 +553,7 @@ describe("/dashboard/meals", () => {
       }
       const dialog = screen.getByRole("dialog");
       await user.click(
-        within(dialog).getByRole("button", { name: "Search saved recipes" }),
+        within(dialog).getByRole("button", { name: /^(Saved|Search saved recipes)$/ }),
       );
       const newRecipe = within(dialog).getByRole("button", {
         name: "New recipe",
@@ -1473,7 +1473,7 @@ describe("/dashboard/meals", () => {
     );
     const dialog = await screen.findByRole("dialog");
     await user.click(
-      within(dialog).getByRole("button", { name: "Search saved recipes" }),
+      within(dialog).getByRole("button", { name: /^(Saved|Search saved recipes)$/ }),
     );
     const picker = within(dialog).getByLabelText("Recipe (optional)");
     await within(dialog).findByRole("option", { name: "Veggie lasagna" });

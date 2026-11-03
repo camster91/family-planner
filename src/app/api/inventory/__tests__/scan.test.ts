@@ -1,4 +1,15 @@
 jest.mock("@/lib/outbound-url", () => ({ assertPublicProviderUrl: jest.fn(async () => undefined) }));
+// #144: Gemini is off for this release. The household-provider cases below use
+// a Gemini URL to cover the retained path, so they opt in explicitly.
+let mockGeminiApproved = false;
+jest.mock("@/lib/gemini-policy", () => {
+  const actual = jest.requireActual("@/lib/gemini-policy");
+  return {
+    ...actual,
+    geminiProviderApproved: () => mockGeminiApproved,
+    geminiBlocked: (value: string | null | undefined) => !mockGeminiApproved && actual.isGeminiProviderUrl(value),
+  };
+});
 jest.mock("@/lib/safe-fetch", () => ({ safeFetch: (...args: Parameters<typeof fetch>) => global.fetch(...args), isUnsafeAddressError: () => false }));
 import { encryptSecret } from "@/lib/secret-box";
 // POST /api/inventory/scan (#265): kill switch, feature gate, roles (parent
@@ -634,7 +645,23 @@ describe("document-mode compatibility and privacy gate", () => {
 });
 
 
+describe("household Settings photo provider while Gemini is off (#144)", () => {
+  it("sends no photo to a saved household Gemini provider", async () => {
+    const family = db.tables.family[0];
+    family.capture_ai_key_enc = encryptSecret("fixture-household-photo-key");
+    family.capture_ai_base_url = "https://generativelanguage.googleapis.com/v1beta/openai";
+    family.capture_ai_model = "fixture-image-model";
+    delete process.env.INVENTORY_SCAN_ANTHROPIC_API_KEY;
+    const result = await POST(scanReq("parentA"));
+    expect(result.status).not.toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+});
+
 describe("household Settings photo provider", () => {
+  beforeEach(() => { mockGeminiApproved = true; });
+  afterEach(() => { mockGeminiApproved = false; });
   function configure() {
     const family = db.tables.family[0];
     family.capture_ai_key_enc = encryptSecret("fixture-household-photo-key");

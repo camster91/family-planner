@@ -210,3 +210,15 @@ it.each([false, true])(
     expect(scrollBody).toHaveFocus();
   },
 );
+
+it.each(["default", "form"] as const)(
+  "renders footer actions for the %s variant (#450 Pause/Resume/Stop confirm)",
+  (variant) => {
+    render(
+      <Dialog open title="Pause" variant={variant} onClose={() => {}} footer={<button>Confirm</button>}>
+        <p>Changes apply after today.</p>
+      </Dialog>,
+    );
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument();
+  },
+);

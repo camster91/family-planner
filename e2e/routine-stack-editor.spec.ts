@@ -517,7 +517,8 @@ async function expectChoreListView(page: Page) {
   // the mounted default view before issuing a canonical read or opening the
   // editor again; otherwise the old route's execution context can disappear
   // while browserFetch is still evaluating in the page.
-  await expect(page).toHaveURL(/\/dashboard\/chores$/);
+  // Saves return to the routine workspace (c2d7280); older paths had no query.
+  await expect(page).toHaveURL(/\/dashboard\/chores(\?view=routines)?$/);
   const view = page.getByRole("group", {
     name: /^(Chore views|Vistas de tareas)$/,
   });

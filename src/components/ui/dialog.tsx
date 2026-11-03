@@ -40,7 +40,7 @@ export function Dialog({
   title: string;
   description?: React.ReactNode;
   children: React.ReactNode;
-  /** Optional fixed action area for long form sheets. */
+  /** Action area: fixed for form sheets, below the content otherwise. */
   footer?: React.ReactNode;
   className?: string;
   testId?: string;
@@ -218,7 +218,16 @@ export function Dialog({
             )}
           </>
         ) : (
-          children
+          <>
+            {children}
+            {/* Default dialogs used to drop `footer`, hiding the only Confirm
+                action (e.g. routine Pause/Resume/Stop, #450). */}
+            {footer && (
+              <div className="mt-5 flex flex-wrap items-center justify-end gap-3 pb-[env(safe-area-inset-bottom)]">
+                {footer}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

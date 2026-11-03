@@ -352,6 +352,9 @@ export default function SettingsClient({
   const [aiKey, setAiKey] = useState("");
   const [aiKeyHint, setAiKeyHint] = useState<string | null>(null);
   const [aiConfigured, setAiConfigured] = useState(false);
+  // #144: Gemini is off for this release; the server reports the truth.
+  const [aiGeminiAvailable, setAiGeminiAvailable] = useState(false);
+  const [aiProviderDisabled, setAiProviderDisabled] = useState(false);
   const [aiProvider, setAiProvider] = useState<"gemini" | "custom">("gemini");
   const [aiBaseUrl, setAiBaseUrl] = useState("");
   const [aiModel, setAiModel] = useState("");
@@ -435,11 +438,20 @@ export default function SettingsClient({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d) return;
-        setAiProvider(!d.configured || isGeminiBaseUrl(d.baseUrl ?? "") ? "gemini" : "custom");
+        const geminiAvailable = d.geminiAvailable === true;
+        const disabled = d.providerDisabled === true;
+        setAiGeminiAvailable(geminiAvailable);
+        setAiProviderDisabled(disabled);
+        setAiProvider(
+          geminiAvailable && (!d.configured || isGeminiBaseUrl(d.baseUrl ?? ""))
+            ? "gemini"
+            : "custom",
+        );
         setAiConfigured(Boolean(d.configured));
         setAiKeyHint(d.keyHint ?? null);
-        setAiBaseUrl(d.baseUrl ?? "");
-        setAiModel(d.model ?? "");
+        // Do not prefill a turned-off provider: saving it would be refused.
+        setAiBaseUrl(disabled ? "" : (d.baseUrl ?? ""));
+        setAiModel(disabled ? "" : (d.model ?? ""));
       })
       .catch(() => {});
   }, [showAi]);
@@ -468,8 +480,9 @@ export default function SettingsClient({
         throw new SettingsFeedbackError(
           settingsResponseError(data.error, "aiSaveFailed"),
         );
-      setAiBaseUrl(data.baseUrl ?? "");
-      setAiModel(data.model ?? "");
+      setAiProviderDisabled(data.providerDisabled === true);
+      setAiBaseUrl(data.providerDisabled === true ? "" : (data.baseUrl ?? ""));
+      setAiModel(data.providerDisabled === true ? "" : (data.model ?? ""));
       setAiConfigured(Boolean(data.configured));
       setAiKeyHint(data.keyHint ?? null);
       setAiKey("");
@@ -1146,10 +1159,15 @@ export default function SettingsClient({
                 <div>
                   <label htmlFor="aiProvider" className="block text-sm font-medium mb-2">{copy("aiProvider")}</label>
                   <select id="aiProvider" className="input-field w-full" value={aiProvider} onChange={(event) => setAiProvider(event.target.value as "gemini" | "custom")}>
-                    <option value="gemini">{copy("geminiProvider")}</option>
+                    {aiGeminiAvailable && <option value="gemini">{copy("geminiProvider")}</option>}
                     <option value="custom">{copy("aiOtherProvider")}</option>
                   </select>
-                  {aiProvider === "gemini" && <p className="text-xs text-label-tertiary mt-2">{copy("geminiSetup")}</p>}
+                  {aiProvider === "gemini" && aiGeminiAvailable && <p className="text-xs text-label-tertiary mt-2">{copy("geminiSetup")}</p>}
+                  {!aiGeminiAvailable && (
+                    <p role="status" className="text-xs text-label-secondary mt-2">
+                      {copy(aiProviderDisabled ? "geminiOffSaved" : "geminiOff")}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label
@@ -1219,7 +1237,7 @@ export default function SettingsClient({
                   <div className="font-medium text-foreground mb-1">
                     {copy("visionHint")}
                   </div>
-                  <div>{copy("geminiHint")}</div>
+                  {aiGeminiAvailable && <div>{copy("geminiHint")}</div>}
                   <div>{copy("openaiHint")}</div>
                   <div>{copy("deepseekHint")}</div>
                 </div>

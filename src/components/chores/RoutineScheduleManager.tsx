@@ -733,7 +733,7 @@ export default function RoutineScheduleManager({
                   <p className="text-body text-label-secondary">
                     {t(row.state)}
                     {row.stepCount
-                      ? ` · ${t("stepsCount", { count: row.stepCount })}`
+                      ? ` · ${row.stepCount === 1 ? t("stepsCountOne") : t("stepsCount", { count: row.stepCount })}`
                       : ""}
                   </p>
                   {row.schedule && (

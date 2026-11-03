@@ -1,3 +1,4 @@
+import { geminiProviderApproved } from "@/lib/gemini-policy";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticateWithFamily } from "@/lib/api-auth";
@@ -66,6 +67,7 @@ async function discover(request: NextRequest) {
   if (
     input.data.preferGrounded === true &&
     input.data.source === "all" &&
+    geminiProviderApproved() &&
     process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY !== "0" &&
     ["parent", "teen"].includes(original.role)
   ) {

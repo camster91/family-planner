@@ -474,6 +474,13 @@ function localMiniflareOptions(instance, workers) {
     worker.dev.outboundService = {
       type: "fetcher",
       handler: async (request) => {
+        // Host-only evidence line (no path, query, headers or body) so a local
+        // run can show which providers the Worker attempted to contact.
+        try {
+          console.error(JSON.stringify({ outbound: new URL(request.url).host, method: request.method }));
+        } catch {
+          /* Unparseable URL: still denied below. */
+        }
         if (exerciseGeminiSetup && request.method === "GET" &&
             request.url === "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash" &&
             request.headers.get("x-goog-api-key") === recipeFixtureConfig.apiKey) {
