@@ -2,6 +2,11 @@
 
 This file defines the repository's documentation authority. It is a map, not a second product plan.
 
+**Current execution queue (November 3):** [One path to shipping](SHIPPING.md),
+GitHub #377 → #450 → #144 → #499 → #137. #128 holds later work. Older queue and
+issue-count snapshots are historical; preserve their requirements through the
+consolidation map rather than reopening parallel trackers.
+
 ## Authority order
 
 When information conflicts, use this order:
