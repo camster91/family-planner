@@ -12,6 +12,24 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Barcode camera lifecycle (#125): the foreground scanner now refuses hidden
+  starts, explicitly stops on `pagehide`, and retires late permission/detection
+  results without reopening on return. Missing/busy hardware is distinguished
+  from denied permission; EN/ES notices retain typed barcode entry and explain
+  deliberate retry. No background scan or new permission request is introduced.
+  The affected inventory suites pass (19 suites/126 tests), typecheck and the
+  Cloudflare build pass, and changed-source lint has zero errors with three
+  existing BarcodeFoodDialog hook warnings. Actual Chromium rendered the barcode
+  sheet in EN/ES across six baseline sizes with simulated camera denial/missing
+  hardware: manual code → local product read → editable food review works with
+  no write or public product lookup and no horizontal overflow. The phone
+  screenshot was inspected after settling the existing button colour transition.
+  Tests also cover page exit during active preview and pending permission, late
+  detection rejection, no automatic restart and deliberate retry. Evidence is
+  in `camera-lifecycle-*` in the sibling continuation artifacts. Camera/media
+  and product responses are fabricated; actual decoding/permission/hardware,
+  native Back/lock and provider coverage acceptance remain open. No live data,
+  provider, production or store changes occurred.
 - Assistant voice recovery (#464): ordinary browser dictation now has a
   default 20-second deadline, retires failed/successful recognition callbacks,
   handles constructor/abort failures and synchronous browser errors, and accepts

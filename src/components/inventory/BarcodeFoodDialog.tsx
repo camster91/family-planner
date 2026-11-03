@@ -530,7 +530,7 @@ export function BarcodeFoodDialog({
             </button>
             {camera.error && (
               <p role="status">
-                {text("cameraUnavailable")}
+                {text(camera.error === "denied" ? "cameraDenied" : camera.error === "stopped" ? "cameraStopped" : "cameraUnavailable")}
               </p>
             )}
             <label className="block text-subhead">
