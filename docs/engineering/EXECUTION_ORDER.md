@@ -38,8 +38,13 @@ Continue the existing issues, not another feature backlog.
   reuse/isolation, correction conflicts, deleted-item retry, consume/Undo and
   restocking recovery. Eight focused suites pass (25 tests; five existing
   integration tests skipped), with typecheck and changed-source lint passing.
-  Exact-candidate rendered capture and production/provider/native acceptance
-  remain outstanding. No product provider was activated or called.
+  Candidate `ba99cbb9` passed the Cloudflare build and real local Worker/D1
+  browser flow: provider-disabled typed barcode, duplicate-frame-equivalent
+  rescan preserving one draft/quantity, save/reload, private product reuse with
+  fresh stock quantity and removed-item retry. Phone/tablet/desktop did not
+  overflow horizontally; the phone review screenshot was inspected. Broader
+  photo, camera hardware, provider and native acceptance remain outstanding.
+  No product provider was activated or called; no production changes ran.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
