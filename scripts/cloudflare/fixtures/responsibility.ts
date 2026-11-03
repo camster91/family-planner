@@ -1,3 +1,4 @@
+import { readD1ChangeTimeline } from "../../../src/lib/cloudflare/review-inbox";
 import type { D1Store } from "../../../src/lib/cloudflare/database";
 import {
   readD1ResponsibilityView,
@@ -165,6 +166,44 @@ export async function testResponsibility(db: D1Store) {
       "backup state is projected",
     );
 
+    const unchanged = { ...command, expectedRevision: updated.revision };
+    check(
+      (
+        await writeD1Responsibility(
+          parent,
+          unchanged,
+          "responsibility-unchanged-key",
+          db,
+          new Date(now),
+        )
+      ).status === 200,
+      "unchanged choice is safe",
+    );
+    const facts = await db
+      .prepare(
+        `SELECT count(*) AS count FROM Activity WHERE family_id=? AND type='responsibility_changed'`,
+      )
+      .bind(parent.familyId)
+      .first<{ count: number }>();
+    check(
+      facts?.count === 1,
+      "replay and no-op do not duplicate change history",
+    );
+    const history = await readD1ChangeTimeline(
+      parent,
+      { source: "coordination" },
+      new Date(now),
+      db,
+    );
+    check(
+      history.entries.some(
+        (entry) =>
+          entry.origin === "responsibility" &&
+          entry.target?.kind === "chore" &&
+          entry.target.id === command.target.id,
+      ),
+      "saved responsibility is connected to canonical timeline",
+    );
     const review = await reviewD1ResponsibilityRequest(
       parent,
       {
@@ -250,6 +289,44 @@ export async function testResponsibility(db: D1Store) {
 
     // A root/source or family change between read and commit must abort the
     // entire effect, not merely check the target's old timestamp.
+    await db
+      .prepare(
+        `CREATE TRIGGER responsibility_fixture_failure BEFORE INSERT ON Activity WHEN NEW.type='responsibility_changed' BEGIN SELECT RAISE(ABORT,'fixture failure'); END`,
+      )
+      .run();
+    const failChange = {
+      ...command,
+      expectedRevision: afterAcceptance.revision,
+      sourceToken: afterAcceptance.sourceToken,
+      subject: null,
+    };
+    check(
+      await writeD1Responsibility(
+        parent,
+        failChange,
+        "responsibility-fact-failure",
+        db,
+        new Date(now),
+      ).then(
+        () => false,
+        () => true,
+      ),
+      "change fact failure aborts effect",
+    );
+    await db.prepare(`DROP TRIGGER responsibility_fixture_failure`).run();
+    check(
+      (await readD1ResponsibilityView(parent, command.target, "", db)).backup
+        ?.member.name === "Responsibility Parent",
+      "failed history write rolls back backup mutation",
+    );
+    check(
+      !(await db
+        .prepare(
+          `SELECT id FROM IdempotencyRecord WHERE key='responsibility-fact-failure'`,
+        )
+        .first()),
+      "failed history write has no receipt",
+    );
     const beforeRace = await readD1ResponsibilityView(
       parent,
       command.target,
@@ -628,6 +705,9 @@ export async function testResponsibility(db: D1Store) {
       pickupAcceptance: true,
       handoffCoordinator: true,
       handoffPrivacy: true,
+      timeline: true,
+      noOpHistory: true,
+      atomicHistory: true,
       searchPreservesParticipants: true,
       featureRace: true,
       missingGuard: true,

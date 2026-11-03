@@ -787,6 +787,7 @@ export function writeD1Responsibility(
             [actor.familyId, command.target.id, expected],
           ),
         ];
+        if (!planned.changed) return checks;
         if (loaded.current) {
           checks.push(
             session
@@ -846,6 +847,23 @@ export function writeD1Responsibility(
           );
         }
         checks.push(d1WriteCheck(session, "changes()=1"));
+        checks.push(
+          session
+            .prepare(
+              `INSERT INTO Activity(id,family_id,user_id,type,title,metadata,created_at) VALUES (?,?,?,'responsibility_changed','Household record changed',?,?)`,
+            )
+            .bind(
+              randomUUID(),
+              actor.familyId,
+              actor.userId,
+              JSON.stringify({
+                timeline: 1,
+                actorKind: "person",
+                target: command.target,
+              }),
+              now.getTime(),
+            ),
+        );
         return checks;
       };
       return { status: 200, body: receipt, effects };

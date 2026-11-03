@@ -12,6 +12,18 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Connected review follow-through: native weekly reset now includes eligible
+  email-free profiles, preserves child-only chore visibility, filters inactive
+  routine occurrences, and offers event timing/preparation entry points.
+  Its captured source and authority reads are checked before returning a summary.
+  Responsibility mutations now atomically add a minimal “What changed” fact;
+  unchanged answers do not produce duplicate history. Failed history writes
+  roll back the responsibility update and receipt together.
+  Local D1 responsibility, weekly-reset and review-inbox checks passed, including
+  archived-profile exclusion, child isolation, no-op history and failed-write
+  rollback. The affected 23 test suites passed (146 tests; eight existing
+  PostgreSQL integration tests skipped). Rendered checks for this exact
+  continuation and release CI remain outstanding; nothing was deployed.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
