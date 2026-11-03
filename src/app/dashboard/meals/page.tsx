@@ -152,7 +152,21 @@ function MealModal({
 }) {
   const { t } = useTranslation();
   const text = useMealsPageText();
-  const creation = useMealCreation(mode === "add", onCreated);
+  const [confirmedMeal, setConfirmedMeal] = React.useState<{
+    mealId: string;
+    recipeId: string;
+  } | null>(null);
+  const [groceryPending, setGroceryPending] = React.useState(false);
+  const groceryPendingRef = React.useRef(false);
+  const onGroceryPending = React.useCallback((pending: boolean) => {
+    groceryPendingRef.current = pending;
+    setGroceryPending(pending);
+  }, []);
+  const creation = useMealCreation(mode === "add", (mealId, saved) => {
+    if (saved.recipe_id)
+      setConfirmedMeal({ mealId, recipeId: saved.recipe_id });
+    else onCreated();
+  });
   const tBulk = useBulkCookingText();
   const [date, setDate] = React.useState(
     initial?.date
@@ -267,6 +281,39 @@ function MealModal({
       void creation.save(data);
     } else onSave(data);
   };
+
+  if (confirmedMeal) {
+    const finish = () => {
+      if (!groceryPendingRef.current) onCreated();
+    };
+    return (
+      <Dialog
+        open
+        title={text("mealPlanned")}
+        onClose={groceryPending ? undefined : finish}
+        testId="meal-confirmation"
+        className="sm:max-w-md space-y-4"
+      >
+        <p className="text-subhead text-label-secondary">
+          {text("mealPlannedHint")}
+        </p>
+        <AddToGroceriesButton
+          recipeId={confirmedMeal.recipeId}
+          mealId={confirmedMeal.mealId}
+          label={text("reviewGroceries")}
+          onPendingChange={onGroceryPending}
+        />
+        <button
+          type="button"
+          className="btn-plain min-h-11"
+          disabled={groceryPending}
+          onClick={finish}
+        >
+          {text("backToPlan")}
+        </button>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog

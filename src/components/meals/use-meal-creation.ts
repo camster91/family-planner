@@ -19,7 +19,10 @@ type Draft = Pick<
   | "recipe_id"
   | "servings"
 >;
-export function useMealCreation(enabled: boolean, onCreated: () => void) {
+export function useMealCreation(
+  enabled: boolean,
+  onCreated: (mealId: string, saved: Readonly<MealCreateInput>) => void,
+) {
   const { locale } = useTranslation();
   const es = locale === "es";
   const [context, setContext] = useState<{
@@ -102,12 +105,13 @@ export function useMealCreation(enabled: boolean, onCreated: () => void) {
       });
       const payload: unknown = await response.json();
       if (response.ok) {
-        if (!mealCreateReceipt.safeParse(payload).success) throw new Error();
+        const receipt = mealCreateReceipt.safeParse(payload);
+        if (!receipt.success) throw new Error();
         pending.current = null;
         unconfirmed.current = false;
         setUnknown(false);
         await navigation.releaseBeforeNavigation();
-        onCreated();
+        onCreated(receipt.data.mealId, intent.body);
         return;
       }
       const code =

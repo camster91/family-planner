@@ -365,3 +365,15 @@ describe("meal discovery continuity", () => {
     ).toBeVisible();
   });
 });
+
+test("publisher ingredients populate editable rows instead of only instructions", async () => {
+  const { RecipeEditor } = await import("../RecipeEditor");
+  mockFetch(() => ({ status: 200, body: { user: { role: "parent" } } }));
+  render(<RecipeEditor onCancel={jest.fn()} initialDraft={{ title: "Imported soup", description: "", instructions: "Cook gently.", servings: 4, prep_time: 10, cook_time: 20, ingredientLines: ["2 carrots", "salt to taste"] }} />);
+  const first = await screen.findByRole("group", { name: "Ingredient 1" });
+  expect(within(first).getByLabelText("Ingredient")).toHaveValue("carrots");
+  expect(within(first).getByLabelText("Amount")).toHaveValue("2");
+  const second = screen.getByRole("group", { name: "Ingredient 2" });
+  expect(within(second).getByLabelText("Ingredient")).toHaveValue("salt to taste");
+  expect(within(second).getByLabelText("Amount")).toHaveValue("");
+});

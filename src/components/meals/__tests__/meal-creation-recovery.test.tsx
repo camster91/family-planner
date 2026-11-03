@@ -50,6 +50,10 @@ it("retains exact key/body after uncertainty and a later household refusal", asy
     await result.current.retry();
   });
   expect(saved).toHaveBeenCalledTimes(1);
+  expect(saved).toHaveBeenCalledWith(
+    "fixture_meal",
+    expect.objectContaining({ recipe_name: "Original", servings: 4 }),
+  );
   expect(result.current.locked).toBe(false);
   const requests = (global.fetch as jest.Mock).mock.calls
     .filter(([, init]) => init?.method === "POST")

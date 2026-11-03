@@ -173,6 +173,7 @@ export function OnlineRecipePicker({
         }
         initialDraft={{
           source_url: preview.source,
+          ingredientLines: preview.ingredientLines,
           title: preview.title,
           description: preview.description,
           instructions: importedRecipeInstructions(

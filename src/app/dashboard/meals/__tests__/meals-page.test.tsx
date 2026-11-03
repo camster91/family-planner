@@ -1491,6 +1491,13 @@ describe("/dashboard/meals", () => {
       recipe_id: "r_lasagna",
       servings: 6,
     });
+    const confirmation = await screen.findByTestId("meal-confirmation");
+    expect(within(confirmation).getByRole("heading", { name: "Meal planned" })).toBeInTheDocument();
+    expect(calls.some(c => c.url.includes("from-recipe"))).toBe(false);
+    await user.click(within(confirmation).getByRole("button", { name: "Review groceries" }));
+    await waitFor(() => expect(calls.some(c => c.method === "GET" && c.url === "/api/lists/items/from-recipe/review?recipeId=r_lasagna&mealId=new")).toBe(true));
+    expect(calls.filter(c => c.method === "POST")).toHaveLength(1);
+
   });
 
   it("shows the linked recipe and prep time on the meal row, and can unlink it", async () => {
