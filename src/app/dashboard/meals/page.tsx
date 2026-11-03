@@ -224,6 +224,7 @@ function MealModal({
   );
   const titleId = React.useId();
   const [recipeCreating, setRecipeCreating] = React.useState(false);
+  const [recipeReviewOpen, setRecipeReviewOpen] = React.useState(false);
   const recipeMutationPending = React.useRef(false);
   const handleRecipeCreatingChange = React.useCallback((pending: boolean) => {
     recipeMutationPending.current = pending;
@@ -294,7 +295,7 @@ function MealModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || isBusy()) return;
+    if (busy || isBusy() || recipeReviewOpen) return;
     const data: MealSaveData = {
       date,
       meal_type,
@@ -531,6 +532,7 @@ function MealModal({
               onChange={handleRecipeChange}
               initialRecipe={initial?.recipe ?? defaultRecipe ?? null}
               onCreatingChange={handleRecipeCreatingChange}
+              onEditingChange={setRecipeReviewOpen}
               disabled={saving || creation.locked}
               isMutationPending={() =>
                 isMealMutationPending() || creation.isPending()
@@ -639,7 +641,10 @@ function MealModal({
               {text("servingsHint")}
             </p>
           </div>
-          <div className="flex gap-2 pt-2">
+          <div
+            hidden={recipeReviewOpen}
+            className={recipeReviewOpen ? "hidden" : "flex gap-2 pt-2"}
+          >
             {mode === "edit" && onDelete && (
               <button
                 type="button"

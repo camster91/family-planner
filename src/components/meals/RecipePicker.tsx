@@ -46,6 +46,7 @@ export function RecipePicker({
   initiallyOnline = false,
   initialRecipe,
   onCreatingChange,
+  onEditingChange,
   disabled = false,
   isMutationPending,
 }: {
@@ -63,6 +64,8 @@ export function RecipePicker({
   initialRecipe?: RecipeOption | null;
   /** Pending create blocks the owning meal form and dismissal. */
   onCreatingChange?: (pending: boolean) => void;
+  /** Let the owning form keep a single submit action during online recipe review. */
+  onEditingChange?: (editing: boolean) => void;
   /** Owning meal save/delete blocks selection and inline creation. */
   disabled?: boolean;
   /** Read synchronous ownership even from a pre-mutation event handler. */
@@ -91,6 +94,9 @@ export function RecipePicker({
   );
   const [state, setState] = React.useState<LoadState>("loading");
   const [creating, setCreating] = React.useState(false);
+  React.useEffect(() => {
+    onEditingChange?.(onlineEditing);
+  }, [onlineEditing, onEditingChange]);
 
   const [query, setQuery] = React.useState("");
   const [page, setPage] = React.useState<{ offset: number; trail: number[] }>({

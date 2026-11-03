@@ -5,7 +5,14 @@ jest.mock("@/lib/review-document-browser", () =>
   require("@/__tests__/helpers/legacy-recipe-review").legacyRecipeReviewMock(),
 );
 import * as React from "react";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@/i18n";
 import { toDateOnlyLocal } from "@/lib/dates";
@@ -1790,6 +1797,12 @@ test.each([false, true])(
         name: "Review and save for this meal",
       }),
     );
+    expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
+    // A stale Enter/submit on the outer meal must not bypass recipe review.
+    fireEvent.submit(dialog.querySelector("form")!);
+    expect(
+      calls.filter((c) => c.url === "/api/meals/create" && c.method === "POST"),
+    ).toHaveLength(0);
     await user.click(
       await within(dialog).findByRole("button", { name: "Plan meal" }),
     );
