@@ -12,6 +12,17 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- #141 chore notification follow-through: ordinary assignment notifications and
+  post-commit approval/return notices now use the existing strict chore-focus
+  destination. This covers the D1 and retained PostgreSQL fallback branches;
+  recipient selection, preference policy and transaction-owned dispatch remain
+  unchanged. The completion helper also shares the target, but it has no current
+  production caller and is not counted as producer coverage. Six affected suites
+  / 77 tests pass (including removed-member refusal and focus authorization),
+  typecheck and scoped lint pass. These are unit/route fixtures, not an updated
+  compiled or live delivery claim. No schema, provider, scheduler or deployment
+  change. N2 asynchronous recovery and N3 provider/device acceptance remain open.
+
 - Compiled browser continuation at source `3cce250a9351cdbd2e3cda416e07325214a20eae`:
   fixed the dedicated Review inbox silently losing its editor when quick capture
   is unavailable. It now explains the state and links to canonical Family AI

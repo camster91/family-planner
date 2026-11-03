@@ -1,4 +1,4 @@
-// Authored UNRUN. Route wiring uses fake Prisma, not real rollback/SQL proof.
+// Route wiring uses fake Prisma, not real rollback/SQL proof.
 jest.mock("next/server", () => require("@/__tests__/helpers/two-household").nextServerMock);
 jest.mock("next/headers", () => require("@/__tests__/helpers/two-household").nextHeadersMock);
 jest.mock("@/lib/session", () => require("@/__tests__/helpers/two-household").sessionMock);
@@ -56,5 +56,11 @@ it("holds a changed assignee rather than acquiring a new recipient after source 
 it("keeps the old best-effort sender in default mode", async () => {
   mode.mockReturnValue(null);
   expect((await POST(req({ as: "parentA", body: { choreId: "chore-a" } }))).status).toBe(200);
-  expect(deliver).not.toHaveBeenCalled(); expect(send).toHaveBeenCalled();
+  expect(deliver).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ userId: "child-a", actionUrl: "/dashboard/chores?focus=chore-a" }));
+});
+it("links a returned chore to its original target in default mode", async () => {
+  mode.mockReturnValue(null);
+  expect((await POST(req({ as: "parentA", body: { choreId: "chore-a", decision: "reject" } }))).status).toBe(200);
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ userId: "child-a", type: "chore", actionUrl: "/dashboard/chores?focus=chore-a" }));
 });

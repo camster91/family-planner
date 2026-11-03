@@ -1,3 +1,4 @@
+import { choreNotificationDestination } from "@/lib/notification-destination";
 import { storageBackend } from "@/lib/storage-backend";
 import { checkD1Chore } from "@/lib/cloudflare/chore-check";
 import { choreCheckOwnerAvailableInTx, renewChoreCheckOwner } from "@/lib/chore-check-owner";
@@ -106,6 +107,7 @@ async function performChoreCheckRequest(request: NextRequest, mode: "legacy" | "
             title: decision === 'approve' ? 'Chore Verified!' : 'Have another go',
             message: decision === 'approve' ? `Your chore "${recipient.title}" has been verified. Great job!` : verificationNotes ? `"${recipient.title}": ${verificationNotes}` : `"${recipient.title}" needs another go.`,
             type: decision === 'approve' ? 'reward' : 'chore',
+            actionUrl: choreNotificationDestination(choreId),
           })
           if (effect.xp?.levelUp && await isGamificationOn(auth.user.family_id)) await notificationServiceServer.sendNotification({ familyId: recipient.familyId, userId: recipient.id,
             title: `Level Up! ${effect.xp.newLevel}`, message: `You reached Level ${effect.xp.newLevel}! Keep it up!`, type: 'reward' })
@@ -322,6 +324,7 @@ async function performChoreCheckRequest(request: NextRequest, mode: "legacy" | "
           title: 'Chore Verified!',
           message: `Your chore "${outcome.assignee.title}" has been verified. Great job!`,
           type: 'reward',
+          actionUrl: choreNotificationDestination(choreId),
         })
 
         // Send level-up notification if applicable. XP still accrues with
@@ -508,6 +511,7 @@ async function rejectChore(
         title: 'Have another go',
         message: reason ? `"${reopened.assignee.title}": ${reason}` : `"${reopened.assignee.title}" needs another go.`,
         type: 'chore',
+        actionUrl: choreNotificationDestination(choreId),
       })
     } catch (notifyErr) {
       logRouteError('POST /api/chores/verify (reject notification)', notifyErr, requestId)
