@@ -257,6 +257,41 @@ function MealModal({
     setRecipe(next);
   };
 
+  const handlePlanImportedRecipe = (next: RecipeOption) => {
+    // Called only after the owned recipe editor confirms a saved/reused recipe.
+    // Its pending flag can still be clearing; the meal has its own exact intent.
+    handleRecipeChange(next);
+    if (
+      mode !== "add" ||
+      saving ||
+      isMealMutationPending() ||
+      creation.isPending() ||
+      !creation.ready
+    )
+      return;
+    const selectedServings =
+      !servingsEdited.current &&
+      defaultServings === undefined &&
+      next.servings &&
+      next.servings <= 100
+        ? next.servings
+        : servings === ""
+          ? null
+          : Number(servings);
+    void creation.save({
+      date,
+      meal_type,
+      recipe_id: next.id,
+      recipe_name:
+        !recipe_name.trim() || recipe_name === recipe?.title
+          ? next.title
+          : recipe_name,
+      ...(notes.trim() ? { notes } : {}),
+      ...(cookId ? { cook_id: cookId } : {}),
+      ...(selectedServings !== null ? { servings: selectedServings } : {}),
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (busy || isBusy()) return;
@@ -460,6 +495,10 @@ function MealModal({
           >
             <RecipePicker
               initiallyOnline={mode === "add" && !defaultRecipe}
+              onPlanImportedRecipe={
+                mode === "add" ? handlePlanImportedRecipe : undefined
+              }
+              planLabel={mode === "add" ? text("planMeal") : undefined}
               value={recipe?.id ?? null}
               onChange={handleRecipeChange}
               initialRecipe={initial?.recipe ?? defaultRecipe ?? null}

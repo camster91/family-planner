@@ -1492,12 +1492,24 @@ describe("/dashboard/meals", () => {
       servings: 6,
     });
     const confirmation = await screen.findByTestId("meal-confirmation");
-    expect(within(confirmation).getByRole("heading", { name: "Meal planned" })).toBeInTheDocument();
-    expect(calls.some(c => c.url.includes("from-recipe"))).toBe(false);
-    await user.click(within(confirmation).getByRole("button", { name: "Review groceries" }));
-    await waitFor(() => expect(calls.some(c => c.method === "GET" && c.url === "/api/lists/items/from-recipe/review?recipeId=r_lasagna&mealId=new")).toBe(true));
-    expect(calls.filter(c => c.method === "POST")).toHaveLength(1);
-
+    expect(
+      within(confirmation).getByRole("heading", { name: "Meal planned" }),
+    ).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes("from-recipe"))).toBe(false);
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Review groceries" }),
+    );
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "GET" &&
+            c.url ===
+              "/api/lists/items/from-recipe/review?recipeId=r_lasagna&mealId=new",
+        ),
+      ).toBe(true),
+    );
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
   });
 
   it("shows the linked recipe and prep time on the meal row, and can unlink it", async () => {
@@ -1674,3 +1686,145 @@ describe("/dashboard/meals", () => {
     expect(window.alert).not.toHaveBeenCalled();
   });
 });
+
+test.each([false, true])(
+  "reviewed online recipe plans the selected slot; lost meal response: %s",
+  async (loseMealResponse) => {
+    const user = userEvent.setup();
+    const { calls, fetchMock } = setup({ meals: [] });
+    const original = fetchMock.getMockImplementation()!;
+    const owner = {
+      protocol: "herewoven.recipe-owner.v1",
+      actorId: "fixture-parent",
+      familyId: "fixture-family",
+      role: "parent",
+      generation: 0,
+    };
+    const source = "https://www.bbcgoodfood.com/recipes/fixture-soup";
+    const mealRequests: RequestInit[] = [];
+    const imported = {
+      id: "imported-soup",
+      title: "Fixture soup",
+      prep_time: 5,
+      cook_time: 20,
+      servings: 4,
+      source_url: source,
+    };
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = String(input),
+        method = init?.method ?? "GET";
+      if (url === "/api/meals/create" && method === "POST") {
+        mealRequests.push(init!);
+        if (loseMealResponse && mealRequests.length === 1) {
+          calls.push({ url, method, body: JSON.parse(String(init?.body)) });
+          throw new TypeError("Response lost after commit");
+        }
+      }
+      let body: unknown;
+      if (url === "/api/recipes/discover")
+        body = {
+          results: [
+            { title: "Fixture soup", url: source, source: "BBC Good Food" },
+          ],
+        };
+      else if (url === "/api/recipes/preview")
+        body = {
+          recipe: {
+            title: "Fixture soup",
+            description: "",
+            source,
+            ingredientLines: ["2 carrots"],
+            instructions: "Cook gently.",
+            prep_time: 5,
+            cook_time: 20,
+            servings: 4,
+            reviewIssues: [],
+          },
+        };
+      else if (url === "/api/recipes" && method === "POST")
+        body = { recipe: imported };
+      else return original(input, init);
+      calls.push({
+        url,
+        method,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "X-Herewoven-Recipe-Owner": JSON.stringify(owner),
+        }),
+        json: async () => body,
+      } as Response;
+    });
+    await user.click(
+      within(await todayCard()).getByRole("button", {
+        name: /^Add dinner Nothing planned ?,/i,
+      }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    if (loseMealResponse) {
+      await user.type(
+        within(dialog).getByLabelText("Recipe name"),
+        "Family soup night",
+      );
+      const portions = within(dialog).getByLabelText("Servings (optional)");
+      await user.clear(portions);
+      await user.type(portions, "2");
+    }
+    await user.type(
+      await within(dialog).findByRole("searchbox", {
+        name: "What would you like to cook?",
+      }),
+      "soup{Enter}",
+    );
+    const result = (await within(dialog).findByText("Fixture soup")).closest(
+      "li",
+    )!;
+    await user.click(
+      within(result).getByRole("button", { name: "Preview recipe" }),
+    );
+    await user.click(
+      await within(dialog).findByRole("button", {
+        name: "Review and save for this meal",
+      }),
+    );
+    await user.click(
+      await within(dialog).findByRole("button", { name: "Plan meal" }),
+    );
+    if (loseMealResponse) {
+      await user.click(
+        await within(dialog).findByRole("button", {
+          name: "Check the same save",
+        }),
+      );
+    }
+    await screen.findByTestId("meal-confirmation");
+    if (loseMealResponse) {
+      expect(mealRequests).toHaveLength(2);
+      expect(mealRequests[1].body).toBe(mealRequests[0].body);
+      expect(new Headers(mealRequests[1].headers).get("Idempotency-Key")).toBe(
+        new Headers(mealRequests[0].headers).get("Idempotency-Key"),
+      );
+    }
+    const recipes = calls.filter(
+      (c) => c.url === "/api/recipes" && c.method === "POST",
+    );
+    const meals = calls.filter(
+      (c) => c.url === "/api/meals/create" && c.method === "POST",
+    );
+    expect(recipes).toHaveLength(1);
+    expect(meals).toHaveLength(loseMealResponse ? 2 : 1);
+    expect(recipes[0].body).toMatchObject({
+      ingredients: [{ name: "carrots", amount: 2 }],
+    });
+    expect(meals[0].body).toMatchObject({
+      date: today,
+      meal_type: "dinner",
+      recipe_id: imported.id,
+      servings: loseMealResponse ? 2 : 4,
+      recipe_name: loseMealResponse ? "Family soup night" : "Fixture soup",
+    });
+  },
+);

@@ -39,6 +39,8 @@ type LoadState = "loading" | "ready" | "error";
 export function RecipePicker({
   value,
   onChange,
+  onPlanImportedRecipe,
+  planLabel,
   canCreate = true,
   initiallyOnline = false,
   initialRecipe,
@@ -49,6 +51,8 @@ export function RecipePicker({
   /** Selected recipe id, or null for a free-text meal. */
   value: string | null;
   onChange: (recipe: RecipeOption | null) => void;
+  onPlanImportedRecipe?: (recipe: RecipeOption) => void;
+  planLabel?: string;
   /** Parents and teens may create recipes (O-7); the API enforces it. */
   canCreate?: boolean;
   /** Empty meal slots start with discovery; other pickers retain saved recipes. */
@@ -199,9 +203,11 @@ export function RecipePicker({
         <div hidden={!online}>
           <React.Suspense fallback={<p role="status">{t("common.loading")}</p>}>
             <OnlineRecipePicker
+              planLabel={planLabel}
               onCreated={(recipe) => {
                 handleCreated(recipe);
                 setOnline(false);
+                onPlanImportedRecipe?.(recipe);
               }}
               onEditingChange={setOnlineEditing}
               onSavingChange={reportOnlineSaving}

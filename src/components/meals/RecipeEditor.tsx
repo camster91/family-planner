@@ -45,6 +45,8 @@ function toMinutes(value: string): number | null | "invalid" {
  * Exported for tests.
  */
 export type RecipeEditorProps = {
+  /** Explicit owning workflow action; defaults to saving only the recipe. */
+  submitLabel?: string;
   expectedRecipeOwner?: import("@/lib/recipe-owner-contract").RecipeOwner;
   onOwnerHold?: () => void;
   recoveryIdentity?: { userId: string; familyId: string };
@@ -90,6 +92,7 @@ export function RecipeEditor(props: RecipeEditorProps) {
 }
 
 function RecipeEditorForm({
+  submitLabel,
   expectedRecipeOwner,
   onOwnerHold,
   onCreated,
@@ -1096,7 +1099,7 @@ function RecipeEditorForm({
           onClick={() => void submit()}
           className="btn-tinted flex-1 min-h-[44px]"
         >
-          {saving ? text("saving") : text("saveRecipe")}
+          {saving ? text("saving") : (submitLabel ?? text("saveRecipe"))}
         </button>
       </div>
     </fieldset>

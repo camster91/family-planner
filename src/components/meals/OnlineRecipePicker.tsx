@@ -25,12 +25,14 @@ import {
  */
 export function OnlineRecipePicker({
   onCreated,
+  planLabel,
   onSavingChange,
   onEditingChange,
   disabled = false,
   isMutationPending,
 }: {
   onCreated: (recipe: RecipeOption) => void;
+  planLabel?: string;
   onSavingChange?: (pending: boolean) => void;
   onEditingChange?: (editing: boolean) => void;
   disabled?: boolean;
@@ -161,6 +163,7 @@ export function OnlineRecipePicker({
   if (preview && editing)
     return (
       <RecipeEditor
+        submitLabel={planLabel}
         expectedRecipeOwner={owner.current ?? undefined}
         onOwnerHold={hold}
         recoveryIdentity={
