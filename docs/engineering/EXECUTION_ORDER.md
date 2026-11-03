@@ -53,7 +53,18 @@ Continue the existing issues, not another feature backlog.
   a regression covers one visible dialog, draft restoration and no stock write.
   Replacement success also drops the redundant setup hint/list-index link and
   spaces its remaining Open list/Undo controls. Focused inventory/restock tests
-  passed (28 tests). Exact updated UI rendering remains to verify.
+  passed (28 tests). Candidate `5459fda5` passed the Cloudflare build and real
+  phone browser checks for consume/Undo, one visible replacement dialog, save
+  to the selected grocery list and return to the editor. Updated success-state
+  screenshot inspected. Typecheck passes; changed-source lint has zero errors
+  and four existing hook warnings. Nothing was merged/deployed.
+- Next food-capture integration gap: `inventory-scan.ts` still resolves only
+  deployment `INVENTORY_SCAN_ANTHROPIC_API_KEY`, while the household Settings
+  key uses `resolveCaptureConfig` for other capture. Investigate reuse of the
+  existing encrypted provider transport for reviewed food photos under #125/#144;
+  preserve parent-only eligibility, separate receipt/document consent, usage
+  limits, redaction and no-provider/manual fallback. Do not enable a provider or
+  infer image capability merely from a saved text-model key.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
