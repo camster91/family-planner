@@ -105,6 +105,22 @@ Continue the existing issues, not another feature backlog.
   not an installed-device journey. Android VIEW registration, domain association,
   iOS entitlements, native cold/warm/Back and current/previous binary acceptance
   remain required. No OS setting, provider, permission, signing or rollout changed.
+- Android reminder registration (#138/#141/#473): the manifest now declares
+  verified HTTPS filters on both supported hosts for the existing reminder
+  path families, retaining the strict raw-URL validator and fresh server access
+  checks. Source/merged manifest tests prevent login/API/shared routes, HTTP,
+  wildcards and unrelated hosts from entering this contract. A compiled device
+  test covers positive and negative package-scoped intent resolution; it does
+  not prove domain verification or actual cold/warm delivery.
+  Capacitor sync, 13 JVM tests, instrumentation compilation, unsigned release
+  APK and AAB builds pass on JDK 21/SDK 36. The first build exhausted local disk;
+  four stopped, packaged QA runtime copies were removed with archives/evidence
+  preserved, then the exact Gradle gates passed on retry. Signing inputs were
+  absent and explicitly unset for the retry. `connectedDebugAndroidTest` was
+  attempted and failed with “No connected devices”; no device case passed.
+  Production signing fingerprints,
+  approved per-host Digital Asset Links publication, device acceptance and iOS
+  entitlements remain separate; no native binary or association was published.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,

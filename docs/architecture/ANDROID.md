@@ -129,3 +129,37 @@ See `docs/product/PLAY_STORE_READINESS.md` and #138. Planning/testing does not a
 ## iOS companion and shared native plugins (#465)
 
 See [MOBILE_APPS.md](MOBILE_APPS.md) for the iPhone/iPad scaffold, native Share/App/Network integration, exact local evidence and remaining capability/device/store gates. These plugins preserve the existing shared-device Back and cookie persistence behavior; older installed builds retain browser fallbacks.
+
+## Reminder App Links — 2026-11-03 candidate
+
+The Android manifest declares separate verified HTTPS VIEW filters for
+`herewoven.com` and `family.ashbi.ca`, limited to Today, Calendar, Chores,
+Rewards, list details and recipe details. No login, API, shared-device or
+custom-scheme ingress is registered. Android path matching is coarse; the shared
+`nativeNotificationDestination` still validates the entire raw URL, including
+its query, before offering navigation. Incoming links do not authorize reads or
+writes, switch accounts, or replace an open form automatically.
+
+The existing Capacitor App plugin supplies cold launch and warm URL events to
+`NativeAppLifecycle`. An explicit Open reminder document link retains unload
+protection and the existing sign-in/role/device gates. Approved notification
+focus parameters survive sign-in. Unsupported older shells retain ordinary web
+navigation and the in-app notification centre.
+
+Manifest registration is not verified domain ownership. Before releasing a
+signed build, publish an approved Digital Asset Links association at
+`https://<host>/.well-known/assetlinks.json` on each declared host. Its relation
+must be `delegate_permission/common.handle_all_urls`, package
+`com.ashbi.familyplanner`, and certificate fingerprints must come from the exact
+production app-signing certificate (including Play App Signing where used), not
+a debug/upload key or an invented placeholder. No association file or signing
+identity is installed by this source change. Follow the platform's
+[App Links configuration](https://developer.android.com/training/app-links/add-applinks)
+and [verification procedure](https://developer.android.com/training/app-links/verify-android-applinks).
+
+Acceptance still requires the exact signed candidate: host verification, cold
+and warm ingress, repeated/new links while an editor is open, sign-in return,
+Back behavior, deleted/foreign targets, parent/teen/child and paired-device
+boundaries, plus the previous supported installed binary. A package-scoped
+intent probe or unsigned build cannot establish verified default-handler or
+physical-device behavior. iOS association/entitlements remain separate.

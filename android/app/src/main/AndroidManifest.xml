@@ -29,6 +29,34 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+
+            <!-- Verified HTTPS reminder ingress; the web adapter revalidates the exact
+                 destination and current session. No custom scheme or auth-link capture. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="herewoven.com" />
+                <data android:path="/dashboard/today" />
+                <data android:path="/dashboard/calendar" />
+                <data android:path="/dashboard/chores" />
+                <data android:path="/dashboard/rewards" />
+                <data android:pathPrefix="/dashboard/lists/" />
+                <data android:pathPrefix="/dashboard/meals/recipes/" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="family.ashbi.ca" />
+                <data android:path="/dashboard/today" />
+                <data android:path="/dashboard/calendar" />
+                <data android:path="/dashboard/chores" />
+                <data android:path="/dashboard/rewards" />
+                <data android:pathPrefix="/dashboard/lists/" />
+                <data android:pathPrefix="/dashboard/meals/recipes/" />
+            </intent-filter>
+
         </activity>
 
         <provider
