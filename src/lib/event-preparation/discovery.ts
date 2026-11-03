@@ -10,7 +10,7 @@ import { eventPreparationStorageAvailable } from "./storage";
 export type PreparationBacklinks = Record<string, string>;
 export async function readPreparationBacklinks(
   db: Pick<Prisma.TransactionClient, "$queryRaw">,
-  input: { userId: string; familyId: string; role: string; choreIds: string[] },
+  input: { userId: string; familyId: string; role: string; tokenVersion?: number; choreIds: string[] },
 ): Promise<PreparationBacklinks> {
   if (!eventPreparationReady() || input.role !== "parent") return {};
   // This is an entry-point projection, not an exhaustive preparation summary.
@@ -18,7 +18,14 @@ export async function readPreparationBacklinks(
   const ids = [...new Set(input.choreIds)]
     .filter((id) => memberIdentityIdSchema.safeParse(id).success)
     .slice(0, 300);
+  if (storageBackend() === "d1") {
+    const { d1EventPreparationStorageAvailable } = await import("@/lib/cloudflare/chore-read-policy");
+    if (!(await d1EventPreparationStorageAvailable())) return {};
+    const { readD1ParentPreparationContext } = await import("@/lib/cloudflare/preparation-context");
+    return (await readD1ParentPreparationContext({ ...input, choreIds: ids })).backlinks;
+  }
   if (!ids.length || !(await eventPreparationStorageAvailable(db))) return {};
+  const generation = input.tokenVersion ?? null;
   const rows = await db.$queryRaw<
     Array<{ chore_id: string; event_id: string; features: unknown }>
   >`
@@ -32,7 +39,8 @@ export async function readPreparationBacklinks(
       AND c."id" IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb))
       AND c."is_template"=false
       AND EXISTS (SELECT 1 FROM "User" u WHERE u."id"=${input.userId}
-        AND u."family_id"=p."family_id" AND u."role"='parent')
+        AND u."family_id"=p."family_id" AND u."role"='parent'
+        AND (${generation}::int IS NULL OR u."token_version"=${generation}))
     ORDER BY c."id" LIMIT 300`;
   const allowed = new Set(ids);
   return Object.fromEntries(

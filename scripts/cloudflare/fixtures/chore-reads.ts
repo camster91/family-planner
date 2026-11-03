@@ -1,3 +1,6 @@
+import { readD1ParentPreparationContext } from '../../../src/lib/cloudflare/preparation-context'
+import { d1EventPreparationStorageAvailable } from '../../../src/lib/cloudflare/chore-read-policy'
+import { preparationCopyFactId } from '../../../src/lib/event-preparation/origin'
 import { readD1KidDashboardData } from '../../../src/lib/cloudflare/kid-dashboard'
 import { hiddenD1RoutineOccurrenceIds,scheduledOnceD1RoutineOccurrenceIds,hydrateD1ChoreProfileMembers,readD1ChoreStreaks,readD1OwnPreparationContext } from '../../../src/lib/cloudflare/chore-read-policy'
 import { readD1ChoreNotificationFocus,renewD1ChoreReadOwner } from '../../../src/lib/cloudflare/chore-read-owner'
@@ -65,9 +68,35 @@ export async function testChoreReads(db:D1Store){
   await db.prepare(`INSERT INTO "EventPreparationStep"(id,family_id,preparation_id,chore_id,position) VALUES ('chore-read-plan-step','chore-read-a','chore-read-plan','chore-read-visible-teen',1)`).run()
   const cues=await readD1OwnPreparationContext({userId:'chore-read-teen',familyId:'chore-read-a',role:'teen',choreIds:['chore-read-visible-teen','chore-read-visible-parent','chore-read-foreign']},db)
   check(Object.keys(cues).length===1&&cues['chore-read-visible-teen']?.eventTitle==='School concert','kid preparation cue is limited to their actual assigned canonical work')
+  stage='parent preparation context'
+  check(await d1EventPreparationStorageAvailable(db),'complete native preparation storage is ready')
+  const guard=await db.prepare(`SELECT sql FROM sqlite_master WHERE name='EventPreparationStep_bounds_update'`).first<{sql:string}>()
+  check(guard?.sql,'bounds trigger exists')
+  await db.prepare(`DROP TRIGGER "EventPreparationStep_bounds_update"`).run()
+  check(!await d1EventPreparationStorageAvailable(db),'partial native preparation storage is refused')
+  await db.prepare(guard.sql).run()
+  const preparationActor={userId:'chore-read-parent',familyId:'chore-read-a',role:'parent',tokenVersion:0,choreIds:['chore-read-visible-teen','chore-read-foreign']}
+  const linked=await readD1ParentPreparationContext(preparationActor,db)
+  check(Object.keys(linked.backlinks).length===1&&linked.backlinks['chore-read-visible-teen']==='chore-read-event','parent sees only household event backlinks')
+  for(const override of [{userId:'chore-read-teen'},{familyId:'chore-read-b'},{tokenVersion:1},{role:'child'}]) {
+    const denied=await readD1ParentPreparationContext({...preparationActor,...override},db)
+    check(!Object.keys(denied.backlinks).length&&!Object.keys(denied.origins).length,'role, household and stale-generation parent reads withheld')
+  }
+  await db.prepare(`INSERT INTO "RoutineStack"(id,family_id,label,fingerprint) VALUES ('chore-read-stack','chore-read-a','School morning',?1)`).bind('a'.repeat(64)).run()
+  await db.prepare(`UPDATE "Chore" SET routine_stack_id='chore-read-stack' WHERE id='chore-read-visible-parent'`).run()
+  const factId=preparationCopyFactId('chore-read-a','chore-read-visible-teen')
+  const fact={timeline:1,actorKind:'person',target:{kind:'chore',id:'chore-read-visible-teen'},routineCopy:{stackId:'chore-read-stack',sourceChoreId:'chore-read-visible-parent',occurrenceDay:'2026-10-28'}}
+  await db.prepare(`INSERT INTO "Activity"(id,family_id,user_id,type,title,metadata,created_at) VALUES (?1,'chore-read-a','chore-read-parent','preparation_routine_copied','Fixture copy',?2,?3)`).bind(factId,JSON.stringify(fact),day).run()
+  const copied=await readD1ParentPreparationContext(preparationActor,db)
+  check(copied.origins['chore-read-visible-teen']?.state==='available','valid routine source is discoverable')
+  await db.prepare(`UPDATE "Chore" SET routine_stack_id=NULL WHERE id='chore-read-visible-parent'`).run()
+  const removed=await readD1ParentPreparationContext(preparationActor,db)
+  check(removed.origins['chore-read-visible-teen']?.state==='unavailable'&&!JSON.stringify(removed.origins).includes('School morning'),'removed routine source keeps copy fact without disclosing stale label')
+  await db.prepare(`UPDATE "Activity" SET metadata='invalid json' WHERE id=?1`).bind(factId).run()
+  check(!Object.keys((await readD1ParentPreparationContext(preparationActor,db)).origins).length,'corrupt provenance never becomes a link')
   let changed=false
   const racing:D1Store={prepare:db.prepare.bind(db),batch:db.batch.bind(db),withSession(){const session=db.withSession('first-primary');return{prepare:session.prepare.bind(session),async batch(statements){if(!changed){changed=true;await db.prepare(`UPDATE "User" SET token_version=1 WHERE id='chore-read-parent'`).run()}return session.batch(statements)}}}}
   check(await readD1ChoreNotificationFocus(parent,'chore-read-visible-parent',racing)===null&&!await renewD1ChoreReadOwner(parent,db),'authority changed during private focus invalidates the captured read')
-  return{visibleCapAfter240Hidden:true,evidenceRetained:true,scopedDatePolicy:true,profileBatch61:true,compositeRelationBatch61:true,foreignProfileRefusal:true,scheduledOncePolicy:true,streakMarkers:true,parentAndTeenFocus:true,hiddenAndForeignFocusRefusal:true,privateMetadataStrip:true,atomicOwnerRace:true,kidHomeReads:true,ownedPreparationCue:true}
+  return{visibleCapAfter240Hidden:true,evidenceRetained:true,scopedDatePolicy:true,profileBatch61:true,compositeRelationBatch61:true,foreignProfileRefusal:true,scheduledOncePolicy:true,streakMarkers:true,parentAndTeenFocus:true,hiddenAndForeignFocusRefusal:true,privateMetadataStrip:true,atomicOwnerRace:true,kidHomeReads:true,ownedPreparationCue:true,parentPreparationContext:true,preparationStorageGuard:true,routineProvenance:true}
  }catch(cause){throw new Error(`${stage}: ${cause instanceof Error?cause.stack:"unknown fixture failure"}`)}
 }

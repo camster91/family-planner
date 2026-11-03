@@ -47,9 +47,15 @@ Continue the existing issues, not another feature backlog.
   atomic reorder and rollback to the original links/revision on failure.
   Chore reads, archive export and assistant-delete guards pass; the oversized
   legacy-data fixture explicitly restores its temporarily disabled insert guard.
-- Event preparation is still paused: finish the complete D1 readiness contract,
-  preparation writer and parent projections, using the verified atomic reorder
-  strategy, before enabling its flag. Continue routine/profile
+- The native preparation storage check now requires all 34 source/lifecycle
+  triggers on their expected tables. Parent context reads event backlinks and
+  copied-routine provenance in one primary snapshot with household, role and
+  session-generation checks. Chore context and personal Today now use this
+  reader; fridge mode does not receive parent links. Native checks cover missing
+  guards, stale sessions, foreign households and corrupt/removed routine origins.
+- Event preparation is still paused: finish the D1 preparation writer, picker,
+  preview and recovery adapters using the verified atomic reorder strategy,
+  then verify the rendered full journey before enabling its flag. Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.
 - Keep live Google/provider eligibility, signed native builds, physical-device

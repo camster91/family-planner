@@ -271,12 +271,45 @@ export async function readD1OwnPreparationContext(
   );
 }
 
-/**
- * Preparation context is guarded by more than the two additive tables on the
- * PostgreSQL path: epoch/identity/lifecycle triggers are part of its safety
- * contract. D1 currently has the tables but not those guards, so callers must
- * keep the feature paused rather than treating table presence as readiness.
+/** The native storage contract includes every identity/lifecycle guard used by
+ * preparation sources. Readiness is storage only, never writer authorization.
  */
+const preparationGuards = [
+  { name: "Chore_responsibility_identity", table: "Chore" },
+  { name: "Chore_responsibility_family", table: "Chore" },
+  { name: "Chore_responsibility_epoch", table: "Chore" },
+  { name: "Chore_responsibility_bounds_insert", table: "Chore" },
+  { name: "Chore_responsibility_bounds_update", table: "Chore" },
+  { name: "User_responsibility_retire_update", table: "User" },
+  { name: "User_responsibility_retire_delete", table: "User" },
+  { name: "HouseholdMember_responsibility_retire_update", table: "HouseholdMember" },
+  { name: "HouseholdMember_responsibility_retire_delete", table: "HouseholdMember" },
+  { name: "HouseholdMemberLegacyMapping_responsibility_retire_insert", table: "HouseholdMemberLegacyMapping" },
+  { name: "HouseholdMemberLegacyMapping_responsibility_retire_update", table: "HouseholdMemberLegacyMapping" },
+  { name: "HouseholdMemberLegacyMapping_responsibility_retire_delete", table: "HouseholdMemberLegacyMapping" },
+  { name: "HouseholdMemberAccountLink_responsibility_retire_insert", table: "HouseholdMemberAccountLink" },
+  { name: "HouseholdMemberAccountLink_responsibility_retire_update", table: "HouseholdMemberAccountLink" },
+  { name: "HouseholdMemberAccountLink_responsibility_retire_delete", table: "HouseholdMemberAccountLink" },
+  { name: "Event_schedule_identity_guard", table: "Event" },
+  { name: "Event_schedule_epoch_insert", table: "Event" },
+  { name: "Event_schedule_material_epoch", table: "Event" },
+  { name: "Chore_completion_epoch_insert", table: "Chore" },
+  { name: "Chore_completion_epoch_update", table: "Chore" },
+  { name: "Chore_completion_epoch", table: "Chore" },
+  { name: "EventPreparation_identity", table: "EventPreparation" },
+  { name: "EventPreparation_bounds_insert", table: "EventPreparation" },
+  { name: "EventPreparation_bounds_update", table: "EventPreparation" },
+  { name: "EventPreparation_source_version", table: "EventPreparation" },
+  { name: "EventPreparation_lifecycle_insert", table: "EventPreparation" },
+  { name: "EventPreparation_lifecycle_delete", table: "EventPreparation" },
+  { name: "EventPreparationStep_identity", table: "EventPreparationStep" },
+  { name: "EventPreparationStep_version_insert", table: "EventPreparationStep" },
+  { name: "EventPreparationStep_version_update", table: "EventPreparationStep" },
+  { name: "Chore_preparation_move", table: "Chore" },
+  { name: "Event_preparation_move", table: "Event" },
+  { name: "EventPreparationStep_bounds_insert", table: "EventPreparationStep" },
+  { name: "EventPreparationStep_bounds_update", table: "EventPreparationStep" },
+];
 export async function d1EventPreparationStorageAvailable(
   database?: D1Store,
 ) {
@@ -290,8 +323,9 @@ export async function d1EventPreparationStorageAvailable(
           (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('EventPreparation','EventPreparationStep'))=2 AS tables_ready,
           (SELECT COUNT(*) FROM pragma_table_info('Event') WHERE name IN ('schedule_generation','schedule_epoch','preparation_epoch'))=3 AS event_ready,
           (SELECT COUNT(*) FROM pragma_table_info('Chore') WHERE name IN ('responsibility_generation','responsibility_epoch','preparation_epoch'))=3 AS chore_ready,
-          (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN ('herewoven_preparation_epoch','herewoven_preparation_event_move','herewoven_preparation_identity','herewoven_preparation_lifecycle','herewoven_preparation_step_version','herewoven_preparation_chore_move','herewoven_preparation_task_state'))=7 AS guards_ready`,
+          (SELECT COUNT(*) FROM json_each(?1) wanted JOIN sqlite_master actual ON actual.type='trigger' AND actual.name=json_extract(wanted.value,'$.name') AND actual.tbl_name=json_extract(wanted.value,'$.table'))=json_array_length(?1) AS guards_ready`,
       )
+      .bind(JSON.stringify(preparationGuards))
       .first<{
         tables_ready: number;
         event_ready: number;

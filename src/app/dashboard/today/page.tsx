@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { HouseholdPageState } from "@/components/layout/DashboardRecoveryCopy";
 import { after } from "next/server";
-import { getServerUser } from "@/lib/supabase/server";
+import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { refreshStaleSubscriptions } from "@/lib/calendar-import/sync";
 import TodayBoard from "@/components/fridge/TodayBoard";
@@ -52,7 +52,7 @@ export default async function TodayBoardPage({
 }: {
   searchParams: Promise<{ mode?: string | string[] }>;
 }) {
-  const sessionUser = await getServerUser();
+  const sessionUser = await getServerActor();
   if (!sessionUser) return null;
 
   // Role and household are read fresh from the database (D6, #102).
@@ -120,9 +120,10 @@ export default async function TodayBoardPage({
     return <TodayBoard data={data} fridgeMode={fridgeMode} viewer={viewer} />;
 
   const preparationBacklinks =
-    storageBackend() !== "d1" && user.role === "parent" && data.links.calendar && data.links.chores
+    user.role === "parent" && data.links.calendar && data.links.chores
       ? await readPreparationBacklinks(prisma!, {
           userId: sessionUser.id,
+          tokenVersion: sessionUser.tokenVersion,
           familyId,
           role: user.role,
           choreIds: [
