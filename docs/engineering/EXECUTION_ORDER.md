@@ -12,6 +12,16 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- #144 current reconciliation: the November 3 official provider terms still
+  leave the planned Gemini client/grounded-link import arrangement unresolved.
+  Actual source has teen admission and permits key-based Google search when the
+  readiness variable is unset; `wrangler.jsonc` omits it. Corrected release
+  interpretation is in `docs/testing/AI_EVALUATION.md`; no flag/key/provider call
+  changed. Cameron was asked about inactive Gemini versus an alternative for
+  review. The versioned offline evaluation now has retained source/hash evidence:
+  15/15 canonical cases, two suites / five tests passed at `fedc0c16`; provider
+  quality/latency/cost and AI release acceptance remain explicitly unmeasured.
+
 - #141 reward target/read recovery: native collection and owned recovery reads
   now renew the original actor/household/feature authority after the awaited data
   query, withholding the projection if it changed. Native notification focus

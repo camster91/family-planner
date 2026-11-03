@@ -5,6 +5,43 @@ provider eligibility, safety certification, activation, deployment or app rating
 The user requires all remaining code before consolidated QA; the commands below
 are instructions for that later phase, not commands run at this checkpoint.
 
+## Current verification and provider decision — 2026-11-03
+
+The historical unrun/no-QA statements below describe their original checkpoint.
+At source `fedc0c16`, `WRITE_AI_CONTRACT_REPORT=1 npm run test:ai:contracts`
+passed two suites / five tests and all 15 versioned canonical cases. The copied
+report and source/hash receipt are adjacent `ai-contract-current-*` artifacts.
+Provider answer accuracy, latency, cost and runtime acceptance remain unmeasured;
+`aiReleaseAccepted` is false. No provider request was made.
+
+Official [Gemini API terms](https://aistudio.google.com/docs/terms), effective
+March 23, 2026 and re-read November 3, restrict under-18-accessible clients,
+exclude sensitive/personal submissions from unpaid processing, and restrict
+using Search-grounded links to discover pages for scraping. Paid processing has
+different data-use terms; it does not establish client eligibility. Provider
+clarification or an eligible alternative is still needed for the proposed flows.
+
+Current source conflicts requiring resolution:
+
+- `canUseCapture` and `discoverGoogleRecipes` admit personal teen accounts.
+  Parent role alone is neither age verification nor evidence of client eligibility.
+- `approvedGoogleRecipePricing` and `searchGoogleRecipes` treat explicit
+  `FAMILY_GOOGLE_RECIPE_SEARCH_READY=0` as off. Unset is not off, and the current
+  `wrangler.jsonc` has no such variable. Maintained pricing plus a saved key can
+  therefore make search available. Older release prose saying the candidate
+  keeps this flag at zero is not accurate for this source.
+- `OnlineRecipePicker` routes a grounded result's selected link into
+  `/api/recipes/preview`, then canonical recipe save/reuse. A user click or key
+  validation does not by itself establish permission for this pipeline.
+
+Cameron was asked whether to keep Gemini inactive pending provider clarification
+or prepare an alternative for review. This question does not authorize changing
+credentials, billing, production config or family role access. Current runtime
+flags/code were not changed by this review. Manual entry, saved recipes and the
+independent paste-link workflow remain separate app capabilities, subject to
+publisher permissions. After the provider decision, use the existing adapter and
+quality suite; do not create another planning or recipe database.
+
 ## Offline canonical contract evaluation
 
 `src/lib/ai-evaluation/contracts.ts` defines fabricated inputs and independent

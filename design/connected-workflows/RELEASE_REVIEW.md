@@ -1,5 +1,18 @@
 # Recipe-to-meal candidate review
 
+## AI activation mismatch — November 3
+
+**Not ready for Gemini activation.** The current source omits
+`FAMILY_GOOGLE_RECIPE_SEARCH_READY` from `wrangler.jsonc`; its search adapters
+accept unset when maintained pricing/key configuration is present. Earlier prose
+below describing an explicit zero kill switch is historical and does not describe
+this candidate. The current provider terms and the teen/grounded-link import
+paths require a provider decision, recorded in `docs/testing/AI_EVALUATION.md`.
+No activation/configuration change was made. Offline evaluation at `fedc0c16`
+passed 15 canonical cases (two suites / five tests); real model semantics,
+latency/cost and eligibility remain unproven. Source/hash report artifacts are
+retained under `ai-contract-current-*`. Cameron's existing question is pending.
+
 ## Reward read/target recovery — November 3
 
 Source `19be087c` renews native reward read authority after its awaited query and
