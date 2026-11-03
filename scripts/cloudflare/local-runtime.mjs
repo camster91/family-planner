@@ -71,6 +71,7 @@ function usage() {
       "The archive must be the opt-in cloudflare-local-runtime artifact.",
       "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
       "--exercise-connected-planning enables provider-free food planning and weekly review in the disposable runtime only.",
+      "--exercise-schedule-review enables calendar conflict review in the disposable runtime only.",
       "--exercise-event-preparation enables event preparation and profile chores in the disposable runtime only.",
       "--exercise-profile-routines enables profile chores and routine scheduling in the disposable runtime only.",
       "--exercise-profile-setup enables the email-free profile flow in this disposable runtime only.",
@@ -100,6 +101,7 @@ const exerciseProfileRoutines = process.argv.includes("--exercise-profile-routin
 const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
 // Explicitly fabricated, network-isolated provider exercise. Never use real keys.
 const exerciseConnectedPlanning = process.argv.includes("--exercise-connected-planning");
+const exerciseScheduleReview = process.argv.includes("--exercise-schedule-review");
 const exerciseEventPreparation = process.argv.includes("--exercise-event-preparation");
 const exerciseGeminiSetup = process.argv.includes("--exercise-gemini-setup");
 const exerciseRecipeSearch = exerciseGeminiSetup || process.argv.includes("--exercise-recipe-search");
@@ -779,6 +781,7 @@ try {
       NEXT_TELEMETRY_DISABLED: "1",
       ...(exerciseConnectedPlanning ? { FAMILY_FOOD_PLANNING_READY: "1", FAMILY_WEEKLY_RESET_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
       ...(exerciseProfileRoutines ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", HOUSEHOLD_PROFILE_CHORE_RECURRENCE_ENABLED: "1", ROUTINE_SCHEDULE_ENABLED: "1", ROUTINE_SCHEDULE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
+      ...(exerciseScheduleReview ? { FAMILY_SCHEDULE_REVIEW_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
       ...(exerciseEventPreparation ? { FAMILY_EVENT_PREPARATION_READY: "1", HOUSEHOLD_PROFILE_CHORE_ENABLED: "1", HOUSEHOLD_PROFILE_CHORE_ROLLBACK_READY: "1", QUEUE_OWNER_RECOVERY_ENABLED: "1", QUEUE_OWNER_RECOVERY_ROLLBACK_READY: "1" } : {}),
       ...(exerciseProfileSetup ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1" } : {}),
       ...(exerciseRecipeSearch ? {
