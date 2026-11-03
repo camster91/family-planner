@@ -1,5 +1,22 @@
 # Recipe-to-meal candidate review
 
+## Native reward follow-through — November 3
+
+Source `73a6dc28` adds missing Cloudflare in-app reward creation, claim and
+approval notifications within the same canonical transaction/receipt. Existing
+policy and witnessed recipient membership apply; exact reward links also now
+cover the retained PostgreSQL creation fallback. Real workerd/D1 tests passed
+for audiences, exact links, replay/deleted-notice suppression, muted preferences,
+notification-failure rollback, late preference/authority changes and departed
+claimants. Four affected suites / 68 tests, typecheck, scoped lint and Cloudflare
+production build passed. Evidence: adjacent `reward-notices-*` artifacts.
+
+No compiled-browser check for this latest reward change, live provider call,
+production mutation or deployment is claimed. Native event-occurrence cohort
+adoption, asynchronous/provider delivery and receipt retention beyond the
+existing contract remain unfinished. Release status remains **Not ready**;
+prior browser and full-suite results retain their original source identities.
+
 ## Chore notification follow-through — November 3
 
 Source `2f6ffb368bf15bd20fc0b69934dd73f8c274d1c1` connects ordinary assignment

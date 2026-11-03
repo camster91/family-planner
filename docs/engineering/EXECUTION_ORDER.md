@@ -24,7 +24,9 @@ Continue the existing issues, not another feature backlog.
   receipt replay/deleted notice, muted preferences, atomic notification-failure
   rollback, retry after proven rollback, late preference changes, actor revocation
   and departed claimant suppression. Four affected suites / 68 tests, typecheck
-  and scoped lint pass. Evidence: adjacent `reward-notices-*` artifacts.
+  and scoped lint pass. Cloudflare production build also passed at source
+  `73a6dc28`; no compiled-browser acceptance is claimed for this change.
+  Evidence: adjacent `reward-notices-*` artifacts.
   This is native in-app parity, not queued/provider delivery or the stricter
   event-occurrence/recipient-decision cohort protocol. Its native reward adoption,
   retention beyond existing receipts, installed-device and production acceptance
