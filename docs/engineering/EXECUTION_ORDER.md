@@ -12,6 +12,24 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Consolidated local candidate check — source `6fe314a1`: the full suite
+  initially found one translation-audit integration failure. Native reminder
+  copy now lives in its own small EN/ES catalog, explicitly checked for key
+  coverage and equal locale keys without loading the legacy catalog into the
+  shell. Its focused component/catalog checks pass (six tests). The full suite
+  rerun passed (841 suites, 8,534 tests; 85 suites/562 tests skipped); see
+  `candidate-tests-repair.log` under the continuation artifacts. Cloudflare
+  production bundling and final typecheck passed. Whole-repository lint reports
+  zero errors and 76 warnings; changed-source lint passes without warnings.
+  An earlier concurrent typecheck raced the build's generated `.next/types`;
+  the sequential post-build rerun passed. No source change was needed for that
+  race. Logs are retained in the sibling
+  `artifacts/connected-family-features-20261103/` directory. This is local
+  candidate evidence, not release CI, provider/device acceptance or deployment.
+  PR #622 remains open at its earlier candidate; these continuation commits
+  are local. Exact release review/approval and the outstanding original issue
+  acceptance remain open. No provider, account, production or store mutations
+  occurred in this check.
 - Connected review follow-through: native weekly reset now includes eligible
   email-free profiles, preserves child-only chore visibility, filters inactive
   routine occurrences, and offers event timing/preparation entry points.
