@@ -1,5 +1,25 @@
 # Recipe-to-meal candidate review
 
+## Latest scoped follow-up — November 3
+
+Source `3cce250a9351cdbd2e3cda416e07325214a20eae` fixes the unavailable quick-add
+state in Review inbox. Six suites / 80 tests, typecheck, scoped lint, the
+Cloudflare production build and local dry bundle passed. Authenticated local
+Worker/D1 browser checks passed on phone, tablet and desktop: clear unavailable
+state, canonical AI settings handoff, empty key, recipe recovery preserved,
+no overflow and no API writes after fixture setup. Email-free child/parent
+routine creation persisted in an independent page and the Routines destination
+rendered. Screenshots were inspected. A first routine script reload raced the
+app refresh; the independent-page retry passed without code changes.
+
+The clean-source local archive is `review-availability-runtime/local-runtime.tar.gz`
+in the adjacent `artifacts/connected-family-features-20261103/` directory. It is
+not a GitHub release artifact. The earlier full suite below belongs to source
+`cc91fc8b`, while this follow-up has the scoped checks above. Current source is
+39 commits / 119 changed files beyond PR #622's previously verified head.
+Production recovery readiness, updated GitHub checks and provider/device
+acceptance remain outstanding; release status remains **Not ready**.
+
 ## Connected-feature continuation — November 3
 
 **Release state: Not ready for production promotion.** Source candidate

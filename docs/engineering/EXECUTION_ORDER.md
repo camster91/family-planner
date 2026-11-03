@@ -12,6 +12,23 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Compiled browser continuation at source `3cce250a9351cdbd2e3cda416e07325214a20eae`:
+  fixed the dedicated Review inbox silently losing its editor when quick capture
+  is unavailable. It now explains the state and links to canonical Family AI
+  Settings while preserving recipe recovery. Six affected suites / 80 tests,
+  typecheck, scoped lint, Cloudflare build and Wrangler dry bundle passed.
+  Actual local Worker/D1 Chrome checks passed at 390×844, 800×1280 and 1366×768:
+  explanation visible, Settings opens at the AI section, key remains empty,
+  recipe recovery retained, no horizontal overflow or post-setup API writes.
+  Email-free child plus parent routine steps also saved and persisted in a fresh
+  browser page; the direct Routines destination rendered its loaded content.
+  The first routine script raced router refresh with reload (ERR_ABORTED);
+  the independent-page retry passed without an application change. Evidence:
+  adjacent `review-availability-*` and `verified-profile-routine-*` artifacts.
+  External egress was denied; no real provider call or production write occurred.
+  The prior full-suite result remains attached to its earlier source, not this
+  follow-up. Production promotion and device/provider acceptance remain open.
+
 - D1 migration/recovery rehearsal (#450/#499 release gate): added a local-only
   Wrangler check from migration 0016 through 0017/0018 with populated fabricated
   preparation rows, including a legacy invalid step. Upgrade and repeat apply
