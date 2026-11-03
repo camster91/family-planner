@@ -21,7 +21,7 @@ export const googleRecipeSearchUsage = z.object({
   // selected API exposes them. Missing/partial usage must remain unknown.
   inputTokens: count.nullable(),
   outputTokens: count.nullable(),
-  searchQueries: count.nullable(),
+  searchQueries: z.number().int().min(0).max(10000).nullable(),
   grounded: z.boolean().nullable(),
 }).strict();
 export type GoogleRecipeSearchUsage = z.infer<typeof googleRecipeSearchUsage>;
