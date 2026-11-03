@@ -85,6 +85,11 @@ export function BarcodeFoodDialog({
   const flight = useRef(false);
   const readingRef = useRef(false);
   const productRead = useRef<AbortController | null>(null);
+  const reviewItem = useRef<HTMLSelectElement | null>(null);
+  const [reviewCorrection, setReviewCorrection] = useState(0);
+  useEffect(() => {
+    if (reviewCorrection) reviewItem.current?.focus();
+  }, [reviewCorrection]);
   const requests = useRef(new Set<AbortController>());
   const live = useRef(true);
   const suspendedRef = useRef(suspended);
@@ -338,13 +343,15 @@ export function BarcodeFoodDialog({
       purchased_on: row.purchased || null,
       opened_on: row.opened || null,
     });
-    if (
-      chosen.some(
-        (row) =>
-          !attempts.current.has(row.id) &&
-          !createInventorySchema.safeParse(item(row)).success,
-      )
-    ) {
+    const needsReview = chosen.find(
+      (row) =>
+        !attempts.current.has(row.id) &&
+        !createInventorySchema.safeParse(item(row)).success,
+    );
+    if (needsReview) {
+      setSelected(needsReview.id);
+      setReview(true);
+      setReviewCorrection((value) => value + 1);
       setMessage(barcodeFeedback("reviewRequired"));
       return;
     }
@@ -588,6 +595,7 @@ export function BarcodeFoodDialog({
             <label className="block text-subhead">
               {text("currentItem")}
               <select
+                ref={reviewItem}
                 value={current.id}
                 className="input-field min-h-[44px] w-full"
                 disabled={saving || reading}

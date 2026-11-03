@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-// Source authored UNRUN. Fabricated rows, mocked canonical transport only.
+// Fabricated rows, mocked canonical transport only.
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nProvider } from "@/i18n";
@@ -69,4 +69,21 @@ it("keeps uncertainty and original request after a thrown send followed by a pro
   expect(mockIntake.mock.calls[1][0]).toEqual(mockIntake.mock.calls[0][0]);
   expect(screen.getByLabelText("Food name")).toBeDisabled();
   expect(mockRelease).not.toHaveBeenCalled();
+});
+
+it("opens the first incomplete selected item before sending any batch writes", async () => {
+  mockIntake.mockResolvedValue({ kind: "confirmed", itemId: "fixture-stock" });
+  const done = jest.fn();
+  render(<I18nProvider locale="en"><BarcodeFoodDialog initialContext={context} onClose={jest.fn()} onDone={done} /></I18nProvider>);
+  await add("036000291452", "");
+  await add("4006381333931", "Second beans");
+  fireEvent.click(screen.getByRole("button", { name: "Save selected reviewed items" }));
+  expect(screen.getByLabelText("Food name")).toHaveValue("");
+  expect(screen.getByLabelText("Item in review")).toHaveFocus();
+  expect(mockIntake).not.toHaveBeenCalled();
+  expect(mockRelease).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Food name"), { target: { value: "First beans" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save selected reviewed items" }));
+  await waitFor(() => expect(done).toHaveBeenCalledWith(2));
+  expect(mockIntake).toHaveBeenCalledTimes(2);
 });
