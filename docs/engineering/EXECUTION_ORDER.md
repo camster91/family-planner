@@ -71,6 +71,9 @@ Continue the existing issues, not another feature backlog.
   tests, including shared accounting, quota refusal, no fallback on bad keys,
   settings changes, no unreviewed writes and provider/size disclosure. Typecheck
   passes; changed-source lint has zero errors/five existing hook warnings.
+  Candidate `1a9287be` also passed the Cloudflare production build, including
+  TypeScript and Worker bundling. This does not establish a live provider call
+  or rendered photo capture against that artifact.
   Real provider/model capability, privacy eligibility and hardware acceptance
   remain separate; no live provider call, key change or deployment occurred.
 - Release candidate PR #622 remains separate from this continuation. Its passing
