@@ -12,6 +12,25 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Native reward browser acceptance at application source
+  `73a6dc289b8f4d22bca8b1b1c9c80a709060bde1`: parent form creation → child
+  personal-home (`/dashboard`) claim → parent's inbox exact-target link → parent
+  approval passed on a 390×844 phone. Independent reads confirm redeemed state
+  and child points 100→85 once; inspected screenshots preserve role controls.
+  New local-runtime `--exercise-rewards` fixture (harness `4fdbcf7a`) requires
+  `--seed-smoke`, uses fabricated accounts/points in disposable D1 and denies
+  external egress. App source/config/inputs were unchanged from the successful
+  build; only docs and the local harness differed before bundling that build.
+  Initial browser attempts exposed the existing child route restriction and
+  corrected harness navigation/response-reading races; these are retained logs,
+  not product fixes. Child inbox and `/dashboard/rewards` remain deliberately
+  inaccessible under O-37; their personal home supports claims but does not show
+  the saved approval notification. Cameron was asked whether child updates should
+  stay on personal home or allow a personal inbox/detail view. No access expansion
+  is inferred while that decision is pending. Evidence: `reward-notices-*` and
+  `reward-notices-parent-child-browser.json`. Local runtime stopped with exit130;
+  no provider or production action. Full child notification acceptance is open.
+
 - #141 native reward follow-through: Cloudflare reward create/claim/approval now
   commit personal in-app notices with the canonical effect and receipt, using
   witnessed same-household recipients and existing category/quiet-hours policy.

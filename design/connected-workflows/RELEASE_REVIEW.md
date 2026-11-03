@@ -11,11 +11,19 @@ notification-failure rollback, late preference/authority changes and departed
 claimants. Four affected suites / 68 tests, typecheck, scoped lint and Cloudflare
 production build passed. Evidence: adjacent `reward-notices-*` artifacts.
 
-No compiled-browser check for this latest reward change, live provider call,
-production mutation or deployment is claimed. Native event-occurrence cohort
-adoption, asynchronous/provider delivery and receipt retention beyond the
-existing contract remain unfinished. Release status remains **Not ready**;
-prior browser and full-suite results retain their original source identities.
+Compiled local Worker/D1 browser checks now prove parent creation, child claim
+from personal home, parent exact-notification handoff/approval and one 15-point
+deduction. The existing child role gate redirects inbox/Rewards routes to personal
+home; saved child approval notices are therefore not visibly delivered. Cameron's
+choice between home updates and a child inbox/detail route is pending; no role
+access was expanded. Harness `4fdbcf7a` adds only disposable shared-household
+fixtures; the verified app build remains source `73a6dc28`. Initial harness
+response-navigation races and wrong shared-Today navigation were corrected;
+logs are retained. No live provider call, production mutation or deployment is
+claimed. Native event-occurrence cohort adoption, asynchronous/provider delivery,
+receipt retention beyond the existing contract and child notification UX remain
+unfinished. Release status remains **Not ready**; prior full-suite results retain
+their original source identities.
 
 ## Chore notification follow-through — November 3
 
