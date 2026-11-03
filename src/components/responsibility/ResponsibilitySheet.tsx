@@ -354,109 +354,130 @@ export default function ResponsibilitySheet({
             </time>
           </p>
         )}
-        {recorded && (
+        {recorded && !value?.statement && (
           <p className="text-footnote text-label-secondary">
             {copy.recordHint}
           </p>
         )}
-        {value && (self || recorded) && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={plain}
-              disabled={disabled}
-              onClick={() =>
-                choose(
-                  {
-                    action: "state-intent",
-                    slot: name,
-                    decision: "accepted",
-                    method: self ? "self" : "parent-recorded",
-                  },
-                  self ? copy.accept : copy.recordAccept,
-                  value.member.name,
-                  recorded ? copy.recordHint : copy.self,
-                )
-              }
-            >
-              {self ? copy.accept : copy.recordAccept}
-            </button>
-            <button
-              type="button"
-              className={plain}
-              disabled={disabled}
-              onClick={() =>
-                choose(
-                  {
-                    action: "state-intent",
-                    slot: name,
-                    decision: "declined",
-                    method: self ? "self" : "parent-recorded",
-                  },
-                  self ? copy.decline : copy.recordDecline,
-                  value.member.name,
-                  recorded ? copy.recordHint : copy.self,
-                )
-              }
-            >
-              {self ? copy.decline : copy.recordDecline}
-            </button>
-          </div>
-        )}
-        {value?.statement && (self || view?.role === "parent") && (
-          <button
-            type="button"
-            className={plain}
-            disabled={disabled}
-            onClick={() =>
-              choose(
-                { action: "clear-statement", slot: name },
-                copy.reset,
-                value.member.name,
-                copy.resetHint,
-              )
-            }
+        {(!value?.statement || self || recorded || view?.role === "parent") && (
+          <details
+            key={`${name}:${value?.statement?.at ?? "awaiting"}`}
+            open={!value?.statement}
           >
-            {copy.reset}
-          </button>
-        )}
-        {view?.role === "parent" &&
-          (name === "backup" || target.kind === "handoff") && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={plain}
-                disabled={disabled}
-                onClick={() => {
-                  setChooser(name === "backup" ? "backup" : "coordinator");
-                  setPreview(null);
-                }}
-              >
-                {name === "backup" ? copy.chooseBackup : copy.chooseCoordinator}
-              </button>
-              {value && (
+            <summary
+              hidden={!value?.statement}
+              className="min-h-11 cursor-pointer py-3 text-callout font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
+            >
+              {copy.change}
+            </summary>
+            <div className="space-y-2">
+              {value && (self || recorded) && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={plain}
+                    disabled={disabled}
+                    onClick={() =>
+                      choose(
+                        {
+                          action: "state-intent",
+                          slot: name,
+                          decision: "accepted",
+                          method: self ? "self" : "parent-recorded",
+                        },
+                        self ? copy.accept : copy.recordAccept,
+                        value.member.name,
+                        recorded ? copy.recordHint : copy.self,
+                      )
+                    }
+                  >
+                    {self ? copy.accept : copy.recordAccept}
+                  </button>
+                  <button
+                    type="button"
+                    className={plain}
+                    disabled={disabled}
+                    onClick={() =>
+                      choose(
+                        {
+                          action: "state-intent",
+                          slot: name,
+                          decision: "declined",
+                          method: self ? "self" : "parent-recorded",
+                        },
+                        self ? copy.decline : copy.recordDecline,
+                        value.member.name,
+                        recorded ? copy.recordHint : copy.self,
+                      )
+                    }
+                  >
+                    {self ? copy.decline : copy.recordDecline}
+                  </button>
+                </div>
+              )}
+              {value?.statement && (self || view?.role === "parent") && (
                 <button
                   type="button"
                   className={plain}
                   disabled={disabled}
                   onClick={() =>
                     choose(
-                      name === "backup"
-                        ? { action: "set-backup", subject: null }
-                        : { action: "set-coordinator", subject: null },
-                      name === "backup"
-                        ? copy.clearBackup
-                        : copy.clearCoordinator,
+                      { action: "clear-statement", slot: name },
+                      copy.reset,
                       value.member.name,
-                      copy.namingHint,
+                      copy.resetHint,
                     )
                   }
                 >
-                  {name === "backup" ? copy.clearBackup : copy.clearCoordinator}
+                  {copy.reset}
                 </button>
               )}
+              {view?.role === "parent" &&
+                (name === "backup" || target.kind === "handoff") && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className={plain}
+                      disabled={disabled}
+                      onClick={() => {
+                        setChooser(
+                          name === "backup" ? "backup" : "coordinator",
+                        );
+                        setPreview(null);
+                      }}
+                    >
+                      {name === "backup"
+                        ? copy.chooseBackup
+                        : copy.chooseCoordinator}
+                    </button>
+                    {value && (
+                      <button
+                        type="button"
+                        className={plain}
+                        disabled={disabled}
+                        onClick={() =>
+                          choose(
+                            name === "backup"
+                              ? { action: "set-backup", subject: null }
+                              : { action: "set-coordinator", subject: null },
+                            name === "backup"
+                              ? copy.clearBackup
+                              : copy.clearCoordinator,
+                            value.member.name,
+                            copy.namingHint,
+                          )
+                        }
+                      >
+                        {name === "backup"
+                          ? copy.clearBackup
+                          : copy.clearCoordinator}
+                      </button>
+                    )}
+                  </div>
+                )}
             </div>
-          )}
+          </details>
+        )}
       </section>
     );
   }

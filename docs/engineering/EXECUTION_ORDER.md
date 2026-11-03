@@ -117,8 +117,18 @@ Continue the existing issues, not another feature backlog.
   archive retirement, search/hidden-picker preservation, feature-change rollback,
   absent-guard refusal and recovery after deletion/pause/intent expiry. Revoked
   sessions cannot inspect receipts. Domain/API/components: 62 tests passed;
-  eight PostgreSQL tests skipped. The responsibility feature remains disabled
-  pending final native and rendered acceptance; no deployment is implied.
+  eight PostgreSQL tests skipped. Expanded real D1 checks also cover pickup
+  acceptance/closed refusal, handoff coordinator naming without implied consent,
+  own acceptance and child/private-field isolation. Built candidate `2d91a16d`
+  passed the actual browser chore → own answer → email-free backup →
+  parent-recorded answer flow, including lost-response recovery and reload.
+  Phone/tablet/desktop fit. The screenshot then prompted a smaller answered state:
+  existing answers keep their provenance while change controls collapse, and
+  technical success/link wording is replaced with plain language. Candidate
+  responsibility is now enabled; production activation and exact final-candidate
+  rendering/CI remain distinct. Evidence is retained as `responsibility-*` in the
+  continuation artifact directory. Completed temporary runtimes were stopped and
+  disposable extracted copies removed only after their archives were verified.
 - Keep live Google/provider eligibility, signed native builds, physical-device
   behavior and store publication explicit. Existing source is not evidence
   those external requirements are complete.

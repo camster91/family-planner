@@ -15,6 +15,8 @@ const features = JSON.stringify({
   lists: true,
   family: true,
   meals: true,
+  pickups: true,
+  handoff: true,
 });
 
 /** Disposable native coverage for source-bound consent and assignment state. */
@@ -416,6 +418,152 @@ export async function testResponsibility(db: D1Store) {
     );
 
     await db
+      .prepare(
+        `INSERT INTO Pickup(id,family_id,title,pickup_time,assigned_to,created_by) VALUES ('responsibility-pickup',?,'School pickup',?,?,?)`,
+      )
+      .bind(parent.familyId, now, parent.userId, parent.userId)
+      .run();
+    const pickupTarget = {
+      kind: "pickup" as const,
+      id: "responsibility-pickup",
+    };
+    const pickupView = await readD1ResponsibilityView(
+      parent,
+      pickupTarget,
+      "",
+      db,
+    );
+    const pickupIntent = {
+      ...accepted,
+      userId: parent.userId,
+      target: pickupTarget,
+      sourceToken: pickupView.sourceToken,
+      expectedRevision: pickupView.revision,
+    };
+    check(
+      (
+        await writeD1Responsibility(
+          parent,
+          pickupIntent,
+          "responsibility-pickup-accept",
+          db,
+          new Date(now),
+        )
+      ).status === 200,
+      "pickup owner explicitly accepts",
+    );
+    await db
+      .prepare(`UPDATE Pickup SET completed=1 WHERE id='responsibility-pickup'`)
+      .run();
+    const closedPickup = await readD1ResponsibilityView(
+      parent,
+      pickupTarget,
+      "",
+      db,
+    );
+    check(
+      !closedPickup.active && !closedPickup.writesEnabled,
+      "completed pickup cannot receive a new answer",
+    );
+    check(
+      await writeD1Responsibility(
+        parent,
+        {
+          ...pickupIntent,
+          sourceToken: closedPickup.sourceToken,
+          expectedRevision: closedPickup.revision,
+        },
+        "responsibility-pickup-closed",
+        db,
+        new Date(now),
+      ).then(
+        () => false,
+        () => true,
+      ),
+      "closed pickup write refused",
+    );
+    await db
+      .prepare(
+        `INSERT INTO Handoff(id,family_id,sitter_name,share_token,created_by,code_words) VALUES ('responsibility-handoff',?,'External sitter','fixture-private-share',?,'fixture-private-code')`,
+      )
+      .bind(parent.familyId, parent.userId)
+      .run();
+    const handoffTarget = {
+      kind: "handoff" as const,
+      id: "responsibility-handoff",
+    };
+    const handoffView = await readD1ResponsibilityView(
+      parent,
+      handoffTarget,
+      "",
+      db,
+    );
+    check(
+      handoffView.primary === null,
+      "sitter name is not an authenticated coordinator",
+    );
+    check(
+      !JSON.stringify(handoffView).includes("fixture-private"),
+      "handoff private fields excluded",
+    );
+    const coordinator = {
+      ...command,
+      target: handoffTarget,
+      sourceToken: handoffView.sourceToken,
+      expectedRevision: handoffView.revision,
+      action: "set-coordinator" as const,
+      subject: { kind: "account" as const, accountId: parent.userId },
+    };
+    check(
+      (
+        await writeD1Responsibility(
+          parent,
+          coordinator,
+          "responsibility-coordinator",
+          db,
+          new Date(now),
+        )
+      ).status === 200,
+      "parent names handoff coordinator",
+    );
+    const coordinated = await readD1ResponsibilityView(
+      parent,
+      handoffTarget,
+      "",
+      db,
+    );
+    check(
+      coordinated.primary?.member.name === "Responsibility Parent" &&
+        coordinated.primary.statement === null,
+      "naming coordinator does not imply consent",
+    );
+    check(
+      (
+        await writeD1Responsibility(
+          parent,
+          {
+            ...accepted,
+            userId: parent.userId,
+            target: handoffTarget,
+            sourceToken: coordinated.sourceToken,
+            expectedRevision: coordinated.revision,
+          },
+          "responsibility-coordinator-accept",
+          db,
+          new Date(now),
+        )
+      ).status === 200,
+      "coordinator confirms on own account",
+    );
+    check(
+      await readD1ResponsibilityView(child, handoffTarget, "", db).then(
+        () => false,
+        () => true,
+      ),
+      "child cannot inspect handoff coordination",
+    );
+
+    await db
       .prepare(`DELETE FROM Chore WHERE id=?`)
       .bind(command.target.id)
       .run();
@@ -477,6 +625,9 @@ export async function testResponsibility(db: D1Store) {
       childAcceptance: true,
       profileRecorded: true,
       profileArchive: true,
+      pickupAcceptance: true,
+      handoffCoordinator: true,
+      handoffPrivacy: true,
       searchPreservesParticipants: true,
       featureRace: true,
       missingGuard: true,
