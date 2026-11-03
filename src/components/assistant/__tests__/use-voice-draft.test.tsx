@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-/** Source for later consolidated QA, not microphone/device evidence. */
+/** Simulated browser recognition; not physical microphone/device evidence. */
 import { act, renderHook } from "@testing-library/react";
 import { useVoiceDraft } from "../use-voice-draft";
 const recognizers: FakeRecognition[] = [];
@@ -80,4 +80,73 @@ it("does not let a late old end callback clear a new recognizer, and detaches ca
   rerender({ enabled: false });
   expect(recognizers[1].abort).toHaveBeenCalledTimes(1);
   expect(recognizers[1].onresult).toBeNull();
+});
+
+it("bounds ordinary assistant listening even when no deadline is supplied", () => {
+  const error = jest.fn();
+  const { result } = renderHook(() => useVoiceDraft(true, jest.fn(), error));
+  act(() => result.current.start());
+  act(() => jest.advanceTimersByTime(20000));
+  expect(result.current.listening).toBe(false);
+  expect(error).toHaveBeenCalledWith("voiceNoInput");
+});
+
+it("retires failed recognition without waiting for a browser end event", () => {
+  const error = jest.fn(),
+    transcript = jest.fn();
+  const { result } = renderHook(() => useVoiceDraft(true, transcript, error));
+  act(() => result.current.start());
+  const staleResult = recognizers[0].onresult;
+  recognizers[0].abort.mockImplementation(() => {
+    throw new Error("Already ended");
+  });
+  act(() => recognizers[0].onerror?.({ error: "service-not-allowed" }));
+  expect(result.current.listening).toBe(false);
+  expect(error).toHaveBeenCalledWith("voiceDenied");
+  act(() => staleResult?.({ results: [[{ transcript: "late words" }]] }));
+  expect(transcript).not.toHaveBeenCalled();
+  act(() => result.current.start());
+  expect(recognizers).toHaveLength(2);
+  expect(result.current.listening).toBe(true);
+});
+
+it("accepts a final transcript only once and cancels the deadline", () => {
+  const transcript = jest.fn(),
+    error = jest.fn();
+  const { result } = renderHook(() => useVoiceDraft(true, transcript, error));
+  act(() => result.current.start());
+  const deliver = recognizers[0].onresult;
+  act(() => deliver?.({ results: [[{ transcript: "Add milk" }]] }));
+  act(() => deliver?.({ results: [[{ transcript: "Replace this" }]] }));
+  act(() => jest.advanceTimersByTime(30000));
+  expect(result.current.listening).toBe(false);
+  expect(transcript).toHaveBeenCalledTimes(1);
+  expect(transcript).toHaveBeenCalledWith("Add milk");
+  expect(error).not.toHaveBeenCalled();
+});
+
+it("handles unavailable constructors and synchronous start failures", () => {
+  const error = jest.fn();
+  Object.defineProperty(window, "SpeechRecognition", {
+    value: class {
+      constructor() {
+        throw new Error("Unavailable");
+      }
+    },
+    configurable: true,
+  });
+  const { result } = renderHook(() => useVoiceDraft(true, jest.fn(), error));
+  act(() => result.current.start());
+  expect(error).toHaveBeenCalledWith("voiceStartFailed");
+  expect(result.current.listening).toBe(false);
+  Object.defineProperty(window, "SpeechRecognition", {
+    value: class extends FakeRecognition {
+      start = jest.fn(() => this.onerror?.({ error: "not-allowed" }));
+    },
+    configurable: true,
+  });
+  act(() => result.current.start());
+  expect(error).toHaveBeenLastCalledWith("voiceDenied");
+  expect(result.current.listening).toBe(false);
+  expect(jest.getTimerCount()).toBe(0);
 });

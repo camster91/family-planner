@@ -240,6 +240,7 @@ export const assistantEnglish = {
   reportSaveFailed: "Could not save. Retry this draft.",
   voiceUnavailableError:
     "Voice is unavailable in this browser. Type your message instead.",
+  voiceDraftChanged: "Your draft changed while listening, so it was kept. Tap to dictate again when ready.",
   voiceDenied: "Microphone access was denied. You can still type.",
   voiceNoInput: "Voice could not hear you. Try again or type.",
   voiceStartFailed: "Voice could not start. Type your message instead.",
@@ -418,6 +419,7 @@ export const assistantSpanish: Record<AssistantMessage, string> = {
   reportSaveFailed: "No se pudo guardar. Intenta de nuevo este borrador.",
   voiceUnavailableError:
     "La voz no está disponible en este navegador. Escribe tu mensaje.",
+  voiceDraftChanged: "Tu borrador cambió mientras se escuchaba y se conservó. Vuelve a dictar cuando quieras.",
   voiceDenied: "Se denegó el acceso al micrófono. Aún puedes escribir.",
   voiceNoInput: "La voz no pudo escucharte. Inténtalo de nuevo o escribe.",
   voiceStartFailed: "La voz no pudo iniciarse. Escribe tu mensaje.",
@@ -429,6 +431,6 @@ export const assistantMessages = {
 };
 
 export type VoiceErrorCode =
-  "voiceUnavailableError" | "voiceDenied" | "voiceNoInput" | "voiceStartFailed";
+  "voiceUnavailableError" | "voiceDenied" | "voiceNoInput" | "voiceStartFailed" | "voiceDraftChanged";
 
 export type VoiceErrorCopy = Record<VoiceErrorCode, string>;

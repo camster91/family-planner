@@ -12,6 +12,23 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Assistant voice recovery (#464): ordinary browser dictation now has a
+  default 20-second deadline, retires failed/successful recognition callbacks,
+  handles constructor/abort failures and synchronous browser errors, and accepts
+  a final transcript only once. Permission errors stop listening even if the
+  browser never emits an end event. The assistant preserves text edited while
+  listening and explains the retained draft in EN/ES; a later successful draft
+  clears the old voice notice. No transcript auto-sends or mutates household data.
+  Four focused suites pass (64 tests), changed-source lint/typecheck pass, and
+  the Cloudflare build passes. Real Chromium rendered the actual assistant panel
+  across EN/ES and all six baseline sizes: typed-draft preservation, denied-access
+  recovery, successful draft insertion, zero network requests and no horizontal
+  overflow all pass. Phone success and retained-draft screenshots were inspected.
+  This browser fixture uses a simulated speech recognizer and stub router, not
+  physical microphone, native speech, provider, noise/distance or background-wake
+  acceptance. Evidence is in `voice-recovery-*` in the sibling continuation
+  artifacts. Full-suite results below precede this focused follow-up. Nothing
+  was pushed, merged, deployed or enabled externally.
 - Consolidated local candidate check — source `6fe314a1`: the full suite
   initially found one translation-audit integration failure. Native reminder
   copy now lives in its own small EN/ES catalog, explicitly checked for key
