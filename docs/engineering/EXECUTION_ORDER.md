@@ -67,10 +67,16 @@ Continue the existing issues, not another feature backlog.
   Real D1 checks additionally pass recovery, pickers, profile pagination and
   routine-copy creation/provenance for an email-free profile. API/domain/component
   tests: 17 suites/76 tests passed, 1 suite/8 tests skipped; typecheck/lint passed.
-- Event preparation is still paused in the release configuration. The local
-  runtime harness now accepts `--exercise-event-preparation` for fabricated
-  household browser checks; build the current candidate and verify the rendered
-  full journey before enabling its release flag. Continue routine/profile
+- Built Cloudflare candidate `6741841b` and exercised its real local Worker/D1
+  in Chromium: calendar event → preparation task → review/save → reload passed;
+  phone/tablet/desktop sheets fit the viewport. Dropping the committed PATCH
+  response then using rendered Check status recovered success with exactly one
+  canonical task. Screenshots and evidence are retained under
+  `artifacts/connected-family-features-20261103` beside the checkout. No external
+  provider/mail/network was enabled. The preparation release flag is now enabled
+  in the candidate config only; no production activation or merge has occurred.
+  Profile chore flags still need their broader profile-flow release acceptance.
+  Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.
 - Keep live Google/provider eligibility, signed native builds, physical-device
