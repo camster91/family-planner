@@ -1,5 +1,18 @@
 # Recipe-to-meal candidate review
 
+## Barcode manual fallback — November 3
+
+Source `73d9e626` lets people leave a slow product lookup immediately and enter
+food details while retaining the barcode. Late results cannot overwrite the
+draft or unlock another lookup. Four suites / 16 tests and 12 rendered component
+checks passed across six viewports in English and Spanish. TypeScript passed;
+scoped lint reports zero errors and three existing hook warnings. The component
+browser uses fabricated responses, not a live provider or compiled Worker.
+Evidence: `barcode-manual-fallback-*`. The Next.js production build
+  (`npm run build`) passed at `73d9e626`; Cloudflare packaging and deployment
+  were not run for this follow-up. Release status remains **Not ready** for
+the provider, device and release-evidence boundaries recorded below.
+
 ## AI activation mismatch — November 3
 
 **Not ready for Gemini activation.** The current source omits

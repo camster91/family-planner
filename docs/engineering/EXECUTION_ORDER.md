@@ -12,6 +12,18 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- #125 lookup recovery at `73d9e626`: barcode review now offers immediate
+  **Enter manually** while metadata is pending. It keeps the scanned code and
+  draft, aborts the read, and ignores its late response; an old completion cannot
+  unlock a newer lookup. Four focused suites / 16 tests and 12 actual-component
+  browser checks (EN/ES across six standard sizes) passed. The phone screenshot
+  was inspected; fixtures use fabricated camera/backend responses, with no
+  provider or inventory writes. TypeScript passed with observed exit zero;
+  scoped lint has zero errors and three existing hook warnings. Evidence:
+  `barcode-manual-fallback-*`. The Next.js production build
+  (`npm run build`) passed at `73d9e626`; Cloudflare packaging and deployment
+  were not run for this follow-up. This is not physical-camera/provider acceptance.
+
 - #144 current reconciliation: the November 3 official provider terms still
   leave the planned Gemini client/grounded-link import arrangement unresolved.
   Actual source has teen admission and permits key-based Google search when the
