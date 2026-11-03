@@ -12,6 +12,21 @@ recipe-to-meal release preparation. The historical code-only/no-QA restriction
 below is superseded by the later request to verify fixes before release.
 Continue the existing issues, not another feature backlog.
 
+- Consolidated release review — source `cc91fc8b`: fresh Cloudflare build,
+  sequential typecheck and full-suite rerun pass (841 suites/8,548 tests;
+  85 suites/562 tests skipped). Lint: zero errors, 76 warnings. The first suite
+  run encountered one ENOSPC reporter failure; after verified-unused disposable
+  Xcode module caches were removed, the unchanged-source rerun passed. Retained
+  iOS app products and evidence were not removed. Local build/input file hashes
+  are recorded in `final-candidate-build-evidence.json`; logs use the
+  `final-candidate-*` prefix. Current PR #622 is still open at `6a6c0b6`, 36
+  commits behind this local source, with an incomplete automated review caused
+  by the review-account quota. Production health is 200 on both app hosts and
+  primary version still reports `18a58fee`. The expanded review packet explicitly
+  covers migrations 0017/0018 and twelve configuration gates; old recipe-only
+  no-migration/rollback statements do not apply. Fresh CI/immutable artifact,
+  integrated browser acceptance, migration/recovery, independent review and
+  release authorization remain open. No push, merge or deployment occurred.
 - Calendar interoperability acceptance (#124): extended the existing native D1
   fixture through real parser → reconciliation → read-back for weekly Toronto
   spring/fall DST, stable IDs on replay, moved exception identity, individual and

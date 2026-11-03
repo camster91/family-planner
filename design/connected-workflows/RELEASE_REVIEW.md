@@ -1,5 +1,72 @@
 # Recipe-to-meal candidate review
 
+## Connected-feature continuation — November 3
+
+**Release state: Not ready for production promotion.** Source candidate
+`cc91fc8bda8da91263a77b9830e74fbacb72b19d` on
+`feat/connected-family-features-20261103` contains 36 local commits beyond PR
+#622's head `6a6c0b611e1deaf345d2e9c25dd059d217867407` (113 changed files).
+The earlier recipe-only scope and no-migration statement below do not describe
+this expanded candidate. PR #622 was fetched again: open, unmerged, at its old
+head. Its automated Codex review did not finish because the account review quota
+was exhausted; this is not a completed code review or a source defect finding.
+
+### Included work and configuration
+
+Existing canonical flows now connect native D1 event preparation, schedule
+conflict review, responsibility/history, weekly reset, food planning, email-free
+profile routines, stock capture/reuse and household-configured food-photo AI.
+Follow-ups protect unparsed inbox drafts, typed text during voice input, barcode
+camera lifecycle and routine-editor/assistant destinations. Android reminder
+links and the iOS package alignment are native source changes; compilation is
+not installed-device or store acceptance. Calling remains removed.
+
+The candidate enables twelve existing readiness/recovery variables in
+`wrangler.jsonc`. It adds D1 migrations `0017_event_preparation_lifecycle.sql`
+and `0018_event_preparation_step_bounds.sql`. These install identity, lifecycle,
+counter and step/cue guards. No production migration has run for this candidate.
+The previous recipe candidate's code-only rollback statement is insufficient:
+verify backup/restore and old-client behavior with these guards, retain the exact
+previous Worker and configuration, and record the recovery owner before promotion.
+
+### Verification and outstanding requirements
+
+- Fresh Next/OpenNext Cloudflare build and sequential typecheck passed at the
+  source above. Full lint has zero errors and 76 warnings. The local build's
+  `.open-next` and D1 input file hashes are retained in
+  `final-candidate-build-evidence.json`; manifest SHA-256:
+  `fbf3ab5a3c854ec2d7830776d6619078a0817f71c90368eb24958b6613cc37d0`.
+  This is a local artifact, not an immutable GitHub production release artifact.
+- Full-suite rerun passed: 841 suites and 8,548 tests, with 85 suites/562 tests
+  skipped. The first run had one ENOSPC reporter failure (840 suites/8,547 tests
+  passed). Both logs are retained; no application defect or fix is inferred from
+  the infrastructure failure. After open-file checks, only this task's disposable
+  Xcode module caches were removed (253,715,966 bytes); app products, source,
+  package pins and evidence remain. The separate typecheck was rerun successfully
+  after its first log-open failed for lack of disk space.
+- Affected real workerd/D1 and actual-component browser evidence is recorded in
+  `docs/engineering/EXECUTION_ORDER.md`. It covers the exercised journeys only;
+  fake provider responses do not prove live provider acceptance.
+- Current-candidate CI, immutable release artifact, integrated browser workflow,
+  independent review and migration/recovery proof remain release work.
+- #141 still needs asynchronous delivery/provider registration, revocation and
+  background-device acceptance. Existing native incoming-link handling is not
+  push delivery. No new scheduler or messaging provider is activated here.
+- #144/#125/#124 live model/search/photo/calendar eligibility and provider
+  behavior remain unverified. #473/#138 still need installed-device lifecycle,
+  camera/microphone, signing/store and current/previous-client evidence.
+- #480/#450 credit ownership and former-account/profile retention decisions
+  remain unresolved; existing ordinary profile routines do not settle them.
+  Broader #499 role/device/accessibility and #464 assistant scope remain open.
+
+Read-only production checks returned health200 on herewoven.com and
+family.ashbi.ca. The primary `/api/version` still reports
+`18a58fee45aceeda251a494518900c19d1c5db9e`, consistent with the November 2
+release recorded in #604. An initial default Python client was refused; the
+explicit readiness-check User-Agent returned healthy responses. These public
+checks prove neither current-candidate deployment nor authenticated household
+acceptance. No live data, credentials, billing, push, merge or deployment changed.
+
 ## Current revision — household Gemini setup (November 3)
 
 Cameron clarified that entering and saving a Gemini key in Settings should connect recipe discovery without a separate server-price approval. This revision supersedes the activation approach described in the earlier candidate audit below. PR #622 is draft; its older head passed Build & Test but six meal browser checks failed because they still follow the earlier form. The repaired phone meal journeys now pass all 14 checks against a disposable PostgreSQL database, including English/Spanish discovery, inline recipes, saved recipes, meal mutations and child restrictions.
