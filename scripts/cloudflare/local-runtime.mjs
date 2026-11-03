@@ -12,7 +12,7 @@
  * No remote bindings, provider credentials, mail transport, or external
  * network are enabled. The only URL exposed is a loopback address.
  */
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import {
@@ -71,6 +71,7 @@ function usage() {
       "The archive must be the opt-in cloudflare-local-runtime artifact.",
       "--seed-smoke creates disposable verified parent/child accounts for the local household smoke journey.",
       "--exercise-profile-setup enables the email-free profile flow in this disposable runtime only.",
+      "--exercise-recipe-search enables a fabricated Google response with fake pricing/key; all external network stays blocked.",
       "The process stays alive until SIGINT/SIGTERM and prints one JSON URL line.",
     ].join("\n"),
   );
@@ -93,6 +94,28 @@ if (!runtimeArchive) {
 }
 const seedSmoke = process.argv.includes("--seed-smoke");
 const exerciseProfileSetup = process.argv.includes("--exercise-profile-setup");
+// Explicitly fabricated, network-isolated provider exercise. Never use real keys.
+const exerciseRecipeSearch = process.argv.includes("--exercise-recipe-search");
+const recipeFixtureConfig = {
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+  model: "gemini-3.8-flash",
+  apiKey: "fabricated-local-recipe-search-key",
+};
+const recipeFixturePricing = {
+  model: recipeFixtureConfig.model,
+  inputMicrousdPerMillion: "1000000",
+  outputMicrousdPerMillion: "2000000",
+  searchMicrousdPerUnit: "14000",
+  searchBilling: "query",
+};
+const recipeFixtureApproval = {
+  configVersion: createHmac("sha256", FAKE_JWT_SECRET).update(JSON.stringify([
+    "herewoven.ai-pricing.v1", recipeFixtureConfig.baseUrl,
+    recipeFixtureConfig.model, recipeFixtureConfig.apiKey,
+  ])).digest("hex"),
+  validUntil: new Date(Date.now() + 86400000).toISOString(),
+  pricing: recipeFixturePricing,
+};
 
 const safeChildEnv = {
   PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -436,10 +459,22 @@ function localMiniflareOptions(instance, workers) {
   for (const worker of options.workers) {
     worker.dev.outboundService = {
       type: "fetcher",
-      handler: async () =>
-        new Response("External network disabled in local runtime", {
-          status: 403,
-        }),
+      handler: async (request) => {
+        if (exerciseRecipeSearch && request.method === "POST" &&
+            request.url === "https://generativelanguage.googleapis.com/v1beta/interactions" &&
+            request.headers.get("x-goog-api-key") === recipeFixtureConfig.apiKey) {
+          return Response.json({
+            status: "completed",
+            usage: {total_input_tokens: 100, total_output_tokens: 50, total_thought_tokens: 20},
+            steps: [
+              {type: "google_search_call", arguments: {queries: ["fixture soup", "fixture soup"]}},
+              {type: "google_search_result", result: [{search_suggestions: '<div>Fabricated Google suggestion fixture</div>'}]},
+              {type: "model_output", content: [{type: "text", text: "Try fixture soup.", annotations: [{type: "url_citation", url: "https://example.com/fixture-soup", title: "Fabricated soup source", start_index: 0, end_index: 17}]}]},
+            ],
+          });
+        }
+        return new Response("External network disabled in local runtime", {status: 403});
+      },
     };
     worker.dev.unsafeRegisterWorker = false;
   }
@@ -731,6 +766,16 @@ try {
       RELEASE_SHA: sourceSha ?? "local-runtime",
       NEXT_TELEMETRY_DISABLED: "1",
       ...(exerciseProfileSetup ? { HOUSEHOLD_PROFILE_SETUP_ENABLED: "1" } : {}),
+      ...(exerciseRecipeSearch ? {
+        FAMILY_AI_PROVIDER_DISABLED: "0",
+        FAMILY_AI_USAGE_READY: "1",
+        FAMILY_AI_USAGE_ROLLBACK_READY: "1",
+        FAMILY_GOOGLE_RECIPE_SEARCH_READY: "1",
+        FAMILY_GOOGLE_RECIPE_SEARCH_PRICING: JSON.stringify(recipeFixtureApproval),
+        CAPTURE_AI_KEY: recipeFixtureConfig.apiKey,
+        CAPTURE_AI_BASE_URL: recipeFixtureConfig.baseUrl,
+        CAPTURE_AI_MODEL: recipeFixtureConfig.model,
+      } : {}),
     },
     assetRouting,
   );
