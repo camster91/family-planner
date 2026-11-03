@@ -67,7 +67,7 @@ export function FoodPlanningLauncher({
               </p>
             }
           >
-            <Sheet day={day} mode={mode} onClose={close} onSaved={onSaved} />
+            <Sheet startNew={!recovery} day={day} mode={mode} onClose={close} onSaved={onSaved} />
           </React.Suspense>
         </ErrorBoundary>
       )}

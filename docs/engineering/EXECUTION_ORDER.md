@@ -5,7 +5,45 @@ This document orders work; it does not replace acceptance criteria or create a
 second backlog. The current issue directory is in
 `docs/engineering/ISSUE_COMPLETION_LEDGER.md` and programme issue #128.
 
-## Current execution basis — 2026-10-25
+## Current continuation — 2026-11-03
+
+Cameron requested completion of the advanced connected features after the
+recipe-to-meal release preparation. The historical code-only/no-QA restriction
+below is superseded by the later request to verify fixes before release.
+Continue the existing issues, not another feature backlog.
+
+- Release candidate PR #622 remains separate from this continuation. Its passing
+  checks do not mean it is merged or deployed.
+- Start with #464/#499 connected food planning: existing D1 preview, review,
+  apply and recovery code must be exercised together. The local-only runtime
+  option `--exercise-connected-planning` enables food planning, weekly review
+  and the two queue-owner recovery flags without enabling provider calls or mail.
+- Fresh meal/prep entries now initialize an empty local draft directly; existing
+  drafts and unresolved requests take precedence. Recovery-only links do not
+  create a new draft. This does not send or save a meal automatically.
+- Local checks: typecheck and production build passed; 28 food-planning suites
+  passed (121 tests), with four existing suites/20 tests skipped. An isolated D1
+  browser journey previewed, reviewed and saved a recipe-linked meal. These are
+  local checks, not production activation or full feature acceptance.
+- D1 smoke checks passed for food preview/review/apply/replay, grocery outcomes
+  and undo, source-version guards, weekly progress/recovery, and review-inbox
+  household isolation. Weekly review also passed 64 tests in nine suites.
+- Candidate configuration enables food planning, weekly review and both
+  queue-owner recovery flags. No production configuration has been changed.
+  The updated planner component passed phone/tablet/desktop browser checks and
+  preview/review/save against isolated D1 (router stubbed; backend artifact
+  `6a6c0b61`). Weekly review passed start, step completion, finish and reload
+  against that same isolated runtime. Before release, finish candidate
+  multi-meal/prep journeys and exact-candidate CI; production approval remains
+  a separate gate.
+- Next existing gaps: D1 event-preparation write/read guards and parent
+  projections; routine/profile parity; connected capture and review-inbox
+  journeys. Do not bypass disabled capability checks to expose incomplete work.
+- Keep live Google/provider eligibility, signed native builds, physical-device
+  behavior and store publication explicit. Existing source is not evidence
+  those external requirements are complete.
+
+## Historical execution basis — 2026-10-25
 
 A fresh GitHub metadata read confirms **all seventeen foundation issues
 #147–#163 are closed**. In particular, #150/#151/#152/#160/#163 are no longer
