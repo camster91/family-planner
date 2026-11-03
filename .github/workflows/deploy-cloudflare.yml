@@ -1,0 +1,139 @@
+name: Deploy to Cloudflare (manual)
+
+# Manual production release for the Herewoven Worker (docs/architecture/CLOUDFLARE_RUNTIME.md).
+# It never runs on push. A person dispatches it from `main` with the exact
+# commit they approved. It refuses unless that commit already passed the
+# required "Build & Test" check, builds the Worker once on this runner, keeps
+# that build as an immutable artifact, applies pending additive D1 migrations,
+# deploys, then verifies every production host reports the commit.
+#
+# Needs one repository secret: CLOUDFLARE_API_TOKEN (Workers Scripts: Edit and
+# D1: Edit on the Herewoven account). Existing Worker secrets and bindings are
+# kept; only code, assets and the vars in wrangler.jsonc change.
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact main commit to deploy (full 40-character SHA)"
+        required: true
+        type: string
+      apply_d1_migrations:
+        description: "Apply pending D1 migrations from database/cloudflare before deploying"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: cloudflare-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, migrate, deploy and verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WRANGLER_SEND_METRICS: "false"
+      NEXT_PUBLIC_APP_URL: https://herewoven.com
+      HEREWOVEN_STORAGE: d1
+      # Build-time placeholder only, as in the CI Cloudflare build. The Worker
+      # reads its real JWT_SECRET binding at runtime; it is never in the bundle.
+      JWT_SECRET: fabricated-cloudflare-ci-build-key-not-production
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - name: Refuse anything but the approved main commit
+        env:
+          EXPECTED: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || { echo "::error::Dispatch from main only"; exit 1; }
+          test "$GITHUB_SHA" = "$EXPECTED" || { echo "::error::main is $GITHUB_SHA, not the approved $EXPECTED"; exit 1; }
+
+      - name: Require a passing Build & Test on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=Build%20%26%20Test&per_page=20" \
+            --jq '[.check_runs[] | select(.conclusion == "success")] | length')
+          test "$conclusion" -ge 1 || { echo "::error::Build & Test has not passed on $GITHUB_SHA"; exit 1; }
+
+      - name: Require the deploy token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Add the CLOUDFLARE_API_TOKEN repository secret"; exit 1; }
+
+      - name: Checkout approved source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Generate existing database client types
+        run: npx prisma generate
+      - name: Build Worker
+        run: npm run cloudflare:build
+
+      - name: Record the exact bundle that will be deployed
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          npx wrangler deploy --dry-run --outfile release/worker.bundle
+          sha256sum release/worker.bundle | tee release/worker.bundle.sha256
+          printf '{"sha":"%s","ref":"%s","run":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF" "$GITHUB_RUN_ID" > release/source.json
+      - name: Keep the release bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cloudflare-release-${{ github.sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Show pending D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler d1 migrations list herewoven --remote
+      - name: Apply pending D1 migrations
+        if: ${{ inputs.apply_d1_migrations }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CI: "true"
+        run: npx wrangler d1 migrations apply herewoven --remote
+
+      - name: Deploy the Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        # --keep-vars keeps dashboard-only vars; RELEASE_SHA is set to this commit.
+        run: >-
+          npx wrangler deploy --keep-vars
+          --var "RELEASE_SHA:${GITHUB_SHA}"
+          --message "main ${GITHUB_SHA} (run ${GITHUB_RUN_ID})"
+
+      - name: Verify every production host serves this commit
+        run: |
+          set -euo pipefail
+          for host in herewoven.com www.herewoven.com family.ashbi.ca; do
+            ok=""
+            for attempt in $(seq 1 12); do
+              headers=$(curl -sS -D - -o /dev/null --max-time 15 "https://$host/api/health" || true)
+              status=$(printf '%s' "$headers" | awk 'NR==1{print $2}')
+              commit=$(printf '%s' "$headers" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-release-commit"{print $2}')
+              if [ "$status" = "200" ] && [ "$commit" = "$GITHUB_SHA" ]; then ok=1; break; fi
+              sleep 10
+            done
+            test -n "$ok" || { echo "::error::$host: status=$status commit=$commit"; exit 1; }
+            anon=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "https://$host/api/auth/me")
+            test "$anon" = "401" || { echo "::error::$host anonymous /api/auth/me returned $anon"; exit 1; }
+            echo "$host healthy on $GITHUB_SHA; anonymous private read 401"
+          done

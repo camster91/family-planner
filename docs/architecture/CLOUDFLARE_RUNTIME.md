@@ -89,3 +89,18 @@ workflow dispatch cannot recreate the retired runtime. Its recovery scripts and
 verified source image remain available for an explicitly approved rollback.
 The image checks continue to cover compatibility; Cloudflare releases use the
 immutable Worker artifact and the rollout registry above.
+
+### Manual GitHub deploy
+
+`.github/workflows/deploy-cloudflare.yml` is the GitHub release path. Dispatch it
+from `main` with the exact approved commit. It refuses unless that commit has
+a passing `Build & Test`, builds the Worker on the runner, keeps that bundle as
+the `cloudflare-release-<sha>` artifact (90 days), applies pending
+`database/cloudflare` migrations (wrangler takes its own backup first), deploys
+with existing secrets and dashboard-only vars kept and `RELEASE_SHA` set, and
+verifies all three hosts return health 200 with that commit and anonymous
+`/api/auth/me` 401. It needs the `CLOUDFLARE_API_TOKEN` repository secret
+(Workers Scripts: Edit and D1: Edit on the main account). Deployment still
+requires Cameron's explicit approval for that release. Roll back by deploying
+the previous Worker version in Cloudflare (or re-dispatching an earlier
+approved `main` commit; migrations are additive and are not reversed).
