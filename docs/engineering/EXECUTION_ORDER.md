@@ -27,8 +27,19 @@ Continue the existing issues, not another feature backlog.
   weekly review progression/finish/reload and responsibility acceptance,
   email-free backup, lost-response recovery and reload. Responsibility sheets
   fit phone/tablet/desktop, and the phone screenshot was inspected. The newly
-  linked weekly-summary entry points have native coverage; their complete
-  rendered round-trip and release CI remain outstanding. Nothing was deployed.
+  linked weekly-summary entry points also passed rendered round-trips from
+  the review to preparation, timing and responsibility, returning to the same
+  review. Release CI remains outstanding. Nothing was deployed.
+- Food capture #125: native intake now checks the saved item and current
+  authority before confirming new/replayed success. Replaying a deleted item
+  reports `INTAKE_ITEM_REMOVED` without recreating stock; original receipts
+  remain intact. Typed product-conflict/owner/expiry errors match the scanner
+  recovery contract. Native checks pass barcode intake/replay, private product
+  reuse/isolation, correction conflicts, deleted-item retry, consume/Undo and
+  restocking recovery. Eight focused suites pass (25 tests; five existing
+  integration tests skipped), with typecheck and changed-source lint passing.
+  Exact-candidate rendered capture and production/provider/native acceptance
+  remain outstanding. No product provider was activated or called.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
