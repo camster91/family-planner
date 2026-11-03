@@ -180,6 +180,7 @@ export function CaptureBox(props: CaptureBoxProps = {}) {
           presentation="inline"
           open={props.open}
           extraction={extraction}
+          onAvailabilityChange={props.onAvailabilityChange}
         />
       )}
     />
