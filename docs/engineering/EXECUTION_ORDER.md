@@ -36,9 +36,17 @@ Continue the existing issues, not another feature backlog.
   against that same isolated runtime. Before release, finish candidate
   multi-meal/prep journeys and exact-candidate CI; production approval remains
   a separate gate.
-- Next existing gaps: D1 event-preparation write/read guards and parent
-  projections; routine/profile parity; connected capture and review-inbox
-  journeys. Do not bypass disabled capability checks to expose incomplete work.
+- D1 migration `0017_event_preparation_lifecycle.sql` now ports preparation
+  identity, source/revision and lifecycle guards. Local native-schema checks
+  cover immutable relationships, plan delete/recreate, task status changes,
+  household movement and failed-batch rollback. Event/chore mutation and
+  deletion, assistant deletion, review inbox and archive/export smoke checks
+  passed with the migration. No production migration has run.
+- Event preparation is still paused: finish the complete D1 readiness contract,
+  preparation writer and parent projections, including ordered-step validation
+  and atomic reorder behavior, before enabling its flag. Continue routine/profile
+  parity and connected capture/review journeys through their existing issues.
+  Do not bypass disabled capability checks to expose incomplete work.
 - Keep live Google/provider eligibility, signed native builds, physical-device
   behavior and store publication explicit. Existing source is not evidence
   those external requirements are complete.

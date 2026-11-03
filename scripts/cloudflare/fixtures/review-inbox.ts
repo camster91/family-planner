@@ -123,7 +123,7 @@ export async function testReviewInbox(db: D1Store) {
       .prepare(
         `INSERT INTO "EventPreparation"(id,family_id,event_id,reviewed_event_source) VALUES
           ('review-native-preparation-current',?1,?2,?3),
-          ('review-native-preparation-stale',?1,?4,'old-source')`,
+          ('review-native-preparation-stale',?1,?4,'${'0'.repeat(64)}')`,
       )
       .bind(
         parent.familyId,
