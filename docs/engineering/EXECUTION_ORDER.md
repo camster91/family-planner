@@ -53,8 +53,16 @@ Continue the existing issues, not another feature backlog.
   session-generation checks. Chore context and personal Today now use this
   reader; fridge mode does not receive parent links. Native checks cover missing
   guards, stale sessions, foreign households and corrupt/removed routine origins.
-- Event preparation is still paused: finish the D1 preparation writer, picker,
-  preview and recovery adapters using the verified atomic reorder strategy,
+- Preparation source projection and strict state parsing are now shared between
+  PostgreSQL and D1. Native source reads use captured query witnesses and refuse
+  authority/content changes before returning. The native writer commits canonical
+  chores, stable preparation link identities, provenance and its replay receipt
+  in one batch. Real local D1 checks pass for create/reorder/detach, stale review
+  refusal, repeat receipt replay, replay after pause, failed-batch rollback and
+  authority races. Domain tests: 13 suites/66 tests passed, 1 suite/8 tests skipped;
+  TypeScript passed. These are local backend results, not rendered acceptance.
+- Event preparation is still paused: connect the native writer/source to HTTP,
+  finish picker and recovery adapters, and exercise profile/routine-copy writes,
   then verify the rendered full journey before enabling its flag. Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.

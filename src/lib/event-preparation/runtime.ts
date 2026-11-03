@@ -33,7 +33,11 @@ import {
 } from "./read-contract";
 import { eventPreparationStorageAvailable } from "./storage";
 import { eventPreparationWritingEnabled } from "./owner";
-import { readPreparationStateInTx, preparationStateToken } from "./state-store";
+import {
+  readPreparationStateInTx,
+  preparationStateToken,
+  type PreparationState,
+} from "./state-store";
 import { preparationScopeToken } from "./scope";
 import { preparationTaskToken, preparationRoutineToken } from "./source";
 import { createHash } from "node:crypto";
@@ -42,7 +46,7 @@ export type PreparationActor = {
   familyId: string;
   tokenVersion: number;
 };
-type UserRow = {
+export type PreparationUserRow = {
   id: string;
   family_id: string | null;
   name: string;
@@ -50,7 +54,7 @@ type UserRow = {
   token_version: number;
   created_at: Date;
 };
-type ChoreRow = RoutineOccurrenceSnapshot & {
+export type PreparationChoreRow = RoutineOccurrenceSnapshot & {
   family_id: string;
   title: string;
   description: string | null;
@@ -74,13 +78,13 @@ type ChoreRow = RoutineOccurrenceSnapshot & {
 const text = (value: string, max = 200) =>
   Array.from(value.normalize("NFC")).slice(0, max).join("");
 const unique = (values: string[]) => [...new Set(values)].sort();
-const refs = (rows: ChoreRow[]) => ({
+const refs = (rows: PreparationChoreRow[]) => ({
   users: rows.flatMap((row) => (row.assigned_to ? [row.assigned_to] : [])),
   profiles: rows.flatMap((row) =>
     row.assigned_member_id ? [row.assigned_member_id] : [],
   ),
 });
-function dependencyToken(rows: ChoreRow[]) {
+function dependencyToken(rows: PreparationChoreRow[]) {
   return JSON.stringify(
     [...rows]
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -99,7 +103,7 @@ async function readChores(
   ids: string[],
 ) {
   if (!ids.length) return [];
-  return tx.$queryRaw<ChoreRow[]>`
+  return tx.$queryRaw<PreparationChoreRow[]>`
     SELECT c."id", c."family_id", c."title", c."description", c."points", c."assigned_to", c."assigned_member_id",
       c."due_date", c."status", c."frequency", c."is_template", c."difficulty", c."icon", c."routine_order",
       c."routine_duration_minutes", c."routine_stack_id", c."recurrence_id", c."member_subject_erased",
@@ -198,7 +202,7 @@ export async function prepareEventPreparationInTx(
     ),
   ]);
   const users = await tx.$queryRaw<
-    UserRow[]
+    PreparationUserRow[]
   >`SELECT "id", "family_id", "name", "role", "token_version", "created_at" FROM "User" WHERE "family_id"=${actor.familyId} AND "id"=ANY(${userIds}::text[]) ORDER BY "id" FOR SHARE`;
   const me = users.find((user) => user.id === actor.userId);
   if (!me || me.token_version !== actor.tokenVersion)
@@ -281,6 +285,87 @@ export async function prepareEventPreparationInTx(
         },
       })
     : [];
+  const attached = selectedIds.length
+    ? await tx.$queryRaw<
+        Array<{ chore_id: string; event_id: string }>
+      >`SELECT s."chore_id", p."event_id" FROM "EventPreparationStep" s JOIN "EventPreparation" p ON p."id"=s."preparation_id" AND p."family_id"=s."family_id" WHERE s."family_id"=${actor.familyId} AND s."chore_id"=ANY(${selectedIds}::text[])`
+    : [];
+  return buildPreparationSource({
+    actor,
+    scope,
+    selectedIds,
+    initialRoutineIds,
+    users,
+    profiles,
+    rows,
+    stacks,
+    event,
+    state,
+    attached,
+    features,
+  });
+}
+
+export type PreparationProfileRow = {
+  id: string;
+  family_id: string;
+  name: string;
+  role: string;
+  age: number | null;
+  revision: number;
+  created_at: Date;
+  archived_at: Date | null;
+  erasure_user_id: string | null;
+  legacy_mapping: { user_id: string } | null;
+  account_link: { user_id: string } | null;
+};
+export type PreparationEventRow = {
+  id: string;
+  family_id: string;
+  title: string;
+  start_time: Date;
+  end_time: Date;
+  generation: string;
+  epoch: number;
+  preparation_epoch: number;
+  recurrence: unknown;
+};
+export type PreparationStackRow = {
+  id: string;
+  label: string;
+  version: number;
+  fingerprint: string;
+};
+/** Deterministic domain projection shared by the native and PostgreSQL loaders.
+ * Acquisition/authorization and commit-time source checks belong to the caller.
+ */
+export function buildPreparationSource({
+  actor,
+  scope,
+  selectedIds,
+  initialRoutineIds,
+  users,
+  profiles,
+  rows,
+  stacks,
+  event,
+  state,
+  attached,
+  features,
+}: {
+  actor: PreparationActor;
+  scope: PreparationReadScope;
+  selectedIds: string[];
+  initialRoutineIds: { id: string }[];
+  users: PreparationUserRow[];
+  profiles: PreparationProfileRow[];
+  rows: PreparationChoreRow[];
+  stacks: PreparationStackRow[];
+  event: PreparationEventRow;
+  state: PreparationState | null;
+  attached: { chore_id: string; event_id: string }[];
+  features: ReturnType<typeof normalizeFeatures>;
+}) {
   const eligibleUsers = users.filter((user) =>
     ["parent", "teen", "child"].includes(user.role),
   );
@@ -308,11 +393,6 @@ export async function prepareEventPreparationInTx(
       memberId: profile.id,
     })),
   ];
-  const attached = selectedIds.length
-    ? await tx.$queryRaw<
-        Array<{ chore_id: string; event_id: string }>
-      >`SELECT s."chore_id", p."event_id" FROM "EventPreparationStep" s JOIN "EventPreparation" p ON p."id"=s."preparation_id" AND p."family_id"=s."family_id" WHERE s."family_id"=${actor.familyId} AND s."chore_id"=ANY(${selectedIds}::text[])`
-    : [];
   const taskRows = rows.filter((row) => selectedIds.includes(row.id));
   const details = taskRows.map((row) => {
     const withSubjects = {

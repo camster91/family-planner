@@ -1,5 +1,5 @@
-/** Node-only adapter; never import idempotency/Next server code in a browser. */
-import { hashIdempotentRequest } from "@/lib/idempotency";
+/** Server-side receipt hashing, shared by Node and native Workers. */
+import { hashIdempotentRequest } from "@/lib/idempotency-hash";
 import type { PreparationCommand } from "./contract";
 import {
   preparationReceiptMatches as matches,
