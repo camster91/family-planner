@@ -87,6 +87,18 @@ Continue the existing issues, not another feature backlog.
   Continue routine/profile
   parity and connected capture/review journeys through their existing issues.
   Do not bypass disabled capability checks to expose incomplete work.
+- Live issue #464 reconciliation found schedule-conflict HTTP still PostgreSQL-only.
+  The existing bounded planner now has native D1 context/read/preview/save/recovery.
+  Complete comparison witnesses guard event identities, newly inserted conflicts,
+  calendar-source status and current actor authority; event/timeline/receipt commit
+  atomically. Real local D1 checks pass stale/phantom conflict refusal, canonical
+  move/epoch, exact replay, cross-family and child restrictions, failed-write
+  rollback, recovery after target deletion/pause, and revoked-session refusal.
+  API/domain/component checks pass 16 suites/141 tests (one PostgreSQL suite/six
+  tests skipped); typecheck and changed-source lint pass. The schedule readiness
+  flag is still off: exact built-candidate browser checks and activation are next.
+  No provider refresh, external calendar write, production migration or deployment
+  was performed. Evidence: `schedule-*` in the continuation artifact directory.
 - Keep live Google/provider eligibility, signed native builds, physical-device
   behavior and store publication explicit. Existing source is not evidence
   those external requirements are complete.

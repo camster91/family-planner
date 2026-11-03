@@ -1,3 +1,4 @@
+import {testScheduleReview} from './schedule-review'
 import { testAccountDeletion } from './account-deletion'
 import { testFamilyImport } from './family-import'
 import { testCalendarImport } from './calendar-import'
@@ -144,6 +145,7 @@ const worker = {
       if (new URL(request.url).pathname === '/profiles') return Response.json(await testHouseholdProfiles(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/family-settings') return Response.json(await testFamilySettings(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/preferences') return Response.json(await testDisplayPreferences(env.DB as unknown as D1Store))
+      if(new URL(request.url).pathname==='/schedule-review')return Response.json(await testScheduleReview(env.DB as unknown as D1Store))
       if(new URL(request.url).pathname==='/routines')return Response.json(await testRoutines(env.DB as unknown as D1Store))
       if(new URL(request.url).pathname==='/meals')return Response.json(await testMeals(env.DB as unknown as D1Store))
       if(new URL(request.url).pathname==='/inventory')return Response.json(await testInventory(env.DB as unknown as D1Store))
