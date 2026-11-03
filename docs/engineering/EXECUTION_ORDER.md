@@ -90,6 +90,21 @@ Continue the existing issues, not another feature backlog.
   implementation gap. Next native work must use the existing strict destination
   parser and current session/role readers, preserve pending forms and retain
   OS association/signing/physical-device acceptance as separate gates.
+- Native notification ingress (#141/#473): the shared App plugin adapter now
+  listens before reading the cold launch URL, drops stale launch results after
+  a newer warm event, and cleans up late registrations. Only exact existing
+  notification destinations on the two deployed HTTPS hostnames are admitted;
+  credentials, ports, external origins, encoded aliases and action query data
+  refuse. The root native lifecycle offers a neutral EN/ES Open/Dismiss notice
+  without automatic navigation or persisted link/account data. Opening uses a
+  normal document link, retaining unload guards and canonical access checks.
+  Sign-in now preserves approved notification focus queries; unrelated queries
+  still drop. The affected eight suites pass (122 tests), including superseded
+  launch responses, unsafe links, form retention and signed-out return targets.
+  Typecheck, changed-source lint and the Cloudflare build pass. This is source/component verification,
+  not an installed-device journey. Android VIEW registration, domain association,
+  iOS entitlements, native cold/warm/Back and current/previous binary acceptance
+  remain required. No OS setting, provider, permission, signing or rollout changed.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,

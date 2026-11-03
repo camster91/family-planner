@@ -3,10 +3,10 @@ import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { Network } from '@capacitor/network'
 import { Share } from '@capacitor/share'
-import { canShareAppLink, shareAppLink, watchNativeConnection, watchNativeResume } from '../native-app'
+import { canShareAppLink, shareAppLink, watchNativeConnection, watchNativeResume, watchNativeNotificationLinks } from '../native-app'
 
 jest.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: jest.fn(), isPluginAvailable: jest.fn() } }))
-jest.mock('@capacitor/app', () => ({ App: { addListener: jest.fn() } }))
+jest.mock('@capacitor/app', () => ({ App: { addListener: jest.fn(), getLaunchUrl: jest.fn() } }))
 jest.mock('@capacitor/network', () => ({ Network: { addListener: jest.fn(), getStatus: jest.fn() } }))
 jest.mock('@capacitor/share', () => ({ Share: { share: jest.fn() } }))
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve() }
@@ -69,4 +69,32 @@ test('a delayed network sample cannot overwrite a newer connection event', async
   const callback = jest.fn(); const stop = watchNativeConnection(callback); await settle()
   ;(Network.addListener as jest.Mock).mock.calls[0][1]({ connected: false }); finish({ connected: true }); await settle()
   expect(callback.mock.calls).toEqual([[false]]); stop()
+})
+
+test('native links handle cold and warm targets without forwarding an external URL', async () => {
+  native(); (App.getLaunchUrl as jest.Mock).mockResolvedValue({ url: 'https://herewoven.com/dashboard/today' })
+  const receive = jest.fn(); const stop = watchNativeNotificationLinks(receive); await settle()
+  expect(receive).toHaveBeenLastCalledWith('/dashboard/today', 'launch')
+  const open = (App.addListener as jest.Mock).mock.calls[0][1]
+  open({ url: 'https://evil.test/dashboard/today' }); expect(receive).toHaveBeenCalledTimes(1)
+  open({ url: 'https://herewoven.com/dashboard/chores?focus=chore-1' })
+  expect(receive).toHaveBeenLastCalledWith('/dashboard/chores?focus=chore-1', 'open')
+  stop(); open({ url: 'https://herewoven.com/dashboard/today' }); expect(receive).toHaveBeenCalledTimes(2)
+})
+test('a newer warm link wins over a delayed cold launch', async () => {
+  native(); let finish!: (value: unknown) => void
+  ;(App.getLaunchUrl as jest.Mock).mockReturnValue(new Promise(resolve => { finish = resolve }))
+  const receive = jest.fn(); const stop = watchNativeNotificationLinks(receive); await settle()
+  ;(App.addListener as jest.Mock).mock.calls[0][1]({ url: 'https://herewoven.com/dashboard/lists/list-1' })
+  finish({ url: 'https://herewoven.com/dashboard/today' }); await settle()
+  expect(receive).toHaveBeenCalledTimes(1)
+  expect(receive).toHaveBeenCalledWith('/dashboard/lists/list-1', 'open'); stop()
+})
+test('late link registration removes its listener and never reads launch after retirement', async () => {
+  native(); let finish!: (value: unknown) => void
+  ;(App.addListener as jest.Mock).mockReturnValue(new Promise(resolve => { finish = resolve }))
+  const receive = jest.fn(); const stop = watchNativeNotificationLinks(receive); stop()
+  const remove = jest.fn().mockResolvedValue(undefined); finish({ remove }); await settle()
+  expect(remove).toHaveBeenCalledTimes(1); expect(App.getLaunchUrl).not.toHaveBeenCalled()
+  expect(receive).not.toHaveBeenCalled()
 })

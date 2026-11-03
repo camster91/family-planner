@@ -1,3 +1,4 @@
+import { nativeNotificationDestination } from './native-notification-link'
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { Network } from '@capacitor/network'
@@ -122,4 +123,32 @@ export async function readNativeClientDetails(): Promise<NativeClientDetails> {
     } finally { if (timer) clearTimeout(timer) }
   } catch { /* Legacy bridges remain usable; never include raw errors. */ }
   return result
+}
+
+/** Register warm ingress before reading the launch URL. A newer OS event wins
+ * over a delayed launch response. No URL or account data is persisted. */
+export function watchNativeNotificationLinks(
+  onLink: (destination: import('./notification-destination').NotificationDestination, source: 'launch' | 'open') => void,
+): () => void {
+  if (!hasNativePlugin('App')) return () => undefined
+  let stopped = false
+  let revision = 0
+  let handle: PluginListenerHandle | undefined
+  const emit = (value: unknown, source: 'launch' | 'open') => {
+    const destination = nativeNotificationDestination(value)
+    if (!stopped && destination) onLink(destination, source)
+  }
+  void App.addListener('appUrlOpen', event => {
+    revision += 1
+    emit(event.url, 'open')
+  }).then(async listener => {
+    if (stopped) { await listener.remove(); return }
+    handle = listener
+    const before = revision
+    // A warm event observed during registration already supersedes launch.
+    if (before !== 0) return
+    const launch = await App.getLaunchUrl()
+    if (!stopped && revision === before) emit(launch?.url, 'launch')
+  }).catch(() => undefined) // Missing/older bridges leave ordinary navigation usable.
+  return () => { stopped = true; void handle?.remove().catch(() => undefined) }
 }
