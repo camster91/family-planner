@@ -84,6 +84,7 @@ export function BarcodeFoodDialog({
   } | null>(null);
   const flight = useRef(false);
   const readingRef = useRef(false);
+  const productRead = useRef<AbortController | null>(null);
   const requests = useRef(new Set<AbortController>());
   const live = useRef(true);
   const suspendedRef = useRef(suspended);
@@ -172,6 +173,7 @@ export function BarcodeFoodDialog({
     readingRef.current = true;
     setReading(true);
     const request = new AbortController();
+    productRead.current = request;
     requests.current.add(request);
     const currentRequest = () => live.current && !suspendedRef.current && !request.signal.aborted;
     try {
@@ -253,8 +255,11 @@ export function BarcodeFoodDialog({
         setMessage(barcodeFeedback("detailsUnavailable"));
     } finally {
       requests.current.delete(request);
-      readingRef.current = false;
-      if (live.current) setReading(false);
+      if (productRead.current === request) {
+        productRead.current = null;
+        readingRef.current = false;
+        if (live.current) setReading(false);
+      }
     }
   }
   async function add(code: FoodBarcode) {
@@ -604,9 +609,16 @@ export function BarcodeFoodDialog({
               </p>
             )}
             {reading && (
-              <p role="status">
-                {text("reading")}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p role="status">{text("reading")}</p>
+                <button type="button" className="btn-plain min-h-[44px]" onClick={() => {
+                  productRead.current?.abort();
+                  productRead.current = null;
+                  readingRef.current = false;
+                  setReading(false);
+                  setMessage(barcodeFeedback("manualReady"));
+                }}>{text("enterManually")}</button>
+              </div>
             )}
             {current.lookupAvailable && !current.code.restricted && (
               <button

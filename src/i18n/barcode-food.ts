@@ -3,6 +3,8 @@ import { useCallback } from "react";
 import { useTranslation } from "@/i18n";
 // Controlled presentation only. Barcode IDs, drafts, protocols and licences stay literal.
 const en = {
+  enterManually: "Enter manually",
+  manualReady: "Your barcode is kept. Enter the food details below.",
   contextFailed: "Could not check your household. Retry or add food manually.",
   detailsFound: "Product details found. Compare them with your draft and apply them explicitly.",
   householdChanged: "Current household product: {name}. Your edits are kept; review before saving again.",
@@ -73,6 +75,8 @@ const en = {
 };
 export type BarcodeFoodMessage = keyof typeof en;
 const es: Record<BarcodeFoodMessage, string> = {
+  enterManually: "Introducir a mano",
+  manualReady: "Se conserva el código. Introduce los datos del alimento abajo.",
   contextFailed: "No pudimos comprobar tu hogar. Reintenta o añade alimentos a mano.",
   detailsFound: "Se encontraron datos. Compáralos con el borrador y aplícalos expresamente.",
   householdChanged: "Producto actual del hogar: {name}. Se conservan tus cambios; revísalos antes de guardar.",
