@@ -89,7 +89,10 @@ test("search → publisher preview → existing reviewed save returns a real rec
   );
   await user.type(screen.getByRole("searchbox"), "soup{Enter}");
   await user.click(
-    within((await screen.findByText("Soup")).closest("li")!).getByRole("button", { name: "Preview recipe" }),
+    within((await screen.findByText("Soup")).closest("li")!).getByRole(
+      "button",
+      { name: "Preview recipe" },
+    ),
   );
   await screen.findByText("2 carrots");
   expect(request.mock.calls[1][1].headers).toEqual(
@@ -114,7 +117,10 @@ test("changed owner clears results and refuses import", async () => {
   render(<OnlineRecipePicker onCreated={jest.fn()} />);
   await user.type(screen.getByRole("searchbox"), "soup{Enter}");
   await user.click(
-    within((await screen.findByText("Soup")).closest("li")!).getByRole("button", { name: "Preview recipe" }),
+    within((await screen.findByText("Soup")).closest("li")!).getByRole(
+      "button",
+      { name: "Preview recipe" },
+    ),
   );
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "session or household changed",
@@ -137,4 +143,39 @@ test("failed discovery retains query, exposes Google as an external search and a
   await user.click(screen.getByRole("button", { name: "Search" }));
   await screen.findByText("Soup");
   await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+});
+
+test("a known source uses the household recipe directly without another editor save", async () => {
+  const saved = {
+    id: "canonical-soup",
+    title: "Our soup",
+    prep_time: 5,
+    cook_time: 20,
+    servings: 6,
+    source_url: recipe.source,
+  };
+  request
+    .mockResolvedValueOnce(reply(results))
+    .mockResolvedValueOnce(reply({ existingRecipe: saved }));
+  const user = userEvent.setup(),
+    selected = jest.fn();
+  render(<OnlineRecipePicker onCreated={selected} planLabel="Plan meal" />);
+  await user.type(screen.getByRole("searchbox"), "soup{Enter}");
+  await user.click(
+    within((await screen.findByText("Soup")).closest("li")!).getByRole(
+      "button",
+      { name: "Preview recipe" },
+    ),
+  );
+  await screen.findByText("Our soup");
+  expect(JSON.parse(request.mock.calls[1][1].body as string)).toEqual({
+    url: recipe.source,
+    preferSaved: true,
+  });
+  expect(
+    screen.queryByRole("button", { name: "Save reviewed recipe" }),
+  ).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Plan meal" }));
+  expect(selected).toHaveBeenCalledWith(saved);
+  expect(request).toHaveBeenCalledTimes(2);
 });

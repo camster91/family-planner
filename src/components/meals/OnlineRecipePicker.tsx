@@ -7,6 +7,7 @@ import { useRecipeExploreText } from "@/i18n/recipe-explore";
 import { requestRecipeCurationJson } from "@/lib/recipe-curation-client";
 import {
   onlineRecipeSchema,
+  savedPreviewRecipeSchema,
   recipeDiscoveryResponse,
   importedRecipeInstructions,
   recipeImportIssues,
@@ -45,6 +46,9 @@ export function OnlineRecipePicker({
     Array<{ title: string; url: string; source?: string }>
   >([]);
   const [preview, setPreview] = React.useState<OnlineRecipe | null>(null);
+  const [savedRecipe, setSavedRecipe] = React.useState<RecipeOption | null>(
+    null,
+  );
   const [editing, setEditing] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -74,6 +78,7 @@ export function OnlineRecipePicker({
     setBusy(false);
     setResults([]);
     setPreview(null);
+    setSavedRecipe(null);
     setEditing(false);
   };
   async function read(kind: "search" | "preview", selectedUrl = url) {
@@ -112,7 +117,7 @@ export function OnlineRecipePicker({
           body: JSON.stringify(
             kind === "search"
               ? { query: query.trim(), source: "all" }
-              : { url: link },
+              : { url: link, preferSaved: true },
           ),
         },
         512 * 1024,
@@ -142,8 +147,17 @@ export function OnlineRecipePicker({
           data.sources?.some((s) => s.state === "unavailable") ?? false,
         );
       } else {
-        const data = response.body as { recipe?: unknown } | null;
-        setPreview(onlineRecipeSchema.parse(data?.recipe));
+        const data = response.body as {
+          recipe?: unknown;
+          existingRecipe?: unknown;
+        } | null;
+        if (data?.existingRecipe) {
+          setSavedRecipe(savedPreviewRecipeSchema.parse(data.existingRecipe));
+          setPreview(null);
+        } else {
+          setSavedRecipe(null);
+          setPreview(onlineRecipeSchema.parse(data?.recipe));
+        }
         setEditing(false);
       }
     } catch {
@@ -201,6 +215,34 @@ export function OnlineRecipePicker({
           onEditingChange?.(false);
         }}
       />
+    );
+  if (savedRecipe)
+    return (
+      <section className="space-y-3" aria-label={savedRecipe.title}>
+        <button
+          type="button"
+          className="btn-plain min-h-11"
+          disabled={disabled}
+          onClick={() => setSavedRecipe(null)}
+        >
+          {text("inlineBack")}
+        </button>
+        <h3 className="text-title-3">{savedRecipe.title}</h3>
+        <p>{text("alreadySaved")}</p>
+        <button
+          type="button"
+          className="btn-filled min-h-11"
+          disabled={disabled}
+          onClick={() => {
+            if (disabled || isMutationPending?.() || heldRef.current) return;
+            const selected = savedRecipe;
+            setSavedRecipe(null);
+            onCreated(selected);
+          }}
+        >
+          {planLabel ?? text("useSaved")}
+        </button>
+      </section>
     );
   if (preview)
     return (
