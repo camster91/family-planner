@@ -121,6 +121,19 @@ Continue the existing issues, not another feature backlog.
   Production signing fingerprints,
   approved per-host Digital Asset Links publication, device acceptance and iOS
   entitlements remain separate; no native binary or association was published.
+- Routine history/accessibility (#450/#499): retained legacy `approved` chores
+  now count as done/checked in routine progress and cannot become the guided
+  next step or an open-row completion action. No stored status, history, credit
+  or permission changes. The Guided/List switch now has 44px targets, arrow/
+  Home/End keyboard selection and one tab stop. Six focused suites pass (73
+  tests), with typecheck and changed-source lint passing. A local browser
+  component fixture passed EN/ES at all six required sizes (12 cases), checking
+  truthful progress, unfinished guided selection, no document overflow and no
+  completion writes on view changes; the updated Spanish phone screenshot was
+  inspected with bundled app fonts. Router and data were fixtures, not a live
+  backend or installed app. Exact release build/CI remains part of final QA.
+  Fresh issue reads preserve unfinished profile rotation/credit/linking scope;
+  existing unresolved credit/retention decisions were not inferred or bypassed.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
