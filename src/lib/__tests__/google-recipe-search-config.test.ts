@@ -1,3 +1,10 @@
+// Gemini is OFF for this release (#144). These cases cover the retained,
+// not-yet-approved path, so they opt in explicitly; the off cases opt out.
+let mockGeminiApproved = true;
+jest.mock("@/lib/gemini-policy", () => {
+  const actual = jest.requireActual("@/lib/gemini-policy");
+  return { ...actual, geminiProviderApproved: () => mockGeminiApproved };
+});
 import { approvedGoogleRecipePricing } from "../google-recipe-search-config";
 jest.mock("../ai-usage-hash", () => ({ aiConfigHash: () => "a".repeat(64) }));
 const config = {
@@ -53,4 +60,10 @@ it("refuses disabled and malformed configuration", () => {
   process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY = "1";
   process.env.FAMILY_GOOGLE_RECIPE_SEARCH_PRICING = "not json";
   expect(approvedGoogleRecipePricing(config, now)).toBeNull();
+});
+
+it("returns no pricing while Gemini is off, even with approved configuration", () => {
+  mockGeminiApproved = false;
+  try { expect(approvedGoogleRecipePricing(config as never, now)).toBeNull(); }
+  finally { mockGeminiApproved = true; }
 });

@@ -2,6 +2,7 @@ import type { CaptureConfig } from "./capture";
 import type { ProviderUsageObserver } from "./ai-usage-contract";
 import type { GoogleRecipeSearchPricing } from "./google-recipe-search-cost";
 import { boundedRequestText } from "./bounded-request-text";
+import { geminiProviderApproved } from "./gemini-policy";
 import { parseGoogleRecipeDiscovery, readGoogleRecipeUsage } from "./google-recipe-search-response";
 
 /** Server-only caller; requires an adopted usage job and separately approved activation. */
@@ -11,7 +12,8 @@ export async function searchGoogleRecipes(
   pricing: GoogleRecipeSearchPricing,
   observer: ProviderUsageObserver,
 ) {
-  if (process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0" ||
+  if (!geminiProviderApproved() ||
+      process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY === "0" ||
       process.env.FAMILY_AI_PROVIDER_DISABLED === "1")
     throw new Error("Google recipe discovery is not enabled");
   if (!["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/openai"].includes(config.baseUrl) ||

@@ -1,10 +1,13 @@
 import { boundedRequestText } from "./bounded-request-text";
 import { GEMINI_DEFAULT_MODEL } from "./gemini-settings";
+import { geminiProviderApproved } from "./gemini-policy";
 
 /** Metadata-only check: no generation, search, or household content is sent. */
 export async function checkGeminiKey(
   apiKey: string,
 ): Promise<"valid" | "invalid" | "unavailable"> {
+  // #144: no request reaches Google while Gemini is off.
+  if (!geminiProviderApproved()) return "unavailable";
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_DEFAULT_MODEL}`,

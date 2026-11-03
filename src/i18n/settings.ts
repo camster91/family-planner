@@ -75,6 +75,10 @@ export const settingsEnglish = {
   geminiProvider: "Google Gemini",
   aiProvider: "Provider",
   aiOtherProvider: "Other provider",
+  geminiOff:
+    "Google Gemini is turned off for now while provider terms are confirmed. Recipe links, saved recipes, quick meals and manual planning still work.",
+  geminiOffSaved:
+    "Google Gemini is turned off for now while provider terms are confirmed. Your saved Gemini key stays encrypted and is not used. Recipe links, saved recipes, quick meals and manual planning still work.",
   geminiSetup: "Paste your Gemini key. We check it when you save and choose the model for you. Google usage charges may apply. Estimated spending starts at a US$5 monthly limit; change it under AI usage.",
   aiDescription:
     "Turn text or photos into drafts you review before saving",
@@ -395,6 +399,10 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   geminiProvider: "Google Gemini",
   aiProvider: "Proveedor",
   aiOtherProvider: "Otro proveedor",
+  geminiOff:
+    "Google Gemini está desactivado por ahora mientras se confirman las condiciones del proveedor. Los enlaces de recetas, las recetas guardadas, las comidas rápidas y la planificación manual siguen funcionando.",
+  geminiOffSaved:
+    "Google Gemini está desactivado por ahora mientras se confirman las condiciones del proveedor. Tu clave de Gemini guardada sigue cifrada y no se usa. Los enlaces de recetas, las recetas guardadas, las comidas rápidas y la planificación manual siguen funcionando.",
   geminiSetup: "Pega tu clave de Gemini. La comprobamos al guardar y elegimos el modelo por ti. Google puede cobrar por el uso. El límite estimado inicial es de 5 USD al mes; cámbialo en Uso de IA.",
   aiDescription: "Convierte texto o fotos en borradores que revisas antes de guardar",
   apiKey: "Clave de API",

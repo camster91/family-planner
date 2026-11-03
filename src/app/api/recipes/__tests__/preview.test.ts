@@ -1,3 +1,10 @@
+// Gemini is OFF for this release (#144). These cases cover the retained,
+// not-yet-approved path, so they opt in explicitly; the off cases opt out.
+let mockGeminiApproved = true;
+jest.mock("@/lib/gemini-policy", () => {
+  const actual = jest.requireActual("@/lib/gemini-policy");
+  return { ...actual, geminiProviderApproved: () => mockGeminiApproved };
+});
 jest.mock("@/lib/saved-recipe-source", () => ({
   findSavedRecipeSource: jest.fn(async () => null),
 }));
@@ -350,5 +357,9 @@ it('only opts compatible discovery callers into configured Google search',async(
   const modern=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all',preferGrounded:true}}));
   expect(modern.status).toBe(200);expect(discoverGoogleRecipes).toHaveBeenCalledTimes(1);
   expect(jest.mocked(discoverGoogleRecipes).mock.calls[0][1]).toMatchObject({familyId:'family-A',actorId:'parent-a'});
- } finally {if(prior===undefined)delete process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY;else process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY=prior;}
+  // #144: with Gemini off, a grounded preference falls back to the fixed sources.
+  mockGeminiApproved=false;
+  const off=await discover(req({as:'parentA',method:'POST',body:{query:'soup',source:'all',preferGrounded:true}}));
+  expect(off.status).toBe(200);expect(discoverGoogleRecipes).toHaveBeenCalledTimes(1);
+ } finally {mockGeminiApproved=true;if(prior===undefined)delete process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY;else process.env.FAMILY_GOOGLE_RECIPE_SEARCH_READY=prior;}
 });

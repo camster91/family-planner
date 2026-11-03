@@ -16,6 +16,7 @@ import {
   type RecipeReadAuthority,
 } from "./recipe-read-authority";
 import { refusePairedDevice } from "./device-route";
+import { geminiProviderApproved } from "./gemini-policy";
 
 export async function discoverGoogleRecipes(
   request: NextRequest,
@@ -28,6 +29,8 @@ export async function discoverGoogleRecipes(
       { error },
       { status, headers: recipeReadOwnerHeaders(original) },
     );
+  // #144: fall back to the fixed recipe sources while Gemini is off.
+  if (!geminiProviderApproved()) return null;
   try {
     const paired = await refusePairedDevice(request);
     if (paired) return paired;

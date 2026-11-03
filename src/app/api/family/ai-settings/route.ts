@@ -12,6 +12,12 @@ import { boundedRequestText, RequestBodyTooLarge } from '@/lib/bounded-request-t
 
 import { GEMINI_BASE_URL, GEMINI_DEFAULT_MODEL, isGeminiBaseUrl } from '@/lib/gemini-settings'
 import { checkGeminiKey } from '@/lib/gemini-key-check'
+import { geminiBlocked, geminiProviderApproved, isGeminiProviderUrl, GEMINI_DISABLED_CODE, GEMINI_DISABLED_MESSAGE } from '@/lib/gemini-policy'
+
+/** Truthful provider status for Settings; never activates anything (#144). */
+function providerStatus(baseUrl: string | null | undefined) {
+  return { geminiAvailable: geminiProviderApproved(), providerDisabled: geminiBlocked(baseUrl) }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +58,7 @@ export async function GET(request: NextRequest) {
     keyHint: plain ? maskSecret(plain) : null,
     baseUrl: family?.capture_ai_base_url ?? '',
     model: family?.capture_ai_model ?? '',
+    ...providerStatus(family?.capture_ai_base_url),
   })
 }
 
@@ -94,7 +101,7 @@ export async function POST(request: NextRequest) {
           capture_ai_model: null,
         },
       })
-      return NextResponse.json({ configured: false, keyHint: null, baseUrl: '', model: '' })
+      return NextResponse.json({ configured: false, keyHint: null, baseUrl: '', model: '', ...providerStatus(null) })
     }
 
     const rawKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : ''
@@ -120,6 +127,23 @@ export async function POST(request: NextRequest) {
       if (urlError) {
         return NextResponse.json({ error: urlError }, { status: 400 })
       }
+    }
+
+    // #144: Gemini is off pending provider clarification. Saving a key or a
+    // Gemini URL must not activate it, so refuse before any provider request
+    // or storage write. Existing encrypted settings stay untouched.
+    if ((body?.provider === 'gemini' || geminiBlocked(baseUrl)) && !geminiProviderApproved()) {
+      return NextResponse.json({ error: GEMINI_DISABLED_MESSAGE, code: GEMINI_DISABLED_CODE }, { status: 409 })
+    }
+
+    // Moving away from retained Gemini settings needs a new key: never send a
+    // Google key to the deployment default or another provider's URL.
+    if (!rawKey) {
+      const existing = storageBackend() === 'd1'
+        ? await readD1AiSettings({ userId: auth.user.id, familyId: auth.user.family_id, generation: auth.payload?.tv ?? 0 })
+        : await prisma!.family.findUnique({ where: { id: auth.user.family_id }, select: { capture_ai_key_enc: true, capture_ai_base_url: true } })
+      if (existing?.capture_ai_key_enc && isGeminiProviderUrl(existing.capture_ai_base_url) && !isGeminiProviderUrl(baseUrl))
+        return NextResponse.json({ error: 'Enter an API key for this provider. Your saved Gemini key is not sent to other providers.' }, { status: 400 })
     }
 
     if (body?.provider === 'gemini') {
@@ -168,6 +192,7 @@ export async function POST(request: NextRequest) {
       keyHint: plain ? maskSecret(plain) : null,
       baseUrl: updated.capture_ai_base_url ?? '',
       model: updated.capture_ai_model ?? '',
+      ...providerStatus(updated.capture_ai_base_url),
     })
   } catch (error) {
     if (error instanceof D1FamilySettingsError) return NextResponse.json({ error: error.code }, { status: error.status })
