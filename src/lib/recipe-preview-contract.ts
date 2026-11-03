@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { googleRecipeDiscoverySchema } from "./google-recipe-search-response";
 export const recipeImportIssue = z.enum([
   "title-shortened",
   "description-shortened",
@@ -75,6 +76,7 @@ const publicLink = z
   });
 export const recipeDiscoveryResponse = z
   .object({
+    grounded: googleRecipeDiscoverySchema.optional(),
     results: z
       .array(
         z

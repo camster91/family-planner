@@ -179,3 +179,60 @@ test("a known source uses the household recipe directly without another editor s
   expect(selected).toHaveBeenCalledWith(saved);
   expect(request).toHaveBeenCalledTimes(2);
 });
+
+test("grounded results preserve citations/suggestions and return from source preview", async () => {
+  const grounded = {
+    blocks: [
+      {
+        type: "text",
+        text: "Try soup.",
+        annotations: [
+          {
+            type: "url_citation",
+            url: recipe.source,
+            title: "Soup source",
+            start_index: 0,
+            end_index: 9,
+          },
+        ],
+      },
+    ],
+    suggestions: [
+      '<div><a href="https://www.google.com/search?q=soup" target="_blank">Search soup</a></div>',
+    ],
+  };
+  request
+    .mockResolvedValueOnce(reply({ results: [], grounded }))
+    .mockResolvedValueOnce(reply({ recipe }));
+  const user = userEvent.setup();
+  render(<OnlineRecipePicker onCreated={jest.fn()} />);
+  await user.type(screen.getByRole("searchbox"), "soup{Enter}");
+  await screen.findByRole("heading", { name: "Recipes found with Google" });
+  expect(
+    screen.queryByText(
+      "No recipes found. Try a different search or paste a link.",
+    ),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Open source: Soup source" }),
+  ).toHaveAttribute("href", recipe.source);
+  const frame = screen.getByTitle("Google search suggestions 1");
+  expect(frame).toHaveAttribute(
+    "sandbox",
+    "allow-popups allow-popups-to-escape-sandbox",
+  );
+  expect(frame.getAttribute("srcdoc")).toContain("script-src 'none'");
+  expect(frame.getAttribute("srcdoc")).toContain(grounded.suggestions[0]);
+  expect(screen.queryByText("Search soup")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Preview source" }));
+  await screen.findByText("2 carrots");
+  expect(JSON.parse(request.mock.calls[1][1].body as string)).toEqual({
+    url: recipe.source,
+    preferSaved: true,
+  });
+  await user.click(screen.getByRole("button", { name: "← Back to recipes" }));
+  expect(screen.getByRole("searchbox")).toHaveValue("soup");
+  expect(
+    screen.getByRole("heading", { name: "Recipes found with Google" }),
+  ).toBeInTheDocument();
+});

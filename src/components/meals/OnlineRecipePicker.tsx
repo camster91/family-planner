@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { GroundedRecipeResults } from "./GroundedRecipeResults";
+import type { GoogleRecipeDiscovery } from "@/lib/google-recipe-search-response";
 import { RecipeEditor } from "./RecipeEditor";
 import type { RecipeOption } from "./RecipePicker";
 import { useRecipeExploreText } from "@/i18n/recipe-explore";
@@ -45,6 +47,9 @@ export function OnlineRecipePicker({
   const [results, setResults] = React.useState<
     Array<{ title: string; url: string; source?: string }>
   >([]);
+  const [grounded, setGrounded] = React.useState<GoogleRecipeDiscovery | null>(
+    null,
+  );
   const [preview, setPreview] = React.useState<OnlineRecipe | null>(null);
   const [savedRecipe, setSavedRecipe] = React.useState<RecipeOption | null>(
     null,
@@ -77,6 +82,7 @@ export function OnlineRecipePicker({
     setHeld(true);
     setBusy(false);
     setResults([]);
+    setGrounded(null);
     setPreview(null);
     setSavedRecipe(null);
     setEditing(false);
@@ -98,6 +104,7 @@ export function OnlineRecipePicker({
     setError("");
     if (kind === "search") {
       setResults([]);
+      setGrounded(null);
       setResultLimit(6);
       setSearched(false);
       setPartial(false);
@@ -142,6 +149,7 @@ export function OnlineRecipePicker({
       if (kind === "search") {
         const data = recipeDiscoveryResponse.parse(response.body);
         setResults(data.results);
+        setGrounded(data.grounded ?? null);
         setSearched(true);
         setPartial(
           data.sources?.some((s) => s.state === "unavailable") ?? false,
@@ -339,10 +347,12 @@ export function OnlineRecipePicker({
           {text(busy ? "searching" : "inlineSearch")}
         </button>
       </div>
-      <p className="text-footnote text-label-secondary">
-        {text("inlineSources")}
-      </p>
-      {query.trim().length >= 2 && (
+      {!grounded && (
+        <p className="text-footnote text-label-secondary">
+          {text("inlineSources")}
+        </p>
+      )}
+      {!grounded && query.trim().length >= 2 && (
         <a
           className="inline-flex min-h-11 items-center underline text-subhead"
           href={`https://www.google.com/search?q=${encodeURIComponent(`${query.trim()} recipe`)}`}
@@ -395,7 +405,14 @@ export function OnlineRecipePicker({
           {text("inlinePartial")}
         </p>
       )}
-      {searched && results.length === 0 && (
+      {grounded && (
+        <GroundedRecipeResults
+          discovery={grounded}
+          disabled={locked}
+          onPreview={(link) => void read("preview", link)}
+        />
+      )}
+      {searched && !grounded && results.length === 0 && (
         <p role="status">{text("inlineEmpty")}</p>
       )}
       <ul className="space-y-2">
