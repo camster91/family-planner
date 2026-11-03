@@ -22,8 +22,13 @@ Continue the existing issues, not another feature backlog.
   Local D1 responsibility, weekly-reset and review-inbox checks passed, including
   archived-profile exclusion, child isolation, no-op history and failed-write
   rollback. The affected 23 test suites passed (146 tests; eight existing
-  PostgreSQL integration tests skipped). Rendered checks for this exact
-  continuation and release CI remain outstanding; nothing was deployed.
+  PostgreSQL integration tests skipped). Typecheck/lint and the Cloudflare build
+  passed. Candidate `9a8c5b34` passed real local Worker/D1 browser checks:
+  weekly review progression/finish/reload and responsibility acceptance,
+  email-free backup, lost-response recovery and reload. Responsibility sheets
+  fit phone/tablet/desktop, and the phone screenshot was inspected. The newly
+  linked weekly-summary entry points have native coverage; their complete
+  rendered round-trip and release CI remain outstanding. Nothing was deployed.
 - Release candidate PR #622 remains separate from this continuation. Its passing
   checks do not mean it is merged or deployed.
 - Start with #464/#499 connected food planning: existing D1 preview, review,
