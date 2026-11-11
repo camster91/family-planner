@@ -79,11 +79,13 @@ export async function rotateD1FamilyCode(db: D1Store, actor: MembershipActor, co
   const session = db.withSession('first-primary')
   const result = await session.batch([
     session.prepare(`UPDATE "Family" SET invite_code=?1 WHERE id=?2 AND EXISTS
-      (SELECT 1 FROM "User" WHERE id=?3 AND family_id=?2 AND role='parent' AND token_version=?4)`)
+      (SELECT 1 FROM "User" WHERE id=?3 AND family_id=?2 AND role='parent' AND token_version=?4) RETURNING id`)
       .bind(code, actor.familyId, actor.userId, actor.generation),
     session.prepare(`INSERT INTO "AuditLog" (id,family_id,actor_user_id,actor_kind,action,target_type,target_id,summary,created_at)
       SELECT ?1,?2,?3,'person','invite_code.rotated','family',?2,?4,?5 WHERE changes()=1`)
       .bind(auditId, actor.familyId, actor.userId, summary, now),
   ])
-  return result[0].meta.changes === 1
+  // RETURNING counts the direct winner; meta.changes also includes the Family
+  // food-source epoch trigger writes, so it is never 1 for a successful rotate.
+  return result[0].results.length === 1
 }
