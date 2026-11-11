@@ -178,13 +178,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
         aria-label={msg("mainNavigation")}
         className="bg-[var(--surface-elevated)] fixed top-0 left-0 right-0 z-50 h-16 border-b border-[var(--surface-separator)]"
       >
-        <div className="w-full h-full px-4 lg:px-8 flex items-center gap-2 lg:gap-6">
+        {/* 390-409px: the wordmark shows but a parent's row needs ~408px, so the
+            gaps tighten there to keep the 16px edge padding (no overflow). */}
+        <div className="w-full h-full px-4 lg:px-8 flex items-center gap-2 min-[390px]:max-[409px]:gap-1.5 lg:gap-6">
           {/* Logo + name */}
           {/* Keep the home name accessible even where the wordmark is hidden to leave room for actions. */}
           <Link
             href={homeHref}
             aria-label={msg("home", { brand: PRODUCT_BRAND.name })}
-            className="flex min-h-[44px] items-center gap-2.5 shrink-0"
+            className="flex min-h-[44px] items-center gap-2.5 min-[390px]:max-[409px]:gap-2 shrink-0"
           >
             <BrandMark size={48} className="h-12 w-12" />
             <span className="font-display text-[20px] font-semibold tracking-tight text-label-primary hidden min-[390px]:max-md:block xl:block xl:text-[22px]">
@@ -232,7 +234,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
           <div className="flex-1" />
 
           {/* Right-side action cluster — md+ */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 min-[390px]:max-[409px]:gap-0">
             {/* Search */}
             {canSee("/dashboard/search") && (
               <Link
@@ -265,7 +267,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             )}
 
             {/* Avatar + overflow menu */}
-            <div className="relative ml-1" ref={avatarRef}>
+            <div className="relative ml-1 min-[390px]:max-[409px]:ml-0" ref={avatarRef}>
               <button
                 ref={avatarButtonRef}
                 onClick={() => setAvatarOpen((v) => !v)}
