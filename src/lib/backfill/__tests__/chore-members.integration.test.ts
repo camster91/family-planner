@@ -1050,6 +1050,10 @@ dbDescribe("chore canonical subject rehearsal", () => {
         );
       let waiting = false;
       for (let attempt = 0; attempt < 100; attempt++) {
+        // This connection holds an open transaction, and Postgres freezes its
+        // pg_stat_activity snapshot at the first read in a transaction. Without
+        // a reset, a first poll that lands before SET LOCAL never sees the name.
+        await db.query("SELECT pg_stat_clear_snapshot()");
         const rows = await db.query(
           "SELECT pid FROM pg_stat_activity WHERE application_name='fx_chore_member_rotation_wait' AND wait_event='advisory'",
         );
