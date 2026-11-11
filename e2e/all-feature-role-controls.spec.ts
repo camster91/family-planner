@@ -395,7 +395,8 @@ for (const role of ["parent", "teen", "child"] as const) {
                 locale === "es"
                   ? "Función desactivada: Recogidas y entregas"
                   : "Pickups & dropoffs is off",
-              level: 2,
+              // The off state replaces the page, so its title is the page h1.
+              level: 1,
             }),
           ).toBeVisible();
           await expect(
