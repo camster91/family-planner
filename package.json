@@ -12,7 +12,7 @@
     "build": "npm run cloudflare:generate:reads && next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "npm run cloudflare:generate:reads && tsc --noEmit",
+    "typecheck": "npm run cloudflare:generate:reads && node --max-old-space-size=8192 node_modules/typescript/bin/tsc --noEmit",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
     "test:ai:contracts": "jest --runInBand src/lib/ai-evaluation/__tests__",

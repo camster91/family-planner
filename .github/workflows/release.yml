@@ -128,6 +128,14 @@ jobs:
         env:
           CI: "true"
 
+      # Local workerd/D1 only: no network provider, credentials or household
+      # data. These run the real D1 schema and identity repositories, which the
+      # mocked unit suite cannot (PR #629 found a rotation defect this way).
+      - name: Test D1 schema and identity repositories
+        run: |
+          npm run cloudflare:test:schema
+          npm run cloudflare:test:identity
+
       - name: Verify database migrations are idempotent
         run: |
           node scripts/migrate.js
