@@ -269,7 +269,7 @@ credentials, environment/production activation and real-household research.
 justifies inventing credentials. No paid provider, production integration or
 external calendar write is authorized by this reconciliation.
 
-## People on events (source authored; default-off, not activated)
+## People on events (switched on in `wrangler.jsonc`; live from the next deploy)
 
 An event can name who it is for. `EventParticipant` holds one row per person:
 a household account (`user_id`) or a standalone email-free profile
@@ -299,7 +299,7 @@ represented by that account, as on the Today board.
   not map attendees; the ICS feed does not emit `ATTENDEE`; schedule review and
   preparation are unchanged.
 
-## Repeating events (source authored; default-off, not activated)
+## Repeating events (switched on in `wrangler.jsonc`; live from the next deploy)
 
 An event can repeat. Each repeat is a real `Event` row, so every existing read
 (planner, Today, device board, feed, search) shows it with no extra code.
@@ -336,7 +336,7 @@ An event can repeat. Each repeat is a real `Event` row, so every existing read
   event, not an `RRULE`; assistant-proposed changes cannot use
   `series_scope: "following"`.
 
-## In-app event reminders (source authored; default-off, not activated)
+## In-app event reminders (switched on in `wrangler.jsonc`; live from the next deploy)
 
 A person gets one inbox row for each event of theirs that starts within the
 next 24 hours. In-app only: no push, email, sound or lock-screen surface.
