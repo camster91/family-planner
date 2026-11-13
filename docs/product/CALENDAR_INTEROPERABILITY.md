@@ -335,6 +335,38 @@ An event can repeat. Each repeat is a real `Event` row, so every existing read
   their own preserved-rule handling; the ICS feed emits each repeat as its own
   event, not an `RRULE`; assistant-proposed changes cannot use
   `series_scope: "following"`.
+
+## In-app event reminders (source authored; default-off, not activated)
+
+A person gets one inbox row for each event of theirs that starts within the
+next 24 hours. In-app only: no push, email, sound or lock-screen surface.
+
+- **Switch:** `FAMILY_EVENT_REMINDERS_READY=1`. Off, inbox reads write nothing
+  and the bell shows no unread dot.
+- **No scheduler:** the first page of `GET /api/notifications` writes the due
+  reminders for the signed-in account before it reads. With the switch on, the
+  top-bar bell asks for one unread row on each page change, which both shows an
+  unread dot and makes reminders appear without opening the inbox. A failure
+  never fails the read. At most 10 rows are written per read.
+- **Who:** an event with nobody named is for the whole family. Otherwise the
+  accounts named are reminded, and a parent is reminded when it names a person
+  without an account. With people on events off, every event is the whole
+  family's. Imported events count like any other event.
+- **Text:** `Coming up: <title>` and `Today|Tomorrow at <time>`, type `event`,
+  linking to `/dashboard/calendar?focus=<id>`. Times use the browser's zone,
+  sent as `X-Herewoven-Time-Zone`; without it, a zone the person saved for
+  quiet hours or the morning summary; with neither, nothing is written. Text is
+  stored in English, like every other inbox row.
+- **Once only:** `EventReminder` (event, account) is the lasting proof, written
+  in the same transaction/batch as the inbox row. Deleting the inbox row does
+  not bring the reminder back. With event notifications muted the proof is
+  still written and no row is, so unmuting never replays old events. Quiet
+  hours do not hold an in-app row. Moving an event does not remind again.
+- **Lifecycle:** deleting the event or the account cascades the proof;
+  household deletion clears it before events. The database refuses a
+  foreign-household account and any edit of a row's identity.
+- **Not included:** per-event or per-person lead times; push or email;
+  reminders for chores or meals; an unread count.
 - **Evidence:** `npm run cloudflare:test:reads -- --only=event-participants`
   (local workerd/D1), `src/lib/__tests__/event-participants.integration.test.ts`
   (PostgreSQL), unit tests for the rules, validation and picker. No edge,

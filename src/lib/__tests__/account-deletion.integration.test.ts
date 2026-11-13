@@ -104,6 +104,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     await db.calendarEventLink.create({ data: { id: id('link'), family_id: f, connection_id: id('conn'), event_id: id('event'), external_id: 'x' } })
     // People on events and a repeating-event template (both default-off features).
     await db.eventParticipant.create({ data: { id: id('participant'), family_id: f, event_id: id('event'), user_id: parent } })
+    await db.eventReminder.create({ data: { id: id('reminder'), family_id: f, event_id: id('event'), user_id: parent } })
     await db.eventSeries.create({ data: { id: id('series'), family_id: f, created_by: parent, every: 'week', time_zone: 'America/Toronto',
       anchor_start: t, title: 'Swim', generated_through: t } })
     await db.calendarOAuthState.create({

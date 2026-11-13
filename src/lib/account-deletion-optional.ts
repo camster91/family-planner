@@ -2,12 +2,13 @@ import type { Prisma } from "@prisma/client";
 
 type Tx = Pick<Prisma.TransactionClient, "$queryRaw" | "$executeRaw">;
 type Model =
-  "householdProfileLinkChallenge" | "aiUsageRequest" | "aiUsagePolicy" | "choreTopUpCursor" | "eventParticipant" | "eventSeries";
+  "householdProfileLinkChallenge" | "aiUsageRequest" | "aiUsagePolicy" | "choreTopUpCursor" | "eventParticipant" | "eventSeries" | "eventReminder";
 export function isOptionalDeletionMetadata(model: string): model is Model {
   return (
     model === "choreTopUpCursor" ||
     model === "eventParticipant" ||
     model === "eventSeries" ||
+    model === "eventReminder" ||
     model === "householdProfileLinkChallenge" ||
     model === "aiUsageRequest" ||
     model === "aiUsagePolicy"
@@ -22,7 +23,12 @@ export async function deleteOptionalHouseholdMetadataInTx(
   familyId: string,
   model: Model,
 ) {
-  if (model === "eventSeries") {
+  if (model === "eventReminder") {
+    const rows = await tx.$queryRaw<Array<{ present: boolean }>>`
+      SELECT to_regclass('public."EventReminder"') IS NOT NULL AS present`;
+    if (rows[0]?.present === true)
+      await tx.$executeRaw`DELETE FROM "EventReminder" WHERE "family_id" = ${familyId}`;
+  } else if (model === "eventSeries") {
     const rows = await tx.$queryRaw<Array<{ present: boolean }>>`
       SELECT to_regclass('public."EventSeries"') IS NOT NULL AS present`;
     if (rows[0]?.present === true)

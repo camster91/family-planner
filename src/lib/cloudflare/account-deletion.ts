@@ -2875,6 +2875,7 @@ const HOUSEHOLD_DELETE_ORDER = [
   "EventPreparation",
   "CalendarEventLink",
   "EventParticipant",
+  "EventReminder",
   "Event",
   "EventSeries",
   "ChoreAssignment",

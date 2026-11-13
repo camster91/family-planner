@@ -13,6 +13,8 @@ import { isParentSendableType } from '@/lib/notification-policy'
 import { logRouteError } from '@/lib/api-error'
 import { getRequestId } from '@/lib/request-id'
 
+import { REMINDER_TIME_ZONE_HEADER, eventRemindersReady } from '@/lib/event-reminders'
+import { writeEventRemindersOnRead } from '@/lib/event-reminders-on-read'
 export const dynamic = 'force-dynamic'
 
 // GET - list notifications for current user
@@ -37,6 +39,8 @@ export async function GET(request: NextRequest) {
       where.read = false
     }
 
+    // Event reminders (default-off) have no scheduler: the first page of a read writes the due ones.
+    if (eventRemindersReady() && !(paging.paged && paging.cursor)) await writeEventRemindersOnRead({ userId, generation: payload.tv ?? 0 }, request.headers.get(REMINDER_TIME_ZONE_HEADER))
     if (paging.paged && paging.cursor) where.AND = [afterNotificationCursor(paging.cursor)]
     const native = storageBackend() === 'd1'
       ? await readD1NotificationInbox({ userId, generation: payload.tv ?? 0 }, where, paging.paged ? paging.limit + 1 : 50)

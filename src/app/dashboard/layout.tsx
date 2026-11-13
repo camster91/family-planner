@@ -1,3 +1,4 @@
+import { eventRemindersReady } from "@/lib/event-reminders";
 import { storageBackend } from "@/lib/storage-backend";
 import { getD1Database } from "@/lib/cloudflare/database";
 import { readD1DashboardShell } from "@/lib/cloudflare/dashboard-shell";
@@ -166,7 +167,7 @@ export default async function DashboardLayout({
                     <DashboardSkipLink />
 
                     {/* Apple HIG top bar nav */}
-                    <DashboardNav user={navUser} />
+                    <DashboardNav user={navUser} remindersSupported={eventRemindersReady()} />
 
                     {/* Main content — the shell reserves bottom-tab clearance once, after all content. */}
                     <main
