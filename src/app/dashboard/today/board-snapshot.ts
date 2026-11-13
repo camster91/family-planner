@@ -49,6 +49,7 @@ type Db = Pick<
   | 'weatherCache'
   | 'upload'
   | 'householdMember'
+  | 'eventParticipant'
 >
 
 export type LoadTodayBoardOptions = {

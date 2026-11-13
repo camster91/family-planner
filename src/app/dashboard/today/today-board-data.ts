@@ -29,6 +29,7 @@ import { canRoleAccessPath } from '@/lib/kid-access'
 import { getOpenShoppingItems, type ShoppingSnapshot } from '@/lib/shopping-snapshot'
 import type { FamilyFeatures } from '@/lib/features'
 import { resolveMemberColors, type MemberColorKey } from '@/lib/member-colors'
+import { projectEventParticipants } from '@/lib/event-participants-db'
 import {
   DEFAULT_USE_SOON_DAYS,
   countMissingIngredients,
@@ -87,6 +88,12 @@ export interface BoardEvent {
    * added it, not who attends. Optional for clients built before #262.
    */
   addedById?: string | null
+  /**
+   * People the event is for (people on events, default-off). When present and
+   * non-empty the board shows these instead of who added it. Absent or empty
+   * for clients and servers without the capability.
+   */
+  forPeople?: Array<{ name: string; color: MemberColorKey }>
 }
 
 export interface BoardChore {
@@ -230,7 +237,7 @@ export interface TodayBoardData {
 
 type Db = Pick<
   PrismaClient,
-  '$queryRaw' | 'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember'
+  '$queryRaw' | 'user' | 'event' | 'chore' | 'familyMeal' | 'calendarSubscription' | 'listItem' | 'list' | 'inventoryItem' | 'householdMember' | 'eventParticipant'
 >
 
 interface BuildTodayBoardBase {
@@ -679,13 +686,22 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         visibleChoreIds: boardChores.map((chore) => chore.id),
       })
 
+  const eventPeople = new Map((await projectEventParticipants(db, familyId, events.map((e) => ({ id: e.id }))))
+    .map((e) => [e.id, e.participants] as const))
+
   return {
     generatedAt: now.toISOString(),
     memberProtocol,
     members: boardMembers,
     events: events.map((e) => {
       const sub = e.source_subscription_id ? subById.get(e.source_subscription_id) : undefined
+      const forPeople = (eventPeople.get(e.id) ?? []).map((person) => ({
+        name: person.name,
+        // The board's own colour for this person, so a row matches the tiles.
+        color: colors.get(person.kind === 'account' ? person.id : profileBoardId(person.id)) ?? person.color,
+      }))
       return {
+        ...(forPeople.length ? { forPeople } : {}),
         id: e.id,
         title: e.title,
         start: e.start_time.toISOString(),

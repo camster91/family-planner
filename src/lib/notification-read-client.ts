@@ -1,6 +1,7 @@
 /** Personal inbox reads share existing owned deadlines and stream bounds. */
 import { runOwnedForeground } from "./owned-request-http";
 import { readBoundedJsonResponse } from "./bounded-json-response";
+import { REMINDER_TIME_ZONE_HEADER } from "./event-reminders";
 
 export const NOTIFICATION_READ_BYTES = 512 * 1024;
 export interface NotificationItem {
@@ -39,6 +40,13 @@ export type NotificationPage = {
   pagingSupported: boolean;
 };
 export class NotificationPageError extends Error {}
+/** The browser's zone for reminder text; empty when the runtime cannot say. */
+export function reminderTimeZoneHeaders(): Record<string, string> {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return zone ? { [REMINDER_TIME_ZONE_HEADER]: zone } : {};
+  } catch { return {}; }
+}
 
 export async function readNotificationPage(
   url: string,
@@ -49,6 +57,8 @@ export async function readNotificationPage(
   const result = await runOwnedForeground(async ownedSignal => {
     const response = await (options.fetchImpl ?? fetch)(url, {
       cache: "no-store", signal: ownedSignal,
+      // Event reminders are written in the reader's local time (default-off server side).
+      headers: reminderTimeZoneHeaders(),
     });
     // Read failures use the existing localized retry state; do not decode an
     // unbounded proxy error body or display server-provided household content.

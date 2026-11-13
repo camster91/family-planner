@@ -10,8 +10,16 @@ import assert from 'node:assert/strict'
 // Real workerd/D1 + the application's actual read factory, without provider
 // credentials, production routes, account cookies or persistent household data.
 const only=process.argv.find(value=>value.startsWith('--only='))?.slice('--only='.length).split(',')
-const allowedOnly=["calendar-sync", "calendar-subscriptions", "notification-inbox", "notification-preferences", "calendar-events", "schedule-review", "event-mutations", "assistant-delete-target", "chore-reads", "chore-delete", "account-deletion", "analytics-feedback", "device-parent", "budget", "food-planning", "wishlist", "ai-usage", "food-source-versions", "assistant-actions", "food-source", "notes-projects", "board-settings", "board", "storage", "messages", "account-recovery", "inventory-recovery", "allowance", "device-writes", "routines", "meals", "inventory", "recipe-grocery", "recipe-library", "read-witness-numeric", "health", "rewards", "activity-locations-pickups", "anniversaries", "search", "review-inbox", "handoffs", "finance-archive-export", "weekly-reset", "responsibility", "morning-summary", "r2-storage", "inventory-cooking-review", "food-ai-feedback", "calendar-import", "family-import"]
+const allowedOnly=["event-reminders", "event-series", "event-participants", "calendar-sync", "calendar-subscriptions", "notification-inbox", "notification-preferences", "calendar-events", "schedule-review", "event-mutations", "assistant-delete-target", "chore-reads", "chore-delete", "account-deletion", "analytics-feedback", "device-parent", "budget", "food-planning", "wishlist", "ai-usage", "food-source-versions", "assistant-actions", "food-source", "notes-projects", "board-settings", "board", "storage", "messages", "account-recovery", "inventory-recovery", "allowance", "device-writes", "routines", "meals", "inventory", "recipe-grocery", "recipe-library", "read-witness-numeric", "health", "rewards", "activity-locations-pickups", "anniversaries", "search", "review-inbox", "handoffs", "finance-archive-export", "weekly-reset", "responsibility", "morning-summary", "r2-storage", "inventory-cooking-review", "food-ai-feedback", "calendar-import", "family-import"]
 if(only&&(!only.length||only.some(name=>!allowedOnly.includes(name))))throw new Error('Unknown native smoke slice')
+// Slice routes requested so far, so the full run never seeds a slice twice.
+const requested=new Set()
+const nativeFetch=globalThis.fetch
+globalThis.fetch=(input,init)=>{
+  const slice=/^http:\/\/127\.0\.0\.1:\d+\/([a-z0-9-]+)$/.exec(String(input))?.[1]
+  if(slice)requested.add(slice)
+  return nativeFetch(input,init)
+}
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const scratch = await mkdtemp(path.join(tmpdir(), 'herewoven-read-smoke-'))
 const configPath = path.join(root, `.wrangler-read-smoke-${process.pid}.json`)
@@ -150,7 +158,9 @@ INSERT INTO User (id,email,name,family_id,email_verified,created_at) VALUES
   const choreCreateResult = await choreCreate.json()
   assert.equal(choreCreate.status, 200, JSON.stringify(choreCreateResult))
   const additions={}
-  for(const name of allowedOnly.filter(name=>name!=='device-parent')){const response=await fetch(`http://127.0.0.1:${port}/${name}`,{signal:AbortSignal.timeout(120000)});const result=await response.json();assert.equal(response.status,200,JSON.stringify(result));additions[name]=result}
+  // Each slice seeds its own fixture rows once. The explicit calls above already
+  // ran some slices, so a second call would hit their unique keys; run the rest.
+  for(const name of allowedOnly.filter(name=>name!=='device-parent'&&!requested.has(name))){const response=await fetch(`http://127.0.0.1:${port}/${name}`,{signal:AbortSignal.timeout(120000)});const result=await response.json();assert.equal(response.status,200,JSON.stringify(result));additions[name]=result}
   console.log(JSON.stringify({ ...additions, deviceParent: deviceParentResult, devicePairing: devicePairingResult, deviceSessions: deviceSessionResult, choreUpdate: choreUpdateResult, choreCreate: choreCreateResult, choreDelete: choreDeleteResult, choreCheck: checkResult, notificationInbox: inboxResult, choreState: choreStateResult, choreReads: choreReadResult, recurringChores: recurrenceResult, assistantDeleteTarget: targetResult, assistantSource: sourceResult, assistantContext: assistantResult, eventMutations: mutationResult, eventUpdate: updateResult, calendarEvents: eventResult, calendarSync: syncResult, calendarSubscriptions: calendarResult, ...first, concurrentRequests: 12, preferences: preferenceResult, settings: settingsResult, profiles: profileResult, familyPreferences: familyPreferenceResult, notificationPreferences: notificationPreferenceResult }))
   }
 } catch (error) {

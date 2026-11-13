@@ -9,7 +9,7 @@ export default async function Page() {
   if (!sessionUser) return null;
 
   return (
-    <FeatureGate featureKey="allowance">
+    <FeatureGate featureKey="allowance" headingLevel={2}>
       <AllowanceCreateSheet canCreate={sessionUser.role === "parent"} />
     </FeatureGate>
   );

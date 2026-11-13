@@ -197,6 +197,20 @@ function AddedByLabel({ person }: { person: BoardPerson }) {
   )
 }
 
+/** "For Casey" with the member's colour: who the event is for (people on events). */
+function ForPersonLabel({ person }: { person: BoardPerson }) {
+  const text = useTodayBoardText()
+  return (
+    <span
+      data-testid="event-for"
+      className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-medium text-label-primary md:text-[17px]"
+    >
+      <MemberSwatch color={person.color} className="h-3 w-3 2xl:h-3.5 2xl:w-3.5" />
+      <span className="min-w-0 break-words">{text('eventFor', { name: firstName(person.name) })}</span>
+    </span>
+  )
+}
+
 /** Shared event rows keep source, time and member labels identical across app/fridge views. */
 export function ScheduleEventRows({
   events,
@@ -226,13 +240,15 @@ export function ScheduleEventRows({
               <p className={cn(itemTextClass, 'break-words font-medium')}>
                 {e.title}
               </p>
-              {(e.happeningNow || e.isTask || e.source || person) && (
+              {(e.happeningNow || e.isTask || e.source || person || !!e.forPeople?.length) && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
                   {e.happeningNow && !e.startedEarlier && (
                     <Tag>{text('now')}</Tag>
                   )}
                   {e.isTask && <Tag>{text('task')}</Tag>}
-                  {person && <AddedByLabel person={person} />}
+                  {e.forPeople?.length
+                    ? e.forPeople.map((who, index) => <ForPersonLabel key={`${index}:${who.name}`} person={who} />)
+                    : person && <AddedByLabel person={person} />}
                   {e.source && <SourceLabel source={e.source} />}
                 </div>
               )}

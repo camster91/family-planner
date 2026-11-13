@@ -2,6 +2,8 @@
 export const HOUSEHOLD_HANDOVER_COLUMNS: ReadonlyArray<readonly [string, string]> = [
   ['chore', 'created_by'],
   ['event', 'created_by'],
+  // A repeating event outlives the member who set it up.
+  ['eventSeries', 'created_by'],
   ['list', 'created_by'],
   ['listItem', 'added_by'],
   ['reward', 'created_by'],

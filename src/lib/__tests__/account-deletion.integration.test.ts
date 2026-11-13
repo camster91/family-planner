@@ -102,6 +102,11 @@ describeWithDatabase('account deletion against Postgres', () => {
       data: { id: id('event-imported'), family_id: f, title: 'Synced', start_time: t, end_time: t, created_by: parent, source_connection_id: id('conn') },
     })
     await db.calendarEventLink.create({ data: { id: id('link'), family_id: f, connection_id: id('conn'), event_id: id('event'), external_id: 'x' } })
+    // People on events and a repeating-event template (both default-off features).
+    await db.eventParticipant.create({ data: { id: id('participant'), family_id: f, event_id: id('event'), user_id: parent } })
+    await db.eventReminder.create({ data: { id: id('reminder'), family_id: f, event_id: id('event'), user_id: parent } })
+    await db.eventSeries.create({ data: { id: id('series'), family_id: f, created_by: parent, every: 'week', time_zone: 'America/Toronto',
+      anchor_start: t, title: 'Swim', generated_through: t } })
     await db.calendarOAuthState.create({
       data: { id: id('oauth'), state_hash: id('state'), family_id: f, user_id: parent, provider: 'google', code_verifier_enc: 'x', expires_at: later },
     })
@@ -615,6 +620,7 @@ describeWithDatabase('account deletion against Postgres', () => {
       ['importJob', 'job', 'started_by'],
       ['chore', 'chore', 'created_by'],
       ['event', 'event', 'created_by'],
+      ['eventSeries', 'series', 'created_by'],
       ['list', 'list', 'created_by'],
       ['transaction', 'txn', 'user_id'],
       ['project', 'proj', 'created_by'],

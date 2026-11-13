@@ -16,22 +16,42 @@ import type { Locale } from '@/i18n/types'
 export function FeatureGate({
   featureKey,
   children,
+  headingLevel = 1,
 }: {
   featureKey: FeatureKey
   children: React.ReactNode
+  /**
+   * The off state replaces the whole page, so its title is the page's h1.
+   * Pass 2 only where the gate wraps a sheet shown over a page that keeps
+   * its own h1.
+   */
+  headingLevel?: 1 | 2
 }) {
   const enabled = useFeatureEnabled(featureKey)
 
   if (enabled) return <>{children}</>
 
-  return <ClientFeatureOffState featureKey={featureKey} />
+  return <ClientFeatureOffState featureKey={featureKey} headingLevel={headingLevel} />
 }
 
 /** The off state with the viewer's role from the features provider. */
-function ClientFeatureOffState({ featureKey }: { featureKey: FeatureKey }) {
+function ClientFeatureOffState({
+  featureKey,
+  headingLevel,
+}: {
+  featureKey: FeatureKey
+  headingLevel: 1 | 2
+}) {
   const { canManage } = useFeatures()
   const { locale } = useCoreTranslation()
-  return <FeatureOffState featureKey={featureKey} canManage={canManage} locale={locale} />
+  return (
+    <FeatureOffState
+      featureKey={featureKey}
+      canManage={canManage}
+      locale={locale}
+      headingLevel={headingLevel}
+    />
+  )
 }
 
 /**
@@ -43,7 +63,7 @@ export function FeatureOffState({
   canManage = true,
   copy,
   locale,
-  headingLevel = 2,
+  headingLevel = 1,
   testId,
 }: {
   featureKey: FeatureKey
@@ -53,6 +73,7 @@ export function FeatureOffState({
   copy?: FeatureOffStateCopy
   /** Locale used for the shared default copy. Route-owned copy stays authoritative. */
   locale?: Locale
+  /** 1 by default: the off state stands in for the page. 2 inside a sheet. */
   headingLevel?: 1 | 2
   testId?: string
 }) {

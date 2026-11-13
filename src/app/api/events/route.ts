@@ -31,6 +31,12 @@ import {
 } from "@/lib/calendar-import/source";
 import { readIdempotencyKey, withIdempotency, idempotencyError } from "@/lib/idempotency";
 import { updatePersonEvent } from "@/lib/person-event-update";
+import { projectEventParticipants } from "@/lib/event-participants-db";
+import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
+import { deletePersonEventFollowing, readEventRepeat } from "@/lib/event-series-db";
+import { readD1EventRepeat } from "@/lib/cloudflare/event-series";
+import { getD1Database } from "@/lib/cloudflare/database";
+import { deleteD1EventFollowing } from "@/lib/cloudflare/event-series-edit";
 import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
@@ -80,7 +86,8 @@ async function handleGET(request: NextRequest) {
       if (storageBackend() === "d1") {
         const [event] = await readD1CalendarEvents(original, { id });
         if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
-        return await reply({ event });
+        const repeat = await readD1EventRepeat((await getD1Database()).withSession("first-primary"), original.familyId, event.series_id);
+        return await reply({ event: { ...event, repeat } });
       }
       const event = await prisma!.event.findFirst({
         where: { id, family_id: original.familyId },
@@ -88,12 +95,12 @@ async function handleGET(request: NextRequest) {
       if (!event) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
       }
-      const [withSource] = await attachEventSources(
+      const [withSource] = await projectEventParticipants(prisma!, original.familyId, await attachEventSources(
         prisma!,
         original.familyId,
         await projectEventCreators(prisma!, original.familyId, [event]),
-      );
-      return await reply({ event: withSource });
+      ));
+      return await reply({ event: { ...withSource, repeat: await readEventRepeat(prisma!, original.familyId, event.series_id) } });
     }
 
     let range;
@@ -107,6 +114,8 @@ async function handleGET(request: NextRequest) {
     }
     if (range) {
       const { start, end, limit, after } = range;
+      // Repeating events are written ahead on read, never by a scheduler.
+      await topUpHouseholdEventSeries(original.familyId, new Date(), end.getTime());
       const events = storageBackend() === "d1" ? await readD1CalendarEvents(original, { range }) : await prisma!.event.findMany({
         where: {
           family_id: original.familyId,
@@ -133,7 +142,7 @@ async function handleGET(request: NextRequest) {
       const page = events.slice(0, limit);
       const hasMore = events.length > limit;
       return await reply({
-        events: storageBackend() === "d1" ? page : await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page)),
+        events: storageBackend() === "d1" ? page : await projectEventParticipants(prisma!, original.familyId, await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page))),
         nextCursor: hasMore
           ? encodeCalendarCursor(
               original.familyId,
@@ -146,6 +155,7 @@ async function handleGET(request: NextRequest) {
     }
 
     const upcoming = searchParams.get("upcoming") === "true";
+    await topUpHouseholdEventSeries(original.familyId);
 
     // `upcoming=true`: events starting from now. Otherwise a recent window:
     // events that end no earlier than LIST_WINDOW_PAST_DAYS ago (so ongoing
@@ -178,7 +188,7 @@ async function handleGET(request: NextRequest) {
 
     // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
     return await reply({
-      events: storageBackend() === "d1" ? events : await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events)),
+      events: storageBackend() === "d1" ? events : await projectEventParticipants(prisma!, original.familyId, await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events))),
     });
   } catch (error) {
     logRouteError("GET /api/events", error, getRequestId(request));
@@ -369,6 +379,18 @@ export async function DELETE(request: NextRequest) {
       parsed.data.eventId,
       Boolean(sourceGuard),
     );
+    // "This and later events": a direct person action only. It is absolute
+    // (a repeat finds nothing left to delete), so it needs no receipt, and an
+    // assistant-reviewed delete always names exactly one event.
+    if (parsed.data.series_scope === "following") {
+      if (sourceGuard || targetGuard)
+        return NextResponse.json({ error: "Only one event can be deleted from a reviewed suggestion" }, { status: 400 });
+      const editor = { userId: actor.userId, familyId: actor.familyId, tokenVersion: actor.generation };
+      const result = storageBackend() === "d1"
+        ? await deleteD1EventFollowing(editor, parsed.data.eventId)
+        : await deletePersonEventFollowing(prisma!, editor, parsed.data.eventId);
+      return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store" } });
+    }
     if (storageBackend() === "d1") {
       const result = await mutateD1Event(actor, { kind: "delete", eventId: parsed.data.eventId }, key, { sourceGuard, targetGuard });
       return NextResponse.json(result.body, { status: result.status, headers: { "Cache-Control": "private, no-store", ...(result.replayed ? { "Idempotency-Replayed": "true" } : {}) } });

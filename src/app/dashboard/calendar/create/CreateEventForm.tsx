@@ -9,10 +9,13 @@ import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventDuration } from '@/components/calendar/EventDuration'
+import { EventPeoplePicker } from '@/components/calendar/EventPeoplePicker'
+import type { EventPersonRef } from '@/lib/event-participants'
+import { EventRepeatField, NO_REPEAT, repeatRequest, type EventRepeatValue } from '@/components/calendar/EventRepeatField'
 import { eventFormRange, parseDateOnly, toDateOnlyLocal } from '@/lib/dates'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
-export default function CreateEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+export default function CreateEventForm({ inSheet = false, onBusyChange, peopleSupported = false, repeatSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean; repeatSupported?: boolean } = {}) {
   const { t } = useTranslation()
   const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
@@ -24,6 +27,9 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
   const [endTime, setEndTime] = useState('')
   const [duration, setDuration] = useState('')
   const [location, setLocation] = useState('')
+  const [people, setPeople] = useState<EventPersonRef[]>([])
+  const [peopleAvailable, setPeopleAvailable] = useState(false)
+  const [repeat, setRepeat] = useState<EventRepeatValue>(NO_REPEAT)
   const submitHint = !title.trim() && !startDate ? message('requiredBoth') : !title.trim() ? message('requiredTitle') : !startDate ? message('requiredStart') : null
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<CalendarFormError | null>(null)
@@ -74,6 +80,9 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
           start_time: startDateTime,
           end_time: endDateTime,
           location: location || null,
+          // Sent only when the server offered the picker and someone is chosen.
+          ...(peopleAvailable && people.length ? { participants: people } : {}),
+          ...(repeatSupported && repeatRequest(repeat) ? { repeat: repeatRequest(repeat) } : {}),
         }),
       })
       const data = await res.json()
@@ -178,6 +187,10 @@ export default function CreateEventForm({ inSheet = false, onBusyChange }: { inS
           }
           setDuration(next)
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))?.end} />
+
+        {repeatSupported && <EventRepeatField value={repeat} onChange={setRepeat} startDate={startDate} disabled={loading} />}
+
+        {peopleSupported && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={loading} />}
 
         {/* End */}
         <EventFormDetails

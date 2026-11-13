@@ -68,6 +68,9 @@ describeWithDatabase("person allowance create replay integrity", () => {
       const deadline = Date.now() + 5_000;
       let waiting = false;
       while (Date.now() < deadline) {
+        // This client holds an open transaction, and Postgres freezes its
+        // pg_stat_activity snapshot at the first read in a transaction.
+        await client.query("SELECT pg_stat_clear_snapshot()");
         const result = await client.query<{ waiting: string }>(`
           SELECT count(*)::text AS waiting
           FROM pg_stat_activity

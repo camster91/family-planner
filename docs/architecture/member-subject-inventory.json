@@ -70,5 +70,13 @@
     "onDelete": "Cascade",
     "onUpdate": "NoAction",
     "decision": "Canonical profile primary subject of consent metadata, never an authenticated actor or competing task owner. Archive retains the row but makes current action eligibility fail closed; linking requires renewed canonical subject proof, never name matching. Explicit profile erasure cascades this consent row through its composite household FK. Preserve canonical chore/pickup history under its own erasure rules; never transfer acceptance to a different identity."
+  },
+  {
+    "relation": "EventParticipant.member",
+    "fields": ["member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "Cascade",
+    "onUpdate": "NoAction",
+    "decision": "People on events (default-off). A standalone email-free profile an event is for; account-backed people use EventParticipant.user instead, exactly one subject per row. Display-only attribution: no authority, credential, credit or history. Archive hides the row on read; deleting the profile or the event cascades it."
   }
 ]
