@@ -756,6 +756,8 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "GET /api/lists/items/[id]",
   "GET /api/lists/items",
   "PATCH /api/lists/items/update",
+  "PATCH /api/lists/items/task",
+  "GET /api/lists/people",
   "GET /api/lists",
   "DELETE /api/lists",
   "GET /api/meals/[id]",

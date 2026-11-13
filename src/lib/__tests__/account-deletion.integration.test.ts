@@ -191,6 +191,7 @@ describeWithDatabase('account deletion against Postgres', () => {
     // Lists and budget
     await db.list.create({ data: { id: id('list'), family_id: f, name: 'Groceries', type: 'grocery', created_by: parent } })
     await db.listItem.create({ data: { id: id('item'), list_id: id('list'), content: 'Milk', added_by: teen, checked_by: parent } })
+    await db.listItemTask.create({ data: { item_id: id('item'), family_id: f, user_id: teen, due_day: '2026-01-09' } })
     await db.groceryShoppingSession.create({ data: { id: id('trip'), family_id: f, list_id: id('list') } })
     await db.grocerySectionPreference.create({ data: { id: id('section'), family_id: f, name_key: 'milk', section: 'dairy_eggs', updated_by: parent } })
     await db.budgetCategory.create({ data: { id: id('cat'), family_id: f, name: 'Food', created_by: parent } })

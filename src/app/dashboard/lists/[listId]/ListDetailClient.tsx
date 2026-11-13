@@ -18,6 +18,8 @@ import {
   useNow,
 } from "@/components/fridge/sync-status";
 import { EditGroceryDialog, type EditableGrocery } from "./EditGroceryDialog";
+import { ListItemTaskControl } from "./ListItemTaskControl";
+import type { ListItemTaskView } from "@/lib/list-tasks";
 import { Plus, CheckSquare, CloudOff, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
@@ -133,6 +135,13 @@ interface ListDetailClientProps {
   canDeleteItems?: boolean;
   /** Store sections (#273); only used on grocery/shopping lists. */
   sectionSort?: SectionSortProps;
+  /**
+   * To-dos (default-off): each item's saved owner and due date by item id.
+   * Undefined when the capability is off or the list is for groceries.
+   */
+  tasks?: Record<string, ListItemTaskView>;
+  /** Parents and teens may set an owner and a due date. */
+  canSetTasks?: boolean;
   paging?: {
     continued: boolean;
     firstHref: string;
@@ -156,6 +165,8 @@ export default function ListDetailClient({
   ownerGeneration,
   canDeleteItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
+  tasks,
+  canSetTasks = false,
   paging,
 }: ListDetailClientProps) {
   const storeText = useStoreSectionText();
@@ -759,6 +770,15 @@ export default function ListDetailClient({
                 </button>
               )}
           </div>
+          {tasks && !isGrocery && !item.removedElsewhere && !item.deleteUnknown && (
+            <ListItemTaskControl
+              itemId={item.id}
+              itemName={item.content}
+              initial={tasks[item.id]}
+              canEdit={canSetTasks}
+              disabled={Boolean(op)}
+            />
+          )}
           {item.deleteUnknown && (
             <div
               role="group"
