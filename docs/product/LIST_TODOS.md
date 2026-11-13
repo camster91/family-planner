@@ -1,9 +1,11 @@
-# To-dos on lists (source authored; default-off, not activated)
+# To-dos on lists (switched on in `wrangler.jsonc`; live from the next deploy)
 
 An item on a list can say who it is for and when it is due. Grocery and
 shopping lists are for buying, not doing, and take neither.
 
-- **Switch:** `FAMILY_LIST_TASKS_READY=1`. Off, `PATCH /api/lists/items/task`
+- **Switch:** `FAMILY_LIST_TASKS_READY=1`, set in `wrangler.jsonc`. D1 migration
+  `0023_list_item_tasks.sql` must be applied before the deploy that carries it.
+  Off, `PATCH /api/lists/items/task`
   refuses with `409 LIST_TASKS_UNSUPPORTED` before any write,
   `GET /api/lists/people` answers `{ supported: false }`, the list page reads
   nothing and shows no control.
