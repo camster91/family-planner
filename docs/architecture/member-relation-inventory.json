@@ -975,5 +975,18 @@
     ],
     "disposition": "retain-account-identity",
     "remaining": "Own account setting only. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
+  },
+  {
+    "relation": "ListItemTask.user",
+    "fields": ["user_id"],
+    "kind": "member",
+    "migration": "To-dos (default-off). The account column is the household member a list item is for, never an actor or credential: account-backed people are stored by account id and email-free profiles by ListItemTask.member, at most one per row. Leaving the household hides the owner on read; permanent account deletion cascades the row.",
+    "evidence": [
+      "prisma/schema.prisma: model ListItemTask",
+      "database/cloudflare/0023_list_item_tasks.sql",
+      "src/lib/list-tasks.ts"
+    ],
+    "disposition": "partial-account-backed-canonical-member-subject",
+    "remaining": "Account-backed people keep the account id; standalone profiles use the canonical member column. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
   }
 ]

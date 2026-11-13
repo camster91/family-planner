@@ -52,6 +52,7 @@ import { testEventUpdate } from './event-update'
 import { testEventParticipants } from './event-participants'
 import { testEventSeries } from './event-series'
 import { testEventReminders } from './event-reminders'
+import { testListTasks } from './list-tasks'
 import { testCalendarEvents } from './calendar-events'
 import { testCalendarSync } from './calendar-sync'
 import { testCalendarSubscriptions } from './calendar-subscriptions'
@@ -143,6 +144,7 @@ const worker = {
       if (new URL(request.url).pathname === '/event-participants') return Response.json(await testEventParticipants(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/event-series') return Response.json(await testEventSeries(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/event-reminders') return Response.json(await testEventReminders(env.DB as unknown as D1Store))
+      if (new URL(request.url).pathname === '/list-tasks') return Response.json(await testListTasks(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-events') return Response.json(await testCalendarEvents(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-sync') return Response.json(await testCalendarSync(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-subscriptions') return Response.json(await testCalendarSubscriptions(env.DB as unknown as D1Store))

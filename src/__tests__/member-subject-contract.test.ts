@@ -16,7 +16,7 @@ it("classifies all canonical member owners without replacing account-owner decis
   expect(subjectDifferences(collectMemberSubjects(schema), inventory)).toEqual(
     [],
   );
-  expect(collectMemberSubjects(schema)).toHaveLength(10);
+  expect(collectMemberSubjects(schema)).toHaveLength(11);
 });
 it("fails when a new member subject has no migration and erasure decision", () => {
   const extra = `\nmodel Extra {\n person HouseholdMember? @relation(fields: [person_id, family_id], references: [id, family_id], onDelete: NoAction, onUpdate: NoAction)\n}\n`;

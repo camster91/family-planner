@@ -91,6 +91,7 @@ model User {
   event_participations          EventParticipant[] @relation("EventParticipantAccounts")
   event_reminders               EventReminder[]
   event_reminder_preference     EventReminderPreference?
+  list_item_tasks               ListItemTask[]     @relation("ListItemTaskAccounts")
   created_event_series          EventSeries[]      @relation("CreatedEventSeries")
   sent_messages                 Message[]          @relation("SentMessages")
   message_attachments_uploaded  MessageAttachment[] @relation("MessageAttachmentUploader")
@@ -234,6 +235,7 @@ model Family {
   chore_top_up_cursor ChoreTopUpCursor?
   events             Event[]
   event_series       EventSeries[]
+  list_item_tasks    ListItemTask[]
   messages           Message[]
   lists              List[]
   activities         Activity[]
@@ -1256,11 +1258,33 @@ model ListItem {
   @@index([ingredient_id])
   @@index([recipe_id])
   @@index([meal_id])
+  task ListItemTask?
+
   @@index([source_request_id])
   // Partial unique index "ListItem_open_recipe_source_key" on
   // (list_id, ingredient_id, source_key) WHERE checked = false AND source_key IS NOT NULL
   // AND ingredient_id IS NOT NULL cannot be expressed in Prisma; it is owned by
   // scripts/migrate.js POST_FEATURE_SQL (docs/architecture/MEALS_AND_GROCERIES.md §5).
+}
+
+// To-dos (default-off, FAMILY_LIST_TASKS_READY): who a list item is for and
+// when it is due. A side table so every existing ListItem read is unchanged.
+model ListItemTask {
+  item_id    String   @id
+  family_id  String
+  user_id    String?
+  member_id  String?
+  due_day    String?
+  updated_at DateTime @default(now())
+
+  item   ListItem         @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  family Family           @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user   User?            @relation("ListItemTaskAccounts", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  member HouseholdMember? @relation("ListItemTaskProfiles", fields: [member_id, family_id], references: [id, family_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([family_id])
+  @@index([user_id])
+  @@index([member_id, family_id])
 }
 
 model Activity {
@@ -2182,6 +2206,7 @@ model HouseholdMember {
   chores Chore[] @relation("MemberChores")
   chore_assignments ChoreAssignment[] @relation("MemberChoreAssignments")
   event_participations EventParticipant[] @relation("EventParticipantProfiles")
+  list_item_tasks      ListItemTask[]     @relation("ListItemTaskProfiles")
   activities Activity[] @relation("ActivitySubjectMember")
   device_audit_events DeviceAuditEvent[] @relation("DeviceAuditSubjectMember")
 
