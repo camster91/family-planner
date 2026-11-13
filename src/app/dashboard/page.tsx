@@ -1,5 +1,6 @@
 import { publicChoreData } from "@/lib/chore-public-data";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
+import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
 import { storageBackend } from "@/lib/storage-backend";
 import { withD1ReadClient } from "@/lib/cloudflare/read-client";
 import { after } from "next/server";
@@ -107,6 +108,7 @@ export default async function DashboardPage() {
 
   if (storageBackend() === "d1" && isFeatureEnabled(features, "chores"))
     await topUpHouseholdSeries(familyId, now);
+    await topUpHouseholdEventSeries(familyId, now);
   const [windowChores, olderOpenChores, events, rewards] =
     storageBackend() === "d1"
       ? await (

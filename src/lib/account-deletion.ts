@@ -631,6 +631,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'calendarEventLink', scope: { kind: 'family' }, why: 'provider event links' },
   { model: 'eventParticipant', scope: { kind: 'family' }, why: 'people on events, before their events; compatibility-probed SQL' },
   { model: 'event', scope: { kind: 'family' }, why: 'events' },
+  { model: 'eventSeries', scope: { kind: 'family' }, why: 'repeating-event templates, after their occurrences; compatibility-probed SQL' },
   { model: 'eventPreparationStep', scope: { kind: 'family' }, why: 'preparation links after canonical Event cascade; compatibility-probed SQL' },
   { model: 'eventPreparation', scope: { kind: 'family' }, why: 'preparation metadata after canonical Event cascade; compatibility-probed SQL' },
   { model: 'calendarConnection', scope: { kind: 'family' }, why: 'provider tokens' },

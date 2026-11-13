@@ -936,5 +936,18 @@
     ],
     "disposition": "partial-account-backed-canonical-member-subject",
     "remaining": "Account-backed people keep the account id; standalone profiles use the canonical member column. A linked or mapped profile is represented by its account. Source and local workerd/D1 fixture only; not runtime or lifecycle acceptance."
+  },
+  {
+    "relation": "EventSeries.creator",
+    "fields": ["created_by"],
+    "kind": "actor-and-member",
+    "migration": "Repeating events (default-off). Keep the authenticated account that set the repeat up as the actor, like Event.creator. Who the event is for is separate attribution (EventParticipant / the series' stored people). When that account leaves or is deleted, the series is handed to a successor parent with its events; whole-household deletion removes it.",
+    "evidence": [
+      "prisma/schema.prisma: model EventSeries",
+      "database/cloudflare/0020_event_series.sql",
+      "src/lib/household-content-erasure.ts"
+    ],
+    "disposition": "retain-actor-defer-separate-attribution",
+    "remaining": "Actor only. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
   }
 ]

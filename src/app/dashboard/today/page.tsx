@@ -9,6 +9,7 @@ import HomeSummary from "@/components/dashboard/HomeSummary";
 import TodaySetup from "@/components/dashboard/TodaySetup";
 import { loadTodayBoard } from "./board-snapshot";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
+import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
 import { loadHomeSummary } from "./home-summary-data";
 import { loadGetStarted } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
@@ -77,6 +78,7 @@ export default async function TodayBoardPage({
   // Recurring series are extended on read (no scheduler), before the board
   // reads today's chores. Bounded, idempotent, never throws.
   await topUpHouseholdSeries(familyId, now);
+  await topUpHouseholdEventSeries(familyId, now);
   // Weather (#262) is opt-in per household and never fails the page: null
   // hides the tile. The board carries its display settings and change
   // version (#271).

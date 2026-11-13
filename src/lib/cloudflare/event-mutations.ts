@@ -144,7 +144,7 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
       if (value.repeat) {
         if (!eventRepeatReady()) return result(EVENT_REPEAT_UNSUPPORTED)
         const rule = seriesRuleFor(value.repeat, startMs)
-        if (!rule || endMs < startMs) return result(EVENT_REPEAT_INVALID)
+        if (!rule || endMs < startMs || value.recurrence) return result(EVENT_REPEAT_INVALID)
         const plan = planSeriesRows(rule, -1, Math.max(seriesTopUpTarget(now), startMs))
         series = { id: randomUUID(), rule, ...plan }
       }

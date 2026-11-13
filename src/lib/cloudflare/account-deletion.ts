@@ -1338,6 +1338,7 @@ function ownerStatements(
   const owners: Array<[string, string]> = [
     ["Chore", "created_by"],
     ["Event", "created_by"],
+    ["EventSeries", "created_by"],
     ["List", "created_by"],
     ["Reward", "created_by"],
     ["Transaction", "user_id"],
@@ -2873,7 +2874,9 @@ const HOUSEHOLD_DELETE_ORDER = [
   "EventPreparationStep",
   "EventPreparation",
   "CalendarEventLink",
+  "EventParticipant",
   "Event",
+  "EventSeries",
   "ChoreAssignment",
   "ResponsibilityState",
   "Chore",

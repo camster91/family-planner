@@ -16,6 +16,7 @@ import {
 import { authenticateDevice } from "@/lib/device-route";
 import { getRequestId } from "@/lib/request-id";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
+import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ async function handleGET(request: NextRequest) {
     // Bounded, idempotent, household-scoped, never throws. The version routes
     // do not do this; they only hash what is there.
     await topUpHouseholdSeries(auth.actor.familyId, now);
+    await topUpHouseholdEventSeries(auth.actor.familyId, now);
     // Weather (#262): the household's opt-in tile, or null. Never fails the board.
     const data = await loadTodayBoard(prisma!, {
       familyId: auth.actor.familyId,

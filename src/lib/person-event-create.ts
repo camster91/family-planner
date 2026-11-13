@@ -8,6 +8,8 @@ import type { EffectResult } from "@/lib/idempotency";
 import { recordBetaMetric } from "@/lib/beta-metrics";
 import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady, orderEventPeople, unknownEventPeople, type EventPerson } from "@/lib/event-participants";
 import { readHouseholdPeople, replaceEventParticipantsInTx } from "@/lib/event-participants-db";
+import { EVENT_REPEAT_INVALID, EVENT_REPEAT_UNSUPPORTED, eventRepeatReady, seriesEventId, seriesRuleFor, seriesTopUpTarget } from "@/lib/event-series";
+import { planSeriesRows, writeSeriesOccurrencesInTx } from "@/lib/event-series-db";
 
 /** Renew current authority before returning any completed private receipt. */
 export async function authorizePersonEventCreationReplay(
@@ -70,8 +72,25 @@ export async function createPersonEvent(
       if (unknownEventPeople(refs, people).length) return EVENT_PEOPLE_INVALID;
       participants = orderEventPeople(refs, people);
     }
+    // A repeating event: one series plus its first batch of occurrence
+    // rows in this transaction. The response is the first occurrence.
+    const startMs = new Date(input.start_time).getTime(), endMs = new Date(input.end_time || input.start_time).getTime();
+    let series: { id: string; starts: number[] } | null = null;
+    if (input.repeat) {
+      if (!eventRepeatReady()) return EVENT_REPEAT_UNSUPPORTED;
+      const rule = seriesRuleFor(input.repeat, startMs);
+      if (!rule || endMs < startMs || input.recurrence) return EVENT_REPEAT_INVALID;
+      const plan = planSeriesRows(rule, -1, Math.max(seriesTopUpTarget(Date.now()), startMs));
+      const row = await tx.eventSeries.create({ data: {
+        family_id: actor.familyId, created_by: actor.userId, every: rule.every, time_zone: rule.timeZone, anchor_start: new Date(startMs),
+        duration_ms: endMs - startMs, until_day: rule.untilDay, title: input.title, description: input.description || null,
+        location: input.location || null, event_type: input.event_type, participants: JSON.stringify(refs), generated_through: plan.generatedThrough,
+      } });
+      series = { id: row.id, starts: plan.starts };
+    }
     const event = await tx.event.create({
       data: {
+        ...(series ? { id: seriesEventId(series.id, startMs), series_id: series.id, series_occurrence_start: new Date(startMs) } : {}),
         family_id: actor.familyId,
         created_by: actor.userId,
         title: input.title,
@@ -93,6 +112,8 @@ export async function createPersonEvent(
       },
     });
     if (refs.length) await replaceEventParticipantsInTx(tx, event.id, actor.familyId, refs);
+    if (series) await writeSeriesOccurrencesInTx(tx, { id: series.id, family_id: actor.familyId, created_by: actor.userId, duration_ms: endMs - startMs,
+      title: event.title, description: event.description, location: event.location, event_type: event.event_type }, series.starts.filter((start) => start !== startMs), refs);
     const body = JSON.parse(
       JSON.stringify({ event: { ...event, participants } }),
     ) as Prisma.InputJsonObject;
