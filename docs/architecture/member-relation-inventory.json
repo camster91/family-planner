@@ -962,5 +962,18 @@
     ],
     "disposition": "retain-account-recipient",
     "remaining": "Account recipient only. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
+  },
+  {
+    "relation": "EventReminderPreference.user",
+    "fields": ["user_id"],
+    "kind": "member",
+    "migration": "In-app event reminders (default-off). One account's own choice of how far ahead it is reminded; it follows the account, not a household, like the notification switches on User. Only the account itself reads or writes it. Permanent account deletion cascades the row.",
+    "evidence": [
+      "prisma/schema.prisma: model EventReminderPreference",
+      "database/cloudflare/0022_event_reminder_preferences.sql",
+      "src/lib/event-reminders.ts"
+    ],
+    "disposition": "retain-account-identity",
+    "remaining": "Own account setting only. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
   }
 ]

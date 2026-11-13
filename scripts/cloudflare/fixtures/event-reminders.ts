@@ -1,4 +1,4 @@
-import { writeD1DueEventReminders } from '../../../src/lib/cloudflare/event-reminders'
+import { readD1ReminderLeadHours, writeD1DueEventReminders, writeD1ReminderLeadHours } from '../../../src/lib/cloudflare/event-reminders'
 import { EVENT_REMINDERS_READY_ENV } from '../../../src/lib/event-reminders'
 import { EVENT_PEOPLE_READY_ENV } from '../../../src/lib/event-participants'
 import type { D1Store } from '../../../src/lib/cloudflare/database'
@@ -70,9 +70,17 @@ export async function testEventReminders(db: D1Store) {
   check(await write(foreign, TZ) === 1 && await write(parent, TZ) === 0 && (await inbox('remind-foreign')).map(r => r.title).join() === 'Coming up: B event', 'each household gets its own')
   check(await refused(`INSERT INTO "EventReminder" (id,event_id,family_id,user_id) VALUES ('remind-x','remind-later','remind-a','remind-foreign')`), 'foreign account refused')
   check(await refused(`UPDATE "EventReminder" SET user_id='remind-teen' WHERE user_id='remind-parent'`), 'identity is immutable')
+  // Each account's own lead time.
+  await event('remind-in-3d', 72 * HOUR, 'In three days')
+  check(await readD1ReminderLeadHours(teen, db) === 24 && await readD1ReminderLeadHours({ userId: 'remind-teen', generation: 4 }, db) === null, 'default lead; stale session reads nothing')
+  check(await writeD1ReminderLeadHours({ userId: 'remind-teen', generation: 4 }, 168, now, db) === false && await writeD1ReminderLeadHours(teen, 168, now, db) === true
+    && await writeD1ReminderLeadHours(teen, 168, now, db) === true && await readD1ReminderLeadHours(teen, db) === 168, 'own lead saved; stale session refused')
+  check(await write(parent, TZ) === 0 && await write(teen, TZ) >= 1
+    && (await inbox('remind-teen')).some(r => r.title === 'Coming up: In three days' && r.message === 'Sat, Jun 13 at 12:00 PM'), 'a week-long lead reaches further, with the date spelled out')
+  check(await refused(`UPDATE "EventReminderPreference" SET hours=5 WHERE user_id='remind-teen'`), 'unknown lead refused by the database')
   const before = await proofs()
   await db.prepare(`DELETE FROM "Event" WHERE id='remind-soon'`).run()
   check(await proofs() < before, 'deleting the event removes its proof')
   delete process.env[EVENT_REMINDERS_READY_ENV]; delete process.env[EVENT_PEOPLE_READY_ENV]
-  return { off: true, zoneAndSession: true, writtenOnce: true, deletedStaysDeleted: true, mutedIsTerminal: true, audience: true, scoped: true, databaseGuard: true }
+  return { off: true, zoneAndSession: true, writtenOnce: true, deletedStaysDeleted: true, mutedIsTerminal: true, audience: true, scoped: true, ownLeadTime: true, databaseGuard: true }
 }

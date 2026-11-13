@@ -121,6 +121,24 @@ export async function testEventSeries(db: D1Store) {
   check((await deleteD1EventFollowing(editor, all[6].id, db)).status === 200 && (await rows()).length === 6 && (await seriesRows())[0].until_day === '2026-01-10', 'delete this and later')
   check((await deleteD1EventFollowing(editor, all[0].id, db)).status === 200 && (await rows()).length === 0 && (await seriesRows()).length === 0, 'delete from the first removes everything')
 
+  // A one-off event starts repeating from itself.
+  const single = await create(undefined, null, { participants: [{ kind: 'account', id: 'series-teen' }] })
+  const singleId = (single.body as { event: { id: string } }).event.id
+  const noRepeat = await updateD1PersonEvent(editor, { eventId: singleId, series_scope: 'following', title: 'x' }, db)
+  const teenStart = await updateD1PersonEvent({ ...editor, userId: 'series-teen' }, { eventId: singleId, series_scope: 'following', repeat: { every: 'week', time_zone: TZ } }, db)
+  const foreignStart = await updateD1PersonEvent({ userId: 'series-foreign', familyId: 'series-b', tokenVersion: 0 }, { eventId: singleId, series_scope: 'following', repeat: { every: 'week', time_zone: TZ } }, db)
+  check(noRepeat.status === 409 && teenStart.status === 403 && foreignStart.status === 404 && (await seriesRows()).length === 0, 'start repeating: needs a repeat, a parent and the same household')
+  const started = await updateD1PersonEvent(editor, { eventId: singleId, series_scope: 'following', title: 'Swim club', repeat: { every: 'week', time_zone: TZ, until: '2026-02-02' } }, db)
+  const [startedSeries] = await seriesRows()
+  const startedRows = await rows()
+  check(started.status === 200 && startedRows.length === 5 && startedRows[0].id === singleId && startedRows[0].series_occurrence_start === startedRows[0].start_time
+    && startedRows.every(r => r.title === 'Swim club' && r.series_id === startedSeries.id && new Date(r.start_time).getUTCDay() === 1) && startedSeries.until_day === '2026-02-02',
+    'a one-off event becomes the first of its repeats')
+  check((await db.prepare(`SELECT count(*) AS n FROM "EventParticipant" WHERE family_id='series-a' AND user_id='series-teen'`).first<{ n: number }>())!.n === 5, 'its people carry to every repeat')
+  await db.prepare(`INSERT INTO "Event" (id,family_id,title,start_time,end_time,created_by,recurrence) VALUES ('series-legacy','series-a','Legacy',1,2,'series-parent','FREQ=WEEKLY')`).run()
+  check((await updateD1PersonEvent(editor, { eventId: 'series-legacy', series_scope: 'following', repeat: { every: 'week', time_zone: TZ } }, db)).status === 409, 'an event with a stored rule keeps its own handling')
+  await wipe()
+
   // The database refuses an occurrence that points at another household's series.
   await create({ every: 'week', time_zone: TZ })
   const [mine] = await seriesRows()
@@ -131,5 +149,5 @@ export async function testEventSeries(db: D1Store) {
   check((await db.prepare(`SELECT count(*) AS n FROM "EventSeries"`).first<{ n: number }>())!.n === 0, 'household deletion cascades series')
   delete process.env[EVENT_REPEAT_READY_ENV]; delete process.env[EVENT_PEOPLE_READY_ENV]
   return { offRefused: true, invalidRefused: true, createAtomic: true, wallClockAcrossDst: true, topUpIdempotent: true, deletedStaysDeleted: true,
-    thisOnly: true, following: true, stopRepeating: true, scoped: true, deleteFollowing: true, databaseGuard: true }
+    thisOnly: true, following: true, stopRepeating: true, scoped: true, deleteFollowing: true, startRepeating: true, databaseGuard: true }
 }

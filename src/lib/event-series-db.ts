@@ -83,8 +83,10 @@ export async function topUpEventSeries(db: Pick<PrismaClient, '$transaction'>, f
   })
 }
 
-type Found = { refused: EffectResult } | { event: NonNullable<Awaited<ReturnType<Tx['event']['findFirst']>>>; series: NonNullable<Awaited<ReturnType<Tx['eventSeries']['findFirst']>>> }
-async function targetInTx(tx: Tx, actor: PersonEventActor, eventId: string): Promise<Found> {
+type SeriesRow = NonNullable<Awaited<ReturnType<Tx['eventSeries']['findFirst']>>>
+type Found = { refused: EffectResult } | { event: NonNullable<Awaited<ReturnType<Tx['event']['findFirst']>>>; series: SeriesRow | null }
+/** `startRepeating`: a one-off event of this app may be the target, to begin a repeat from it. */
+async function targetInTx(tx: Tx, actor: PersonEventActor, eventId: string, startRepeating = false): Promise<Found> {
   const refused = await authorizePersonEventInTx(tx, actor, 'edit')
   if (refused) return { refused }
   await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id"=${eventId} AND "family_id"=${actor.familyId} FOR UPDATE`
@@ -92,13 +94,17 @@ async function targetInTx(tx: Tx, actor: PersonEventActor, eventId: string): Pro
   if (!event) return { refused: { status: 404, body: { error: 'Event not found' } } }
   if (event.source_subscription_id) return { refused: { status: 409, body: { error: EVENT_READ_ONLY_MESSAGE, code: EVENT_READ_ONLY_CODE } } }
   if (!eventRepeatReady()) return { refused: EVENT_REPEAT_UNSUPPORTED }
-  if (!event.series_id || !event.series_occurrence_start) return { refused: EVENT_NOT_REPEATING }
+  if (!event.series_id || !event.series_occurrence_start) {
+    // Events that carry a stored rule or come from a connected calendar keep their own repeat handling.
+    return startRepeating && event.recurrence === null && event.source_connection_id === null ? { event, series: null } : { refused: EVENT_NOT_REPEATING }
+  }
   await tx.$queryRaw`SELECT "id" FROM "EventSeries" WHERE "id"=${event.series_id} AND "family_id"=${actor.familyId} FOR UPDATE`
   const series = await tx.eventSeries.findFirst({ where: { id: event.series_id, family_id: actor.familyId } })
   return series ? { event, series } : { refused: EVENT_NOT_REPEATING }
 }
 /** End the series the edited or deleted occurrence came from, the day before it. */
-async function endPreviousInTx(tx: Tx, seriesId: string, previous: { kind: 'remove' } | { kind: 'end'; untilDay: string }) {
+async function endPreviousInTx(tx: Tx, seriesId: string | undefined, previous: { kind: 'none' } | { kind: 'remove' } | { kind: 'end'; untilDay: string }) {
+  if (previous.kind === 'none' || !seriesId) return
   if (previous.kind === 'remove') await tx.eventSeries.delete({ where: { id: seriesId } })
   else await tx.eventSeries.update({ where: { id: seriesId }, data: { until_day: previous.untilDay, generated_through: SERIES_COMPLETE } })
 }
@@ -106,10 +112,11 @@ async function endPreviousInTx(tx: Tx, seriesId: string, previous: { kind: 'remo
 /** PATCH with series_scope 'following': this event and every later repeat. */
 export async function updatePersonEventFollowing(db: Pick<PrismaClient, '$transaction'>, actor: PersonEventActor, input: z.infer<typeof updateEventSchema>): Promise<EffectResult> {
   return db.$transaction(async (tx) => {
-    const found = await targetInTx(tx, actor, input.eventId)
+    const found = await targetInTx(tx, actor, input.eventId, input.repeat != null)
     if ('refused' in found) return found.refused
     const { event, series } = found
-    const occurrenceStart = event.series_occurrence_start!
+    const occurrenceStart = event.series_occurrence_start ?? event.start_time
+    const owner = series?.created_by ?? event.created_by
     let refs: EventPersonRef[]
     if (input.participants !== undefined) {
       if (!eventPeopleReady()) return EVENT_PEOPLE_UNSUPPORTED
@@ -122,25 +129,25 @@ export async function updatePersonEventFollowing(db: Pick<PrismaClient, '$transa
     const plan = planFollowingEdit({
       event: { start: event.start_time.getTime(), end: event.end_time.getTime(), title: event.title, description: event.description, location: event.location,
         event_type: event.event_type, occurrenceStart: occurrenceStart.getTime() },
-      series: { every: series.every as EventRepeatEvery, timeZone: series.time_zone, untilDay: series.until_day, anchorStart: series.anchor_start.getTime() },
+      series: series ? { every: series.every as EventRepeatEvery, timeZone: series.time_zone, untilDay: series.until_day, anchorStart: series.anchor_start.getTime() } : null,
     }, input)
     if (isFollowingRefusal(plan)) return plan
     // Every later repeat is rewritten below, including ones changed on their own: keeping those would leave two events on one day.
-    await tx.event.deleteMany({ where: { family_id: actor.familyId, series_id: series.id, series_occurrence_start: { gt: occurrenceStart } } })
+    if (series) await tx.event.deleteMany({ where: { family_id: actor.familyId, series_id: series.id, series_occurrence_start: { gt: occurrenceStart } } })
     // Detach the edited event before the old series can be removed.
     const next = plan.rule ? await tx.eventSeries.create({ data: {
-      family_id: actor.familyId, created_by: series.created_by, every: plan.rule.every, time_zone: plan.rule.timeZone, anchor_start: new Date(plan.start),
+      family_id: actor.familyId, created_by: owner, every: plan.rule.every, time_zone: plan.rule.timeZone, anchor_start: new Date(plan.start),
       duration_ms: plan.end - plan.start, until_day: plan.rule.untilDay, ...plan.template, participants: JSON.stringify(refs), generated_through: new Date(plan.start),
     } }) : null
     const updated = await tx.event.update({ where: { id: event.id, family_id: actor.familyId }, data: {
       ...plan.template, start_time: new Date(plan.start), end_time: new Date(plan.end),
       series_id: next?.id ?? null, series_occurrence_start: next ? new Date(plan.start) : null, series_detached: false,
     }, include: { creator: { select: { id: true, name: true } } } })
-    await endPreviousInTx(tx, series.id, plan.previous)
+    await endPreviousInTx(tx, series?.id, plan.previous)
     if (input.participants !== undefined) await replaceEventParticipantsInTx(tx, event.id, actor.familyId, refs)
     if (next && plan.rule) {
       const rows = planSeriesRows(plan.rule, plan.start, Math.max(seriesTopUpTarget(Date.now()), plan.start))
-      await writeSeriesOccurrencesInTx(tx, { id: next.id, family_id: actor.familyId, created_by: series.created_by, duration_ms: plan.end - plan.start, ...plan.template }, rows.starts, refs)
+      await writeSeriesOccurrencesInTx(tx, { id: next.id, family_id: actor.familyId, created_by: owner, duration_ms: plan.end - plan.start, ...plan.template }, rows.starts, refs)
       await tx.eventSeries.update({ where: { id: next.id }, data: { generated_through: rows.generatedThrough } })
     }
     const [withPeople] = await projectEventParticipants(tx, actor.familyId, [updated])
@@ -154,6 +161,7 @@ export async function deletePersonEventFollowing(db: Pick<PrismaClient, '$transa
     const found = await targetInTx(tx, actor, eventId)
     if ('refused' in found) return found.refused
     const { event, series } = found
+    if (!series) return EVENT_NOT_REPEATING
     const occurrenceStart = event.series_occurrence_start!
     const plan = planFollowingEdit({
       event: { start: event.start_time.getTime(), end: event.end_time.getTime(), title: event.title, description: event.description, location: event.location,

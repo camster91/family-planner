@@ -26,7 +26,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
 import type { NavUser } from "@/types";
-import { BellUnreadDot, useBellUnread } from "./BellUnreadDot";
+import { BellUnreadDot, bellCountLabel, useBellUnread } from "./BellUnreadDot";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { TabBar } from "@/components/ui/tab-bar";
@@ -264,10 +264,10 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
               <Link
                 href="/dashboard/notifications"
                 className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors relative"
-                aria-label={msg(bellUnread ? "notificationsUnread" : "notifications")}
+                aria-label={bellUnread > 0 ? msg("notificationsUnread", { count: bellCountLabel(bellUnread) }) : msg("notifications")}
               >
                 <Bell className="w-5 h-5" />
-                {bellUnread && <BellUnreadDot />}
+                {bellUnread > 0 && <BellUnreadDot count={bellUnread} />}
               </Link>
             )}
 

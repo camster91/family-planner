@@ -5,8 +5,8 @@ import { notificationDeliveryDecision } from '@/lib/notification-delivery-policy
 import { eventNotificationDestination } from '@/lib/notification-destination'
 import { eventPeopleReady, eventPersonKey } from '@/lib/event-participants'
 import {
-  REMINDER_MAX_PER_READ, REMINDER_SCAN, REMINDER_WINDOW_MS, eventRemindersReady, reminderIsFor, reminderText, reminderTimeZone,
-  type ReminderPerson,
+  DEFAULT_REMINDER_LEAD_HOURS, REMINDER_MAX_PER_READ, REMINDER_SCAN, eventRemindersReady, isReminderLeadHours, reminderIsFor, reminderText, reminderTimeZone,
+  reminderWindowMs, type ReminderLeadHours, type ReminderPerson,
 } from '@/lib/event-reminders'
 import type { ReminderActor } from '@/lib/event-reminders-db'
 import { getD1Database, type D1Store } from './database'
@@ -31,16 +31,19 @@ export async function writeD1DueEventReminders(actor: ReminderActor, browserTime
   const familyId = user.family_id
   const timeZone = reminderTimeZone(browserTimeZone, user.quiet_hours_time_zone, user.morning_summary_time_zone)
   if (!timeZone) return 0
+  // The person's own lead time; no row means the default.
+  const choice = await db.prepare(`SELECT hours FROM "EventReminderPreference" WHERE user_id=?1`).bind(actor.userId).first<{ hours: number }>()
+  const windowMs = reminderWindowMs(choice?.hours)
   const due = await db.prepare(`SELECT e.id,e.title,e.start_time FROM "Event" e WHERE e.family_id=?1 AND e.start_time>?2 AND e.start_time<=?3
       AND NOT EXISTS (SELECT 1 FROM "EventReminder" r WHERE r.event_id=e.id AND r.user_id=?4) ORDER BY e.start_time ASC,e.id ASC LIMIT ?5`)
-    .bind(familyId, now.getTime(), now.getTime() + REMINDER_WINDOW_MS, actor.userId, REMINDER_SCAN).all<DueRow>()
+    .bind(familyId, now.getTime(), now.getTime() + windowMs, actor.userId, REMINDER_SCAN).all<DueRow>()
   if (!due.results.length) return 0
   const people = new Map<string, ReminderPerson[]>()
   if (eventPeopleReady()) {
     // People who have since left or been archived no longer count, as on every read.
     const current = await readD1HouseholdPeople(db, familyId)
     const rows = await db.prepare(`SELECT p.event_id,p.user_id,p.member_id FROM "EventParticipant" p JOIN "Event" e ON e.id=p.event_id AND e.family_id=p.family_id
-        WHERE p.family_id=?1 AND e.start_time>?2 AND e.start_time<=?3`).bind(familyId, now.getTime(), now.getTime() + REMINDER_WINDOW_MS)
+        WHERE p.family_id=?1 AND e.start_time>?2 AND e.start_time<=?3`).bind(familyId, now.getTime(), now.getTime() + windowMs)
       .all<ReminderPerson & { event_id: string }>()
     for (const row of rows.results) {
       if (!current.has(row.user_id !== null ? eventPersonKey({ kind: 'account', id: row.user_id }) : eventPersonKey({ kind: 'profile', id: row.member_id! }))) continue
@@ -78,4 +81,28 @@ export async function writeD1DueEventReminders(actor: ReminderActor, browserTime
     }
   }
   return written
+}
+
+/** The signed-in account's own lead time; null when the session is stale. */
+export async function readD1ReminderLeadHours(actor: ReminderActor, database?: D1Store): Promise<ReminderLeadHours | null> {
+  const db = (database ?? await getD1Database()).withSession('first-primary')
+  const row = await db.prepare(`SELECT u.token_version,p.hours FROM "User" u LEFT JOIN "EventReminderPreference" p ON p.user_id=u.id WHERE u.id=?1`)
+    .bind(actor.userId).first<{ token_version: number; hours: number | null }>()
+  if (!row || row.token_version !== actor.generation) return null
+  return isReminderLeadHours(row.hours) ? row.hours : DEFAULT_REMINDER_LEAD_HOURS
+}
+/** Set the signed-in account's own lead time. Returns false when the session is stale. */
+export async function writeD1ReminderLeadHours(actor: ReminderActor, hours: ReminderLeadHours, now: Date = new Date(), database?: D1Store): Promise<boolean> {
+  const db = (database ?? await getD1Database()).withSession('first-primary')
+  try {
+    await db.batch([
+      d1WriteCheck(db, `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND token_version=?2)`, [actor.userId, actor.generation]),
+      db.prepare(`INSERT INTO "EventReminderPreference" (user_id,hours,updated_at) VALUES (?1,?2,?3)
+        ON CONFLICT (user_id) DO UPDATE SET hours=excluded.hours,updated_at=excluded.updated_at`).bind(actor.userId, hours, now.getTime()),
+    ])
+    return true
+  } catch (cause) {
+    if (isD1WriteConflict(cause)) return false
+    throw cause
+  }
 }

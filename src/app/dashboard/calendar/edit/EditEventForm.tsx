@@ -49,6 +49,8 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
   const [error, setError] = useState<CalendarFormError | null>(null)
   // Imported events (#232) are read-only; the API refuses edits with 409.
   const [source, setSource] = useState<{ name: string } | null>(null)
+  // An event synced from a connected calendar keeps that calendar's own repeat handling.
+  const [connected, setConnected] = useState(false)
   // DELETE /api/events is parent-only (like PATCH). Unknown until
   // /api/auth/me answers, so Delete never flashes for a teen or child.
   const [isParent, setIsParent] = useState(false)
@@ -142,6 +144,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
           setHasRecurrence(typeof event.recurrence === 'string')
           setCanRemoveRecurrence(typeof event.recurrence === 'string' && event.recurrence.length <= 8192)
           setSource(event.source ? { name: event.source.name } : null)
+          setConnected(typeof event.source_connection_id === 'string' && event.source_connection_id !== '')
         } else if (res.status === 404) {
           setError({ key: 'notFound' })
         } else {
@@ -160,6 +163,8 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
     return () => { active = false }
   }, [eventId])
 
+  // A one-off event made in this app can start repeating from the edit form.
+  const canStartRepeating = repeatSupported && !inSeries && isParent && !source && !connected && !hasRecurrence
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const original = originalTimes.current
@@ -213,6 +218,8 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
             series_scope: 'following',
             ...(repeat.every !== originalRepeat.current.every || repeat.until !== originalRepeat.current.until ? { repeat: repeatRequest(repeat) } : {}),
           } : {}),
+          // A one-off event that now repeats: the repeat starts from this event.
+          ...(canStartRepeating && repeat.every !== '' ? { series_scope: 'following', repeat: repeatRequest(repeat) } : {}),
         }),
       })
 
@@ -401,6 +408,8 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
             )}
           </fieldset>
         )}
+
+        {canStartRepeating && <EventRepeatField value={repeat} onChange={setRepeat} startDate={startDate} disabled={busy} />}
 
         {peopleSupported && isParent && !source && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={busy} />}
 

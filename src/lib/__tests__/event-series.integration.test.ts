@@ -131,6 +131,29 @@ dbSuite('repeating events (Postgres)', () => {
     expect((await rows())[0].title).toBe('Swim')
   })
 
+  it('a one-off event starts repeating from itself; it needs a repeat, and connected or rule-carrying events are refused', async () => {
+    const one = await make(undefined, { participants: [{ kind: 'account', id: T }] })
+    const id = (one.body as { event: { id: string } }).event.id
+    expect(await update(db, actor, { eventId: id, series_scope: 'following', title: 'x' })).toMatchObject({ status: 409, body: { code: 'EVENT_SERIES_SCOPE_INVALID' } })
+    expect(await update(db, actor, { eventId: id, series_scope: 'following', repeat: { every: 'week', time_zone: 'Mars/Olympus' } })).toMatchObject({ status: 400, body: { code: 'EVENT_REPEAT_INVALID' } })
+    expect((await update(db, { ...actor, userId: T }, { eventId: id, series_scope: 'following', repeat: { every: 'week', time_zone: TZ } })).status).toBe(403)
+    expect((await update(db, { familyId: B, userId: F, tokenVersion: 0 }, { eventId: id, series_scope: 'following', repeat: { every: 'week', time_zone: TZ } })).status).toBe(404)
+    expect(await seriesRows()).toHaveLength(0)
+    const started = await update(db, actor, { eventId: id, series_scope: 'following', title: 'Swim club', repeat: { every: 'week', time_zone: TZ, until: '2026-02-02' } })
+    expect(started).toMatchObject({ status: 200, body: { event: { id, title: 'Swim club' } } })
+    const [made] = await seriesRows()
+    const all = await rows()
+    expect(all).toHaveLength(5)
+    expect(all[0]).toMatchObject({ id, series_id: made.id, series_occurrence_start: new Date(first) })
+    expect(all.every((r) => r.title === 'Swim club' && r.series_id === made.id && r.start_time.getUTCDay() === 1)).toBe(true)
+    expect(made).toMatchObject({ created_by: P, anchor_start: new Date(first), until_day: '2026-02-02' })
+    // The people on the event carry to every repeat.
+    expect(await db.eventParticipant.count({ where: { family_id: A, user_id: T } })).toBe(5)
+    // Events that carry a stored rule or come from a connected calendar keep their own handling.
+    const legacy = await db.event.create({ data: { family_id: A, title: 'Legacy', created_by: P, start_time: new Date(first), end_time: new Date(first + 1), recurrence: 'FREQ=WEEKLY' } })
+    expect(await update(db, actor, { eventId: legacy.id, series_scope: 'following', repeat: { every: 'week', time_zone: TZ } })).toMatchObject({ status: 409, body: { code: 'EVENT_SERIES_SCOPE_INVALID' } })
+  })
+
   it('deletes this and later; from the first occurrence it removes the series; the database refuses a foreign series', async () => {
     await make({ every: 'day', time_zone: TZ, until: '2026-01-14' })
     const all = await rows()
