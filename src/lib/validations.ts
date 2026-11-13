@@ -113,6 +113,14 @@ export const recurrenceSchema = z
   .nullable()
   .optional()
 
+// People an event is for (src/lib/event-participants.ts). Identity only: the
+// server resolves names and colours from the current household.
+export const eventParticipantsSchema = z
+  .array(z.object({ kind: z.enum(['account', 'profile']), id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/) }).strict())
+  .max(12)
+  .refine((list) => new Set(list.map((p) => `${p.kind}:${p.id}`)).size === list.length, 'Each person can be chosen once')
+  .optional()
+
 export const createEventSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().max(1000).trim().nullable().optional(),
@@ -121,6 +129,7 @@ export const createEventSchema = z.object({
   location: z.string().max(200).trim().nullable().optional(),
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).default('other'),
   recurrence: recurrenceSchema,
+  participants: eventParticipantsSchema,
 })
 
 // Family
@@ -290,6 +299,8 @@ export const updateEventSchema = z.object({
   recurrence: recurrenceSchema,
   // Optional review precondition. It never supplies authority or replaces a rule.
   expected_recurrence: z.string().max(8192).optional(),
+  // Absolute replacement of the people list; omitted leaves it unchanged.
+  participants: eventParticipantsSchema,
 }).superRefine((value, ctx) => {
   if (value.expected_recurrence !== undefined && value.recurrence !== null)
     ctx.addIssue({ code: 'custom', path: ['expected_recurrence'], message: 'Repeat review only supports removing a rule' })

@@ -4,6 +4,7 @@ import type { CalendarRange } from '@/lib/calendar-planning/range'
 import { normalizeFeatures, isFeatureEnabled } from '@/lib/feature-flags'
 import { MEMBER_ID_PATTERN } from '@/lib/member-identity-schema'
 import { getD1Database, type D1Store, type SqlValue } from './database'
+import { attachD1EventParticipants } from './event-participants'
 
 export type D1CalendarEventRow = Omit<Event, 'start_time' | 'end_time' | 'created_at' | 'updated_at' | 'source_occurrence_start' | 'is_task'> & {
   start_time: number; end_time: number; created_at: number; updated_at: number;
@@ -44,7 +45,7 @@ export async function readD1CalendarEvents(owner: CalendarReadOwner, query: { id
     LEFT JOIN "CalendarSubscription" s ON s.id=e.source_subscription_id AND s.family_id=e.family_id
     WHERE e.family_id=?2 AND ${AUTH} ${filter} ORDER BY e.start_time,e.id LIMIT ${bind(limit)}`)
     .bind(...values).all<D1CalendarEventRow>()
-  return rows.results.map(d1CalendarEventDto)
+  return attachD1EventParticipants(db, owner.familyId, rows.results.map(d1CalendarEventDto))
 }
 export async function readD1CalendarViewer(userId: string, generation: number, database?: D1Store) {
   return (database ?? await getD1Database()).withSession('first-primary')

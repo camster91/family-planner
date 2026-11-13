@@ -6,6 +6,8 @@ import type { z } from "zod";
 import type { createEventSchema } from "@/lib/validations";
 import type { EffectResult } from "@/lib/idempotency";
 import { recordBetaMetric } from "@/lib/beta-metrics";
+import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady, orderEventPeople, unknownEventPeople, type EventPerson } from "@/lib/event-participants";
+import { readHouseholdPeople, replaceEventParticipantsInTx } from "@/lib/event-participants-db";
 
 /** Renew current authority before returning any completed private receipt. */
 export async function authorizePersonEventCreationReplay(
@@ -59,6 +61,15 @@ export async function createPersonEvent(
         return { status: receipt.response_status, body: receipt.response_body };
     }
     await sourceGuard?.verify(tx);
+    const refs = input.participants ?? [];
+    let participants: EventPerson[] = [];
+    if (refs.length) {
+      // Refused before any event or receipt effect, like the D1 writer.
+      if (!eventPeopleReady()) return EVENT_PEOPLE_UNSUPPORTED;
+      const people = await readHouseholdPeople(tx, actor.familyId);
+      if (unknownEventPeople(refs, people).length) return EVENT_PEOPLE_INVALID;
+      participants = orderEventPeople(refs, people);
+    }
     const event = await tx.event.create({
       data: {
         family_id: actor.familyId,
@@ -81,8 +92,9 @@ export async function createPersonEvent(
         metadata: JSON.stringify({ eventId: event.id }),
       },
     });
+    if (refs.length) await replaceEventParticipantsInTx(tx, event.id, actor.familyId, refs);
     const body = JSON.parse(
-      JSON.stringify({ event }),
+      JSON.stringify({ event: { ...event, participants } }),
     ) as Prisma.InputJsonObject;
     if (recordId)
       await tx.idempotencyRecord.update({

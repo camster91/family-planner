@@ -14,6 +14,8 @@ import { EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-im
 import { getD1Database, type D1Store, type SqlValue } from './database'
 import { d1WriteCheck, isD1WriteConflict } from './write-check'
 import { pruneD1ExpiredReceipts } from './notification-preferences'
+import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady, orderEventPeople, unknownEventPeople, type EventPerson } from '@/lib/event-participants'
+import { d1EventParticipantInserts, readD1HouseholdPeople } from './event-participants'
 
 type Actor = { userId: string; familyId: string; generation: number; role?: string; name?: string }
 type Mutation = { kind: 'create'; input: z.infer<typeof createEventSchema> } | { kind: 'delete'; eventId: string }
@@ -123,16 +125,27 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
     let effect: EffectResult
     if (mutation.kind === 'create') {
       const value = mutation.input
+      const refs = value.participants ?? []
+      let participants: EventPerson[] = []
+      if (refs.length) {
+        // Refused before any write: no receipt is stored for a list this
+        // household cannot use, so a corrected retry is a fresh request.
+        if (!eventPeopleReady()) return result(EVENT_PEOPLE_UNSUPPORTED)
+        const people = await readD1HouseholdPeople(db, actor.familyId)
+        if (unknownEventPeople(refs, people).length) return result(EVENT_PEOPLE_INVALID)
+        participants = orderEventPeople(refs, people)
+      }
       const event: Event = { id: randomUUID(), family_id: actor.familyId, created_by: actor.userId,
         title: value.title, description: value.description || null, location: value.location || null,
         start_time: new Date(value.start_time), end_time: new Date(value.end_time || value.start_time), event_type: value.event_type,
         recurrence: value.recurrence || null, created_at: new Date(now), updated_at: new Date(now),
         preparation_epoch: 0, schedule_generation: randomUUID(), schedule_epoch: 0, is_task: false, project_id: null,
         source_subscription_id: null, source_uid: null, source_occurrence_start: null, source_connection_id: null }
-      effect = { status: 200, body: JSON.parse(JSON.stringify({ event })) }
+      effect = { status: 200, body: JSON.parse(JSON.stringify({ event: { ...event, participants } })) }
       statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,recurrence,created_at,updated_at,schedule_generation)
         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11,?12)`)
         .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, event.start_time.getTime(), event.end_time.getTime(), event.event_type, event.recurrence, now, event.schedule_generation))
+      statements.push(...d1EventParticipantInserts(db, event.id, actor.familyId, refs, now))
       statements.push(db.prepare(`INSERT INTO "Activity" (id,family_id,user_id,type,title,metadata,created_at) VALUES (?1,?2,?3,'event_created',?4,?5,?6)`)
         .bind(randomUUID(), actor.familyId, actor.userId, `${actor.name} added "${event.title}" to the calendar`, JSON.stringify({ eventId: event.id }), now))
     } else {

@@ -31,6 +31,7 @@ import {
 } from "@/lib/calendar-import/source";
 import { readIdempotencyKey, withIdempotency, idempotencyError } from "@/lib/idempotency";
 import { updatePersonEvent } from "@/lib/person-event-update";
+import { projectEventParticipants } from "@/lib/event-participants-db";
 import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
@@ -88,11 +89,11 @@ async function handleGET(request: NextRequest) {
       if (!event) {
         return NextResponse.json({ error: "Event not found" }, { status: 404 });
       }
-      const [withSource] = await attachEventSources(
+      const [withSource] = await projectEventParticipants(prisma!, original.familyId, await attachEventSources(
         prisma!,
         original.familyId,
         await projectEventCreators(prisma!, original.familyId, [event]),
-      );
+      ));
       return await reply({ event: withSource });
     }
 
@@ -133,7 +134,7 @@ async function handleGET(request: NextRequest) {
       const page = events.slice(0, limit);
       const hasMore = events.length > limit;
       return await reply({
-        events: storageBackend() === "d1" ? page : await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page)),
+        events: storageBackend() === "d1" ? page : await projectEventParticipants(prisma!, original.familyId, await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, page))),
         nextCursor: hasMore
           ? encodeCalendarCursor(
               original.familyId,
@@ -178,7 +179,7 @@ async function handleGET(request: NextRequest) {
 
     // Imported events carry `source` ({ subscription_id, name, color }) and are read-only (#232).
     return await reply({
-      events: storageBackend() === "d1" ? events : await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events)),
+      events: storageBackend() === "d1" ? events : await projectEventParticipants(prisma!, original.familyId, await attachEventSources(prisma!, original.familyId, await projectEventCreators(prisma!, original.familyId, events))),
     });
   } catch (error) {
     logRouteError("GET /api/events", error, getRequestId(request));

@@ -7,6 +7,8 @@ import type { updateEventSchema } from "./validations";
 import { authorizePersonEventInTx, type PersonEventActor } from "./person-event-authority";
 import type { EffectResult } from "./idempotency";
 import { EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from "./calendar-import/source";
+import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady, unknownEventPeople } from "./event-participants";
+import { projectEventParticipants, readHouseholdPeople, replaceEventParticipantsInTx } from "./event-participants-db";
 export async function updatePersonEvent(
   db: Pick<PrismaClient, "$transaction">,
   actor: PersonEventActor,
@@ -31,14 +33,20 @@ export async function updatePersonEvent(
       return { status: 400, body: { error: "Invalid start or end time" } };
     if ((input.start_time !== undefined || input.end_time !== undefined) && end && end < start)
       return { status: 400, body: { error: "End time must be after start time" } };
-    const { eventId, expected_recurrence: _expectedRecurrence, ...updates } = input;
+    const { eventId, expected_recurrence: _expectedRecurrence, participants, ...updates } = input;
     void _expectedRecurrence;
+    if (participants !== undefined) {
+      if (!eventPeopleReady()) return EVENT_PEOPLE_UNSUPPORTED;
+      if (unknownEventPeople(participants, await readHouseholdPeople(tx, actor.familyId)).length) return EVENT_PEOPLE_INVALID;
+      await replaceEventParticipantsInTx(tx, eventId, actor.familyId, participants);
+    }
     const updated = await tx.event.update({
       where: { id: eventId, family_id: actor.familyId },
       data: { ...updates, ...(input.start_time !== undefined ? { start_time: start } : {}),
         ...(input.end_time !== undefined ? { end_time: end } : {}) },
       include: { creator: { select: { id: true, name: true } } },
     });
-    return { status: 200, body: { event: updated } };
+    const [withPeople] = await projectEventParticipants(tx, actor.familyId, [updated]);
+    return { status: 200, body: { event: withPeople } };
   });
 }

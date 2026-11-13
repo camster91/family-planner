@@ -5,6 +5,8 @@ import type { EffectResult } from '@/lib/idempotency'
 import { EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-import/source'
 import { getD1Database, type D1Store, type SqlValue } from './database'
 import { d1CalendarEventDto, type D1CalendarEventRow } from './calendar-events'
+import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady } from '@/lib/event-participants'
+import { attachD1EventParticipants, d1EventParticipantReplacement } from './event-participants'
 
 type Authority = { role: string; family_id: string | null; token_version: number; family_exists: string | null }
 const AUTH = `EXISTS (SELECT 1 FROM "User" a JOIN "Family" f ON f.id=a.family_id
@@ -40,13 +42,26 @@ export async function updateD1PersonEvent(actor: PersonEventActor, input: z.infe
   assignments.push(`updated_at=${bind(Date.now())}`)
   const dateChanged = input.start_time !== undefined || input.end_time !== undefined
   const repeatGuard = input.expected_recurrence === undefined ? '1' : `e.recurrence IS ${bind(input.expected_recurrence)}`
-  const result = await db.batch<ResultRow>([
-    db.prepare(`SELECT u.family_id,u.role,u.token_version,f.id AS family_exists FROM "User" u
-      LEFT JOIN "Family" f ON f.id=?2 WHERE u.id=?1 AND (?3 IS NOT NULL)`).bind(...principal),
+  if (input.participants !== undefined && !eventPeopleReady()) return EVENT_PEOPLE_UNSUPPORTED
+  // An absolute people list is replaced in the same batch, before the event
+  // row changes, under exactly the guard the event UPDATE uses. Every
+  // statement therefore sees the same pre-update state and all apply or none.
+  const people = input.participants === undefined ? null : d1EventParticipantReplacement(input.participants, bind, '?2', '?4')
+  const guard = `EXISTS (SELECT 1 FROM "Event" e WHERE e.id=?4 AND e.family_id=?2 AND ${AUTH}
+      AND (e.source_subscription_id IS NULL OR e.source_subscription_id='') AND ${repeatGuard}
+      AND ${invalidDate ? '0' : dateChanged ? `${endExpression}>=${startExpression}` : '1'} AND ${people?.valid ?? '1'})`
+  // Every statement bound to the shared value list must reference its last
+  // placeholder (the same reason the authority read mentions ?3).
+  const touch = `(?${values.length} IS NOT NULL)`
+  const peopleStatements = people ? [people.remove(`${guard} AND ${touch}`), ...people.inserts(guard)].map((sql) => db.prepare(sql).bind(...values)) : []
+  const result = await db.batch<ResultRow & { people_valid?: number }>([
+    db.prepare(`SELECT u.family_id,u.role,u.token_version,f.id AS family_exists,${people?.valid ?? '1'} AS people_valid FROM "User" u
+      LEFT JOIN "Family" f ON f.id=?2 WHERE u.id=?1 AND (?3 IS NOT NULL)${people ? ` AND ${touch}` : ''}`).bind(...(people ? values : principal)),
     db.prepare(EVENT).bind(...target),
+    ...peopleStatements,
     db.prepare(`UPDATE "Event" AS e SET ${assignments.join(',')} WHERE e.id=?4 AND e.family_id=?2 AND ${AUTH}
       AND (e.source_subscription_id IS NULL OR e.source_subscription_id='') AND ${repeatGuard}
-      AND ${invalidDate ? '0' : dateChanged ? `${endExpression}>=${startExpression}` : '1'}`).bind(...values),
+      AND ${invalidDate ? '0' : dateChanged ? `${endExpression}>=${startExpression}` : '1'} AND ${people?.valid ?? '1'} AND ${touch}`).bind(...values),
     db.prepare(EVENT).bind(...target),
   ])
   const authority = result[0].results[0]
@@ -63,9 +78,11 @@ export async function updateD1PersonEvent(actor: PersonEventActor, input: z.infe
   const start = input.start_time === undefined ? before.start_time : new Date(input.start_time).getTime()
   const end = input.end_time === undefined ? before.end_time : new Date(input.end_time).getTime()
   if (dateChanged && end < start) return { status: 400, body: { error: 'End time must be after start time' } }
-  const after = result[3].results[0]
+  if (people && authority.people_valid !== 1) return EVENT_PEOPLE_INVALID
+  const after = result[result.length - 1].results[0]
   if (!after) throw new Error('D1 event update response missing')
   const { source: _source, ...event } = d1CalendarEventDto(after)
   void _source
-  return { status: 200, body: { event } }
+  const [withPeople] = await attachD1EventParticipants(db, actor.familyId, [event])
+  return { status: 200, body: { event: withPeople } }
 }
