@@ -298,6 +298,43 @@ represented by that account, as on the Today board.
 - **Not included:** imported (ICS) events stay read-only; provider sync does
   not map attendees; the ICS feed does not emit `ATTENDEE`; schedule review and
   preparation are unchanged.
+
+## Repeating events (source authored; default-off, not activated)
+
+An event can repeat. Each repeat is a real `Event` row, so every existing read
+(planner, Today, device board, feed, search) shows it with no extra code.
+`EventSeries` holds the rule and the template the rows are written from.
+
+- **Switch:** `FAMILY_EVENT_REPEAT_READY=1`. Off, `POST /api/events` refuses a
+  `repeat` and `PATCH`/`DELETE` refuse `series_scope: "following"` with
+  `409 EVENT_REPEAT_UNSUPPORTED` before any write, nothing is written ahead,
+  and the forms do not show "Repeat".
+- **Rule:** a closed set, not RRULE: `every` is `day`, `week`, `2weeks`,
+  `month` or `year`, with an optional last day (`until`, a local date) and the
+  author's IANA `time_zone`. Repeats keep the same local time across
+  daylight-saving changes. A month or year repeat on a day that does not exist
+  (the 31st, Feb 29) skips that month or year.
+- **No scheduler:** create writes repeats about 120 days ahead (at most 400
+  rows). Calendar, Today and device reads top the household up first, up to two
+  years past now, at most 400 rows per series per read. The top-up never fails
+  a read. Row ids are derived from the series and start time, so concurrent
+  top-ups write each repeat once and a deleted repeat is not written again.
+- **Edit and delete:** "This event" changes or deletes one row. "This and later
+  events" (`series_scope: "following"`) ends the old series the day before,
+  replaces every later row (including ones changed on their own, so no day
+  ends up with two), and starts a new series from the edited event; `repeat`
+  may change the rule and `repeat: null` stops repeating. From the first event
+  it replaces or removes the whole series. Parent-only, like other event edits.
+- **People:** the series stores the chosen people; each repeat gets them, and a
+  top-up skips people who have since left or been archived.
+- **Lifecycle:** deleting a series keeps past rows as one-off events
+  (`series_id` set null). Household deletion clears events, then series. The
+  database refuses a row that points at another household's series.
+- **Not included:** turning a saved one-off event into a repeating one from the
+  edit form; imported (ICS) and provider-synced events are unchanged and keep
+  their own preserved-rule handling; the ICS feed emits each repeat as its own
+  event, not an `RRULE`; assistant-proposed changes cannot use
+  `series_scope: "following"`.
 - **Evidence:** `npm run cloudflare:test:reads -- --only=event-participants`
   (local workerd/D1), `src/lib/__tests__/event-participants.integration.test.ts`
   (PostgreSQL), unit tests for the rules, validation and picker. No edge,

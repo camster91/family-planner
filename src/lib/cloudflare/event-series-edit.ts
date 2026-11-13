@@ -91,8 +91,8 @@ export async function updateD1EventFollowing(actor: PersonEventActor, input: z.i
     const values: SqlValue[] = [event.id, actor.familyId, title, description, location, event_type, plan.start, plan.end, now, next?.id ?? null]
     const statements: D1Statement[] = [
       ...guards(db, actor, event, series),
-      // Later repeats nobody changed on their own are rewritten below.
-      db.prepare(`DELETE FROM "Event" WHERE family_id=?1 AND series_id=?2 AND series_occurrence_start>?3 AND series_detached=0`)
+      // Every later repeat is rewritten below, including ones changed on their own: keeping those would leave two events on one day.
+      db.prepare(`DELETE FROM "Event" WHERE family_id=?1 AND series_id=?2 AND series_occurrence_start>?3`)
         .bind(actor.familyId, series.id, occurrenceStart),
       endPrevious(db, series, plan.previous.kind === 'remove', occurrenceStart, now),
     ]

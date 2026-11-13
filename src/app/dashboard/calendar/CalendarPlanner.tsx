@@ -323,6 +323,7 @@ export function CalendarPlanner({
           </span>
           <strong>{e.title}</strong>
           <small><EventPeopleLine people={e.participants} label={msg("eventFor")} /></small>
+          {e.series_id && <small data-testid="event-repeats">{msg("repeats")}</small>}
           <small>{sourceLabel(e)}</small>
           {segment.continuesBefore && (
             <small>
@@ -979,6 +980,7 @@ export function CalendarPlanner({
             <p>{msg("readOnly")}</p>
           )}
           {selected.recurrence && <p>{msg("recurrence")}</p>}
+          {selected.series_id && <p>{msg("repeatsDetail")}</p>}
           <div className={styles.detailActions}>
             <button onClick={() => setSelected(null)}>{msg("close")}</button>
             <PreparationButton

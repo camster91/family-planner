@@ -33,7 +33,9 @@ import { readIdempotencyKey, withIdempotency, idempotencyError } from "@/lib/ide
 import { updatePersonEvent } from "@/lib/person-event-update";
 import { projectEventParticipants } from "@/lib/event-participants-db";
 import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
-import { deletePersonEventFollowing } from "@/lib/event-series-db";
+import { deletePersonEventFollowing, readEventRepeat } from "@/lib/event-series-db";
+import { readD1EventRepeat } from "@/lib/cloudflare/event-series";
+import { getD1Database } from "@/lib/cloudflare/database";
 import { deleteD1EventFollowing } from "@/lib/cloudflare/event-series-edit";
 import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
@@ -84,7 +86,8 @@ async function handleGET(request: NextRequest) {
       if (storageBackend() === "d1") {
         const [event] = await readD1CalendarEvents(original, { id });
         if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
-        return await reply({ event });
+        const repeat = await readD1EventRepeat((await getD1Database()).withSession("first-primary"), original.familyId, event.series_id);
+        return await reply({ event: { ...event, repeat } });
       }
       const event = await prisma!.event.findFirst({
         where: { id, family_id: original.familyId },
@@ -97,7 +100,7 @@ async function handleGET(request: NextRequest) {
         original.familyId,
         await projectEventCreators(prisma!, original.familyId, [event]),
       ));
-      return await reply({ event: withSource });
+      return await reply({ event: { ...withSource, repeat: await readEventRepeat(prisma!, original.familyId, event.series_id) } });
     }
 
     let range;

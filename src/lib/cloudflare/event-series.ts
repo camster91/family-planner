@@ -109,3 +109,11 @@ export async function topUpD1EventSeries(db: Session, familyId: string, now: Dat
   }
   return written
 }
+
+/** How one event repeats, for the edit form. Null for a one-off event. */
+export async function readD1EventRepeat(db: Session, familyId: string, seriesId: string | null | undefined) {
+  if (!seriesId || !eventRepeatReady()) return null
+  const row = await db.prepare(`SELECT every,until_day,time_zone FROM "EventSeries" WHERE id=?1 AND family_id=?2`).bind(seriesId, familyId)
+    .first<{ every: string; until_day: string | null; time_zone: string }>()
+  return row ? { every: row.every, until: row.until_day, time_zone: row.time_zone } : null
+}

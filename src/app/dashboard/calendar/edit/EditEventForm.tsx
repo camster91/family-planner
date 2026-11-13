@@ -12,12 +12,14 @@ import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError 
 import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventPeoplePicker } from '@/components/calendar/EventPeoplePicker'
 import type { EventPersonRef } from '@/lib/event-participants'
+import { EventRepeatField, NO_REPEAT, repeatRequest, type EventRepeatValue } from '@/components/calendar/EventRepeatField'
+import { EVENT_REPEAT_EVERY, type EventRepeatEvery } from '@/lib/event-series'
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange, isoToLocalDateTimeInput } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
-function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean } = {}) {
+function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false, repeatSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean; repeatSupported?: boolean } = {}) {
   const { t } = useTranslation()
   const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
@@ -32,6 +34,12 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
   const [people, setPeople] = useState<EventPersonRef[]>([])
   const [peopleAvailable, setPeopleAvailable] = useState(false)
   const originalPeople = useRef('')
+  // Repeating events: whether this event is one of a series, how the series
+  // repeats, and whether the edit applies to this event or this and later ones.
+  const [inSeries, setInSeries] = useState(false)
+  const [scope, setScope] = useState<'this' | 'following'>('this')
+  const [repeat, setRepeat] = useState<EventRepeatValue>(NO_REPEAT)
+  const originalRepeat = useRef<EventRepeatValue>(NO_REPEAT)
   const [hasRecurrence, setHasRecurrence] = useState(false)
   const [removeRecurrence, setRemoveRecurrence] = useState(false)
   const [canRemoveRecurrence, setCanRemoveRecurrence] = useState(false)
@@ -122,6 +130,14 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
             setPeople(stored)
             originalPeople.current = stored.map(p => `${p.kind}:${p.id}`).sort().join()
           }
+          {
+            const stored = event.repeat && EVENT_REPEAT_EVERY.includes(event.repeat.every)
+              ? { every: event.repeat.every as EventRepeatEvery, until: typeof event.repeat.until === 'string' ? event.repeat.until : '' } : NO_REPEAT
+            setInSeries(typeof event.series_id === 'string' && stored.every !== '')
+            setRepeat(stored)
+            originalRepeat.current = stored
+            setScope('this')
+          }
           originalRecurrence.current = typeof event.recurrence === 'string' ? event.recurrence : null
           setHasRecurrence(typeof event.recurrence === 'string')
           setCanRemoveRecurrence(typeof event.recurrence === 'string' && event.recurrence.length <= 8192)
@@ -192,6 +208,11 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
           // Sent only when the picker was offered and the list really changed,
           // so an ordinary edit never rewrites people it did not show.
           ...(peopleAvailable && people.map(p => `${p.kind}:${p.id}`).sort().join() !== originalPeople.current ? { participants: people } : {}),
+          // "This and later events"; the repeat itself is sent only when changed.
+          ...(repeatSupported && inSeries && scope === 'following' ? {
+            series_scope: 'following',
+            ...(repeat.every !== originalRepeat.current.every || repeat.until !== originalRepeat.current.until ? { repeat: repeatRequest(repeat) } : {}),
+          } : {}),
         }),
       })
 
@@ -214,7 +235,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
     }
   }
 
-  const handleDelete = async () => {
+  const handleDelete = async (following = false) => {
     if (!eventId || originalTimes.current?.eventId !== eventId || !isParent || source || deleting) return
     setDeleting(true)
     setDeleteError(null)
@@ -222,7 +243,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
       const res = await fetch('/api/events', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId }),
+        body: JSON.stringify({ eventId, ...(following ? { series_scope: 'following' } : {}) }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => null)
@@ -360,6 +381,27 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
           setDuration(next)
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))?.end} />
 
+        {repeatSupported && inSeries && isParent && !source && (
+          <fieldset data-testid="event-series-scope" className="min-w-0 space-y-3">
+            <legend className="label-apple">{message('applyTo')}</legend>
+            <div className="flex flex-wrap gap-2">
+              {(['this', 'following'] as const).map((option) => (
+                <label key={option} className={`inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full border px-3.5 py-2 text-body ${scope === option ? 'border-[var(--accent)] bg-[var(--accent-tint)] font-semibold' : 'border-[var(--surface-separator)] bg-[var(--surface-elevated)]'}`}>
+                  <input type="radio" name="seriesScope" value={option} checked={scope === option} disabled={busy}
+                    onChange={() => { setScope(option); if (option === 'this') setRepeat(originalRepeat.current) }} />
+                  {message(option === 'this' ? 'applyThis' : 'applyFollowing')}
+                </label>
+              ))}
+            </div>
+            {scope === 'following' && (
+              <>
+                <p className="text-footnote text-label-secondary">{message('applyFollowingHint')}</p>
+                <EventRepeatField value={repeat} onChange={setRepeat} startDate={startDate} disabled={busy} />
+              </>
+            )}
+          </fieldset>
+        )}
+
         {peopleSupported && isParent && !source && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={busy} />}
 
         {hasRecurrence && isParent && <details className="rounded-xl border border-separator p-3">
@@ -466,7 +508,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
         onClose={deleting ? undefined : () => setConfirmOpen(false)}
         title={message('deleteTitle')}
         closeLabel={message('close')}
-        description={message('deleteDescription', { title })}
+        description={message(repeatSupported && inSeries ? 'deleteRepeatDescription' : 'deleteDescription', { title })}
         initialFocusRef={cancelRef}
         testId="delete-event-dialog"
       >
@@ -485,13 +527,23 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false 
           >
             {message('cancel')}
           </button>
+          {repeatSupported && inSeries && (
+            <button
+              type="button"
+              onClick={() => handleDelete(true)}
+              disabled={deleting || originalTimes.current?.eventId !== eventId}
+              className="btn-destructive min-h-[44px]"
+            >
+              {message('deleteFollowing')}
+            </button>
+          )}
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={() => handleDelete(false)}
             disabled={deleting || originalTimes.current?.eventId !== eventId}
             className="btn-destructive min-h-[44px]"
           >
-            {deleting ? message('deleting') : message('delete')}
+            {deleting ? message('deleting') : message(repeatSupported && inSeries ? 'deleteThis' : 'delete')}
           </button>
         </div>
       </Dialog>
@@ -505,14 +557,14 @@ function CalendarLoading() {
   return <div className="text-label-secondary">{t(key, undefined, calendarFormMessages)}</div>
 }
 
-export default function EditEventPage({ inSheet = false, onBusyChange, peopleSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean } = {}) {
+export default function EditEventPage({ inSheet = false, onBusyChange, peopleSupported = false, repeatSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean; repeatSupported?: boolean } = {}) {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center py-20">
         <CalendarLoading />
       </div>
     }>
-      <EditEventForm inSheet={inSheet} onBusyChange={onBusyChange} peopleSupported={peopleSupported} />
+      <EditEventForm inSheet={inSheet} onBusyChange={onBusyChange} peopleSupported={peopleSupported} repeatSupported={repeatSupported} />
     </Suspense>
   )
 }

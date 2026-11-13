@@ -125,8 +125,8 @@ export async function updatePersonEventFollowing(db: Pick<PrismaClient, '$transa
       series: { every: series.every as EventRepeatEvery, timeZone: series.time_zone, untilDay: series.until_day, anchorStart: series.anchor_start.getTime() },
     }, input)
     if (isFollowingRefusal(plan)) return plan
-    // Later repeats nobody changed on their own are rewritten below.
-    await tx.event.deleteMany({ where: { family_id: actor.familyId, series_id: series.id, series_occurrence_start: { gt: occurrenceStart }, series_detached: false } })
+    // Every later repeat is rewritten below, including ones changed on their own: keeping those would leave two events on one day.
+    await tx.event.deleteMany({ where: { family_id: actor.familyId, series_id: series.id, series_occurrence_start: { gt: occurrenceStart } } })
     // Detach the edited event before the old series can be removed.
     const next = plan.rule ? await tx.eventSeries.create({ data: {
       family_id: actor.familyId, created_by: series.created_by, every: plan.rule.every, time_zone: plan.rule.timeZone, anchor_start: new Date(plan.start),
@@ -165,4 +165,11 @@ export async function deletePersonEventFollowing(db: Pick<PrismaClient, '$transa
     await endPreviousInTx(tx, series.id, plan.previous)
     return { status: 200, body: { success: true } }
   })
+}
+
+/** How one event repeats, for the edit form. Null for a one-off event. */
+export async function readEventRepeat(db: Pick<PrismaClient, 'eventSeries'>, familyId: string, seriesId: string | null | undefined) {
+  if (!seriesId || !eventRepeatReady()) return null
+  const row = await db.eventSeries.findFirst({ where: { id: seriesId, family_id: familyId }, select: { every: true, until_day: true, time_zone: true } })
+  return row ? { every: row.every, until: row.until_day, time_zone: row.time_zone } : null
 }

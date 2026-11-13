@@ -90,8 +90,8 @@ export async function testEventSeries(db: D1Store) {
   // The rewrite reaches the horizon from the real clock, so there are at least as many later rows as before.
   check(after.filter(r => r.title === 'Swim team').length >= all.length - 4 && after.filter(r => r.title === 'Swim team').every(r => r.end_time - r.start_time === 3_600_000)
     && !after.some(r => r.title === 'Swim' && r.start_time > all[3].start_time), 'later occurrences rewritten with the same length')
-  const kept = after.find(r => r.title === 'Swim (bring goggles)')
-  check(kept && kept.series_detached === 1 && kept.series_id === original.id, 'an individually changed later occurrence is left alone')
+  check(!after.some(r => r.title === 'Swim (bring goggles)') && new Set(after.map(r => new Date(r.start_time).toISOString().slice(0, 10))).size === after.length,
+    'an individually changed later occurrence is replaced too, so no day has two')
   const split = await seriesRows()
   check(split.length === 2 && split[0].id === original.id && split[0].until_day === '2026-01-25' && split[0].generated_through === SERIES_COMPLETE
     && split[1].title === 'Swim team' && split[1].anchor_start === Date.parse('2026-01-26T15:00:00Z'), 'old series ends the day before; new series starts at the edited event')
