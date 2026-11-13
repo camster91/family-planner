@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { render, screen, waitFor } from '@testing-library/react'
-import { BellUnreadDot, bellCountLabel, useBellUnread } from '../BellUnreadDot'
+import { BellUnreadBadge, BellUnreadDot, bellCountLabel, useBellUnread } from '../BellUnreadDot'
 import { REMINDER_TIME_ZONE_HEADER } from '@/lib/event-reminders'
 
 function Bell({ enabled, pathname = '/dashboard' }: { enabled: boolean; pathname?: string }) {
@@ -44,5 +44,13 @@ describe('bell unread dot', () => {
     render(<Bell enabled pathname="/x" />)
     await waitFor(() => expect(global.fetch).toHaveBeenCalled())
     expect(screen.queryByTestId('bell-unread-dot')).toBeNull()
+  })
+  it('the on-demand badge reports its count to the top bar', async () => {
+    global.fetch = reply([{ id: 'n' }, { id: 'm' }])
+    const counts: number[] = []
+    const onCount = (count: number) => { counts.push(count) }
+    render(<BellUnreadBadge pathname="/dashboard" onCount={onCount} />)
+    expect((await screen.findByTestId('bell-unread-dot')).textContent).toBe('2')
+    expect(counts[counts.length - 1]).toBe(2)
   })
 })

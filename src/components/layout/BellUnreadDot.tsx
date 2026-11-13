@@ -40,3 +40,10 @@ export function BellUnreadDot({ count }: { count: number }) {
     </span>
   );
 }
+
+/** The bell's badge, loaded on demand by the top bar: counts unread rows and reports the count for the bell's name. */
+export function BellUnreadBadge({ pathname, onCount }: { pathname: string | null; onCount: (count: number) => void }) {
+  const count = useBellUnread(true, pathname);
+  useEffect(() => { onCount(count); }, [count, onCount]);
+  return count > 0 ? <BellUnreadDot count={count} /> : null;
+}
