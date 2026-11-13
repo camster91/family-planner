@@ -7,6 +7,7 @@ import { getD1Database, type D1Store, type SqlValue } from './database'
 import { d1CalendarEventDto, type D1CalendarEventRow } from './calendar-events'
 import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady } from '@/lib/event-participants'
 import { attachD1EventParticipants, d1EventParticipantReplacement } from './event-participants'
+import { updateD1EventFollowing } from './event-series-edit'
 
 type Authority = { role: string; family_id: string | null; token_version: number; family_exists: string | null }
 const AUTH = `EXISTS (SELECT 1 FROM "User" a JOIN "Family" f ON f.id=a.family_id
@@ -21,6 +22,7 @@ type ResultRow = Authority & D1CalendarEventRow
  * that same batch, so disjoint concurrent fields merge without a stale plan.
  */
 export async function updateD1PersonEvent(actor: PersonEventActor, input: z.infer<typeof updateEventSchema>, database?: D1Store): Promise<EffectResult> {
+  if (input.series_scope === 'following') return updateD1EventFollowing(actor, input, database)
   const db = (database ?? await getD1Database()).withSession('first-primary')
   const principal: SqlValue[] = [actor.userId, actor.familyId, actor.tokenVersion]
   const target = [...principal, input.eventId]
@@ -40,6 +42,8 @@ export async function updateD1PersonEvent(actor: PersonEventActor, input: z.infe
     else endExpression = expression
   }
   assignments.push(`updated_at=${bind(Date.now())}`)
+  // Changing one repeat on its own takes it out of later "this and later" rewrites.
+  assignments.push(`series_detached=CASE WHEN e.series_id IS NULL THEN e.series_detached ELSE 1 END`)
   const dateChanged = input.start_time !== undefined || input.end_time !== undefined
   const repeatGuard = input.expected_recurrence === undefined ? '1' : `e.recurrence IS ${bind(input.expected_recurrence)}`
   if (input.participants !== undefined && !eventPeopleReady()) return EVENT_PEOPLE_UNSUPPORTED

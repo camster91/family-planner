@@ -50,6 +50,7 @@ import { testAssistantContext } from './assistant-context'
 import { testEventMutations } from './event-mutations'
 import { testEventUpdate } from './event-update'
 import { testEventParticipants } from './event-participants'
+import { testEventSeries } from './event-series'
 import { testCalendarEvents } from './calendar-events'
 import { testCalendarSync } from './calendar-sync'
 import { testCalendarSubscriptions } from './calendar-subscriptions'
@@ -139,6 +140,7 @@ const worker = {
       if (new URL(request.url).pathname === '/event-mutations') return Response.json(await testEventMutations(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/event-update') return Response.json(await testEventUpdate(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/event-participants') return Response.json(await testEventParticipants(env.DB as unknown as D1Store))
+      if (new URL(request.url).pathname === '/event-series') return Response.json(await testEventSeries(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-events') return Response.json(await testCalendarEvents(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-sync') return Response.json(await testCalendarSync(env.DB as unknown as D1Store))
       if (new URL(request.url).pathname === '/calendar-subscriptions') return Response.json(await testCalendarSubscriptions(env.DB as unknown as D1Store))

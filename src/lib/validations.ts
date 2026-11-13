@@ -121,6 +121,15 @@ export const eventParticipantsSchema = z
   .refine((list) => new Set(list.map((p) => `${p.kind}:${p.id}`)).size === list.length, 'Each person can be chosen once')
   .optional()
 
+// How an event repeats (src/lib/event-series.ts): a closed set, never an
+// RRULE. `until` is the last local day, inclusive.
+export const eventRepeatSchema = z.object({
+  every: z.enum(['day', 'week', '2weeks', 'month', 'year']),
+  until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  time_zone: z.string().min(1).max(64).regex(/^[A-Za-z0-9_+\-/]+$/),
+}).strict()
+export const eventSeriesScopeSchema = z.enum(['this', 'following']).optional()
+
 export const createEventSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: z.string().max(1000).trim().nullable().optional(),
@@ -130,6 +139,7 @@ export const createEventSchema = z.object({
   event_type: z.enum(['school', 'sports', 'appointment', 'family', 'work', 'other']).default('other'),
   recurrence: recurrenceSchema,
   participants: eventParticipantsSchema,
+  repeat: eventRepeatSchema.optional(),
 })
 
 // Family
@@ -301,13 +311,23 @@ export const updateEventSchema = z.object({
   expected_recurrence: z.string().max(8192).optional(),
   // Absolute replacement of the people list; omitted leaves it unchanged.
   participants: eventParticipantsSchema,
+  // 'this' (default) changes one event; 'following' changes this and later
+  // repeats. `repeat` is only meaningful with 'following': a new repeat, or
+  // null to stop repeating from this event on.
+  series_scope: eventSeriesScopeSchema,
+  repeat: eventRepeatSchema.nullable().optional(),
 }).superRefine((value, ctx) => {
+  if (value.repeat !== undefined && value.series_scope !== 'following')
+    ctx.addIssue({ code: 'custom', path: ['repeat'], message: 'Changing how an event repeats applies to this and later events' })
+  if (value.series_scope === 'following' && (value.recurrence !== undefined || value.expected_recurrence !== undefined))
+    ctx.addIssue({ code: 'custom', path: ['series_scope'], message: 'A stored repeat rule cannot be changed together with later events' })
   if (value.expected_recurrence !== undefined && value.recurrence !== null)
     ctx.addIssue({ code: 'custom', path: ['expected_recurrence'], message: 'Repeat review only supports removing a rule' })
 })
 
 export const deleteEventSchema = z.object({
   eventId: z.string().min(1),
+  series_scope: eventSeriesScopeSchema,
 })
 
 // Rewards (update + delete)

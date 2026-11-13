@@ -89,6 +89,7 @@ model User {
   routine_stacks_created        RoutineStack[]     @relation("RoutineStackCreator")
   created_events                Event[]            @relation("CreatedEvents")
   event_participations          EventParticipant[] @relation("EventParticipantAccounts")
+  created_event_series          EventSeries[]      @relation("CreatedEventSeries")
   sent_messages                 Message[]          @relation("SentMessages")
   message_attachments_uploaded  MessageAttachment[] @relation("MessageAttachmentUploader")
   notifications                 Notification[]
@@ -230,6 +231,7 @@ model Family {
   routine_stacks     RoutineStack[]
   chore_top_up_cursor ChoreTopUpCursor?
   events             Event[]
+  event_series       EventSeries[]
   messages           Message[]
   lists              List[]
   activities         Activity[]
@@ -995,6 +997,13 @@ model Event {
   // Last local change; last-writer-wins input for provider sync (#264).
   updated_at           DateTime @default(now()) @updatedAt
 
+  // Repeating events (EventSeries). Null for one-off and imported events. An
+  // occurrence keeps its original start so it is never written twice, and
+  // series_detached marks one a person changed on its own.
+  series_id               String?
+  series_occurrence_start DateTime?
+  series_detached         Boolean   @default(false)
+
   // Relations
   family              Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator             User                  @relation("CreatedEvents", fields: [created_by], references: [id], onDelete: Cascade)
@@ -1003,9 +1012,11 @@ model Event {
   source_connection   CalendarConnection?   @relation("CalendarConnectionEvents", fields: [source_connection_id], references: [id], onDelete: Cascade)
   sync_links          CalendarEventLink[]
   participants        EventParticipant[]
+  series              EventSeries?          @relation(fields: [series_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([id, family_id], map: "Event_id_family_id_key")
   @@unique([source_subscription_id, source_uid, source_occurrence_start])
+  @@unique([series_id, series_occurrence_start])
   @@index([family_id])
   @@index([start_time])
   @@index([family_id, start_time])
@@ -1016,6 +1027,37 @@ model Event {
   @@index([family_id, project_id, is_task, source_uid])
   @@index([family_id, project_id, is_task, title])
   @@index([family_id, source_subscription_id, id], map: "Event_family_subscription_id_idx")
+}
+
+/// A repeating event (#124 follow-up): a closed repeat, never an RRULE, plus
+/// the template its occurrence rows are written from. Default-off:
+/// FAMILY_EVENT_REPEAT_READY. `participants` is a JSON list of {kind,id}
+/// filtered against the current household each time rows are written.
+model EventSeries {
+  id                String   @id @default(cuid())
+  family_id         String
+  created_by        String
+  every             String
+  time_zone         String
+  anchor_start      DateTime
+  duration_ms       Int      @default(0)
+  until_day         String?
+  title             String
+  description       String?
+  location          String?
+  event_type        String   @default("other")
+  participants      String   @default("[]")
+  generated_through DateTime
+  created_at        DateTime @default(now())
+  updated_at        DateTime @default(now()) @updatedAt
+
+  family  Family  @relation(fields: [family_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator User    @relation("CreatedEventSeries", fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  events  Event[]
+
+  @@unique([id, family_id])
+  @@index([family_id, generated_through])
+  @@index([created_by])
 }
 
 /// People an event is for (#124 follow-up). Exactly one of user_id (a
