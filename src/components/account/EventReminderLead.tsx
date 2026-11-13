@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslation } from "@/i18n";
 import { notificationPreferencesMessages, type NotificationPreferencesMessage } from "@/i18n/notification-preferences";
 import { useEventRemindersSupported } from "@/components/providers/event-reminders-provider";
-import { REMINDER_LEAD_HOURS, isReminderLeadHours, type ReminderLeadHours } from "@/lib/event-reminders";
+import { REMINDER_LEAD_HOURS, isReminderLeadHours, type ReminderLeadHours } from "@/lib/event-reminder-constants";
 
 const ENDPOINT = "/api/events/reminders";
 const LABEL: Record<ReminderLeadHours, NotificationPreferencesMessage> = {

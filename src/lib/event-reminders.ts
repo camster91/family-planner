@@ -4,26 +4,23 @@
 // deleted, muted or already-written reminder never comes back.
 import { isValidTimeZone } from './calendar-import/timezone'
 import { localDayIn } from './event-series'
+import { DEFAULT_REMINDER_LEAD_HOURS, isReminderLeadHours } from './event-reminder-constants'
+
+export {
+  DEFAULT_REMINDER_LEAD_HOURS, REMINDER_LEAD_HOURS, REMINDER_TIME_ZONE_HEADER, isReminderLeadHours, type ReminderLeadHours,
+} from './event-reminder-constants'
 
 export const EVENT_REMINDERS_READY_ENV = 'FAMILY_EVENT_REMINDERS_READY'
 export const eventRemindersReady = () => process.env[EVENT_REMINDERS_READY_ENV] === '1'
 
 /** How far ahead of its start an event is "coming up", unless the person chose otherwise. */
 export const REMINDER_WINDOW_MS = 24 * 60 * 60 * 1000
-/** The lead times a person can choose, in hours. A closed set; the database checks it too. */
-export const REMINDER_LEAD_HOURS = [2, 12, 24, 48, 168] as const
-export type ReminderLeadHours = typeof REMINDER_LEAD_HOURS[number]
-export const DEFAULT_REMINDER_LEAD_HOURS: ReminderLeadHours = 24
-export const isReminderLeadHours = (value: unknown): value is ReminderLeadHours =>
-  typeof value === 'number' && (REMINDER_LEAD_HOURS as readonly number[]).includes(value)
 /** The reminder window for a stored choice; anything unknown is the default. */
 export const reminderWindowMs = (hours: unknown) => (isReminderLeadHours(hours) ? hours : DEFAULT_REMINDER_LEAD_HOURS) * 60 * 60 * 1000
 /** Most reminders one inbox read writes; the rest follow on later reads. */
 export const REMINDER_MAX_PER_READ = 10
 /** Most candidate events one read looks at. */
 export const REMINDER_SCAN = 60
-/** The browser's IANA zone, sent with inbox reads so reminder times read in local time. */
-export const REMINDER_TIME_ZONE_HEADER = 'x-herewoven-time-zone'
 const TITLE_MAX = 120
 
 /** The zone reminder times are written in: the browser's, else one the person saved. Null means no reminders now. */
