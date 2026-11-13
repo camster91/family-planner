@@ -2,10 +2,11 @@ import type { Prisma } from "@prisma/client";
 
 type Tx = Pick<Prisma.TransactionClient, "$queryRaw" | "$executeRaw">;
 type Model =
-  "householdProfileLinkChallenge" | "aiUsageRequest" | "aiUsagePolicy" | "choreTopUpCursor";
+  "householdProfileLinkChallenge" | "aiUsageRequest" | "aiUsagePolicy" | "choreTopUpCursor" | "eventParticipant";
 export function isOptionalDeletionMetadata(model: string): model is Model {
   return (
     model === "choreTopUpCursor" ||
+    model === "eventParticipant" ||
     model === "householdProfileLinkChallenge" ||
     model === "aiUsageRequest" ||
     model === "aiUsagePolicy"
@@ -20,7 +21,12 @@ export async function deleteOptionalHouseholdMetadataInTx(
   familyId: string,
   model: Model,
 ) {
-  if (model === "choreTopUpCursor") {
+  if (model === "eventParticipant") {
+    const rows = await tx.$queryRaw<Array<{ present: boolean }>>`
+      SELECT to_regclass('public."EventParticipant"') IS NOT NULL AS present`;
+    if (rows[0]?.present === true)
+      await tx.$executeRaw`DELETE FROM "EventParticipant" WHERE "family_id" = ${familyId}`;
+  } else if (model === "choreTopUpCursor") {
     const rows = await tx.$queryRaw<Array<{ present: boolean }>>`
       SELECT to_regclass('public."ChoreTopUpCursor"') IS NOT NULL AS present`;
     if (rows[0]?.present === true)

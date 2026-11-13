@@ -1,2 +1,3 @@
 import { EventCreateSheet } from '@/components/layout/CalendarFormSheets'
-export default function Page() { return <EventCreateSheet /> }
+import { eventPeopleReady } from '@/lib/event-participants'
+export default function Page() { return <EventCreateSheet peopleSupported={eventPeopleReady()} /> }

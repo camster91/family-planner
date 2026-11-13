@@ -268,3 +268,37 @@ credentials, environment/production activation and real-household research.
 #369 remains OAuth application/account setup; it is not a code blocker that
 justifies inventing credentials. No paid provider, production integration or
 external calendar write is authorized by this reconciliation.
+
+## People on events (source authored; default-off, not activated)
+
+An event can name who it is for. `EventParticipant` holds one row per person:
+a household account (`user_id`) or a standalone email-free profile
+(`member_id`), never both. A profile that is mapped or linked to an account is
+represented by that account, as on the Today board.
+
+- **Switch:** `FAMILY_EVENT_PEOPLE_READY=1`. Off, `POST`/`PATCH /api/events`
+  refuse a `participants` list with `409 EVENT_PEOPLE_UNSUPPORTED` before any
+  write, reads return `participants: []`, `GET /api/events/people` answers
+  `{ supported: false }`, and the forms do not load the picker.
+- **Write contract:** `participants` is an absolute list of `{ kind, id }`
+  (`account` or `profile`), at most 12, each person once. Create stores it with
+  the event in one transaction/batch. `PATCH` replaces it; omitting the field
+  leaves it unchanged; `[]` clears it. A person outside the household, an
+  archived profile or an unknown id refuses the whole request with
+  `400 EVENT_PEOPLE_INVALID` and changes nothing. Editing stays parent-only.
+- **Read contract:** events carry `participants: [{ kind, id, name, color }]`
+  in household order (accounts, then profiles, by creation), limited to people
+  who are in the household now. Colour is the person's Today-board colour.
+- **Surfaces:** the new and edit event forms ("Who is it for?"), planner chips
+  and detail, and Today rows ("For Casey" replaces "Added by" when set).
+- **Lifecycle:** deleting the event, the account or the profile cascades the
+  row. Leaving the household or archiving a profile hides it on read. Household
+  deletion clears the table before events. The database refuses a
+  foreign-household account or profile and any edit of a row's identity.
+- **Not included:** imported (ICS) events stay read-only; provider sync does
+  not map attendees; the ICS feed does not emit `ATTENDEE`; schedule review and
+  preparation are unchanged.
+- **Evidence:** `npm run cloudflare:test:reads -- --only=event-participants`
+  (local workerd/D1), `src/lib/__tests__/event-participants.integration.test.ts`
+  (PostgreSQL), unit tests for the rules, validation and picker. No edge,
+  production or device acceptance is claimed.

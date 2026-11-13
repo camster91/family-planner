@@ -629,6 +629,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'handoff', scope: { kind: 'family' }, why: 'sitter share links' },
   // 3. Calendar integrations (connections already cleared one by one above; listed so none is missed).
   { model: 'calendarEventLink', scope: { kind: 'family' }, why: 'provider event links' },
+  { model: 'eventParticipant', scope: { kind: 'family' }, why: 'people on events, before their events; compatibility-probed SQL' },
   { model: 'event', scope: { kind: 'family' }, why: 'events' },
   { model: 'eventPreparationStep', scope: { kind: 'family' }, why: 'preparation links after canonical Event cascade; compatibility-probed SQL' },
   { model: 'eventPreparation', scope: { kind: 'family' }, why: 'preparation metadata after canonical Event cascade; compatibility-probed SQL' },

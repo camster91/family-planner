@@ -83,6 +83,7 @@ export const calendarPlannerEnglish = {
     "Read-only calendar. Changes belong in the original subscription calendar.",
   recurrence:
     "Repeating rule stored on this event. Only the stored occurrence is shown; series editing is not available.",
+  eventFor: "For",
   close: "Close details",
   edit: "Edit event",
   overlaps: "At the same time",
@@ -188,6 +189,7 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
     "Calendario de solo lectura. Los cambios se hacen en el calendario suscrito original.",
   recurrence:
     "Este evento tiene una regla de repetición guardada. Solo se muestra la instancia guardada; no se puede editar la serie.",
+  eventFor: "Para",
   close: "Cerrar detalles",
   edit: "Editar evento",
 };

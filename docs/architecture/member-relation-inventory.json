@@ -923,5 +923,18 @@
     ],
     "disposition": "retain-account-delivery-recipient",
     "remaining": "Dormant/unverified source. Complete producer/recipient provenance, original supported-client/retention windows, export/erasure/FK/PG concurrency and all acceptance before activation."
+  },
+  {
+    "relation": "EventParticipant.user",
+    "fields": ["user_id"],
+    "kind": "member",
+    "migration": "People on events (default-off). The account column is a household-member subject, never an actor or credential: account-backed people are stored by account id and email-free profiles by EventParticipant.member, exactly one per row. Leaving the household hides the row on read; permanent account deletion cascades it. No earned credit or history depends on it.",
+    "evidence": [
+      "prisma/schema.prisma: model EventParticipant",
+      "database/cloudflare/0019_event_participants.sql",
+      "src/lib/event-participants.ts"
+    ],
+    "disposition": "partial-account-backed-canonical-member-subject",
+    "remaining": "Account-backed people keep the account id; standalone profiles use the canonical member column. A linked or mapped profile is represented by its account. Source and local workerd/D1 fixture only; not runtime or lifecycle acceptance."
   }
 ]

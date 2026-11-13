@@ -10,12 +10,14 @@ import { Suspense } from 'react'
 import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventFormDetails } from '@/components/calendar/EventFormDetails'
+import { EventPeoplePicker } from '@/components/calendar/EventPeoplePicker'
+import type { EventPersonRef } from '@/lib/event-participants'
 import { EventDuration } from '@/components/calendar/EventDuration'
 import { eventFormRange, isoToLocalDateTimeInput } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
 
-function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean } = {}) {
   const { t } = useTranslation()
   const message = (key: CalendarFormMessage, params?: Record<string, string | number>) => t(key, params, calendarFormMessages)
   const [title, setTitle] = useState('')
@@ -27,6 +29,9 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
   const [endTime, setEndTime] = useState('')
   const [duration, setDuration] = useState('')
   const [location, setLocation] = useState('')
+  const [people, setPeople] = useState<EventPersonRef[]>([])
+  const [peopleAvailable, setPeopleAvailable] = useState(false)
+  const originalPeople = useRef('')
   const [hasRecurrence, setHasRecurrence] = useState(false)
   const [removeRecurrence, setRemoveRecurrence] = useState(false)
   const [canRemoveRecurrence, setCanRemoveRecurrence] = useState(false)
@@ -109,6 +114,14 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
             setEndTime(end.slice(11))
           }
           setLocation(event.location || '')
+          {
+            const stored: EventPersonRef[] = Array.isArray(event.participants)
+              ? event.participants.flatMap((p: { kind?: unknown; id?: unknown }) =>
+                  (p?.kind === 'account' || p?.kind === 'profile') && typeof p.id === 'string' ? [{ kind: p.kind, id: p.id }] : [])
+              : []
+            setPeople(stored)
+            originalPeople.current = stored.map(p => `${p.kind}:${p.id}`).sort().join()
+          }
           originalRecurrence.current = typeof event.recurrence === 'string' ? event.recurrence : null
           setHasRecurrence(typeof event.recurrence === 'string')
           setCanRemoveRecurrence(typeof event.recurrence === 'string' && event.recurrence.length <= 8192)
@@ -176,6 +189,9 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           location: location || null,
           // Omit by default: title/time edits must preserve even unfamiliar rules.
           ...(removeRecurrence ? { recurrence: null, expected_recurrence: originalRecurrence.current } : {}),
+          // Sent only when the picker was offered and the list really changed,
+          // so an ordinary edit never rewrites people it did not show.
+          ...(peopleAvailable && people.map(p => `${p.kind}:${p.id}`).sort().join() !== originalPeople.current ? { participants: people } : {}),
         }),
       })
 
@@ -344,6 +360,8 @@ function EditEventForm({ inSheet = false, onBusyChange }: { inSheet?: boolean; o
           setDuration(next)
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))?.end} />
 
+        {peopleSupported && isParent && !source && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={busy} />}
+
         {hasRecurrence && isParent && <details className="rounded-xl border border-separator p-3">
           <summary className="min-h-[44px] cursor-pointer font-medium">{message('repeatingEvent')}</summary>
           <div className="space-y-3 pt-2">
@@ -487,14 +505,14 @@ function CalendarLoading() {
   return <div className="text-label-secondary">{t(key, undefined, calendarFormMessages)}</div>
 }
 
-export default function EditEventPage({ inSheet = false, onBusyChange }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void } = {}) {
+export default function EditEventPage({ inSheet = false, onBusyChange, peopleSupported = false }: { inSheet?: boolean; onBusyChange?: (busy: boolean) => void; peopleSupported?: boolean } = {}) {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center py-20">
         <CalendarLoading />
       </div>
     }>
-      <EditEventForm inSheet={inSheet} onBusyChange={onBusyChange} />
+      <EditEventForm inSheet={inSheet} onBusyChange={onBusyChange} peopleSupported={peopleSupported} />
     </Suspense>
   )
 }

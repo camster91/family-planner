@@ -18,6 +18,7 @@ import { isRoutineIconKey } from "@/lib/routine-icons";
 import { addUTCDays, startOfTodayUTC, toDateOnlyUTC } from "@/lib/dates";
 import { COMING_UP_DAYS } from "@/lib/board-constants";
 import { resolveMemberColors } from "@/lib/member-colors";
+import { attachD1EventParticipants } from "./event-participants";
 import {
   MAX_AMBIENT_PHOTOS,
   idleMinutesFrom,
@@ -898,6 +899,14 @@ export async function readD1TodayBoard(
         ? String(row.created_by)
         : null,
   }));
+  // People an event is for (default-off): the board's own colour per person.
+  for (const row of await attachD1EventParticipants(db, options.familyId, events.map((event) => ({ id: event.id })))) {
+    if (!row.participants.length) continue;
+    events.find((event) => event.id === row.id)!.forPeople = row.participants.map((person) => ({
+      name: person.name,
+      color: colors.get(person.kind === "account" ? person.id : `profile:${person.id}`) ?? person.color,
+    }));
+  }
   const boardDinners: BoardDinner[] | null = isFeatureEnabled(features, "meals")
     ? dinners.map((row) => ({
         id: row.id,
