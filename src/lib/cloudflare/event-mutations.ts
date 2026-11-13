@@ -14,6 +14,10 @@ import { EVENT_READ_ONLY_CODE, EVENT_READ_ONLY_MESSAGE } from '@/lib/calendar-im
 import { getD1Database, type D1Store, type SqlValue } from './database'
 import { d1WriteCheck, isD1WriteConflict } from './write-check'
 import { pruneD1ExpiredReceipts } from './notification-preferences'
+import { EVENT_PEOPLE_INVALID, EVENT_PEOPLE_UNSUPPORTED, eventPeopleReady, orderEventPeople, unknownEventPeople, type EventPerson } from '@/lib/event-participants'
+import { d1EventParticipantInserts, readD1HouseholdPeople } from './event-participants'
+import { EVENT_REPEAT_INVALID, EVENT_REPEAT_UNSUPPORTED, eventRepeatReady, seriesEventId, seriesRuleFor, seriesTopUpTarget } from '@/lib/event-series'
+import { d1SeriesOccurrenceStatements, planSeriesRows } from './event-series'
 
 type Actor = { userId: string; familyId: string; generation: number; role?: string; name?: string }
 type Mutation = { kind: 'create'; input: z.infer<typeof createEventSchema> } | { kind: 'delete'; eventId: string }
@@ -123,16 +127,53 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
     let effect: EffectResult
     if (mutation.kind === 'create') {
       const value = mutation.input
-      const event: Event = { id: randomUUID(), family_id: actor.familyId, created_by: actor.userId,
+      const refs = value.participants ?? []
+      let participants: EventPerson[] = []
+      if (refs.length) {
+        // Refused before any write: no receipt is stored for a list this
+        // household cannot use, so a corrected retry is a fresh request.
+        if (!eventPeopleReady()) return result(EVENT_PEOPLE_UNSUPPORTED)
+        const people = await readD1HouseholdPeople(db, actor.familyId)
+        if (unknownEventPeople(refs, people).length) return result(EVENT_PEOPLE_INVALID)
+        participants = orderEventPeople(refs, people)
+      }
+      // A repeating event: one series plus its first batch of occurrence
+      // rows, all in this batch. The response is the first occurrence.
+      const startMs = new Date(value.start_time).getTime(), endMs = new Date(value.end_time || value.start_time).getTime()
+      let series: { id: string; rule: NonNullable<ReturnType<typeof seriesRuleFor>>; starts: number[]; generatedThrough: number } | null = null
+      if (value.repeat) {
+        if (!eventRepeatReady()) return result(EVENT_REPEAT_UNSUPPORTED)
+        const rule = seriesRuleFor(value.repeat, startMs)
+        if (!rule || endMs < startMs || value.recurrence) return result(EVENT_REPEAT_INVALID)
+        const plan = planSeriesRows(rule, -1, Math.max(seriesTopUpTarget(now), startMs))
+        series = { id: randomUUID(), rule, ...plan }
+      }
+      const event: Event = { id: series ? seriesEventId(series.id, startMs) : randomUUID(), family_id: actor.familyId, created_by: actor.userId,
+        series_id: series?.id ?? null, series_occurrence_start: series ? new Date(startMs) : null, series_detached: false,
         title: value.title, description: value.description || null, location: value.location || null,
         start_time: new Date(value.start_time), end_time: new Date(value.end_time || value.start_time), event_type: value.event_type,
         recurrence: value.recurrence || null, created_at: new Date(now), updated_at: new Date(now),
         preparation_epoch: 0, schedule_generation: randomUUID(), schedule_epoch: 0, is_task: false, project_id: null,
         source_subscription_id: null, source_uid: null, source_occurrence_start: null, source_connection_id: null }
-      effect = { status: 200, body: JSON.parse(JSON.stringify({ event })) }
+      effect = { status: 200, body: JSON.parse(JSON.stringify({ event: { ...event, participants } })) }
+      if (series) {
+        statements.push(db.prepare(`INSERT INTO "EventSeries" (id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,event_type,participants,generated_through,created_at,updated_at)
+          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15)`)
+          .bind(series.id, actor.familyId, actor.userId, series.rule.every, series.rule.timeZone, startMs, endMs - startMs, series.rule.untilDay,
+            event.title, event.description, event.location, event.event_type, JSON.stringify(refs), series.generatedThrough, now))
+        // The first occurrence carries the response's schedule identity.
+        statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,created_at,updated_at,schedule_generation,series_id,series_occurrence_start)
+          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10,?11,?12,?7)`)
+          .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, startMs, endMs, event.event_type, now, event.schedule_generation, series.id))
+        statements.push(...d1EventParticipantInserts(db, event.id, actor.familyId, refs, now))
+        statements.push(...d1SeriesOccurrenceStatements(db, { id: series.id, family_id: actor.familyId, created_by: actor.userId, duration_ms: endMs - startMs,
+          title: event.title, description: event.description, location: event.location, event_type: event.event_type }, series.starts.filter((start) => start !== startMs), refs, now))
+      } else {
       statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,recurrence,created_at,updated_at,schedule_generation)
         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11,?12)`)
         .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, event.start_time.getTime(), event.end_time.getTime(), event.event_type, event.recurrence, now, event.schedule_generation))
+      statements.push(...d1EventParticipantInserts(db, event.id, actor.familyId, refs, now))
+      }
       statements.push(db.prepare(`INSERT INTO "Activity" (id,family_id,user_id,type,title,metadata,created_at) VALUES (?1,?2,?3,'event_created',?4,?5,?6)`)
         .bind(randomUUID(), actor.familyId, actor.userId, `${actor.name} added "${event.title}" to the calendar`, JSON.stringify({ eventId: event.id }), now))
     } else {

@@ -923,5 +923,44 @@
     ],
     "disposition": "retain-account-delivery-recipient",
     "remaining": "Dormant/unverified source. Complete producer/recipient provenance, original supported-client/retention windows, export/erasure/FK/PG concurrency and all acceptance before activation."
+  },
+  {
+    "relation": "EventParticipant.user",
+    "fields": ["user_id"],
+    "kind": "member",
+    "migration": "People on events (default-off). The account column is a household-member subject, never an actor or credential: account-backed people are stored by account id and email-free profiles by EventParticipant.member, exactly one per row. Leaving the household hides the row on read; permanent account deletion cascades it. No earned credit or history depends on it.",
+    "evidence": [
+      "prisma/schema.prisma: model EventParticipant",
+      "database/cloudflare/0019_event_participants.sql",
+      "src/lib/event-participants.ts"
+    ],
+    "disposition": "partial-account-backed-canonical-member-subject",
+    "remaining": "Account-backed people keep the account id; standalone profiles use the canonical member column. A linked or mapped profile is represented by its account. Source and local workerd/D1 fixture only; not runtime or lifecycle acceptance."
+  },
+  {
+    "relation": "EventSeries.creator",
+    "fields": ["created_by"],
+    "kind": "actor-and-member",
+    "migration": "Repeating events (default-off). Keep the authenticated account that set the repeat up as the actor, like Event.creator. Who the event is for is separate attribution (EventParticipant / the series' stored people). When that account leaves or is deleted, the series is handed to a successor parent with its events; whole-household deletion removes it.",
+    "evidence": [
+      "prisma/schema.prisma: model EventSeries",
+      "database/cloudflare/0020_event_series.sql",
+      "src/lib/household-content-erasure.ts"
+    ],
+    "disposition": "retain-actor-defer-separate-attribution",
+    "remaining": "Actor only. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
+  },
+  {
+    "relation": "EventReminder.user",
+    "fields": ["user_id"],
+    "kind": "member",
+    "migration": "In-app event reminders (default-off). The account is the private recipient the reminder was considered for, never an actor or credential. Reminders are in-app inbox rows, which only accounts have, so there is no profile subject. Leaving the household stops new rows (the database refuses a foreign-household account); permanent account deletion and event deletion cascade the row.",
+    "evidence": [
+      "prisma/schema.prisma: model EventReminder",
+      "database/cloudflare/0021_event_reminders.sql",
+      "src/lib/event-reminders.ts"
+    ],
+    "disposition": "retain-account-recipient",
+    "remaining": "Account recipient only. Source, local workerd/D1 fixture and PostgreSQL integration; not runtime or lifecycle acceptance."
   }
 ]

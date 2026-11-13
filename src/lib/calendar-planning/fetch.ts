@@ -14,6 +14,10 @@ export interface PlanningEvent extends EventOrigin {
   description?: string | null;
   location?: string | null;
   recurrence?: string | null;
+  /** Set when the event is one occurrence of a repeating event. */
+  series_id?: string | null;
+  /** People the event is for; empty or absent when the capability is off. */
+  participants?: Array<{ kind: "account" | "profile"; id: string; name: string; color: string }>;
 }
 const instant = z.string().refine(value => {
   try { parseCalendarInstant(value); return true; } catch { return false; }
@@ -24,6 +28,8 @@ const event = z.object({
   recurrence: z.string().nullable().optional(), source_subscription_id: z.string().nullable().optional(),
   source_connection_id: z.string().nullable().optional(),
   source: z.object({ subscription_id: z.string(), name: z.string(), color: z.string().nullable() }).nullable().optional(),
+  series_id: z.string().max(128).nullable().optional(),
+  participants: z.array(z.object({ kind: z.enum(["account", "profile"]), id: z.string().min(1).max(128), name: z.string(), color: z.string() })).max(12).optional(),
 }).refine(row => Date.parse(row.end_time) >= Date.parse(row.start_time));
 const page = z.object({ events: z.array(event).max(CALENDAR_RANGE_MAX_LIMIT), hasMore: z.boolean(),
   nextCursor: z.string().regex(/^[A-Za-z0-9_-]{1,2048}$/).nullable().optional(),

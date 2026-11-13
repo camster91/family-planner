@@ -707,6 +707,7 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "POST /api/events",
   "PATCH /api/events",
   "DELETE /api/events",
+  "GET /api/events/people",
   "GET /api/family/ai-settings",
   "POST /api/family/ai-settings",
   "GET /api/family/board-settings/places",

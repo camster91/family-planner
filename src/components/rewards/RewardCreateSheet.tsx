@@ -20,7 +20,7 @@ export function RewardCreateSheet({
   const copy = rewardCreateMessages[locale];
 
   return (
-    <FeatureGate featureKey="rewards">
+    <FeatureGate featureKey="rewards" headingLevel={2}>
       <FormSheet
         title={copy.sheetTitle}
         busy={busy}

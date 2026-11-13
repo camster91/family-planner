@@ -47,6 +47,7 @@ const boardSchema: z.ZodType<TodayBoardData> = z.object({
           .object({ name: text, color: z.string().max(128).nullable() })
           .nullable(),
         addedById: id.nullable().optional(),
+        forPeople: z.array(z.object({ name: text, color: z.enum(MEMBER_COLOR_KEYS) })).max(12).optional(),
       }),
     )
     .max(60),

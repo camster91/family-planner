@@ -268,3 +268,106 @@ credentials, environment/production activation and real-household research.
 #369 remains OAuth application/account setup; it is not a code blocker that
 justifies inventing credentials. No paid provider, production integration or
 external calendar write is authorized by this reconciliation.
+
+## People on events (switched on in `wrangler.jsonc`; live from the next deploy)
+
+An event can name who it is for. `EventParticipant` holds one row per person:
+a household account (`user_id`) or a standalone email-free profile
+(`member_id`), never both. A profile that is mapped or linked to an account is
+represented by that account, as on the Today board.
+
+- **Switch:** `FAMILY_EVENT_PEOPLE_READY=1`. Off, `POST`/`PATCH /api/events`
+  refuse a `participants` list with `409 EVENT_PEOPLE_UNSUPPORTED` before any
+  write, reads return `participants: []`, `GET /api/events/people` answers
+  `{ supported: false }`, and the forms do not load the picker.
+- **Write contract:** `participants` is an absolute list of `{ kind, id }`
+  (`account` or `profile`), at most 12, each person once. Create stores it with
+  the event in one transaction/batch. `PATCH` replaces it; omitting the field
+  leaves it unchanged; `[]` clears it. A person outside the household, an
+  archived profile or an unknown id refuses the whole request with
+  `400 EVENT_PEOPLE_INVALID` and changes nothing. Editing stays parent-only.
+- **Read contract:** events carry `participants: [{ kind, id, name, color }]`
+  in household order (accounts, then profiles, by creation), limited to people
+  who are in the household now. Colour is the person's Today-board colour.
+- **Surfaces:** the new and edit event forms ("Who is it for?"), planner chips
+  and detail, and Today rows ("For Casey" replaces "Added by" when set).
+- **Lifecycle:** deleting the event, the account or the profile cascades the
+  row. Leaving the household or archiving a profile hides it on read. Household
+  deletion clears the table before events. The database refuses a
+  foreign-household account or profile and any edit of a row's identity.
+- **Not included:** imported (ICS) events stay read-only; provider sync does
+  not map attendees; the ICS feed does not emit `ATTENDEE`; schedule review and
+  preparation are unchanged.
+
+## Repeating events (switched on in `wrangler.jsonc`; live from the next deploy)
+
+An event can repeat. Each repeat is a real `Event` row, so every existing read
+(planner, Today, device board, feed, search) shows it with no extra code.
+`EventSeries` holds the rule and the template the rows are written from.
+
+- **Switch:** `FAMILY_EVENT_REPEAT_READY=1`. Off, `POST /api/events` refuses a
+  `repeat` and `PATCH`/`DELETE` refuse `series_scope: "following"` with
+  `409 EVENT_REPEAT_UNSUPPORTED` before any write, nothing is written ahead,
+  and the forms do not show "Repeat".
+- **Rule:** a closed set, not RRULE: `every` is `day`, `week`, `2weeks`,
+  `month` or `year`, with an optional last day (`until`, a local date) and the
+  author's IANA `time_zone`. Repeats keep the same local time across
+  daylight-saving changes. A month or year repeat on a day that does not exist
+  (the 31st, Feb 29) skips that month or year.
+- **No scheduler:** create writes repeats about 120 days ahead (at most 400
+  rows). Calendar, Today and device reads top the household up first, up to two
+  years past now, at most 400 rows per series per read. The top-up never fails
+  a read. Row ids are derived from the series and start time, so concurrent
+  top-ups write each repeat once and a deleted repeat is not written again.
+- **Edit and delete:** "This event" changes or deletes one row. "This and later
+  events" (`series_scope: "following"`) ends the old series the day before,
+  replaces every later row (including ones changed on their own, so no day
+  ends up with two), and starts a new series from the edited event; `repeat`
+  may change the rule and `repeat: null` stops repeating. From the first event
+  it replaces or removes the whole series. Parent-only, like other event edits.
+- **People:** the series stores the chosen people; each repeat gets them, and a
+  top-up skips people who have since left or been archived.
+- **Lifecycle:** deleting a series keeps past rows as one-off events
+  (`series_id` set null). Household deletion clears events, then series. The
+  database refuses a row that points at another household's series.
+- **Not included:** turning a saved one-off event into a repeating one from the
+  edit form; imported (ICS) and provider-synced events are unchanged and keep
+  their own preserved-rule handling; the ICS feed emits each repeat as its own
+  event, not an `RRULE`; assistant-proposed changes cannot use
+  `series_scope: "following"`.
+
+## In-app event reminders (switched on in `wrangler.jsonc`; live from the next deploy)
+
+A person gets one inbox row for each event of theirs that starts within the
+next 24 hours. In-app only: no push, email, sound or lock-screen surface.
+
+- **Switch:** `FAMILY_EVENT_REMINDERS_READY=1`. Off, inbox reads write nothing
+  and the bell shows no unread dot.
+- **No scheduler:** the first page of `GET /api/notifications` writes the due
+  reminders for the signed-in account before it reads. With the switch on, the
+  top-bar bell asks for one unread row on each page change, which both shows an
+  unread dot and makes reminders appear without opening the inbox. A failure
+  never fails the read. At most 10 rows are written per read.
+- **Who:** an event with nobody named is for the whole family. Otherwise the
+  accounts named are reminded, and a parent is reminded when it names a person
+  without an account. With people on events off, every event is the whole
+  family's. Imported events count like any other event.
+- **Text:** `Coming up: <title>` and `Today|Tomorrow at <time>`, type `event`,
+  linking to `/dashboard/calendar?focus=<id>`. Times use the browser's zone,
+  sent as `X-Herewoven-Time-Zone`; without it, a zone the person saved for
+  quiet hours or the morning summary; with neither, nothing is written. Text is
+  stored in English, like every other inbox row.
+- **Once only:** `EventReminder` (event, account) is the lasting proof, written
+  in the same transaction/batch as the inbox row. Deleting the inbox row does
+  not bring the reminder back. With event notifications muted the proof is
+  still written and no row is, so unmuting never replays old events. Quiet
+  hours do not hold an in-app row. Moving an event does not remind again.
+- **Lifecycle:** deleting the event or the account cascades the proof;
+  household deletion clears it before events. The database refuses a
+  foreign-household account and any edit of a row's identity.
+- **Not included:** per-event or per-person lead times; push or email;
+  reminders for chores or meals; an unread count.
+- **Evidence:** `npm run cloudflare:test:reads -- --only=event-participants`
+  (local workerd/D1), `src/lib/__tests__/event-participants.integration.test.ts`
+  (PostgreSQL), unit tests for the rules, validation and picker. No edge,
+  production or device acceptance is claimed.

@@ -44,7 +44,10 @@ try {
   for (const name of ['Family', 'User', 'FamilyInvite', 'RateLimitEntry', 'AuditLog', 'BetaMetricDaily', 'HouseholdMember', 'HouseholdDevice', 'DeviceSession', 'ParentElevationPin', 'DeviceAuditEvent']) {
     const body = prisma.match(new RegExp(`model ${name} \\{\\n([\\s\\S]*?)\\n\\}`))[1]
     const columns = (await db.prepare(`PRAGMA table_info("${name}")`).all()).results.map(row => row.name)
-    const expected = body.split('\n').filter(line => !line.includes('@ignore'))
+    // Family and User carry SQL-owned food continuity columns in D1 (0013+).
+    // They stay @ignore in Prisma, so admit exactly those two, as schema-smoke does.
+    const portedFood = name === 'Family' || name === 'User'
+    const expected = body.split('\n').filter(line => !line.includes('@ignore') || (portedFood && /^\s*food_(generation|epoch)\s/.test(line)))
       .map(line => line.match(/^\s*(\w+)\s+(?:String|Int|Boolean|DateTime|Float|Json)(?:\?|\[\])?(?:\s|$)/))
       .filter(Boolean).map(match => match[1])
     assert.deepEqual(columns.sort(), expected.sort(), `${name} scalar column parity`)
