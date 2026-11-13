@@ -39,6 +39,7 @@ import {
 } from "./NotificationPreferencesStatus";
 
 import { useTranslation } from "@/i18n";
+import EventReminderLead from "./EventReminderLead";
 import {
   notificationPreferencesMessages,
   type NotificationPreferencesMessage,
@@ -423,6 +424,8 @@ export default function NotificationPreferences({
           })}
         </ul>
       )}
+
+      {load.state === "ready" && <EventReminderLead />}
 
       {load.state === "ready" && (
         <div

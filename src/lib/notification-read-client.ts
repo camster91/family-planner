@@ -1,7 +1,7 @@
 /** Personal inbox reads share existing owned deadlines and stream bounds. */
 import { runOwnedForeground } from "./owned-request-http";
 import { readBoundedJsonResponse } from "./bounded-json-response";
-import { REMINDER_TIME_ZONE_HEADER } from "./event-reminders";
+import { REMINDER_TIME_ZONE_HEADER } from "./event-reminder-constants";
 
 export const NOTIFICATION_READ_BYTES = 512 * 1024;
 export interface NotificationItem {

@@ -142,8 +142,8 @@ export function dayBefore(day: string): string {
 export type FollowingBase = {
   /** The occurrence being edited, as stored now. */
   event: { start: number; end: number; title: string; description: string | null; location: string | null; event_type: string; occurrenceStart: number }
-  /** Its series, as stored now. */
-  series: { every: EventRepeatEvery; timeZone: string; untilDay: string | null; anchorStart: number }
+  /** Its series, as stored now. Null for a one-off event that starts repeating here. */
+  series: { every: EventRepeatEvery; timeZone: string; untilDay: string | null; anchorStart: number } | null
 }
 export type FollowingInput = {
   title?: string; description?: string | null; location?: string | null; event_type?: string
@@ -155,7 +155,7 @@ export type FollowingPlan = {
   /** The repeat from this event on, or null to stop repeating here. */
   rule: SeriesRule | null
   /** What happens to the series this event came from. */
-  previous: { kind: 'remove' } | { kind: 'end'; untilDay: string }
+  previous: { kind: 'none' } | { kind: 'remove' } | { kind: 'end'; untilDay: string }
 }
 type Refusal = { status: number; body: { error: string; code?: string } }
 
@@ -172,13 +172,17 @@ export function planFollowingEdit(base: FollowingBase, input: FollowingInput): F
     : input.start_time !== undefined ? start + (base.event.end - base.event.start) : base.event.end
   if (!Number.isFinite(start) || !Number.isFinite(end)) return { status: 400, body: { error: 'Invalid start or end time' } }
   if (end < start) return { status: 400, body: { error: 'End time must be after start time' } }
+  const series = base.series
   let rule: SeriesRule | null
   if (input.repeat === null) rule = null
   else {
-    rule = seriesRuleFor(input.repeat ?? { every: base.series.every, time_zone: base.series.timeZone, until: base.series.untilDay }, start)
+    // A one-off event has no repeat to keep: it needs one to start repeating.
+    const repeat = input.repeat ?? (series ? { every: series.every, time_zone: series.timeZone, until: series.untilDay } : null)
+    if (!repeat) return EVENT_NOT_REPEATING
+    rule = seriesRuleFor(repeat, start)
     if (!rule) return EVENT_REPEAT_INVALID
   }
-  const first = base.event.occurrenceStart === base.series.anchorStart
+  if (!series && !rule) return EVENT_NOT_REPEATING
   return {
     start, end, rule,
     template: {
@@ -187,7 +191,8 @@ export function planFollowingEdit(base: FollowingBase, input: FollowingInput): F
       location: input.location !== undefined ? input.location : base.event.location,
       event_type: input.event_type ?? base.event.event_type,
     },
-    previous: first ? { kind: 'remove' } : { kind: 'end', untilDay: dayBefore(localDayIn(base.event.occurrenceStart, base.series.timeZone)) },
+    previous: !series ? { kind: 'none' } : base.event.occurrenceStart === series.anchorStart ? { kind: 'remove' }
+      : { kind: 'end', untilDay: dayBefore(localDayIn(base.event.occurrenceStart, series.timeZone)) },
   }
 }
 export const isFollowingRefusal = (plan: FollowingPlan | Refusal): plan is Refusal => 'status' in plan

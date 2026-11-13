@@ -39,6 +39,7 @@ import {
 import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import styles from "./calendar-planner.module.css";
 import { EventPeopleLine } from "@/components/calendar/EventPeopleLine";
+import { MEMBER_COLOR_CSS, isMemberColorKey } from "@/lib/member-colors";
 import {
   SyncNotice,
   UpdatedLine,
@@ -295,10 +296,15 @@ export function CalendarPlanner({
   );
   const eventButton = (e: PlanningEvent, day: Date) => {
     const segment = segmentEvent(e, day, local)!;
+    // Colour by person: the first person the event is for tints the chip.
+    // Names stay visible on the chip, so colour never carries meaning alone.
+    const personColor = e.participants?.find((person) => isMemberColorKey(person.color))?.color;
     return (
       <button
         type="button"
         className={styles.event}
+        data-person-color={personColor}
+        style={personColor && isMemberColorKey(personColor) ? ({ "--event-person-color": MEMBER_COLOR_CSS[personColor] } as React.CSSProperties) : undefined}
         data-calendar-kind={
           e.source_subscription_id || e.source
             ? "subscribed"
