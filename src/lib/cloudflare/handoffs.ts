@@ -560,7 +560,7 @@ export async function readD1PublicHandoff(
     .prepare(
       `SELECT h.id,h.sitter_name,h.sitter_phone,h.arrival_time,h.departure_time,h.kids_bedtimes,h.where_snacks,h.pickup_authorized,h.code_words,h.pet_care,h.emergency_notes,h.house_notes,h.general_notes,h.share_expires_at,f.name AS family_name
       FROM "Handoff" h JOIN "Family" f ON f.id=h.family_id
-      WHERE h.share_token=?1`,
+      WHERE h.share_token=?1 AND json_extract(f.features,'$.handoff')=1`,
     )
     .bind(shareToken)
     .first<{

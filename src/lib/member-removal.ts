@@ -1,3 +1,4 @@
+import { createFamilyInviteCode } from './family-invite'
 import { householdContentScope } from '@/lib/household-content-erasure'
 import { clearWeeklyResetInTx } from '@/lib/weekly-reset-storage'
 /**
@@ -150,6 +151,16 @@ export async function removeHouseholdMember(
         data: { family_id: null, token_version: { increment: 1 } },
       })
       await clearWeeklyResetInTx(tx, target.id)
+
+      // A parent could read the family code and the calendar feed link.
+      // Both stop working now: the saved link no longer reads the calendar
+      // and the old code cannot be used to rejoin.
+      if (target.role === 'parent') {
+        await tx.family.update({
+          where: { id: familyId },
+          data: { invite_code: createFamilyInviteCode(), feed_token: null },
+        })
+      }
 
       // Shared tablets.
       await tx.householdDevice.updateMany({

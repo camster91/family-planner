@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { reminderTimeZoneHeaders } from "@/lib/notification-read-client";
+import { NOTIFICATIONS_CHANGED_EVENT, reminderTimeZoneHeaders } from "@/lib/notification-read-client";
 
 /** The badge shows exact counts up to this; one more unread row reads as "9+". */
 export const BELL_COUNT_MAX = 9;
@@ -14,6 +14,14 @@ export const BELL_COUNT_MAX = 9;
  */
 export function useBellUnread(enabled: boolean, pathname: string | null): number {
   const [unread, setUnread] = useState(0);
+  // Bumped when the inbox page says something was read, snoozed or removed.
+  const [changes, setChanges] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const changed = () => setChanges((count) => count + 1);
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, changed);
+  }, [enabled]);
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
@@ -22,10 +30,11 @@ export function useBellUnread(enabled: boolean, pathname: string | null): number
       .then((body: { notifications?: unknown[] } | null) => {
         if (!controller.signal.aborted) setUnread(Array.isArray(body?.notifications) ? Math.min(body.notifications.length, BELL_COUNT_MAX + 1) : 0);
       })
-      .catch(() => {});
+      // A failed count shows no badge rather than a stale one.
+      .catch(() => { if (!controller.signal.aborted) setUnread(0); });
     return () => controller.abort();
-    // Re-check on each page change: that is when a person may have read or received one.
-  }, [enabled, pathname]);
+    // Re-check on each page change and inbox change: that is when a person may have read or received one.
+  }, [enabled, pathname, changes]);
   return enabled ? unread : 0;
 }
 

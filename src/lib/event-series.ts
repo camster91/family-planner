@@ -132,6 +132,19 @@ export function seriesTopUpTarget(nowMs: number, wantedMs?: number): number {
   return Math.min(nowMs + SERIES_MAX_AHEAD_MS, Math.max(nowMs + SERIES_HORIZON_MS, wantedMs ?? 0))
 }
 
+/**
+ * A series is due a top-up only when its written rows end more than this
+ * short of the default horizon. Without the slack every read would find
+ * every series due (the horizon moves with the clock) and write to the
+ * database each time.
+ */
+export const SERIES_TOP_UP_SLACK_MS = 7 * 86_400_000
+/** Series written through less than this are due; a reader asking further ahead gets exactly what they asked for. */
+export function seriesTopUpDueBefore(nowMs: number, wantedMs?: number): number {
+  const target = seriesTopUpTarget(nowMs, wantedMs)
+  return target > nowMs + SERIES_HORIZON_MS ? target : target - SERIES_TOP_UP_SLACK_MS
+}
+
 /** The local day before a local day. */
 export function dayBefore(day: string): string {
   const [y, m, d] = day.split('-').map(Number)

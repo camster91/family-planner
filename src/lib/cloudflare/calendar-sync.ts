@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { CalendarSubscriptionActor } from '@/lib/calendar-subscription-access'
 import type { SyncOptions } from '@/lib/calendar-import/sync'
-import { CalendarSubscriptionSyncHeld, importWindow, type SyncResult } from '@/lib/calendar-import/sync-values'
+import { CalendarSubscriptionSyncHeld, importWindow, mayUseFeedValidators, type SyncResult } from '@/lib/calendar-import/sync-values'
 import { fetchFeed, FeedFetchError } from '@/lib/calendar-import/fetch'
 import { parseIcsFeed, IcsParseError, MAX_OCCURRENCES, type ImportedOccurrence } from '@/lib/calendar-import/parse'
 import { DEFAULT_FAMILY_TIMEZONE } from '@/lib/calendar-import/timezone'
@@ -9,8 +9,8 @@ import { decryptSecret } from '@/lib/secret-box'
 import { getD1Database, type D1Store } from './database'
 import { d1WriteCheck, isD1WriteConflict } from './write-check'
 
-type Source = { id: string; family_id: string; created_by: string; created_at: number; url_enc: string; etag: string | null; last_modified: string | null }
-const SOURCE = `SELECT id,family_id,created_by,created_at,url_enc,etag,last_modified FROM "CalendarSubscription" WHERE id=?1 AND family_id=?2`
+type Source = { id: string; family_id: string; created_by: string; created_at: number; url_enc: string; etag: string | null; last_modified: string | null; last_fetched_at: number | null }
+const SOURCE = `SELECT id,family_id,created_by,created_at,url_enc,etag,last_modified,last_fetched_at FROM "CalendarSubscription" WHERE id=?1 AND family_id=?2`
 const AUTH = `EXISTS (SELECT 1 FROM "User" u JOIN "Family" f ON f.id=u.family_id
   WHERE u.id=?1 AND u.family_id=?2 AND u.role=?3 AND u.token_version=?4)`
 const actorArgs = (actor: CalendarSubscriptionActor) => [actor.userId, actor.familyId, actor.role, actor.generation]
@@ -117,7 +117,9 @@ export async function syncD1CalendarSubscription(id: string, familyId: string, o
   const url = decryptSecret(source.url_enc)
   if (!url) return errorResult('url_unreadable', 'Saved calendar link could not be read. Remove and add it again.')
   let fetched
-  try { fetched = await fetchFeed(url, { etag: source.etag, lastModified: source.last_modified, fetchImpl: options.fetchImpl, assertUrl: options.assertUrl }) }
+  // An unchanged feed is still read in full once a day: the import window moves with the clock.
+  const conditional = mayUseFeedValidators(source.last_fetched_at, now)
+  try { fetched = await fetchFeed(url, { etag: conditional ? source.etag : null, lastModified: conditional ? source.last_modified : null, fetchImpl: options.fetchImpl, assertUrl: options.assertUrl }) }
   catch (cause) { return cause instanceof FeedFetchError ? errorResult(cause.code, cause.message) : errorResult('unknown', 'Could not refresh this calendar') }
   if (fetched.notModified) {
     await persistD1CalendarSync(db, source, actor, { now: now.getTime(), status: 'ok', error: null })

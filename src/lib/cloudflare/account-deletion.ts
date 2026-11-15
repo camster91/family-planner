@@ -15,6 +15,7 @@ import {
 } from "./private-object-keys";
 import { revokeProviderGrant } from "@/lib/calendar-sync/revoke";
 import { prepareD1AuditLog, auditSummary } from "@/lib/household-audit";
+import { createFamilyInviteCode } from "@/lib/family-invite";
 import { rewriteRoutineFutureSubject } from "@/lib/routine-subject-lifecycle";
 import {
   routineScheduleConfig,
@@ -2652,6 +2653,8 @@ export async function deleteD1MemberAccount(
           .bind(userId),
         d1WriteCheck(session, "changes()=1"),
       );
+      if (actor.role === "parent")
+        statements.push(departedParentAccessStatement(session, familyId));
     } else {
       // Profiles from a former household are still NO ACTION subjects. Erase
       // their identifying links before removing the account, even when the
@@ -3203,6 +3206,19 @@ export async function deleteD1Household(
   );
 }
 
+/**
+ * A parent could read the family code and the calendar feed link. When a
+ * parent leaves or is removed, both stop working in the same batch, so the
+ * saved link no longer reads the calendar and the old code cannot be used to
+ * rejoin. Remaining parents see the new code in Settings. Goes last in the
+ * batch: Family triggers add to changes(), which earlier guards rely on.
+ */
+function departedParentAccessStatement(session: ReturnType<D1Store["withSession"]>, familyId: string): D1Statement {
+  return session
+    .prepare('UPDATE "Family" SET invite_code=?1,feed_token=NULL WHERE id=?2')
+    .bind(createFamilyInviteCode(), familyId);
+}
+
 /** Detach a member while retaining their account and the household's stable
  * profile/history. Unlike account deletion, sent messages and shared history
  * remain; the member's session generation is bumped and device access is
@@ -3545,6 +3561,8 @@ export async function removeD1HouseholdMember(
         now,
       ),
     );
+    if (target.role === "parent")
+      statements.push(departedParentAccessStatement(session, args.familyId));
     try {
       await session.batch([...capture.checks(session), ...statements]);
       await revokeGrants(

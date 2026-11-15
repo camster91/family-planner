@@ -15,7 +15,7 @@ import {
 import { projectEventParticipants, readHouseholdPeople, replaceEventParticipantsInTx } from './event-participants-db'
 import {
   EVENT_NOT_REPEATING, EVENT_REPEAT_UNSUPPORTED, SERIES_TOP_UP_MAX, eventRepeatReady, isFollowingRefusal, planFollowingEdit,
-  seriesEventId, seriesOccurrences, seriesTopUpTarget, type EventRepeatEvery, type SeriesRule,
+  seriesEventId, seriesOccurrences, seriesTopUpDueBefore, seriesTopUpTarget, type EventRepeatEvery, type SeriesRule,
 } from './event-series'
 
 type Tx = Prisma.TransactionClient
@@ -63,16 +63,17 @@ const current = (raw: string, people: ReadonlyMap<string, EventPerson>) =>
 export async function topUpEventSeries(db: Pick<PrismaClient, '$transaction'>, familyId: string, now: Date, wantedMs?: number): Promise<number> {
   if (!eventRepeatReady()) return 0
   const target = seriesTopUpTarget(now.getTime(), wantedMs)
+  const dueBefore = seriesTopUpDueBefore(now.getTime(), wantedMs)
   return db.$transaction(async (tx) => {
     // Serialize concurrent readers per series; rows are idempotent anyway.
     const due = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "EventSeries"
-      WHERE "family_id" = ${familyId} AND "generated_through" < ${new Date(target)} ORDER BY "generated_through", "id" LIMIT 20 FOR UPDATE SKIP LOCKED`
+      WHERE "family_id" = ${familyId} AND "generated_through" < ${new Date(dueBefore)} ORDER BY "generated_through", "id" LIMIT 20 FOR UPDATE SKIP LOCKED`
     if (!due.length) return 0
     const people = await readHouseholdPeople(tx, familyId)
     let written = 0
     for (const { id } of due) {
       const series = await tx.eventSeries.findFirst({ where: { id, family_id: familyId } })
-      if (!series || series.generated_through.getTime() >= target) continue
+      if (!series || series.generated_through.getTime() >= dueBefore) continue
       const plan = planSeriesRows({ every: series.every as EventRepeatEvery, timeZone: series.time_zone, anchorStart: series.anchor_start.getTime(), untilDay: series.until_day },
         series.generated_through.getTime(), target)
       await writeSeriesOccurrencesInTx(tx, series, plan.starts, current(series.participants, people))

@@ -9,6 +9,8 @@ import { setListItemTask } from "@/lib/list-tasks-db";
 import { setD1ListItemTask } from "@/lib/cloudflare/list-tasks";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import { D1PersonReceiptError } from "@/lib/cloudflare/person-effect";
+import { idempotencyError } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "private, no-store" };
@@ -41,6 +43,8 @@ export async function PATCH(request: NextRequest) {
       : await setListItemTask(prisma!, { ...actor, addedBy: auth.user.id }, parsed.data);
     return NextResponse.json(result.body, { status: result.status, headers: NO_STORE });
   } catch (error) {
+    // Repeated write conflicts are a retryable conflict, not a server fault.
+    if (error instanceof D1PersonReceiptError) return idempotencyError(error.code);
     logRouteError("PATCH /api/lists/items/task", error, getRequestId(request));
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
