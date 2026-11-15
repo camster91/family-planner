@@ -330,10 +330,16 @@ An event can repeat. Each repeat is a real `Event` row, so every existing read
 - **Lifecycle:** deleting a series keeps past rows as one-off events
   (`series_id` set null). Household deletion clears events, then series. The
   database refuses a row that points at another household's series.
-- **Not included:** turning a saved one-off event into a repeating one from the
-  edit form; imported (ICS) and provider-synced events are unchanged and keep
-  their own preserved-rule handling; the ICS feed emits each repeat as its own
-  event, not an `RRULE`; assistant-proposed changes cannot use
+- **Start repeating:** a one-off event made in this app can start repeating
+  from the edit form. `PATCH` with `series_scope: "following"` and a `repeat`
+  makes that event the first of a new series and keeps its id and people. An
+  event with a stored rule or from a connected calendar is refused
+  (`409 EVENT_SERIES_SCOPE_INVALID`) and keeps its own handling.
+- **Colour by person:** with people on events on, the planner tints a chip
+  with the colour of the first person the event is for. Names stay on the chip.
+- **Not included:** imported (ICS) and provider-synced events are unchanged and
+  keep their own preserved-rule handling; the ICS feed emits each repeat as its
+  own event, not an `RRULE`; assistant-proposed changes cannot use
   `series_scope: "following"`.
 
 ## In-app event reminders (switched on in `wrangler.jsonc`; live from the next deploy)
@@ -365,8 +371,15 @@ next 24 hours. In-app only: no push, email, sound or lock-screen surface.
 - **Lifecycle:** deleting the event or the account cascades the proof;
   household deletion clears it before events. The database refuses a
   foreign-household account and any edit of a row's identity.
-- **Not included:** per-event or per-person lead times; push or email;
-  reminders for chores or meals; an unread count.
+- **Lead time:** each account chooses how far ahead it is reminded: 2 or 12
+  hours, 1 day (default), 2 days or 1 week. `GET`/`PATCH /api/events/reminders`
+  (`{ hours }`), own setting only, stored in `EventReminderPreference`; no row
+  means the default. Shown in notification settings as "Remind me about
+  events". Further out than tomorrow the reminder spells out the date.
+- **Unread count:** the bell shows the number of unread notifications, up to
+  "9+".
+- **Not included:** per-event lead times; push or email; reminders for chores
+  or meals; the lead-time choice in the account data export.
 - **Evidence:** `npm run cloudflare:test:reads -- --only=event-participants`
   (local workerd/D1), `src/lib/__tests__/event-participants.integration.test.ts`
   (PostgreSQL), unit tests for the rules, validation and picker. No edge,

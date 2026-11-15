@@ -78,5 +78,13 @@
     "onDelete": "Cascade",
     "onUpdate": "NoAction",
     "decision": "People on events (default-off). A standalone email-free profile an event is for; account-backed people use EventParticipant.user instead, exactly one subject per row. Display-only attribution: no authority, credential, credit or history. Archive hides the row on read; deleting the profile or the event cascades it."
+  },
+  {
+    "relation": "ListItemTask.member",
+    "fields": ["member_id", "family_id"],
+    "references": ["id", "family_id"],
+    "onDelete": "Cascade",
+    "onUpdate": "NoAction",
+    "decision": "To-dos (default-off). A standalone email-free profile a list item is for; account-backed people use ListItemTask.user instead, at most one owner per row. Display-only attribution: it grants nothing, and the profile cannot act on the item. Archiving the profile hides it on read; erasing the profile cascades the row."
   }
 ]

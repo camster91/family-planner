@@ -128,6 +128,30 @@ dbSuite('event reminders (Postgres)', () => {
     await expect(db.eventReminder.updateMany({ where: { user_id: P }, data: { user_id: T } })).rejects.toThrow()
   })
 
+  it('uses each account\'s own lead time; the default is a day; the database refuses an unknown value', async () => {
+    const lead = await import('@/lib/event-reminders-db')
+    await db.eventReminderPreference.deleteMany({ where: { user_id: { in: [P, T, F] } } })
+    await event('remind-pg-in-1h', HOUR, 'Soon')
+    await event('remind-pg-in-5h', 5 * HOUR, 'Later today')
+    await event('remind-pg-in-3d', 72 * HOUR, 'In three days')
+    expect(await lead.readReminderLeadHours(db, P)).toBe(24)
+    expect(await lead.writeReminderLeadHours(db, { userId: P, generation: 9 }, 2)).toBe(false)
+    expect(await lead.writeReminderLeadHours(db, parent, 2)).toBe(true)
+    expect(await lead.writeReminderLeadHours(db, teen, 168)).toBe(true)
+    expect(await lead.readReminderLeadHours(db, P)).toBe(2)
+    expect(await write(db, parent, TZ, now)).toBe(1)
+    expect(await write(db, teen, TZ, now)).toBe(3)
+    expect((await inbox(P)).map((row) => row.title)).toEqual(['Coming up: Soon'])
+    // Further out than tomorrow, the date is spelled out.
+    expect((await inbox(T)).find((row) => row.title === 'Coming up: In three days')!.message).toBe('Sat, Jun 13 at 12:00 PM')
+    // Widening the lead later picks up what is now inside it, once.
+    expect(await lead.writeReminderLeadHours(db, parent, 12)).toBe(true)
+    expect(await write(db, parent, TZ, now)).toBe(1)
+    expect(await write(db, parent, TZ, now)).toBe(0)
+    await expect(db.eventReminderPreference.update({ where: { user_id: P }, data: { hours: 5 } })).rejects.toThrow()
+    await db.eventReminderPreference.deleteMany({ where: { user_id: { in: [P, T, F] } } })
+  })
+
   it('writes at most ten per read and the rest on the next', async () => {
     for (let i = 0; i < 12; i++) await event(`remind-pg-many-${String(i).padStart(2, '0')}`, (i + 1) * HOUR, `Event ${i}`)
     expect(await write(db, parent, TZ, now)).toBe(10)

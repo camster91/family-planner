@@ -1,4 +1,4 @@
-import { EVENT_REMINDERS_READY_ENV, eventRemindersReady, reminderIsFor, reminderText, reminderTimeZone } from '../event-reminders'
+import { EVENT_REMINDERS_READY_ENV, eventRemindersReady, isReminderLeadHours, reminderIsFor, reminderText, reminderTimeZone, reminderWindowMs } from '../event-reminders'
 
 describe('event reminder rules', () => {
   afterEach(() => { delete process.env[EVENT_REMINDERS_READY_ENV] })
@@ -36,5 +36,14 @@ describe('event reminder rules', () => {
     const long = reminderText({ title: 'x'.repeat(300), start: now + 1 }, 'UTC', now).title
     expect(long).toHaveLength('Coming up: '.length + 120)
     expect(long.endsWith('…')).toBe(true)
+  })
+  it('offers a closed set of lead times and falls back to a day', () => {
+    expect([2, 12, 24, 48, 168].every(isReminderLeadHours)).toBe(true)
+    expect([0, 5, 24.5, '24', null, undefined].some(isReminderLeadHours)).toBe(false)
+    expect(reminderWindowMs(2)).toBe(2 * 3_600_000)
+    expect(reminderWindowMs(undefined)).toBe(24 * 3_600_000)
+    expect(reminderWindowMs(7)).toBe(24 * 3_600_000)
+    const now = Date.parse('2026-06-10T16:00:00Z')
+    expect(reminderText({ title: 'Trip', start: now + 72 * 3_600_000 }, 'America/Toronto', now).message).toBe('Sat, Jun 13 at 12:00 PM')
   })
 })

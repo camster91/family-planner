@@ -345,6 +345,15 @@
   white-space: normal;
   border-radius: 8px;
 }
+/* Colour by person: the first person an event is for tints its chip. */
+.planner .event[data-person-color] {
+  border-left-color: var(--event-person-color);
+  background: color-mix(
+    in srgb,
+    var(--event-person-color) 14%,
+    var(--surface-elevated)
+  );
+}
 .planner .event[data-calendar-kind="connected"] {
   border-left-color: var(--label-primary);
 }

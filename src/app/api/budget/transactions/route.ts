@@ -57,6 +57,12 @@ export async function GET(request: NextRequest) {
       offset = parseInt(rawOffset, 10);
     }
 
+    for (const [name, value] of [["startDate", startDate], ["endDate", endDate]] as const) {
+      if (value && Number.isNaN(new Date(value).getTime())) {
+        return NextResponse.json({ error: `${name} must be a valid date` }, { status: 400 });
+      }
+    }
+
     if (storageBackend() === "d1") {
       const result = await readD1BudgetTransactions(
         { userId: auth.user.id, familyId: auth.user.family_id, role: auth.user.role, generation: auth.payload?.tv ?? 0 },

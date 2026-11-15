@@ -1,4 +1,5 @@
 import { eventRemindersReady } from "@/lib/event-reminders";
+import { EventRemindersProvider } from "@/components/providers/event-reminders-provider";
 import { storageBackend } from "@/lib/storage-backend";
 import { getD1Database } from "@/lib/cloudflare/database";
 import { readD1DashboardShell } from "@/lib/cloudflare/dashboard-shell";
@@ -148,72 +149,80 @@ export default async function DashboardLayout({
         key={sessionUser.id}
         viewerId={sessionUser.id}
       >
-        <FeaturesProvider
-          initial={initialFeatures}
-          canManage={role === "parent"}
-        >
-          <Suspense fallback={null}>
-            <PreparationProvider enabled={eventPreparationReady()} role={role}>
-              <ScheduleReviewProvider
-                enabled={scheduleReviewReady()}
+        <EventRemindersProvider enabled={eventRemindersReady()}>
+          <FeaturesProvider
+            initial={initialFeatures}
+            canManage={role === "parent"}
+          >
+            <Suspense fallback={null}>
+              <PreparationProvider
+                enabled={eventPreparationReady()}
                 role={role}
               >
-                <ResponsibilityProvider
-                  enabled={responsibilityReady()}
+                <ScheduleReviewProvider
+                  enabled={scheduleReviewReady()}
                   role={role}
                 >
-                  <div data-dashboard-background>
-                    {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
-                    <DashboardSkipLink />
+                  <ResponsibilityProvider
+                    enabled={responsibilityReady()}
+                    role={role}
+                  >
+                    <div data-dashboard-background>
+                      {/* Skip-to-content link for keyboard users (WCAG 2.4.1) */}
+                      <DashboardSkipLink />
 
-                    {/* Apple HIG top bar nav */}
-                    <DashboardNav user={navUser} remindersSupported={eventRemindersReady()} />
-
-                    {/* Main content — the shell reserves bottom-tab clearance once, after all content. */}
-                    <main
-                      id="main-content"
-                      className="pt-16 pb-4"
-                      aria-labelledby="dashboard-main-label"
-                    >
-                      <DashboardMainLabel />
-                      {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
-                      <OfflineBanner className="top-16" />
-                      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
-                        <FoodPlanningAccess
-                          enabled={foodPlanningEnabled()}
-                          role={role}
-                        >
-                          <ErrorBoundary>{children}</ErrorBoundary>
-                        </FoodPlanningAccess>
-                      </div>
-                    </main>
-
-                    {/* Mobile-only bottom tab bar */}
-                    <TabBar user={navUser} />
-
-                    {/* Cmd+K global search palette */}
-                    <CommandPaletteHost role={role} />
-                  </div>
-                  {navUser && (
-                    <Suspense fallback={null}>
-                      <AssistantHost
-                        key={`${profile?.id}:${profile?.family_id}`}
-                        role={role}
-                        todayContextEnabled={isAssistantTodayEnabled()}
-                        confirmationEnabled={isAssistantConfirmationEnabled()}
-                        profileAssignmentEnabled={
-                          isProfileChoreEnabled() &&
-                          process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED === "1"
-                        }
+                      {/* Apple HIG top bar nav */}
+                      <DashboardNav
+                        user={navUser}
+                        remindersSupported={eventRemindersReady()}
                       />
-                    </Suspense>
-                  )}
-                  {forms}
-                </ResponsibilityProvider>
-              </ScheduleReviewProvider>
-            </PreparationProvider>
-          </Suspense>
-        </FeaturesProvider>
+
+                      {/* Main content — the shell reserves bottom-tab clearance once, after all content. */}
+                      <main
+                        id="main-content"
+                        className="pt-16 pb-4"
+                        aria-labelledby="dashboard-main-label"
+                      >
+                        <DashboardMainLabel />
+                        {/* "You're offline" (O-41): sticky under the top bar, above the tab bar's area. */}
+                        <OfflineBanner className="top-16" />
+                        <div className="w-full px-4 sm:px-6 lg:px-8 py-5 md:py-6">
+                          <FoodPlanningAccess
+                            enabled={foodPlanningEnabled()}
+                            role={role}
+                          >
+                            <ErrorBoundary>{children}</ErrorBoundary>
+                          </FoodPlanningAccess>
+                        </div>
+                      </main>
+
+                      {/* Mobile-only bottom tab bar */}
+                      <TabBar user={navUser} />
+
+                      {/* Cmd+K global search palette */}
+                      <CommandPaletteHost role={role} />
+                    </div>
+                    {navUser && (
+                      <Suspense fallback={null}>
+                        <AssistantHost
+                          key={`${profile?.id}:${profile?.family_id}`}
+                          role={role}
+                          todayContextEnabled={isAssistantTodayEnabled()}
+                          confirmationEnabled={isAssistantConfirmationEnabled()}
+                          profileAssignmentEnabled={
+                            isProfileChoreEnabled() &&
+                            process.env.HOUSEHOLD_PROFILE_SETUP_ENABLED === "1"
+                          }
+                        />
+                      </Suspense>
+                    )}
+                    {forms}
+                  </ResponsibilityProvider>
+                </ScheduleReviewProvider>
+              </PreparationProvider>
+            </Suspense>
+          </FeaturesProvider>
+        </EventRemindersProvider>
       </DisplayPreferencesProvider>
     </div>
   );

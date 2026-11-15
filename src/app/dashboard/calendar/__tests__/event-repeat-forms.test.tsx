@@ -70,6 +70,31 @@ describe("a repeating event on the edit form", () => {
     await screen.findByDisplayValue("Swim");
     expect(screen.queryByTestId("event-series-scope")).not.toBeInTheDocument();
   });
+  it("a one-off event can start repeating; a connected or rule-carrying one cannot", async () => {
+    event = { ...saved, series_id: null, repeat: null };
+    const first = render(<EditEventForm inSheet repeatSupported />);
+    await screen.findByDisplayValue("Swim");
+    expect(screen.getByLabelText("Repeat")).toHaveValue("");
+    submit(/Save/);
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    expect(sent()[0].body).not.toHaveProperty("series_scope");
+    first.unmount();
+    (global.fetch as jest.Mock).mockClear();
+    const second = render(<EditEventForm inSheet repeatSupported />);
+    await screen.findByDisplayValue("Swim");
+    fireEvent.change(screen.getByLabelText("Repeat"), { target: { value: "month" } });
+    submit(/Save/);
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    expect(sent()[0].body).toMatchObject({ eventId: "occurrence-3", series_scope: "following", repeat: { every: "month", until: null, time_zone: zone } });
+    second.unmount();
+    for (const extra of [{ source_connection_id: "conn-1" }, { recurrence: "FREQ=WEEKLY" }]) {
+      event = { ...saved, series_id: null, repeat: null, ...extra } as typeof saved;
+      const view = render(<EditEventForm inSheet repeatSupported />);
+      await screen.findByDisplayValue("Swim");
+      expect(screen.queryByLabelText("Repeat")).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
   it("defaults to this event and sends no scope", async () => {
     render(<EditEventForm inSheet repeatSupported />);
     await screen.findByTestId("event-series-scope");

@@ -9,7 +9,8 @@ import { lockHousehold, lockUser } from '@/lib/household-lock'
 import { eventPeopleReady, eventPersonKey } from '@/lib/event-participants'
 import { readHouseholdPeople } from '@/lib/event-participants-db'
 import {
-  REMINDER_MAX_PER_READ, REMINDER_SCAN, REMINDER_WINDOW_MS, eventRemindersReady, reminderIsFor, reminderText, reminderTimeZone,
+  DEFAULT_REMINDER_LEAD_HOURS, REMINDER_MAX_PER_READ, REMINDER_SCAN, eventRemindersReady, isReminderLeadHours, reminderIsFor, reminderText, reminderTimeZone,
+  reminderWindowMs, type ReminderLeadHours,
 } from '@/lib/event-reminders'
 
 export type ReminderActor = { userId: string; generation: number }
@@ -19,10 +20,12 @@ export type ReminderActor = { userId: string; generation: number }
  * day and were not considered before. Returns how many rows were written.
  * Throws on a database error; the inbox read wraps it.
  */
-export async function writeDueEventReminders(db: Pick<PrismaClient, '$transaction' | 'event' | 'user'>, actor: ReminderActor,
+export async function writeDueEventReminders(db: Pick<PrismaClient, '$transaction' | 'event' | 'user' | 'eventReminderPreference'>, actor: ReminderActor,
   browserTimeZone: string | null, now: Date = new Date()): Promise<number> {
   if (!eventRemindersReady()) return 0
-  const horizon = new Date(now.getTime() + REMINDER_WINDOW_MS)
+  // The person's own lead time; no row means the default.
+  const choice = await db.eventReminderPreference.findUnique({ where: { user_id: actor.userId }, select: { hours: true } })
+  const horizon = new Date(now.getTime() + reminderWindowMs(choice?.hours))
   const due = (familyId: string) => ({ family_id: familyId, start_time: { gt: now, lte: horizon }, reminders: { none: { user_id: actor.userId } } })
   // Most reads have nothing due: answer that without taking a lock.
   const account = await db.user.findUnique({ where: { id: actor.userId }, select: { family_id: true, token_version: true } })
@@ -57,5 +60,21 @@ export async function writeDueEventReminders(db: Pick<PrismaClient, '$transactio
       if (result.delivered) written += 1
     }
     return written
+  })
+}
+
+/** The signed-in account's own lead time. */
+export async function readReminderLeadHours(db: Pick<PrismaClient, 'eventReminderPreference'>, userId: string): Promise<ReminderLeadHours> {
+  const row = await db.eventReminderPreference.findUnique({ where: { user_id: userId }, select: { hours: true } })
+  return isReminderLeadHours(row?.hours) ? row.hours : DEFAULT_REMINDER_LEAD_HOURS
+}
+/** Set the signed-in account's own lead time. Returns false when the session is stale. */
+export async function writeReminderLeadHours(db: Pick<PrismaClient, '$transaction'>, actor: ReminderActor, hours: ReminderLeadHours, now: Date = new Date()): Promise<boolean> {
+  return db.$transaction(async (tx) => {
+    await lockUser(tx, actor.userId)
+    const user = await tx.user.findUnique({ where: { id: actor.userId }, select: { token_version: true } })
+    if (!user || user.token_version !== actor.generation) return false
+    await tx.eventReminderPreference.upsert({ where: { user_id: actor.userId }, create: { user_id: actor.userId, hours, updated_at: now }, update: { hours, updated_at: now } })
+    return true
   })
 }

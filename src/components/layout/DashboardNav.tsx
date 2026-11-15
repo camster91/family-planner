@@ -26,7 +26,6 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
 import type { NavUser } from "@/types";
-import { BellUnreadDot, useBellUnread } from "./BellUnreadDot";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { TabBar } from "@/components/ui/tab-bar";
@@ -67,7 +66,17 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
     params?: Record<string, string | number>,
   ) => t(key, params, navigationMessages);
   const pathname = usePathname();
-  const bellUnread = useBellUnread(remindersSupported && user !== null, pathname);
+  // The unread badge (event reminders) loads on demand, so the shell every
+  // page starts with does not carry it while reminders are off.
+  const [bellUnread, setBellUnread] = useState(0);
+  const [BellBadge, setBellBadge] = useState<typeof import("./BellUnreadDot").BellUnreadBadge | null>(null);
+  const wantsBell = remindersSupported && user !== null;
+  useEffect(() => {
+    if (!wantsBell) return;
+    let active = true;
+    void import("./BellUnreadDot").then((loaded) => { if (active) setBellBadge(() => loaded.BellUnreadBadge); }).catch(() => {});
+    return () => { active = false; };
+  }, [wantsBell]);
   const [avatarOpen, setAvatarOpen] = useState(false);
   // Children cannot open Settings (kid-access.ts), so their "Delete my
   // account" (D-3, ACCOUNT_DELETION.md) and their notification switches (#286)
@@ -264,10 +273,10 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
               <Link
                 href="/dashboard/notifications"
                 className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors relative"
-                aria-label={msg(bellUnread ? "notificationsUnread" : "notifications")}
+                aria-label={bellUnread > 0 ? msg("notificationsUnread", { count: bellUnread > 9 ? "9+" : bellUnread }) : msg("notifications")}
               >
                 <Bell className="w-5 h-5" />
-                {bellUnread && <BellUnreadDot />}
+                {wantsBell && BellBadge && <BellBadge pathname={pathname} onCount={setBellUnread} />}
               </Link>
             )}
 

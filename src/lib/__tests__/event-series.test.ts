@@ -1,5 +1,5 @@
 import {
-  EVENT_REPEAT_READY_ENV, eventRepeatReady, isLocalDay, localDayIn, seriesEventId, seriesOccurrences,
+  EVENT_REPEAT_READY_ENV, eventRepeatReady, isLocalDay, localDayIn, planFollowingEdit, seriesEventId, seriesOccurrences,
   seriesRuleFor, seriesTopUpTarget, SERIES_HORIZON_MS, SERIES_MAX_AHEAD_MS, wallTimeIn, type SeriesRule,
 } from '@/lib/event-series'
 
@@ -91,5 +91,14 @@ describe('repeating events: occurrences', () => {
     expect(seriesTopUpTarget(1000)).toBe(1000 + SERIES_HORIZON_MS)
     expect(seriesTopUpTarget(1000, 1000 + SERIES_HORIZON_MS + 5)).toBe(1000 + SERIES_HORIZON_MS + 5)
     expect(seriesTopUpTarget(1000, Number.MAX_SAFE_INTEGER)).toBe(1000 + SERIES_MAX_AHEAD_MS)
+  })
+  it('a one-off event starts repeating only when a repeat is given', () => {
+    const event = { start: Date.parse('2026-01-05T14:00:00Z'), end: Date.parse('2026-01-05T15:00:00Z'), title: 'Swim', description: null, location: null, event_type: 'sports', occurrenceStart: Date.parse('2026-01-05T14:00:00Z') }
+    expect(planFollowingEdit({ event, series: null }, { title: 'x' })).toMatchObject({ status: 409 })
+    expect(planFollowingEdit({ event, series: null }, { repeat: null })).toMatchObject({ status: 409 })
+    expect(planFollowingEdit({ event, series: null }, { repeat: { every: 'week', time_zone: 'Mars/Olympus' } })).toMatchObject({ status: 400 })
+    expect(planFollowingEdit({ event, series: null }, { title: 'Club', repeat: { every: 'week', time_zone: 'America/Toronto', until: '2026-02-02' } })).toMatchObject({
+      start: event.start, end: event.end, previous: { kind: 'none' }, template: { title: 'Club' }, rule: { every: 'week', untilDay: '2026-02-02', anchorStart: event.start },
+    })
   })
 })

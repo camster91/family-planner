@@ -1,3 +1,5 @@
+import { isTaskListType, listTasksReady, type ListItemTaskView } from "@/lib/list-tasks";
+import { readListItemTasksForPage } from "@/lib/list-tasks-server";
 import { redirect } from "next/navigation";
 import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +19,7 @@ import { PersonGroceryAdd } from "./PersonGroceryAdd";
 import type { ListType } from "@/types";
 import {
   canChangeListSectionSort,
+  canCreateList,
   canDeleteListOrItem,
 } from "@/lib/role-capabilities";
 
@@ -102,6 +105,21 @@ export default async function ListDetailPage({
     sectionOrder,
   } = snapshot;
   const canDelete = canDeleteListOrItem(actor.role);
+  // To-dos (default-off): owner and due date live in a side table, read only
+  // for lists that can have them. A failed read shows the list without them.
+  let tasks: Record<string, ListItemTaskView> | undefined;
+  if (listTasksReady() && isTaskListType(list.type)) {
+    try {
+      tasks = Object.fromEntries(
+        await readListItemTasksForPage(
+          actor.family_id,
+          items.map((item) => item.id),
+        ),
+      );
+    } catch {
+      console.warn("List task read failed");
+    }
+  }
   const mappedItems = items.map((item, i: number) => ({
     id: item.id,
     content: item.content,
@@ -159,6 +177,8 @@ export default async function ListDetailPage({
         userId={actor.id}
         ownerGeneration={actor.tokenVersion}
         canDeleteItems={canDelete}
+        tasks={tasks}
+        canSetTasks={canCreateList(actor.role)}
         paging={{
           continued: Boolean(paging.cursor),
           firstHref,
