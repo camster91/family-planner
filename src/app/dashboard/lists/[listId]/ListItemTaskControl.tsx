@@ -1,17 +1,18 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
 import { listTasksMessages, type ListTasksMessage } from "@/i18n/list-tasks";
 import { MEMBER_COLOR_CSS, isMemberColorKey } from "@/lib/member-colors";
 import { dueState, isDueDay, type ListItemTaskView } from "@/lib/list-tasks";
+import { useNow } from "@/components/fridge/sync-status";
 
 type Person = { kind: "account" | "profile"; id: string; name: string; color: string };
 const key = (person: { kind: string; id: string }) => `${person.kind}:${person.id}`;
-/** The reader's own "today" as YYYY-MM-DD. */
-function localToday(): string {
-  const now = new Date();
+/** The reader's own day as YYYY-MM-DD, from a browser clock reading. */
+function localDay(ms: number): string {
+  const now = new Date(ms);
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 function readPeople(body: unknown): Person[] | null {
@@ -25,8 +26,12 @@ function readPeople(body: unknown): Person[] | null {
  * and due date under the item, and lets a parent or teen change them. The
  * family is loaded only when the dialog is first opened.
  */
-export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabled = false }: {
+export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabled = false, done = false, onSaved }: {
   itemId: string; itemName: string; initial?: ListItemTaskView | null; canEdit: boolean; disabled?: boolean;
+  /** A ticked item is finished: its due day is shown plainly, never as overdue or due today. */
+  done?: boolean;
+  /** Told what was saved, so the list can keep it (for example to put it back after Undo). */
+  onSaved?: (itemId: string, task: ListItemTaskView) => void;
 }) {
   const { t, locale } = useTranslation();
   const msg = (name: ListTasksMessage, params?: Record<string, string>) => t(name, params, listTasksMessages);
@@ -39,6 +44,17 @@ export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabl
   const [due, setDue] = useState("");
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
+  // The server only knows "today" in its own zone, so the due label waits for
+  // the browser clock and follows it past midnight.
+  const now = useNow(60_000);
+
+  // A refreshed list can bring a newer owner or due date (set on another
+  // device). Follow it rather than keeping the first value seen.
+  const initialKey = JSON.stringify(initial ?? null);
+  useEffect(() => {
+    setTask(initial ?? { owner: null, due: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by value, not identity
+  }, [initialKey]);
 
   const begin = () => {
     setOwner(task.owner ? key(task.owner) : "");
@@ -53,18 +69,28 @@ export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabl
       .catch(() => setPeopleFailed(true));
   };
   const save = async () => {
-    const chosen = people?.find((person) => key(person) === owner) ?? null;
+    // Send only what the person changed: a field left out is unchanged on the
+    // server, so an unloaded family list or a stale copy cannot wipe the
+    // owner or due date someone else set.
+    const change: { owner?: { kind: Person["kind"]; id: string } | null; due?: string | null } = {};
+    if (people && owner !== (task.owner ? key(task.owner) : "")) {
+      const chosen = people.find((person) => key(person) === owner) ?? null;
+      change.owner = chosen ? { kind: chosen.kind, id: chosen.id } : null;
+    }
+    if (due !== (task.due ?? "")) change.due = due || null;
+    if (change.owner === undefined && change.due === undefined) { setOpen(false); return; }
     setSaving(true);
     setFailed(false);
     try {
       const response = await fetch("/api/lists/items/task", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, owner: chosen ? { kind: chosen.kind, id: chosen.id } : null, due: due || null }),
+        body: JSON.stringify({ itemId, ...change }),
       });
       const body = response.ok ? await response.json() : null;
       const saved = (body as { task?: ListItemTaskView } | null)?.task;
       if (!saved || (saved.due !== null && !isDueDay(saved.due))) throw new Error("save failed");
       setTask(saved);
+      onSaved?.(itemId, saved);
       setOpen(false);
     } catch {
       setFailed(true);
@@ -73,11 +99,11 @@ export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabl
     }
   };
 
-  const state = task.due ? dueState(task.due, localToday()) : null;
+  const state = task.due && now !== null ? (done ? "upcoming" : dueState(task.due, localDay(now))) : null;
   const dueDate = task.due
     ? new Intl.DateTimeFormat(locale === "es" ? "es" : "en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${task.due}T00:00:00Z`))
     : "";
-  const dueText = !task.due ? null : state === "today" ? msg("dueToday") : state === "overdue" ? msg("overdue", { date: dueDate }) : msg("dueOn", { date: dueDate });
+  const dueText = !task.due || now === null ? null : state === "today" ? msg("dueToday") : state === "overdue" ? msg("overdue", { date: dueDate }) : msg("dueOn", { date: dueDate });
   if (!canEdit && !task.owner && !task.due) return null;
 
   return (
@@ -96,7 +122,7 @@ export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabl
       )}
       {canEdit && (
         <button type="button" disabled={disabled} onClick={begin} aria-haspopup="dialog" aria-label={msg("setFor", { item: itemName })}
-          className="min-h-[44px] text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline">
+          className="min-h-[44px] min-w-[44px] px-2 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline">
           {msg("set")}
         </button>
       )}
@@ -122,7 +148,7 @@ export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabl
             <label className="label-apple" htmlFor={`${id}-due`}>{msg("due")}</label>
             <div className="flex items-center gap-2">
               <input id={`${id}-due`} type="date" className="input-apple" value={due} disabled={saving} onChange={(event) => setDue(event.target.value)} />
-              {due && <button type="button" className="btn-plain min-h-[44px]" disabled={saving} onClick={() => setDue("")}>{msg("clear")}</button>}
+              {due && <button type="button" className="btn-plain min-h-[44px] min-w-[44px] px-2" disabled={saving} onClick={() => setDue("")}>{msg("clear")}</button>}
             </div>
           </div>
           {failed && <p role="alert" className="text-footnote text-danger-text">{msg("failed")}</p>}

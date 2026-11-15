@@ -1,5 +1,5 @@
 import {
-  eventRepeatReady, seriesEventId, seriesOccurrences, seriesTopUpTarget, SERIES_TOP_UP_MAX,
+  eventRepeatReady, seriesEventId, seriesOccurrences, seriesTopUpDueBefore, seriesTopUpTarget, SERIES_TOP_UP_MAX,
   type EventRepeatEvery, type SeriesRule,
 } from '@/lib/event-series'
 import { eventPeopleReady, eventPersonKey, type EventPerson, type EventPersonRef } from '@/lib/event-participants'
@@ -93,7 +93,7 @@ export async function topUpD1EventSeries(db: Session, familyId: string, now: Dat
   const due = await db.prepare(`SELECT id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,
       event_type,participants,generated_through,updated_at FROM "EventSeries"
     WHERE family_id=?1 AND generated_through<?2 ORDER BY generated_through ASC,id ASC LIMIT 20`)
-    .bind(familyId, target).all<D1EventSeriesRow>()
+    .bind(familyId, seriesTopUpDueBefore(now.getTime(), wantedMs)).all<D1EventSeriesRow>()
   if (!due.results.length) return 0
   const people = await readD1HouseholdPeople(db, familyId)
   let written = 0

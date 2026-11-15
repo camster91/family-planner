@@ -21,7 +21,7 @@ import {
 import { IcsParseError, parseIcsFeed, MAX_OCCURRENCES, type ImportedOccurrence } from "./parse";
 import { DEFAULT_FAMILY_TIMEZONE } from "./timezone";
 
-import { importWindow, STALE_AFTER_MS, CalendarSubscriptionSyncHeld, type SyncResult } from "./sync-values";
+import { importWindow, mayUseFeedValidators, STALE_AFTER_MS, CalendarSubscriptionSyncHeld, type SyncResult } from "./sync-values";
 export { importWindow, STALE_AFTER_MS, IMPORT_WINDOW_PAST_DAYS, IMPORT_WINDOW_FUTURE_DAYS, CalendarSubscriptionSyncHeld, type SyncResult, type SubscriptionStatus } from "./sync-values";
 export { MAX_SUBSCRIPTIONS_PER_FAMILY } from "@/lib/calendar-subscription-list";
 export interface SyncOptions {
@@ -215,6 +215,7 @@ export async function syncSubscription(
       url_enc: true,
       etag: true,
       last_modified: true,
+      last_fetched_at: true,
     },
   });
   if (actor && actor.familyId !== familyId) throw new CalendarSubscriptionSyncHeld("access");
@@ -252,9 +253,10 @@ export async function syncSubscription(
 
   let fetched;
   try {
+    const conditional = mayUseFeedValidators(sub.last_fetched_at, now);
     fetched = await fetchFeed(url, {
-      etag: sub.etag,
-      lastModified: sub.last_modified,
+      etag: conditional ? sub.etag : null,
+      lastModified: conditional ? sub.last_modified : null,
       fetchImpl: options.fetchImpl,
       assertUrl: options.assertUrl,
     });

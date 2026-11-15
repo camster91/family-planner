@@ -296,7 +296,7 @@ export async function updateD1BudgetCategory(actor: D1BudgetActor, id: string, i
   if (!existing) return failure(404, "Category not found");
   const next = { ...existing, name: input.name === undefined ? existing.name : input.name, icon: input.icon === undefined ? existing.icon : input.icon, color: input.color === undefined ? existing.color : input.color, type: input.type === undefined ? existing.type : input.type, budget_limit: input.budget_limit === undefined ? existing.budget_limit : input.budget_limit };
   if (input.name !== undefined) {
-    const duplicate = await db.prepare(`SELECT id FROM "BudgetCategory" WHERE family_id=?1 AND lower(name)=lower(?2) AND id<>?3 AND (?4 IS NULL OR type=?4)`).bind(actor.familyId, input.name, id, input.type ?? null).first();
+    const duplicate = await db.prepare(`SELECT id FROM "BudgetCategory" WHERE family_id=?1 AND lower(name)=lower(?2) AND id<>?3 AND (?4 IS NULL OR type=?4)`).bind(actor.familyId, input.name, id, next.type ?? null).first();
     if (duplicate) return failure(409, `A category named "${input.name}" already exists`);
   }
   const transactionCount = await db.prepare(`SELECT COUNT(*) AS n FROM "Transaction" WHERE category_id=?1 AND family_id=?2`).bind(id, actor.familyId).first<{ n: number }>();
@@ -304,7 +304,8 @@ export async function updateD1BudgetCategory(actor: D1BudgetActor, id: string, i
     await db.batch([
       d1WriteCheck(db, `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND family_id=?2 AND role='parent' AND token_version=?3)`, [actor.userId, actor.familyId, actor.generation]),
       d1WriteCheck(db, `EXISTS (SELECT 1 FROM "BudgetCategory" WHERE id=?1 AND family_id=?2)`, [id, actor.familyId]),
-      d1WriteCheck(db, `NOT EXISTS (SELECT 1 FROM "BudgetCategory" WHERE family_id=?1 AND lower(name)=lower(?2) AND id<>?3 AND (?4 IS NULL OR type=?4))`, [actor.familyId, next.name, id, input.type ?? null]),
+      // Only a rename can collide; the same name is allowed once per type, as on create.
+      ...(input.name === undefined ? [] : [d1WriteCheck(db, `NOT EXISTS (SELECT 1 FROM "BudgetCategory" WHERE family_id=?1 AND lower(name)=lower(?2) AND id<>?3 AND (?4 IS NULL OR type=?4))`, [actor.familyId, next.name, id, next.type ?? null])]),
       db.prepare(`UPDATE "BudgetCategory" SET name=?3,icon=?4,color=?5,type=?6,budget_limit=?7 WHERE id=?1 AND family_id=?2`).bind(id, actor.familyId, next.name, next.icon, next.color, next.type, next.budget_limit),
       d1WriteCheck(db, "changes()=1"),
     ]);

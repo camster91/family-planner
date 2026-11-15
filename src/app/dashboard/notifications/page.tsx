@@ -12,7 +12,7 @@ import { useToast, useUndoToast, UNDO_TOAST_MS } from "@/components/ui/toast";
 import { requestOwnedJson } from "@/lib/owned-request-http";
 import { cn } from "@/lib/utils";
 import { useSupportingText } from "@/i18n/supporting-ui";
-import { readNotificationPage, NotificationPageError, type NotificationItem } from "@/lib/notification-read-client";
+import { announceNotificationsChanged, readNotificationPage, NotificationPageError, type NotificationItem } from "@/lib/notification-read-client";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 
 const GLYPH_COLORS: Record<
@@ -290,6 +290,7 @@ export default function NotificationsPage() {
         setNotifications((prev) =>
           prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
         );
+        announceNotificationsChanged();
       } catch {
         if (!controller.signal.aborted) { holdWrites(); await failed(text("markFailed")); }
       } finally {
@@ -329,6 +330,8 @@ export default function NotificationsPage() {
           if (result.response.status >= 500 || result.response.ok) holdWrites();
           restore(item);
           await failed(text("deleteFailed"), result.body);
+        } else {
+          announceNotificationsChanged();
         }
       } catch {
         if (pageLive.current && !controller.signal.aborted) {
@@ -422,6 +425,7 @@ export default function NotificationsPage() {
             : n,
         ),
       );
+      announceNotificationsChanged();
       setNow(Date.now());
       addToast({
         type: "success",

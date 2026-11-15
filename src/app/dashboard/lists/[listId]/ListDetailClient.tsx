@@ -184,6 +184,16 @@ export default function ListDetailClient({
     null,
   );
   const [listItems, setListItems] = React.useState<Item[]>(initialItems);
+  // Owner and due date as last saved here, by item id: what Undo puts back,
+  // and what a restored (new) row shows before the next refresh.
+  const [savedTasks, setSavedTasks] = React.useState<
+    Record<string, ListItemTaskView>
+  >({});
+  const rememberTask = React.useCallback(
+    (itemId: string, task: ListItemTaskView) =>
+      setSavedTasks((prev) => ({ ...prev, [itemId]: task })),
+    [],
+  );
   const localDeletes = React.useRef(new Set<string>());
   const pendingDeletes = React.useRef(new Set<string>());
   const [heldDeletes, setHeldDeletes] = React.useState<Record<string, Item>>(
@@ -512,6 +522,28 @@ export default function ListDetailClient({
         ingredient_name: item.ingredient_name ?? null,
         added_by: item.added_by,
       };
+      // Deleting the item also deleted who it was for and when it is due.
+      // Put those back on the new row; if that fails the item still returns.
+      const task = savedTasks[item.id] ?? tasks?.[item.id];
+      if (canSetTasks && task && (task.owner || task.due)) {
+        try {
+          const taskRes = await fetch("/api/lists/items/task", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              itemId: restored.id,
+              ...(task.owner
+                ? { owner: { kind: task.owner.kind, id: task.owner.id } }
+                : {}),
+              ...(task.due ? { due: task.due } : {}),
+            }),
+          });
+          const taskBody = taskRes.ok ? await taskRes.json() : null;
+          if (taskBody?.task) rememberTask(restored.id, taskBody.task);
+        } catch {
+          // The item is back; its owner and due date can be set again by hand.
+        }
+      }
       // The server assigns restored rows a new position at the list's end.
       // Refresh paged hosts rather than displaying a later-page row twice.
       if (paging) {
@@ -774,7 +806,9 @@ export default function ListDetailClient({
             <ListItemTaskControl
               itemId={item.id}
               itemName={item.content}
-              initial={tasks[item.id]}
+              initial={savedTasks[item.id] ?? tasks[item.id]}
+              onSaved={rememberTask}
+              done={displayChecked(item)}
               canEdit={canSetTasks}
               disabled={Boolean(op)}
             />
