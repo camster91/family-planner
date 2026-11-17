@@ -1221,7 +1221,7 @@ it('editing: sends the existing wishlist fields through the short sheet', async 
     title: 'Helmet',
     link: 'https://example.test/helmet',
     description: 'A safe commuter helmet',
-    approx_price: '42.5',
+    approx_price: '42.50',
   })
 })
 
