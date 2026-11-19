@@ -10,7 +10,7 @@ function Bell({ enabled, pathname = '/dashboard' }: { enabled: boolean; pathname
 const reply = (notifications: unknown[], ok = true) => jest.fn(async () => ({ ok, json: async () => ({ notifications }) })) as unknown as typeof fetch
 
 describe('bell unread dot', () => {
-  it('does not ask or show anything when reminders are off', () => {
+  it('does not ask or show anything while disabled (signed out)', () => {
     global.fetch = reply([{ id: 'n' }])
     render(<Bell enabled={false} />)
     expect(global.fetch).not.toHaveBeenCalled()

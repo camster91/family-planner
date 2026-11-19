@@ -364,12 +364,14 @@ describe('RewardsBoard', () => {
   })
 })
 
-it('labels the current reward page and provides explicit older/newest links', () => {
+it('provides explicit older/newest links without "on this page" paging text', () => {
   renderBoard({ pageInfo: { older: true, nextCursor: 'fixture-cursor' } })
-  expect(screen.getByText('This page shows 2 rewards. Choices and history below apply to this page.')).toBeTruthy()
+  // UI review: no "This page shows N rewards…" or "History on this page".
+  expect(screen.queryByText(/This page shows/)).toBeNull()
+  expect(screen.queryByText(/on this page/i)).toBeNull()
   expect(screen.getByRole('link', { name: 'Older rewards' }).getAttribute('href')).toBe('/dashboard/rewards?cursor=fixture-cursor')
   expect(screen.getByRole('link', { name: 'Newest rewards' }).getAttribute('href')).toBe('/dashboard/rewards')
-  expect(screen.queryByText('All family rewards')).toBeNull()
+  expect(screen.getByRole('heading', { name: 'All family rewards' })).toBeTruthy()
 })
 it('retains a closed uncertain claim for review and holds page navigation after a still-available status read', async () => {
   const calls = mockFetch(url => url === '/api/rewards/claim' ? 'throw' : { status: 200, body: { rewards: [MOVIE] } })

@@ -1,4 +1,5 @@
 'use client'
+import { formatDateTime } from '@/lib/date-time-format'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Dialog } from '@/components/ui/dialog'
@@ -97,7 +98,7 @@ export default function ArchiveReview({ owner }: { owner: FinanceArchiveOwner })
     <Dialog open={selected !== null && !retired && Boolean(data?.rows.some(row => row.id === selected.id))} onClose={() => setSelected(null)} title={text('details')} closeLabel={text('close')} variant="form">
       {selected && <div className="space-y-4"><dl className="space-y-3">{[
         [text('sourceApp'), selected.sourceApp], [text('sourceModel'), selected.sourceModel], [text('sourceId'), selected.sourceId],
-        [text('preserved'), new Date(selected.createdAt).toLocaleString(locale)],
+        [text('preserved'), formatDateTime(selected.createdAt, locale)],
       ].map(([label, value]) => <div key={label}><dt className="text-footnote text-label-secondary">{label}</dt><dd className="break-all text-body">{value}</dd></div>)}</dl>
         {detailLoading && <p role="status">{text('detailLoading')}</p>}
         {detailFailed && <div role="alert"><p>{text('detailFailed')}</p><div className="mt-2 flex flex-wrap gap-3"><button type="button" className="btn-tinted min-h-[44px]" disabled={detailLoading} onClick={() => setDetailRefresh(value => value + 1)}>{text('retry')}</button><button type="button" className="btn-plain min-h-[44px]" onClick={() => { setSelected(null); setRefresh(value => value + 1) }}>{text('refresh')}</button></div></div>}

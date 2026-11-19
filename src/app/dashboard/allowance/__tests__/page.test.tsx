@@ -202,6 +202,8 @@ it("marks a pending allowance paid once and uses the canonical payment date", as
   renderPage();
   await user.dblClick(await screen.findByRole("button", { name: "Mark paid" }));
   expect(writes).toBe(1);
+  // Money comes from the one shared formatter, always with its symbol.
+  expect(screen.getByText("$12.50 → Élodie")).toBeTruthy();
   expect(
     screen.getByRole("button", { name: "Cancel allowance" }),
   ).toBeDisabled();

@@ -17,6 +17,10 @@ const en = {
   data: "Your data",
   diagnostics: "Connection and app details",
   contact: "Contact support",
+  reportTitle: "Report a problem or suggest an idea",
+  reportHelp:
+    "Save a private bug report or feature suggestion. Avoid passwords and private family details.",
+  reportButton: "Report / Suggest",
   create: "Create your household",
   createHelp:
     "After signing up and confirming your email, choose a household name. The person creating it becomes a parent.",
@@ -92,6 +96,10 @@ const es: Record<HelpMessage, string> = {
   data: "Tus datos",
   diagnostics: "Conexión y detalles de la app",
   contact: "Contactar con soporte",
+  reportTitle: "Informar de un problema o sugerir una idea",
+  reportHelp:
+    "Guarda un informe de error o una sugerencia privada. No incluyas contraseñas ni datos privados de la familia.",
+  reportButton: "Informar / Sugerir",
   create: "Crea tu hogar",
   createHelp:
     "Después de registrarte y confirmar tu correo, elige un nombre para el hogar. Quien lo crea se convierte en padre o madre.",

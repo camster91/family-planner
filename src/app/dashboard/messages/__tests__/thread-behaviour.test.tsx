@@ -234,6 +234,12 @@ describe('localized presentation', () => {
     expect(screen.getByRole('heading', { name: 'Mensajes familiares' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Conversación familiar' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Texto del mensaje' })).toHaveAttribute('placeholder', 'Escribe a tu familia')
+    // The text box gets its own full-width row on a phone, so the
+    // placeholder is never cut off ("Message your…").
+    const box = screen.getByRole('textbox', { name: 'Texto del mensaje' })
+    expect(box.className).toEqual(expect.stringContaining('basis-full'))
+    expect(box.className).toEqual(expect.stringContaining('min-w-0'))
+    expect(screen.getByTestId('message-composer').className).toEqual(expect.stringContaining('flex-wrap'))
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getAllByLabelText(/Enviado/)).toHaveLength(3)
     expect(screen.getAllByText('Sam')).toHaveLength(3)

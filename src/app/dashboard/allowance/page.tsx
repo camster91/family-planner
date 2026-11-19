@@ -11,6 +11,7 @@ import { InsetList, SectionHeader } from "@/components/ui/list-row";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useTranslation } from "@/i18n";
+import { formatMoney } from "@/lib/money";
 import { allowanceCreateMessages } from "@/i18n/allowance-create";
 import { allowanceMessages, type AllowanceCopy } from "@/i18n/allowance";
 
@@ -330,7 +331,7 @@ function AllowancePageInner() {
         {target && (
           <div className="space-y-4">
             <p className="break-words text-body font-semibold">
-              ${target.amount.toFixed(2)} → {target.to_name}
+              {formatMoney(target.amount, locale)} → {target.to_name}
             </p>
             {target.reason && (
               <p className="break-words text-body text-label-secondary">
@@ -404,7 +405,7 @@ function AllowanceRow({
         <Avatar name={item.to_name || "?"} src={item.to_avatar} size="sm" />
         <div className="flex-1 min-w-0">
           <div className="text-body text-label-primary break-words">
-            ${item.amount.toFixed(2)} → {item.to_name}
+            {formatMoney(item.amount, locale)} → {item.to_name}
           </div>
           <div className="text-footnote text-label-secondary break-words">
             {item.reason ||

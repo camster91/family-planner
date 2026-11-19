@@ -126,17 +126,25 @@ const nextConfig = {
       if (!chunks.length || chunks.some(chunk => !Array.from(chunk.groupsIterable).some(group => group.isInitial())) || owners.some(owner => typeof owner !== 'string' || !owner)) return null
       return owners
     }
+    // The design gallery (/dev/design-system) is a development page that
+    // renders fixture props for most components; production answers 404 for
+    // it unless explicitly enabled. Its imports must not stop real routes from
+    // sharing shell code, or that code is copied into each route's own
+    // chunks instead (Today then downloaded the layout's error boundary,
+    // dialog and date helpers twice). The gallery simply loads the shared
+    // shell chunks too.
+    const sharesShell = (owner) => owner.startsWith('app/dashboard/') || owner.startsWith('app/dev/')
     const inLayout = (module, chunkGraph, layout) => {
       if (!eligible(module)) return false
       const owners = initialOwners(module, chunkGraph)
       if (!owners?.includes(layout)) return false
-      return layout === 'app/layout' || owners.every(owner => owner.startsWith('app/dashboard/'))
+      return layout === 'app/layout' || owners.every(sharesShell)
     }
     const inBoardShell = (module, chunkGraph) => {
       if (!eligible(module)) return false
       const owners = initialOwners(module, chunkGraph)
       // Both surfaces must already require every module in this shared chunk.
-      return Boolean(owners?.includes('app/dashboard/layout') && owners.includes('app/device/today/page') && owners.every(owner => owner.startsWith('app/dashboard/') || owner === 'app/device/today/page'))
+      return Boolean(owners?.includes('app/dashboard/layout') && owners.includes('app/device/today/page') && owners.every(owner => sharesShell(owner) || owner === 'app/device/today/page'))
     }
     const sharedLayoutGroup = (layout, name, priority) => ({
       test: (module, { chunkGraph }) => inLayout(module, chunkGraph, layout),
