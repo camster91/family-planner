@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { InsetList } from "@/components/ui/list-row";
 import { CheckboxRow } from "@/components/ui/checkbox-row";
-import { Glyph } from "@/components/ui/glyph";
 import { useToast } from "@/components/ui/toast";
 import { useProjectOverviewText } from "@/i18n/project-overview";
 import { ProjectTaskDetails } from "../ProjectOverviewCopy";
@@ -28,7 +27,10 @@ interface ProjectTaskChecklistProps {
 }
 
 /**
- * The project's task list. Ticking a task updates it at once (optimistic),
+ * The project's task list. Each row has exactly one done control (the round
+ * check on the right), and it always shows the task's real state; there is no
+ * decorative tick beside the title that could read as a second checkbox.
+ * Ticking a task updates it at once (optimistic),
  * saves through the project task PATCH API and refreshes the server page so
  * the progress card follows; a failed save puts the tick back and says so.
  */
@@ -121,13 +123,6 @@ export function ProjectTaskChecklist({
                     dueDate={task.due_date}
                     description={task.description}
                   />
-                }
-                glyph={
-                  <Glyph color="projects" size="sm">
-                    <span className="text-xs" aria-hidden="true">
-                      ✓
-                    </span>
-                  </Glyph>
                 }
                 className={cn(i === group.length - 1 && "border-b-0")}
               />

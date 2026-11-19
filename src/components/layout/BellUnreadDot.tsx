@@ -7,10 +7,11 @@ import { NOTIFICATIONS_CHANGED_EVENT, reminderTimeZoneHeaders } from "@/lib/noti
 export const BELL_COUNT_MAX = 9;
 
 /**
- * How many unread notifications the signed-in person has, for the bell
- * (event reminders). Reading the inbox is also what writes due reminders,
- * since there is no scheduler. Asks only when the server says reminders are
- * on; any failure simply shows no badge. Capped at BELL_COUNT_MAX + 1.
+ * How many unread notifications the signed-in person has, for the bell. Every
+ * unread notification counts (messages, chores, reminders...), not only event
+ * reminders. When reminders are on, reading the inbox is also what writes due
+ * reminders, since there is no scheduler. Any failure simply shows no badge.
+ * Capped at BELL_COUNT_MAX + 1.
  */
 export function useBellUnread(enabled: boolean, pathname: string | null): number {
   const [unread, setUnread] = useState(0);
@@ -23,9 +24,11 @@ export function useBellUnread(enabled: boolean, pathname: string | null): number
     return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, changed);
   }, [enabled]);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || typeof fetch !== "function") return;
     const controller = new AbortController();
-    fetch(`/api/notifications?unread=true&limit=${BELL_COUNT_MAX + 1}`, { cache: "no-store", signal: controller.signal, headers: reminderTimeZoneHeaders() })
+    // Promise-wrapped so a fetch stub that returns nothing cannot throw here.
+    Promise.resolve()
+      .then(() => fetch(`/api/notifications?unread=true&limit=${BELL_COUNT_MAX + 1}`, { cache: "no-store", signal: controller.signal, headers: reminderTimeZoneHeaders() }))
       .then((response) => (response.ok ? response.json() : null))
       .then((body: { notifications?: unknown[] } | null) => {
         if (!controller.signal.aborted) setUnread(Array.isArray(body?.notifications) ? Math.min(body.notifications.length, BELL_COUNT_MAX + 1) : 0);

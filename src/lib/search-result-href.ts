@@ -18,6 +18,7 @@ export const SEARCH_RESULT_TYPES = [
   'recipe',
   'note',
   'inventory',
+  'pickup',
 ] as const
 
 export type SearchResultType = (typeof SEARCH_RESULT_TYPES)[number]
@@ -32,6 +33,7 @@ export const SEARCH_TYPE_PAGE: Record<SearchResultType, string> = {
   recipe: '/dashboard/meals/recipes',
   note: '/dashboard/notes',
   inventory: '/dashboard/inventory',
+  pickup: '/dashboard/pickups',
 }
 
 export type SearchHrefTarget =
@@ -43,6 +45,7 @@ export type SearchHrefTarget =
   | { type: 'recipe'; id: string }
   | { type: 'note' }
   | { type: 'inventory' }
+  | { type: 'pickup' }
 
 /** Whether `role` may get results of `type` at all. */
 export function canSearchType(role: string | null | undefined, type: SearchResultType): boolean {

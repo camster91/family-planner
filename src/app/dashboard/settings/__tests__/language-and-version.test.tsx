@@ -156,18 +156,25 @@ describe('Settings language', () => {
   })
 })
 
-describe('Settings app version', () => {
-  it('shows the server build from /api/version', async () => {
+// The version and build now live only in Help › diagnostics; the Settings
+// footer just names the product (Herewoven), never "Family Planner".
+describe('Settings footer', () => {
+  it('names Herewoven and shows no server build, even when one is available', async () => {
     mockApi({ ok: true, body: { version: '0.7.2', commit: '0123456789abcdef0123456789abcdef01234567', builtAt: 'unknown' } })
     renderSettings()
-    expect(await screen.findByText('Version 0.7.2 (0123456)')).toBeTruthy()
+    await screen.findByLabelText('Preferred language')
+    expect(screen.getByText(/© \d{4} Herewoven\. All rights reserved\./)).toBeTruthy()
+    expect(screen.queryByText(/Family Planner/)).toBeNull()
+    expect(screen.queryByText(/^Version/)).toBeNull()
     expect(screen.queryByText(/Phase 1 MVP/)).toBeNull()
   })
 
-  it('leaves out an unknown commit', async () => {
+  it('does not ask the server for its version', async () => {
     mockApi({ ok: true, body: { version: '0.7.2', commit: 'unknown', builtAt: 'unknown' } })
     renderSettings()
-    expect(await screen.findByText('Version 0.7.2')).toBeTruthy()
+    await screen.findByLabelText('Preferred language')
+    expect(global.fetch).not.toHaveBeenCalledWith('/api/version')
+    expect(screen.queryByText('Version 0.7.2')).toBeNull()
   })
 
   it.each([
@@ -177,7 +184,7 @@ describe('Settings app version', () => {
     mockApi(version as any)
     renderSettings()
     await screen.findByLabelText('Preferred language')
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/version'))
+    await waitFor(() => expect(screen.getAllByText(/© \d{4} Herewoven/).length).toBe(1))
     expect(screen.queryByText(/^Version/)).toBeNull()
   })
 })

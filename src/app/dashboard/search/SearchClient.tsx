@@ -47,7 +47,7 @@ function formatWhen(
   if (!result.date) return null;
   const date = new Date(result.date);
   if (Number.isNaN(date.getTime())) return null;
-  if (result.type === "event") {
+  if (result.type === "event" || result.type === "pickup") {
     return date.toLocaleString(locale, {
       weekday: "short",
       day: "numeric",

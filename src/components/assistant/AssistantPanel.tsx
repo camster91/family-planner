@@ -1,4 +1,5 @@
 "use client";
+import { formatClockTime, formatDateTime } from "@/lib/dates";
 import * as React from "react";
 import {
   FEEDBACK_VIEW_HEADER,
@@ -1092,9 +1093,7 @@ export default function AssistantPanel({
             {todayFreshness && !todayExpired && (
               <p role="status" className="text-sm text-label-secondary">
                 {msg("todayContextIncluded", {
-                  time: new Date(
-                    todayFreshness.generatedAt,
-                  ).toLocaleTimeString(),
+                  time: formatClockTime(todayFreshness.generatedAt),
                 })}
               </p>
             )}
@@ -1376,7 +1375,7 @@ export default function AssistantPanel({
                           <option key={t.id} value={t.id}>
                             {t.title}
                             {t.detail
-                              ? ` · ${new Date(t.detail).toLocaleString()}`
+                              ? ` · ${formatDateTime(t.detail)}`
                               : ""}
                             {t.context ? ` · ${t.context}` : ""}
                           </option>

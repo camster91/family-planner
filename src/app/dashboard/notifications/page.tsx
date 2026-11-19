@@ -1,9 +1,10 @@
 "use client";
 
+import { formatDateTime } from "@/lib/dates";
 import Link from "next/link";
 import { notificationDestination } from "@/lib/notification-destination";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, Check, Trash2, Clock, AlertCircle } from "lucide-react";
+import { Bell, Check, Trash2, Clock, AlertCircle, MoreHorizontal } from "lucide-react";
 import { Glyph } from "@/components/ui/glyph";
 import { InsetList } from "@/components/ui/list-row";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -649,9 +650,10 @@ export default function NotificationsPage() {
                   {isSnoozed(notification) && (
                     <p className="w-full text-caption-1 text-label-secondary">
                       {text("returns", {
-                        date: new Date(
+                        date: formatDateTime(
                           notification.snoozed_until!,
-                        ).toLocaleString(displayLocale),
+                          displayLocale,
+                        ),
                       })}
                     </p>
                   )}
@@ -660,15 +662,15 @@ export default function NotificationsPage() {
                       type="button"
                       disabled={writeHold || snoozePending !== null}
                       onClick={() => handleMarkAsRead(notification.id)}
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full px-2 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill-secondary shrink-0"
+                      data-testid="notification-mark-read"
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-full bg-surface-fill-secondary px-3 text-subhead font-medium text-[var(--accent-text)] hover:bg-surface-fill shrink-0 disabled:opacity-50"
                       aria-label={text("markLabel", {
                         title: notification.title,
                       })}
                     >
                       <Check className="w-4 h-4" aria-hidden="true" />
-                      <span className="hidden sm:inline">
-                        {text("markRead")}
-                      </span>
+                      {/* Always labelled: a bare tick was easy to miss. */}
+                      <span>{text("markRead")}</span>
                     </button>
                   )}
                   <details
@@ -680,9 +682,12 @@ export default function NotificationsPage() {
                       event.currentTarget.querySelector("summary")?.focus();
                     }}
                   >
+                    {/* Overflow menu: snooze, show now and delete. */}
                     <summary aria-label={text("notificationOptionsLabel", { title: notification.title })}
-                      className="min-h-[44px] min-w-[44px] cursor-pointer list-none rounded-full px-3 py-2.5 text-subhead text-label-secondary hover:bg-surface-fill-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]">
-                      {text("notificationOptions")}
+                      data-testid="notification-overflow"
+                      className="inline-flex min-h-[44px] min-w-[44px] cursor-pointer list-none items-center justify-center rounded-full text-label-secondary hover:bg-surface-fill-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] [&::-webkit-details-marker]:hidden">
+                      <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
+                      <span className="sr-only">{text("notificationOptions")}</span>
                     </summary>
                     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--surface-separator)] p-2">
                   {isSnoozed(notification) ? (
@@ -751,7 +756,9 @@ export default function NotificationsPage() {
         )}
         {!loading && !loadError && (
           <div className="mt-4 space-y-3">
-            <p ref={pageStatus} tabIndex={-1} role="status" className="text-footnote text-label-secondary">{text(partial ? "loadedScope" : "allLoaded")}</p>
+            {/* Paging status is for screen readers only: everyday screens do not
+                show "All notifications loaded." style lines. */}
+            <p ref={pageStatus} tabIndex={-1} role="status" className="sr-only">{text(partial ? "loadedScope" : "allLoaded")}</p>
             {pagingSupported === false && (
               <>
                 <p role="status" className="text-footnote text-label-secondary">{text("pagingUnavailable")}</p>

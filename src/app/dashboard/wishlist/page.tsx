@@ -5,6 +5,7 @@ import { readBoundedJsonResponse } from '@/lib/bounded-json-response'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Heart, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from '@/i18n'
+import { formatPriceText } from '@/lib/money'
 import { useWishlistPagingText } from '@/i18n/wishlist-paging'
 import { Dialog } from '@/components/ui/dialog'
 import { FeatureGate } from '@/components/ui/feature-gate'
@@ -289,7 +290,7 @@ function isHttpUrl(value: string): boolean {
 }
 
 function WishlistContent() {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const pagingText = useWishlistPagingText()
   const { addToast, removeToast } = useMaybeToast()
   const [items, setItems] = useState<WishlistItem[]>([])
@@ -1294,7 +1295,7 @@ function WishlistContent() {
                     {item.approx_price && (
                       <p className="mt-3 text-callout text-label-secondary">
                         {t('wishlist.approxPriceValue', {
-                          value: item.approx_price,
+                          value: formatPriceText(item.approx_price, locale),
                         })}
                       </p>
                     )}
@@ -1338,7 +1339,8 @@ function WishlistContent() {
           ),
         )}
         <div className="flex flex-col items-start gap-3">
-          <p ref={pageStatusRef} tabIndex={-1} role="status" className="text-footnote text-label-secondary">
+          {/* Screen-reader only: no "All wishes loaded." line on the screen. */}
+          <p ref={pageStatusRef} tabIndex={-1} role="status" className="sr-only">
             {pagingText(partial ? 'partial' : 'complete')}
           </p>
           {moreError && <p role="alert" className="text-footnote text-danger-text">{pagingText('failed')}</p>}

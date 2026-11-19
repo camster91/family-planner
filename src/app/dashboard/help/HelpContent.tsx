@@ -11,6 +11,8 @@ import { useHelpText } from "@/i18n/help";
 import { APP_HELP_TOPICS } from "@/lib/app-help-topics";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useFeatures } from "@/components/providers/features-provider";
+import { MessageSquareWarning } from "lucide-react";
+import { openReportForm } from "@/lib/report-launcher";
 
 function PageLink({
   href,
@@ -218,6 +220,22 @@ export default function HelpContent({
           <AppDiagnostics />
         </Section>
       )}
+      {/* Report / Suggest lives here (and in the user menu) instead of a
+          floating pill on every page. */}
+      <Section id="help-report" title={text("reportTitle")}>
+        <p className="text-subhead text-label-secondary">
+          {text("reportHelp")}
+        </p>
+        <button
+          type="button"
+          onClick={() => openReportForm()}
+          className="btn-tinted inline-flex min-h-[44px] items-center gap-2"
+          data-testid="help-report-button"
+        >
+          <MessageSquareWarning className="h-4 w-4" aria-hidden="true" />
+          {text("reportButton")}
+        </button>
+      </Section>
       <Section id="help-contact" title={text("contact")}>
         <p className="text-subhead text-label-secondary">
           {text("supportHelp")}

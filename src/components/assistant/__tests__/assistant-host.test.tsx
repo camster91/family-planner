@@ -14,6 +14,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, useTranslation } from "@/i18n";
 import AssistantHost from "../AssistantHost";
+import { openReportForm } from "@/lib/report-launcher";
 let mockMode = "",
   mockPathname = "/dashboard/today",
   mockRecognition: any;
@@ -50,6 +51,12 @@ beforeEach(() => {
   delete (window as any).SpeechRecognition;
 });
 
+/** Report / Suggest is opened from Help or the user menu (no floating pill). */
+async function openReport() {
+  await act(async () => {
+    openReportForm();
+  });
+}
 async function openChat(
   user: ReturnType<typeof userEvent.setup>,
   locale: "en" | "es" = "en",
@@ -100,7 +107,8 @@ it("keeps a late Spanish launcher hydration-safe and localizes after hydration",
     });
     expect(errors).toEqual([]);
     expect(recoverable).toEqual([]);
-    expect(container.textContent).toContain("Informar / Sugerir");
+    // No floating Report / Suggest pill; it lives in Help and the user menu.
+    expect(container.textContent).not.toContain("Informar / Sugerir");
     expect(container.textContent).toContain("Añadir o preguntar");
   } finally {
     errorSpy.mockRestore();
@@ -325,14 +333,19 @@ it("keeps a removal proposal when its choices GET fails, then reloads that GET o
     "/api/events",
   ]);
 });
-it("child gets reports but no paid assistant; shared fridge shows neither launcher", () => {
+it("child gets reports (from Help or the menu) but no paid assistant and no floating pill; shared fridge opens neither", async () => {
   const view = render(<AssistantHost role="child" />);
   expect(screen.queryByRole("button", { name: "Add or ask" })).toBeNull();
-  expect(screen.getByRole("button", { name: "Report / Suggest" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Report / Suggest" })).toBeNull();
+  expect(document.querySelector("[data-person-assistant]")).toBeNull();
+  await openReport();
+  expect(await screen.findByLabelText("Title")).toBeTruthy();
   view.unmount();
   mockMode = "mode=fridge";
   render(<AssistantHost role="parent" />);
   expect(screen.queryByRole("button", { name: "Report / Suggest" })).toBeNull();
+  await openReport();
+  expect(screen.queryByLabelText("Title")).toBeNull();
 });
 it("tucks launchers away for external form focus and restores dialog focus", async () => {
   const user = userEvent.setup();
@@ -389,7 +402,8 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
     "md:pb-6",
   );
   const buttons = within(launchers).getAllByRole("button");
-  expect(buttons).toHaveLength(2);
+  // Only Add or ask: Report / Suggest moved to Help and the user menu.
+  expect(buttons).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Add or ask" })).toBeVisible();
   for (const button of buttons) {
     expect(button).toHaveClass(
@@ -399,9 +413,7 @@ it("keeps both launcher actions reachable in a compact 320px layout", () => {
       "max-[320px]:shrink-0",
     );
   }
-  expect(screen.getByText("Report / Suggest")).toHaveClass(
-    "max-[320px]:sr-only",
-  );
+  expect(screen.queryByText("Report / Suggest")).toBeNull();
   expect(screen.getByText("Add or ask")).toHaveClass("max-[320px]:sr-only");
 });
 it("keeps a chat draft when the assistant is closed and reopened", async () => {
@@ -419,8 +431,7 @@ it("keeps a chat draft when the assistant is closed and reopened", async () => {
 it("keeps exact report labels and unsent values after reopening", async () => {
   const user = userEvent.setup();
   render(<AssistantHost role="parent" />);
-  const launcher = screen.getByRole("button", { name: "Report / Suggest" });
-  await user.click(launcher);
+  await openReport();
   await user.type(
     screen.getByLabelText("Title", { exact: true }),
     "Fixture report draft",
@@ -430,7 +441,7 @@ it("keeps exact report labels and unsent values after reopening", async () => {
     "Fixture details remain private and unsent.",
   );
   await user.click(screen.getByRole("button", { name: "Close" }));
-  await user.click(launcher);
+  await openReport();
   expect(screen.getByLabelText("Title", { exact: true })).toHaveValue(
     "Fixture report draft",
   );
@@ -444,7 +455,7 @@ it("saves private feedback and displays a real receipt", async () => {
     response({ report: { id: "saved-receipt" } }),
   ) as any;
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
+  await openReport();
   await user.type(screen.getByLabelText("Title"), "More calendar controls");
   await user.type(
     screen.getByLabelText("What happened or what would help?"),
@@ -1665,7 +1676,7 @@ it("retains a report after a malformed receipt and retries its exact original bo
     });
   }) as unknown as typeof fetch;
   const view = render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
+  await openReport();
   await user.type(screen.getByLabelText("Title"), "Private report draft");
   await user.type(
     screen.getByLabelText("What happened or what would help?"),
@@ -1990,7 +2001,7 @@ it("retains the exact feedback request after an oversized receipt and retries it
   }) as typeof fetch;
   const user = userEvent.setup();
   render(<AssistantHost role="parent" />);
-  await user.click(screen.getByRole("button", { name: "Report / Suggest" }));
+  await openReport();
   await user.type(screen.getByLabelText("Title"), "Calendar feedback");
   await user.type(
     screen.getByLabelText("What happened or what would help?"),

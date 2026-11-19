@@ -54,7 +54,7 @@ const COPY: Record<
     placeholder: "Tell the family why this wish is denied.",
     confirm: "Deny wish",
     cancel: "Cancel",
-    idle: "Idle",
+    idle: messages.en.wishlist.status.idle,
     received: "Received",
     uncertain:
       "We could not confirm the status change. The wishlist was refreshed; check the current status before trying again.",
@@ -67,7 +67,7 @@ const COPY: Record<
     placeholder: "Explica a la familia por que se deniega este deseo.",
     confirm: "Denegar deseo",
     cancel: "Cancelar",
-    idle: "Pendiente",
+    idle: messages.es.wishlist.status.idle,
     received: "Recibido",
     uncertain:
       "No pudimos confirmar el cambio de estado. Actualizamos los deseos; revisa el estado actual antes de intentarlo de nuevo.",

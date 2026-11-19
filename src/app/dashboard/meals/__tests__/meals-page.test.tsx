@@ -63,8 +63,16 @@ const LASAGNA = {
 
 type Call = { url: string; method: string; body: unknown };
 
+/** When set, the week comes back in two pages (first meal, then the rest). */
+let twoMealPages = false;
 function mealPage(meals: unknown[], url?: string) {
   const query = url ? new URL(url, "https://example.test").searchParams : null;
+  if (twoMealPages) {
+    const cursor = query?.get("cursor");
+    return cursor
+      ? { meals: meals.slice(1), nextCursor: null }
+      : { meals: meals.slice(0, 1), nextCursor: "fixture-page-2" };
+  }
   return {
     meals: meals.filter((row) => {
       const date = (row as { date?: unknown })?.date;
@@ -233,6 +241,29 @@ describe("/dashboard/meals", () => {
       expect(window.location.search).toBe("?start=2026-01-08"),
     );
   });
+  it('loads more meals on request, then shows no "All meals loaded" button', async () => {
+    twoMealPages = true;
+    try {
+      const user = userEvent.setup();
+      setup({ meals: [dinnerA, dinnerB] });
+      const more = await screen.findByRole("button", {
+        name: "Load more meals",
+      });
+      await user.click(more);
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Load more meals" }),
+        ).toBeNull(),
+      );
+      expect(
+        screen.queryByRole("button", { name: "All meals loaded" }),
+      ).toBeNull();
+      expect(screen.queryByText("All meals loaded")).toBeNull();
+    } finally {
+      twoMealPages = false;
+    }
+  });
+
   it("shows all seven dinners first and discloses other slots per day without writes", async () => {
     const user = userEvent.setup();
     const { calls } = setup({

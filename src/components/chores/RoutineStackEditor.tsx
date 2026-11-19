@@ -7,7 +7,8 @@ import { z } from "zod";
 import { Dialog } from "@/components/ui/dialog";
 import { runOwnedForeground } from "@/lib/owned-request-http";
 import { readBoundedJsonResponse } from "@/lib/bounded-json-response";
-import { toDateOnlyLocal } from "@/lib/dates";
+import { formatDateOnly, formatRelativeDueDate, toDateOnlyLocal } from "@/lib/dates";
+import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import { ROUTINE_STACK_ISSUED_AT_HEADER, ROUTINE_STACK_WINDOW_CLOSED, routineStackRetryWindowOpen } from "@/lib/routine-stack-retry-window";
 import { compactResponseSchema } from "@/lib/routine-stack-response-contract";
@@ -452,6 +453,24 @@ export default function RoutineStackEditor({
   const msgRef = React.useRef(msg);
   msgRef.current = msg;
   const occurrenceDate = dateOnly(params.get("occurrence_date") || todayDate());
+  const displayLocale = useDisplayLocale();
+  // Plain words for the day, never an ISO date: "Today", "Tomorrow" or
+  // "Monday, January 5".
+  const dayLabel = (value: string) => {
+    const relative = formatRelativeDueDate(value, new Date(), displayLocale, {
+      today: msg("dayToday"),
+      tomorrow: msg("dayTomorrow"),
+    });
+    if (relative === msg("dayToday") || relative === msg("dayTomorrow"))
+      return relative;
+    return (
+      formatDateOnly(
+        value,
+        { weekday: "long", month: "long", day: "numeric" },
+        displayLocale,
+      ) || value
+    );
+  };
   const requestedStackId = params.get("stack_id");
   const [stackId, setStackId] = React.useState<string | null>(requestedStackId);
   const [label, setLabel] = React.useState("");
@@ -1283,9 +1302,6 @@ export default function RoutineStackEditor({
               >
                 {msg("steps")}
               </SectionHeading>
-              <span className="text-footnote text-label-secondary">
-                {steps.length}/{ROUTINE_STACK_MAX_STEPS}
-              </span>
             </div>
             {steps.length === 0 && (
               <p className="rounded-xl bg-[var(--surface-fill-secondary)] p-3 text-body text-label-secondary">
@@ -1313,7 +1329,7 @@ export default function RoutineStackEditor({
                         {step.choreId && initialIdsRef.current.has(step.choreId)
                           ? msg("existing")
                           : msg("drafted")}{" "}
-                        · {step.dueDate}
+                        · {dayLabel(step.dueDate)}
                       </p>
                       <label
                         htmlFor={`routine-assignee-${step.draftId}`}
@@ -1632,8 +1648,11 @@ export default function RoutineStackEditor({
         className="mx-auto min-w-0 w-full max-w-3xl px-4 pb-24 pt-6"
       >
         <div className="mb-6">
-          <p className="text-footnote uppercase tracking-wide text-label-secondary">
-            {msg("occurrence")} · {occurrenceDate}
+          <p
+            className="text-footnote text-label-secondary"
+            data-testid="routine-editor-day"
+          >
+            {dayLabel(occurrenceDate)}
           </p>
           <h1
             id="routine-editor-page-heading"

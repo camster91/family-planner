@@ -3,7 +3,8 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Sparkles, MessageSquareWarning } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { REPORT_OPEN_EVENT } from "@/lib/report-launcher";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useFeatures } from "@/components/providers/features-provider";
 import { isFeatureEnabled } from "@/lib/features";
@@ -153,11 +154,16 @@ export default function AssistantHost({
     const openAssistant = () => {
       if (canChat) open("chat");
     };
+    // Report / Suggest has no floating pill any more: Help and the user
+    // menu open it with this event (every role may send a report).
+    const openReport = () => open("report");
     window.addEventListener("herewoven:quick-add", openQuickAdd);
     window.addEventListener("herewoven:assistant-open", openAssistant);
+    window.addEventListener(REPORT_OPEN_EVENT, openReport);
     return () => {
       window.removeEventListener("herewoven:quick-add", openQuickAdd);
       window.removeEventListener("herewoven:assistant-open", openAssistant);
+      window.removeEventListener(REPORT_OPEN_EVENT, openReport);
     };
   }, [canChat, hidden, open, panelBusy]);
 
@@ -173,6 +179,7 @@ export default function AssistantHost({
   };
   return (
     <>
+      {canChat && (
       <div
         data-person-assistant
         data-launchers-suppressed={launcherSuppressed ? "true" : undefined}
@@ -192,17 +199,8 @@ export default function AssistantHost({
             <span className="max-[320px]:sr-only">{msg("launcherAddAsk")}</span>
           </button>
         )}
-        <button
-          type="button"
-          tabIndex={launcherSuppressed ? -1 : undefined}
-          onClick={() => open("report")}
-          disabled={panelBusy}
-          className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
-        >
-          <MessageSquareWarning size={20} aria-hidden="true" />
-          <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>
-        </button>
       </div>
+      )}
       <QuickAddDialog
         open={quickAddOpen}
         onClose={() => setQuickAddOpen(false)}

@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime } from "@/lib/dates";
 import * as React from "react";
 import Link from "next/link";
 import { FEATURES } from "@/lib/features";
@@ -228,7 +229,7 @@ export default function ChangeTimeline({
                     dateTime={entry.at}
                     className="block text-footnote text-label-secondary"
                   >
-                    {new Date(entry.at).toLocaleString(locale)}
+                    {formatDateTime(entry.at, locale)}
                   </time>
                   {target ? (
                     <Link

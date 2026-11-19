@@ -22,7 +22,10 @@ import {
   BellRing,
   CircleHelp,
   Compass,
+  MessageSquareWarning,
 } from "lucide-react";
+import { assistantShellMessages } from "@/i18n/assistant-shell";
+import { openReportForm } from "@/lib/report-launcher";
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
 import type { NavUser } from "@/types";
@@ -53,30 +56,46 @@ import {
 
 interface DashboardNavProps {
   user: NavUser | null;
-  /** Event reminders are on (server flag): the bell then shows an unread dot. */
+  /**
+   * Event reminders are on (server flag). Kept for callers; the bell's unread
+   * badge now counts every unread notification whether or not reminders are on.
+   */
   remindersSupported?: boolean;
 }
 
-export default function DashboardNav({ user, remindersSupported = false }: DashboardNavProps) {
+export default function DashboardNav({ user }: DashboardNavProps) {
   const reviewCopy = useReviewInboxShellText();
   const { t } = useCoreTranslation();
+  // Scoped catalog: the report form's label lives with the assistant shell copy.
+  const reportKey = "launcherReport" as const;
+  const reportLabel = t(reportKey, undefined, assistantShellMessages);
   const featureNavTitle = useFeatureNavTitle();
   const msg = (
     key: NavigationMessage,
     params?: Record<string, string | number>,
   ) => t(key, params, navigationMessages);
   const pathname = usePathname();
-  // The unread badge (event reminders) loads on demand, so the shell every
-  // page starts with does not carry it while reminders are off.
+  // The bell's unread badge counts ANY unread notification (not only event
+  // reminders) for a signed-in person. It loads on demand after first paint.
   const [bellUnread, setBellUnread] = useState(0);
   const [BellBadge, setBellBadge] = useState<typeof import("./BellUnreadDot").BellUnreadBadge | null>(null);
-  const wantsBell = remindersSupported && user !== null;
+  const wantsBell = user !== null;
   useEffect(() => {
     if (!wantsBell) return;
     let active = true;
     void import("./BellUnreadDot").then((loaded) => { if (active) setBellBadge(() => loaded.BellUnreadBadge); }).catch(() => {});
     return () => { active = false; };
   }, [wantsBell]);
+  // The review inbox icon (parents only) shows how many items wait for a check.
+  const [reviewCount, setReviewCount] = useState(0);
+  const [ReviewBadge, setReviewBadge] = useState<typeof import("./ReviewInboxCount").ReviewInboxBadge | null>(null);
+  const wantsReviewCount = user?.role === "parent";
+  useEffect(() => {
+    if (!wantsReviewCount) return;
+    let active = true;
+    void import("./ReviewInboxCount").then((loaded) => { if (active) setReviewBadge(() => loaded.ReviewInboxBadge); }).catch(() => {});
+    return () => { active = false; };
+  }, [wantsReviewCount]);
   const [avatarOpen, setAvatarOpen] = useState(false);
   // Children cannot open Settings (kid-access.ts), so their "Delete my
   // account" (D-3, ACCOUNT_DELETION.md) and their notification switches (#286)
@@ -262,10 +281,15 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
             {user?.role === "parent" && (
               <Link
                 href="/dashboard/review"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]"
-                aria-label={reviewCopy.title}
+                className="relative inline-flex h-11 w-11 items-center justify-center rounded-full text-label-secondary hover:text-label-primary hover:bg-[var(--surface-fill)]"
+                aria-label={
+                  reviewCount > 0
+                    ? reviewCopy.titleWithCount.replace("{count}", reviewCount > 9 ? "9+" : String(reviewCount))
+                    : reviewCopy.title
+                }
               >
                 <Inbox className="h-5 w-5" aria-hidden="true" />
+                {wantsReviewCount && ReviewBadge && <ReviewBadge pathname={pathname} onCount={setReviewCount} />}
               </Link>
             )}
             {/* Notifications bell */}
@@ -275,7 +299,7 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
                 className="inline-flex h-11 w-11 items-center justify-center text-label-secondary hover:text-label-primary rounded-full hover:bg-[var(--surface-fill)] transition-colors relative"
                 aria-label={bellUnread > 0 ? msg("notificationsUnread", { count: bellUnread > 9 ? "9+" : bellUnread }) : msg("notifications")}
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-5 h-5" aria-hidden="true" />
                 {wantsBell && BellBadge && <BellBadge pathname={pathname} onCount={setBellUnread} />}
               </Link>
             )}
@@ -448,6 +472,25 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
                         {msg("help")}
                       </Link>
                     )}
+                    {/* Report / Suggest (no longer a floating pill on every
+                        page): opens the private report form for every role. */}
+                    <button
+                      type="button"
+                      data-testid="user-menu-report"
+                      onClick={() => {
+                        setAvatarOpen(false);
+                        // Focus returns to the avatar button when the form closes.
+                        avatarButtonRef.current?.focus();
+                        openReportForm();
+                      }}
+                      className="flex min-h-[44px] w-full items-center gap-3 px-4 py-2.5 text-left text-[15px] text-label-primary hover:bg-[var(--surface-fill)] transition-colors"
+                    >
+                      <MessageSquareWarning
+                        className="w-4 h-4 text-label-secondary"
+                        aria-hidden="true"
+                      />
+                      {reportLabel}
+                    </button>
                   </div>
 
                   {/* Sign out */}

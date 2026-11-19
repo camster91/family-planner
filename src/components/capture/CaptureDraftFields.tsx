@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime } from "@/lib/dates";
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
 import type { CaptureChoreDraft } from "@/lib/capture-chore-review";
@@ -85,7 +86,8 @@ export function CaptureDraftFields({
   }, [value.rows.length]);
   function starts(value: string) {
     try {
-      return new Date(captureReviewInstant(value)).toLocaleString(locale);
+      const formatted = formatDateTime(captureReviewInstant(value), locale);
+      return formatted || text.start;
     } catch {
       return text.start;
     }

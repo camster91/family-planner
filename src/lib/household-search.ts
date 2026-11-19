@@ -11,7 +11,9 @@ import {
 /**
  * Household search (`GET /api/search`, route inventory F-3, #101 disposition
  * D-2). Reads only canonical tables (ADR-0007): members, events, chores,
- * lists, list items, recipes, pinned notes and active inventory items. Never a
+ * lists, list items, recipes, pinned notes, active inventory items and
+ * pickups (title, location and notes are matched; notes are never returned).
+ * Never a
  * legacy meal/shopping table, and never budget, messages, medical, locations,
  * handoff or allowance data.
  *
@@ -64,6 +66,7 @@ const TYPE_FEATURE: Record<SearchResultType, FeatureKey> = {
   recipe: 'meals',
   note: 'notes',
   inventory: 'inventory',
+  pickup: 'pickups',
 }
 
 const ROLE_LABEL: Record<string, string> = { parent: 'Parent', teen: 'Teen', child: 'Child' }
@@ -86,7 +89,7 @@ const LIST_TYPE_LABEL: Record<string, string> = {
 
 type SearchDb = Pick<
   PrismaClient,
-  'user' | 'event' | 'chore' | 'list' | 'listItem' | 'recipe' | 'pinnedNote' | 'inventoryItem'
+  'user' | 'event' | 'chore' | 'list' | 'listItem' | 'recipe' | 'pinnedNote' | 'inventoryItem' | 'pickup'
 >
 
 type Loader = (db: SearchDb, familyId: string, q: string) => Promise<Array<{ id: string; title: string; subtitle?: string; date?: Date; target: SearchHrefTarget }>>
@@ -207,6 +210,23 @@ const LOADERS: Record<SearchResultType, Loader> = {
       title: i.name,
       subtitle: `In the ${(LOCATION_LABELS[i.location as InventoryLocation] ?? 'Fridge').toLowerCase()}`,
       target: { type: 'inventory' },
+    }))
+  },
+  pickup: async (db, familyId, q) => {
+    // Pickups are a shared household surface (every role may read them, like
+    // the pickups page). Notes are matched but never returned.
+    const rows = await db.pickup.findMany({
+      where: { family_id: familyId, OR: [{ title: text(q) }, { location: text(q) }, { notes: text(q) }] },
+      select: { id: true, title: true, location: true, pickup_time: true },
+      orderBy: [{ pickup_time: 'desc' }, { id: 'asc' }],
+      take,
+    })
+    return rows.map((p) => ({
+      id: p.id,
+      title: p.title,
+      subtitle: p.location || undefined,
+      date: p.pickup_time,
+      target: { type: 'pickup' },
     }))
   },
 }

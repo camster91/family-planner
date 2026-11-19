@@ -136,6 +136,14 @@ it('refreshes the viewer’s local month', async () => {
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/budget/stats?month=${localMonth()}`))
 })
 
+it('names the month in words under the title, never as 2026-01', () => {
+  render(<BudgetDashboard initialData={pageData({ month: localMonth() })} userId="u1" />)
+  const [year, month] = localMonth().split('-').map(Number)
+  const words = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  expect(screen.getByText(words)).toBeTruthy()
+  expect(screen.queryByText(localMonth())).toBeNull()
+})
+
 it('loads the local month when the server rendered a different (UTC) month', async () => {
   render(<BudgetDashboard initialData={pageData({ month: '1999-01' })} userId="u1" />)
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/budget/stats?month=${localMonth()}`))
