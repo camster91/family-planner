@@ -42,6 +42,8 @@ const FAMILIES = [
   FIXTURE_IDS.familyEmpty.family,
 ];
 const PARENT_NAME = "Avery Fixture-A";
+/** The shared tablet shows first names only (owner decision 2026-11-19). */
+const PARENT_FIRST = "Avery";
 const PIN = "246810";
 const TABLET_PROJECTS = [
   "fridge-landscape-1280x800",
@@ -106,6 +108,12 @@ async function resetDeviceState(db: pg.Client) {
     FAMILIES,
   ]);
   await db.query(`DELETE FROM "RateLimitEntry" WHERE key LIKE 'device-%'`);
+  // The pairing question can turn tablet writes on (2026-11-19); start each
+  // test from the stored default.
+  await db.query(
+    `UPDATE "Family" SET device_writes_enabled = false WHERE id = ANY($1)`,
+    [FAMILIES],
+  );
 }
 
 async function removeCanaries(db: pg.Client) {
@@ -215,8 +223,19 @@ async function expectBoard(tablet: Page) {
   await expect(region(tablet, "groceries")).toContainText("Milk");
 }
 
-/** Pair through the real UI on both sides (parent dialog + tablet screen). */
-async function pairViaUi(parent: Page, tablet: Page, label: string) {
+/**
+ * Pair through the real UI on both sides (parent dialog + tablet screen).
+ * The phone asks "Let everyone tick chores and add groceries on this
+ * tablet?" with Yes preselected (owner decision 2026-11-19); these tests
+ * answer View only unless they ask for Yes, so Family A's stored switch
+ * stays as each test expects.
+ */
+async function pairViaUi(
+  parent: Page,
+  tablet: Page,
+  label: string,
+  tapping: "yes" | "viewOnly" = "viewOnly",
+) {
   await parent.goto("/dashboard/settings/devices");
   await parent.getByRole("button", { name: "Pair a tablet" }).click();
   const dialog = parent.getByTestId("pair-dialog");
@@ -246,6 +265,14 @@ async function pairViaUi(parent: Page, tablet: Page, label: string) {
   const digitsInput = dialog.getByLabel("Number on the tablet");
   await expect(digitsInput).toBeVisible({ timeout: 15_000 });
   await digitsInput.fill(digits);
+  const tappingChoice = dialog.getByRole("group", {
+    name: "Let everyone tick chores and add groceries on this tablet?",
+  });
+  await expect(
+    tappingChoice.getByRole("radio", { name: /Yes \(recommended\)/ }),
+  ).toBeChecked();
+  if (tapping === "viewOnly")
+    await tappingChoice.getByRole("radio", { name: /View only/ }).check();
   await dialog.getByRole("button", { name: "Connect tablet" }).click();
 
   // The tablet polls, gets its cookies and opens the board.
@@ -253,6 +280,9 @@ async function pairViaUi(parent: Page, tablet: Page, label: string) {
   await expect(dialog.getByText(`${label} is connected`)).toBeVisible({
     timeout: 15_000,
   });
+  await expect(dialog.getByTestId("pair-writes-outcome")).toContainText(
+    tapping === "yes" ? "Tapping is on." : "view only",
+  );
   await dialog.getByRole("button", { name: "Done" }).click();
 }
 
@@ -313,15 +343,29 @@ async function setPinViaSettings(parent: Page, pin: string) {
 async function elevate(tablet: Page) {
   await tablet.getByRole("button", { name: "Parent", exact: true }).click();
   const sheet = tablet.getByTestId("elevation-sheet");
-  await sheet.getByRole("button", { name: PARENT_NAME }).click();
+  await sheet.getByRole("button", { name: PARENT_FIRST, exact: true }).click();
   const pad = sheet.getByRole("group", {
-    name: `Tablet PIN pad for ${PARENT_NAME}`,
+    name: `Tablet PIN pad for ${PARENT_FIRST}`,
   });
   for (const digit of PIN) {
     await pad.getByRole("button", { name: digit, exact: true }).click();
   }
   await expect(tablet.getByTestId("elevated-banner")).toBeVisible();
   await expect(sheet).toBeHidden();
+}
+
+/** Parent mode with whichever credential the fixture parent has (PIN or password). */
+async function elevateWithPassword(tablet: Page) {
+  await tablet.getByRole("button", { name: "Parent", exact: true }).click();
+  const sheet = tablet.getByTestId("elevation-sheet");
+  await sheet.getByRole("button", { name: PARENT_FIRST, exact: true }).click();
+  const usePassword = sheet.getByRole("button", {
+    name: "Use password instead",
+  });
+  if (await usePassword.isVisible()) await usePassword.click();
+  await sheet.getByLabel(`Password for ${PARENT_FIRST}`).fill(FIXTURE_PASSWORD);
+  await sheet.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(tablet.getByTestId("elevated-banner")).toBeVisible();
 }
 
 async function storageDump(page: Page): Promise<string> {
@@ -420,7 +464,7 @@ test.describe("Shared tablet", () => {
         tablet.getByRole("button", { name: "Parent", exact: true }),
       ).toBeDisabled();
       await expect(
-        tablet.getByRole("button", { name: "Add grocery", exact: true }),
+        tablet.getByRole("button", { name: "Add to list", exact: true }),
       ).toHaveCount(0);
       expectClean(await storageDump(tablet), "restored snapshot");
       await axeScan(tablet, testInfo, "cached shared plan");
@@ -437,7 +481,7 @@ test.describe("Shared tablet", () => {
         tablet.getByRole("button", { name: "Parent", exact: true }),
       ).toBeEnabled();
       await expect(
-        tablet.getByRole("button", { name: "Add grocery", exact: true }),
+        tablet.getByRole("button", { name: "Add to list", exact: true }),
       ).toBeVisible();
     } finally {
       await tablet.unroute("**/api/device/**");
@@ -554,11 +598,11 @@ test.describe("Shared tablet", () => {
       expect(enabled.status, enabled.body).toBe(200);
       await pairViaApi(parent.page, tablet);
       await tablet
-        .getByRole("button", { name: "Add grocery", exact: true })
+        .getByRole("button", { name: "Add to list", exact: true })
         .click();
       await tablet
         .getByTestId("who-is-this")
-        .getByRole("button", { name: PARENT_NAME, exact: true })
+        .getByRole("button", { name: PARENT_FIRST, exact: true })
         .click();
       const dialog = tablet.getByTestId("device-grocery-add");
       await dialog.getByLabel("Grocery list").selectOption(listId);
@@ -626,7 +670,7 @@ test.describe("Shared tablet", () => {
           queueKeys.push(request.headers()["idempotency-key"]);
       });
       await tablet
-        .getByRole("button", { name: "Add grocery", exact: true })
+        .getByRole("button", { name: "Add to list", exact: true })
         .click();
       await dialog.getByLabel("Grocery list").selectOption(listId);
       await dialog.getByLabel("Item", { exact: true }).fill(offlineContent);
@@ -681,12 +725,12 @@ test.describe("Shared tablet", () => {
       // Another member can remove the chosen list while the form is open.
       // This is an ordinary missing resource, never a removed tablet.
       await tablet
-        .getByRole("button", { name: "Add grocery", exact: true })
+        .getByRole("button", { name: "Add to list", exact: true })
         .click();
       // The page restart deliberately forgets the attribution-only selection.
       await tablet
         .getByTestId("who-is-this")
-        .getByRole("button", { name: PARENT_NAME, exact: true })
+        .getByRole("button", { name: PARENT_FIRST, exact: true })
         .click();
       await dialog.getByLabel("Grocery list").selectOption(listId);
       await dialog
@@ -769,6 +813,12 @@ test.describe("Shared tablet", () => {
       await expect(
         tablet.getByRole("button", { name: "Parent", exact: true }),
       ).toBeVisible();
+      // Header (2026-11-19): only "+ Add to list" (writes on) and "Parent";
+      // the household helper lives in parent mode.
+      await expect(
+        tablet.getByRole("button", { name: "Household helper", exact: true }),
+      ).toHaveCount(0);
+      await elevateWithPassword(tablet);
 
       // The helper reads only this already-authorized board, with no provider or writes.
       const helperRequests: string[] = [];
@@ -892,9 +942,11 @@ test.describe("Shared tablet", () => {
       // A wrong PIN is refused without elevating.
       await tablet.getByRole("button", { name: "Parent", exact: true }).click();
       const sheet = tablet.getByTestId("elevation-sheet");
-      await sheet.getByRole("button", { name: PARENT_NAME }).click();
+      await sheet
+        .getByRole("button", { name: PARENT_FIRST, exact: true })
+        .click();
       const pad = sheet.getByRole("group", {
-        name: `Tablet PIN pad for ${PARENT_NAME}`,
+        name: `Tablet PIN pad for ${PARENT_FIRST}`,
       });
       for (const digit of "135790") {
         await pad.getByRole("button", { name: digit, exact: true }).click();
@@ -907,7 +959,7 @@ test.describe("Shared tablet", () => {
       // 1. Elevate, then "Done".
       await elevate(tablet);
       const banner = tablet.getByTestId("elevated-banner");
-      await expect(banner).toContainText(`Parent mode: ${PARENT_NAME}`);
+      await expect(banner).toContainText(`Parent mode: ${PARENT_FIRST}`);
       const dump = await storageDump(tablet);
       expect(dump).not.toContain("fpd1_");
       await banner.getByRole("button", { name: "Done" }).click();
@@ -991,6 +1043,7 @@ test.describe("Shared tablet", () => {
     const parent = await openContext(browser, testInfo, authFile("parentA"));
     try {
       await pairViaApi(parent.page, tablet);
+      await elevateWithPassword(tablet);
       await tablet
         .getByRole("button", { name: "Household helper", exact: true })
         .click();
@@ -1108,15 +1161,36 @@ test.describe("Shared tablet", () => {
       const digitsInput = dialog.getByLabel("Number on the tablet");
       await expect(digitsInput).toBeVisible({ timeout: 15_000 });
       await digitsInput.fill(digits);
+      // Yes (recommended) is preselected: confirming turns tapping on.
+      await expect(
+        dialog.getByRole("radio", { name: /Yes \(recommended\)/ }),
+      ).toBeChecked();
       await dialog.getByRole("button", { name: "Connect tablet" }).click();
       await expect(newTablet.page).toHaveURL(/\/device\/today$/, {
         timeout: 20_000,
       });
-      // Reported from the server's answer, not assumed.
-      await expect(dialog.getByRole("status")).toContainText(
-        "Kitchen tablet was removed.",
-        { timeout: 15_000 },
+      await expect(dialog.getByTestId("pair-writes-outcome")).toContainText(
+        "Tapping is on.",
       );
+      await expect
+        .poll(() =>
+          withDb(
+            async (db) =>
+              (
+                await db.query(
+                  'SELECT device_writes_enabled FROM "Family" WHERE id = $1',
+                  [A.family],
+                )
+              ).rows[0].device_writes_enabled,
+          ),
+        )
+        .toBe(true);
+      // Reported from the server's answer, not assumed.
+      await expect(
+        dialog
+          .getByRole("status")
+          .filter({ hasText: "Kitchen tablet was removed." }),
+      ).toBeVisible({ timeout: 15_000 });
       await dialog.getByRole("button", { name: "Done" }).click();
 
       await expect(
@@ -1379,12 +1453,16 @@ for (const locale of ["en", "es"] as const) {
         );
       });
       await pairViaApi(parent.page, tablet);
+      // The header trigger is "+ Add to list" (2026-11-19); the dialog keeps its title.
       await tablet
-        .getByRole("button", { name: text("deviceTitle"), exact: true })
+        .getByRole("button", {
+          name: locale === "es" ? "Añadir a la lista" : "Add to list",
+          exact: true,
+        })
         .click();
       await tablet
         .getByTestId("who-is-this")
-        .getByRole("button", { name: PARENT_NAME, exact: true })
+        .getByRole("button", { name: PARENT_FIRST, exact: true })
         .click();
       const dialog = tablet.getByTestId("device-grocery-add");
       await dialog

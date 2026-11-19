@@ -23,6 +23,53 @@ import {
 
 type Ended = "expired" | "cancelled" | "denied" | "mismatch";
 
+/**
+ * What the parent's "Let everyone tick chores…" answer did (owner decision
+ * 2026-11-19): `on` after Yes, `viewOnly` after View only, `alreadyOn` when
+ * View only was chosen but the household switch was already on (it is one
+ * switch for every family tablet, so View only never turns it off for the
+ * others), `failed` when Yes could not be saved.
+ */
+type WritesOutcome = "on" | "viewOnly" | "alreadyOn" | "failed";
+const WRITES_KEYS: Record<WritesOutcome, DeviceMessage> = {
+  on: "writesOnDone",
+  viewOnly: "writesViewOnlyDone",
+  alreadyOn: "writesAlreadyOnDone",
+  failed: "writesFailed",
+};
+
+/**
+ * Applies the pairing's tapping choice through the existing household switch
+ * (PATCH /api/family/board-settings `deviceWrites`: parent only, audited, one
+ * route for D1 and Postgres). View only changes nothing; it only reads the
+ * switch so the parent is told the truth.
+ */
+async function applyWritesChoice(
+  allow: boolean,
+): Promise<WritesOutcome> {
+  try {
+    const res = await fetch("/api/family/board-settings", {
+      method: allow ? "PATCH" : "GET",
+      cache: "no-store",
+      ...(allow
+        ? {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deviceWrites: { enabled: true } }),
+          }
+        : {}),
+    });
+    if (!res.ok) return allow ? "failed" : "viewOnly";
+    const body = (await res.json().catch(() => null)) as {
+      deviceWrites?: { enabled?: unknown };
+    } | null;
+    const enabled = body?.deviceWrites?.enabled === true;
+    if (allow) return enabled ? "on" : "failed";
+    return enabled ? "alreadyOn" : "viewOnly";
+  } catch {
+    return allow ? "failed" : "viewOnly";
+  }
+}
+
 type Step =
   | { kind: "label" }
   | { kind: "code"; pairingId: string; code: string; expiresAt: number }
@@ -87,6 +134,9 @@ export default function PairTabletDialog({
   const [label, setLabel] = React.useState(() => text("kitchen"));
   const [removeOld, setRemoveOld] = React.useState(true);
   const [digits, setDigits] = React.useState("");
+  // Defaulted-yes, explicit choice (owner decision 2026-11-19).
+  const [allowWrites, setAllowWrites] = React.useState(true);
+  const [writes, setWrites] = React.useState<WritesOutcome | null>(null);
   const [error, setError] = React.useState<DeviceFeedback | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [now, setNow] = React.useState(() => Date.now());
@@ -115,6 +165,8 @@ export default function PairTabletDialog({
       setLabel(replace ? replace.label : textRef.current("kitchen"));
       setRemoveOld(true);
       setDigits("");
+      setAllowWrites(true);
+      setWrites(null);
       setError(null);
       setBusy(false);
     }
@@ -387,6 +439,11 @@ export default function PairTabletDialog({
       );
       if (!stillConfirming()) return;
       if (res.ok) {
+        // The pairing stands whatever happens to the tapping choice; its
+        // outcome is reported on the "connected" step.
+        void applyWritesChoice(allowWrites).then((outcome) => {
+          if (currentAttempt(token)) setWrites(outcome);
+        });
         advance({
           kind: "connecting",
           pairingId: step.pairingId,
@@ -590,6 +647,34 @@ export default function PairTabletDialog({
               className={`${inputClass} max-w-[12rem] font-mono text-[28px] tracking-[0.3em]`}
             />
           </div>
+          <fieldset className="space-y-2" data-testid="pair-writes-choice">
+            <legend className={labelClass}>{text("writesQuestion")}</legend>
+            {(
+              [
+                [true, "writesYes", "writesYesHint"],
+                [false, "writesViewOnly", "writesViewOnlyHint"],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <label
+                key={label}
+                className="flex min-h-[44px] items-start gap-3 py-2 text-[16px] text-label-primary"
+              >
+                <input
+                  type="radio"
+                  name="pair-writes"
+                  checked={allowWrites === value}
+                  onChange={() => setAllowWrites(value)}
+                  className="mt-0.5 h-6 w-6 shrink-0"
+                />
+                <span className="min-w-0">
+                  <span className="block font-semibold">{text(label)}</span>
+                  <span className="block text-label-secondary">
+                    {text(hint)}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
           <p
             data-testid="pairing-expiry"
             className="text-[16px] text-label-secondary"
@@ -644,6 +729,15 @@ export default function PairTabletDialog({
               ? text("oldRemoved", { label: replace.label })
               : ""}
           </p>
+          {writes && (
+            <p
+              role={writes === "failed" ? "alert" : "status"}
+              data-testid="pair-writes-outcome"
+              className={writes === "failed" ? errorTextClass : noticeTextClass}
+            >
+              {text(WRITES_KEYS[writes])}
+            </p>
+          )}
           {replace && step.replaced && !step.replaced.removed && (
             <div role="alert" className={`space-y-3 ${errorTextClass}`}>
               <p>

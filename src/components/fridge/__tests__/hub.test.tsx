@@ -117,13 +117,14 @@ describe('member colours (#262)', () => {
     expect(map.get('b')).toBe('red')
   })
 
-  it('uses full names only when first names collide', () => {
+  it('uses first names only; colliding first names get a last initial, never the surname', () => {
     const names = memberDisplayNames([
       { id: 'a', name: 'Sam One' },
       { id: 'b', name: 'Sam Two' },
       { id: 'c', name: 'Riley Three' },
+      { id: 'd', name: 'Sam' },
     ])
-    expect([...names.values()]).toEqual(['Sam One', 'Sam Two', 'Riley'])
+    expect([...names.values()]).toEqual(['Sam O.', 'Sam T.', 'Riley', 'Sam'])
   })
 
   it('labels who added an event by name, not colour alone, and never on imported events', async () => {

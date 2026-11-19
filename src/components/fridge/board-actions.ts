@@ -41,6 +41,18 @@ export interface BoardActions {
   /** Who the toast says did it on a shared tablet ("by Avery"). */
   actorLabel?: () => string | null
   /**
+   * One-tap attribution on a shared tablet (owner decision 2026-11-19): when
+   * the surface completed a one-person chore for its assignee without asking,
+   * the toast title ("Done for Maya") and its action ("Not Maya?"). Null when
+   * the person was picked.
+   */
+  choreAttribution?: (chore: BoardChore) => { title: string; notLabel: string } | null
+  /**
+   * After "Not Maya?" undid a completion: asks who really did it. Resolves
+   * true when the chore should be completed again for the picked person.
+   */
+  pickChoreDoer?: (chore: BoardChore) => Promise<boolean>
+  /**
    * Runs before a tap acts (the tablet's "Who's this?"). Resolving false
    * cancels a grocery tap with nothing changed. Chore taps use
    * `prepareChore` when the surface needs the chore's subject.
@@ -78,13 +90,13 @@ export function useBoardTiles(
 ): BoardTiles {
   const { addToast } = useMaybeToast()
   // Undo over confirm (#269): the same toast as useUndoToast.
-  const showUndo = (opts: { title: string; message?: string; onUndo: () => void }) =>
+  const showUndo = (opts: { title: string; message?: string; onUndo: () => void; label?: string }) =>
     addToast({
       type: 'undo',
       title: opts.title,
       message: opts.message,
       duration: UNDO_TOAST_MS,
-      action: { label: 'Undo', onClick: opts.onUndo },
+      action: { label: opts.label ?? 'Undo', onClick: opts.onUndo },
     })
   const [choreStatus, setChoreStatus] = React.useState<Record<string, string>>({})
   // true: hidden (ticked here, not yet off the server's snapshot); false: shown again by Undo.
@@ -162,8 +174,8 @@ export function useBoardTiles(
     return who ? ` by ${who}` : ''
   }
 
-  const undoChore = async (chore: BoardChore) => {
-    if (!actions?.undoChore || chore.actionAvailability?.state === 'paused' || busy.current.has(chore.id)) return
+  const undoChore = async (chore: BoardChore): Promise<boolean> => {
+    if (!actions?.undoChore || chore.actionAvailability?.state === 'paused' || busy.current.has(chore.id)) return false
     busy.current.add(chore.id)
     setStatus(chore.id, 'pending')
     const result = await actions.undoChore(chore)
@@ -171,9 +183,17 @@ export function useBoardTiles(
     if (!result.ok) {
       setStatus(chore.id, 'completed')
       addToast({ type: 'error', title: `Couldn't undo ${quoted(chore.title)}`, message: result.message })
-      return
+      return false
     }
     actions.afterChange?.()
+    return true
+  }
+
+  // "Not Maya?": undo the one-tap completion, then ask who did it. A
+  // hoisted declaration: the toast created by `tickChore` below calls it.
+  async function notThisPerson(chore: BoardChore) {
+    if (!(await undoChore(chore))) return
+    if (tickChore && actions?.pickChoreDoer && (await actions.pickChoreDoer(chore))) await tickChore(chore)
   }
 
   const tickChore = actions
@@ -197,12 +217,20 @@ export function useBoardTiles(
           addToast({ type: 'error', title: `Couldn't mark ${quoted(chore.title)} done`, message: result.message })
           return
         }
-        const title = `${quoted(chore.title)} done${by()}`
         const note = actions.choreDoneNote?.(chore)
-        if (actions.undoChore) {
-          showUndo({ title, message: note, onUndo: () => void undoChore(chore) })
+        const attributed = actions.undoChore ? actions.choreAttribution?.(chore) : null
+        if (attributed) {
+          // "Done for Maya · Not Maya?" (owner decision 2026-11-19).
+          showUndo({
+            title: attributed.title,
+            message: note ? `${quoted(chore.title)}. ${note}` : quoted(chore.title),
+            label: attributed.notLabel,
+            onUndo: () => void notThisPerson(chore),
+          })
+        } else if (actions.undoChore) {
+          showUndo({ title: `${quoted(chore.title)} done${by()}`, message: note, onUndo: () => void undoChore(chore) })
         } else {
-          addToast({ type: 'success', title, message: note })
+          addToast({ type: 'success', title: `${quoted(chore.title)} done${by()}`, message: note })
         }
         actions.afterChange?.()
       }

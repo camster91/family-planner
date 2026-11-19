@@ -822,11 +822,11 @@ for (const locale of ["en", "es"] as const) {
       await expect(board).toHaveAttribute("data-mode", "fridge");
       const groceries = board.getByTestId("region-groceries");
       await expect(groceries).toBeVisible();
-      await expect(groceries.getByTestId("grocery-item")).toHaveCount(5);
+      // Fridge cards show what fits and an honest "+N more" (2026-11-19):
+      // 4 of the 6 open items, then "+2 more".
+      await expect(groceries.getByTestId("grocery-item")).toHaveCount(4);
       await expect(
-        groceries.getByText(
-          locale === "es" ? /1 más por comprar/i : /1 more to buy/i,
-        ),
+        groceries.getByText(locale === "es" ? /^\+2 más$/ : /^\+2 more$/),
       ).toBeVisible();
       await expect(
         groceries.getByRole("link", {
@@ -1043,7 +1043,7 @@ for (const locale of ["en", "es"] as const) {
       ) {
         expect(groceryLayout.overflowY).toMatch(/auto|scroll/);
         const continuation = groceries.getByRole("link", {
-          name: locale === "es" ? /1 más por comprar/i : /1 more to buy/i,
+          name: locale === "es" ? /^\+2 más$/ : /^\+2 more$/,
         });
         const sharedLists = groceries.getByRole("link", {
           name: /shared lists|listas compartidas/i,

@@ -29,9 +29,11 @@ capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md
     change this unless the cell says `elevated only`.
   - `elevated only`: allowed only while a parent is elevated on the tablet (5 min idle / 15 min max).
   - a field description (for example `open grocery items only`): read through the device Today board DTO only.
-  - `device writes (opt-in)`: allowed only when the household's `Family.device_writes_enabled` is on (default
-    off), with an `Idempotency-Key` and a "Who's this?" member of the device's household (unverified
-    attribution, O-5; it grants nothing). Every changed row is audited as `device.member_action`.
+  - `device writes (opt-in)`: allowed only when the household's `Family.device_writes_enabled` is on (stored
+    default off; since 2026-11-19 confirming a pairing asks with Yes preselected, SHARED_DEVICE.md §9.2), with an
+    `Idempotency-Key` and a member of the device's household: a one-person chore's assignee on one tap, otherwise
+    the "Who's this?" pick (unverified attribution, O-5 as decided 2026-11-19; it grants nothing). Every changed
+    row is audited as `device.member_action` with the device id as the actor.
 - **Cell values.**
   - `yes`: allowed for any record of the household.
   - `own`: allowed only for records about or belonging to the caller (the column used is named in the notes).

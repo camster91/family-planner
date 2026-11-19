@@ -9,6 +9,7 @@ import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
 import { LocalVoiceDraft } from "@/components/assistant/LocalVoiceDraft";
 import type { DeviceClient } from "@/lib/device-client";
 import { getDeviceQueue } from "@/lib/device-queue-browser";
+import { Plus } from "lucide-react";
 import {
   QueueError,
   type AddGroceryOperation,
@@ -29,12 +30,17 @@ export function DeviceGroceryAdd({
   actorId,
   prepare,
   afterChange,
+  triggerLabel,
+  triggerClassName,
 }: {
   client: DeviceClient;
   lists: Array<{ id: string; name: string }>;
   actorId: string | null;
   prepare: () => Promise<boolean>;
   afterChange: () => void;
+  /** The board header's "+ Add to list" (2026-11-19); defaults to the dialog title. */
+  triggerLabel?: string;
+  triggerClassName?: string;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = React.useState(false);
@@ -222,7 +228,7 @@ export function DeviceGroceryAdd({
       <button
         type="button"
         disabled={busy}
-        className={neutralButtonClass}
+        className={triggerClassName ?? neutralButtonClass}
         onClick={async () => {
           setNotice(null);
           setListId(lists.length === 1 ? lists[0].id : "");
@@ -236,13 +242,24 @@ export function DeviceGroceryAdd({
             setOpen(true);
         }}
       >
-        {t("groceries.deviceTitle")}
+        {triggerLabel ? (
+          <>
+            <Plus className="h-5 w-5" aria-hidden="true" />
+            {triggerLabel}
+          </>
+        ) : (
+          t("groceries.deviceTitle")
+        )}
       </button>
-      {notice && <p role="status">{t(`groceries.${notice}`)}</p>}
+      {notice && (
+        <p role="status" className="basis-full">
+          {t(`groceries.${notice}`)}
+        </p>
+      )}
       {ops.length > 0 && (
         <section
           aria-label={t("groceries.deviceQueuedSection")}
-          className="space-y-3 rounded-lg border border-[var(--surface-separator)] p-3"
+          className="basis-full space-y-3 rounded-lg border border-[var(--surface-separator)] p-3"
         >
           <p>{t("groceries.deviceUnconfirmedHint")}</p>
           {!durable && <p role="alert">{t("groceries.deviceMemoryHint")}</p>}

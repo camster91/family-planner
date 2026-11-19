@@ -11,6 +11,7 @@ import {
   dinnerOn,
   dinnerTitle,
   eventsLeftToday,
+  firstName,
   formatTime,
   localDayKey,
 } from "@/components/fridge/board-model";
@@ -135,7 +136,7 @@ export default function DeviceHouseholdHelper({
       data.members,
       now,
     ).flatMap((person) =>
-      person.open.map((chore) => `${person.member.name} · ${chore.title}`),
+      person.open.map((chore) => `${firstName(person.member.name)} · ${chore.title}`),
     );
     rows = chores.slice(0, 5);
     more = chores.length > rows.length;
