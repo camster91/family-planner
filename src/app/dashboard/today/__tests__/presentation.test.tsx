@@ -24,7 +24,9 @@ jest.mock('@/components/dashboard/TodaySetup', () => ({ __esModule: true, defaul
 
 it('puts household plans before optional setup so Today is content-first', async () => {
   render(await TodayBoardPage({ searchParams: Promise.resolve({}) }))
-  expect(screen.getByTestId('board').compareDocumentPosition(screen.getByTestId('setup')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  // The setup card is code-split (TodayDeferred), so it appears a moment later.
+  const setup = await screen.findByTestId('setup')
+  expect(screen.getByTestId('board').compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(screen.getByTestId('summary').compareDocumentPosition(screen.getByTestId('board')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 

@@ -73,6 +73,14 @@ describe('DashboardNav user menu: notifications', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Notifications' }))
       const dialog = await screen.findByRole('dialog', { name: 'Notifications' })
       expect(dialog.textContent).toContain('Quiet view')
+      // Named by its title only; the explanation (which mentions "Chores and
+      // rewards") is a description, so it does not collide with that switch.
+      const quietSwitch = screen.getByRole('switch', { name: 'Quiet view' })
+      expect(quietSwitch.getAttribute('aria-describedby')).toBeTruthy()
+      expect(document.getElementById(quietSwitch.getAttribute('aria-describedby')!)?.textContent).toContain('Hide points')
+      expect(quietSwitch.className).toContain('min-h-[44px]')
+      expect(quietSwitch.className).toContain('min-w-[44px]')
+      expect(await screen.findAllByRole('switch', { name: /Chores and rewards/ })).toHaveLength(1)
     } finally {
       mockGamification = false
     }

@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
-import { QuietDisplayControl } from "@/components/account/QuietDisplayControl";
 import type { NavUser } from "@/types";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
@@ -503,14 +502,12 @@ export default function DashboardNav({ user, remindersSupported = false }: Dashb
             closeLabel={msg("close")}
             testId="notification-preferences-dialog"
           >
-            <NotificationPreferences />
             {/* Quiet view left the child's home (owner review 2026-11-19);
-                children, who cannot open Settings, find it here. */}
-            {isFeatureEnabled(features, "gamification") && (
-              <div className="mt-4">
-                <QuietDisplayControl />
-              </div>
-            )}
+                children, who cannot open Settings, find it here. It loads
+                with the switches, outside the initial JavaScript. */}
+            <NotificationPreferences
+              withQuietView={isFeatureEnabled(features, "gamification")}
+            />
           </Dialog>
         </>
       )}

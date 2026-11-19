@@ -140,7 +140,11 @@ export default function KidRoutines({
                   .filter(Boolean)
                   .join(", ");
                 return (
-                  <li key={step.id} className="min-w-0">
+                  // A column, so the step card grows to fill the row and the
+                  // read-aloud button below it stays inside this cell. (With
+                  // `h-full` the card took the whole row height and pushed the
+                  // button into the next row, under the cards there.)
+                  <li key={step.id} className="flex min-w-0 flex-col">
                     <button
                       type="button"
                       onClick={() => onComplete(step.id)}
@@ -150,7 +154,7 @@ export default function KidRoutines({
                       data-testid="routine-step"
                       data-state={state}
                       className={cn(
-                        "relative flex w-full h-full min-h-[168px] flex-col items-center justify-start gap-2 rounded-[var(--radius-lg,16px)] border-2 px-2 pb-3 pt-4 text-center transition-colors duration-200 motion-reduce:transition-none",
+                        "relative flex w-full flex-1 min-h-[168px] flex-col items-center justify-start gap-2 rounded-[var(--radius-lg,16px)] border-2 px-2 pb-3 pt-4 text-center transition-colors duration-200 motion-reduce:transition-none",
                         "focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
                         state === "next" &&
                           "border-[var(--accent)] bg-[var(--accent-tint)] ring-2 ring-[var(--accent-tint)] active:bg-[var(--surface-fill-secondary)]",

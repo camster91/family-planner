@@ -10,6 +10,8 @@ const en = {
   unknown: "The change could not be confirmed. Refresh to check what was saved before trying again.",
   memory: "An offline copy could not be saved. Confirmed changes are still saved to your account.",
   refresh: "Refresh preferences",
+  on: "On",
+  off: "Off",
   quietTitle: "Quiet view",
   quietDescription: "Hide points, streaks and celebrations on Home and Chores. Chores and rewards still work. Saved to your account across devices.",
 };
@@ -22,6 +24,8 @@ const es: Record<keyof typeof en, string> = {
   unknown: "No se pudo confirmar el cambio. Actualiza para comprobar lo guardado antes de intentarlo otra vez.",
   memory: "No se pudo guardar una copia sin conexión. Los cambios confirmados siguen guardados en tu cuenta.",
   refresh: "Actualizar preferencias",
+  on: "Sí",
+  off: "No",
   quietTitle: "Vista tranquila",
   quietDescription: "Oculta puntos, rachas y celebraciones en Inicio y Tareas. Las tareas y recompensas siguen funcionando. Se guarda en tu cuenta para todos tus dispositivos.",
 };
