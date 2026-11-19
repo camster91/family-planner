@@ -87,6 +87,7 @@ describeWithDatabase('account deletion against Postgres', () => {
       request_hash: 'a'.repeat(64), expires_at: later,
     } })
     await db.aiUsagePolicy.create({ data: { family_id: f } })
+    await db.householdAiSetting.create({ data: { family_id: f } })
     await db.aiUsageRequest.create({ data: { id: id('ai-request'), family_id: f, user_id: parent, job: 'assistant', created_at: t } })
     // Uploads (and the file on disk)
     const filename = h === 'a' ? 'a1a1a1a1a1a1a1a1.jpg' : 'b2b2b2b2b2b2b2b2.jpg'

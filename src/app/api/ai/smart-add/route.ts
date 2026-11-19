@@ -19,6 +19,7 @@ import {
   type ManagedRun,
 } from "@/lib/ai/service";
 import { AiProviderError } from "@/lib/ai/provider";
+import { describeError, log } from "@/lib/logger";
 import {
   aliasSmartAddText,
   aliasedListNames,
@@ -173,7 +174,10 @@ export async function POST(request: NextRequest) {
     if (e instanceof AiUsageError)
       return json({ error: e.message, code: e.code }, e.status);
     if (e instanceof AiProviderError) {
-      console.warn("ai.smart_add_provider", e.code, e.upstreamStatus ?? "none");
+      log.warn("ai.smart_add_provider", {
+        code: e.code,
+        upstreamStatus: e.upstreamStatus,
+      });
       return json(
         {
           error:
@@ -185,7 +189,7 @@ export async function POST(request: NextRequest) {
         e.code === "AI_PROVIDER_BAD_OUTPUT" ? 502 : 503,
       );
     }
-    console.warn("ai.smart_add_failed");
+    log.warn("ai.smart_add_failed", describeError(e));
     return json(
       { error: "Smart Add failed. Use the buttons below.", code: "AI_FAILED" },
       500,
