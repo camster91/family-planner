@@ -71,6 +71,7 @@ const LazyCalendarSubscriptionsSection = lazy(
 const LazyCalendarFeedReview = lazy(() => import("./CalendarFeedReview"));
 const LazyCalendarSyncSection = lazy(() => import("./CalendarSyncSection"));
 const LazySharedDeviceSettings = lazy(() => import("./SharedDeviceSettings"));
+const LazySmartHelpersSettings = lazy(() => import("./SmartHelpersSettings"));
 const LazyAiUsagePanel = lazy(() =>
   import("@/components/assistant/AiUsagePanel").then(({ AiUsagePanel }) => ({
     default: AiUsagePanel,
@@ -1142,6 +1143,14 @@ export default function SettingsClient({
                 identity={aiUsage}
                 refreshKey={aiProviderRevision}
               />
+            </Suspense>
+          )}
+
+          {/* Smart helpers (AI, #144): parent-only household switch, off by
+              default; renders nothing when this deployment has no smart helpers. */}
+          {isParent && familyContentReady && (
+            <Suspense fallback={null}>
+              <LazySmartHelpersSettings />
             </Suspense>
           )}
 

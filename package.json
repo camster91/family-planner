@@ -38,6 +38,7 @@
     "cloudflare:build": "opennextjs-cloudflare build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.4.0",
     "@capacitor/android": "^8.6.2",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.6.2",

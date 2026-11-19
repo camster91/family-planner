@@ -16,6 +16,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { canCreateList } from "@/lib/role-capabilities";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { useTodayBoardText } from "@/i18n/today-board";
+import { SmartAddBox } from "@/components/assistant/SmartAddBox";
 
 type QuickAddLinks = {
   calendar?: string | null;
@@ -94,6 +95,9 @@ export function QuickAddDialog({
         className="grid gap-2 sm:grid-cols-2"
         data-testid="quick-add-actions"
       >
+        {/* Smart Add (#144): renders nothing unless the server says this
+            person may use it; the buttons below always stay. */}
+        <SmartAddBox role={role} open={open} />
         {onAsk && (role === "parent" || role === "teen") && (
           <button
             type="button"
