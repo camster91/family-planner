@@ -15,7 +15,7 @@ import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation"
 import { Dialog } from "@/components/ui/dialog";
 import { canCreateList } from "@/lib/role-capabilities";
 import { canRoleAccessPath } from "@/lib/kid-access";
-import { useTodayBoardText } from "@/i18n/today-board";
+import { useQuickAddText } from "@/i18n/quick-add";
 
 type QuickAddLinks = {
   calendar?: string | null;
@@ -46,7 +46,7 @@ export function QuickAddDialog({
   onAsk,
   captureHref,
 }: QuickAddDialogProps) {
-  const text = useTodayBoardText();
+  const text = useQuickAddText();
   const router = useDraftAwareRouter();
   const canCreateEvent =
     (role === "parent" || role === "teen") &&

@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event'
 import GetStarted, { getStartedStorageKey, type GetStartedProps } from '../GetStarted'
 import { ToastProvider } from '@/components/ui/toast'
 import { serverRenderThenHydrate } from '@/components/ui/__tests__/ssr-hydration'
+import { GetStartedArt } from '../GetStartedArt'
 
 const FAMILY = 'fam_new'
 const none = { invited: false, hasChore: false, hasEvent: false, hasCalendar: false }
@@ -16,7 +17,7 @@ const none = { invited: false, hasChore: false, hasEvent: false, hasCalendar: fa
 function renderCard(props: Partial<GetStartedProps> = {}) {
   return render(
     <ToastProvider>
-      <GetStarted viewer={{ role: 'parent' }} familyId={FAMILY} steps={none} {...props} />
+      <GetStarted viewer={{ role: 'parent' }} familyId={FAMILY} steps={none} art={<GetStartedArt />} {...props} />
     </ToastProvider>
   )
 }

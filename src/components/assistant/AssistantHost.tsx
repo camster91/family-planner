@@ -7,7 +7,6 @@ import { Sparkles, MessageSquareWarning } from "lucide-react";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useFeatures } from "@/components/providers/features-provider";
 import { isFeatureEnabled } from "@/lib/features";
-import { QuickAddDialog } from "@/components/layout/QuickAddDialog";
 import { useCoreTranslation } from "@/i18n/core";
 import {
   assistantShellMessages,
@@ -31,6 +30,14 @@ const AssistantPanel = dynamic(() => import("./AssistantPanel"), {
   ssr: false,
   loading: () => <AssistantLoading />,
 });
+
+// The quick-add sheet (its actions, icons and role checks) loads on first open,
+// like the assistant panel, so it stays out of every page's initial JavaScript.
+const QuickAddDialog = dynamic(
+  () =>
+    import("@/components/layout/QuickAddDialog").then((m) => m.QuickAddDialog),
+  { ssr: false, loading: () => <AssistantLoading /> },
+);
 
 const target =
   "min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] disabled:opacity-50";
@@ -64,6 +71,10 @@ export default function AssistantHost({
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
+  // Mount the sheet from its first opening on, so it can close and reopen
+  // without loading again.
+  const [quickAddLoaded, setQuickAddLoaded] = React.useState(false);
+  if (quickAddOpen && !quickAddLoaded) setQuickAddLoaded(true);
   const canChat = role === "parent" || role === "teen";
   const hidden =
     params.get("mode") === "fridge" || pathname.startsWith("/device");
@@ -203,18 +214,20 @@ export default function AssistantHost({
           <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>
         </button>
       </div>
-      <QuickAddDialog
-        open={quickAddOpen}
-        onClose={() => setQuickAddOpen(false)}
-        role={role}
-        links={shellLinks}
-        captureHref={
-          canChat && shellLinks.calendar
-            ? "/dashboard/calendar?capture=1"
-            : null
-        }
-        onAsk={canChat ? () => open("chat") : undefined}
-      />
+      {quickAddLoaded && (
+        <QuickAddDialog
+          open={quickAddOpen}
+          onClose={() => setQuickAddOpen(false)}
+          role={role}
+          links={shellLinks}
+          captureHref={
+            canChat && shellLinks.calendar
+              ? "/dashboard/calendar?capture=1"
+              : null
+          }
+          onAsk={canChat ? () => open("chat") : undefined}
+        />
+      )}
       {panelLoaded && (
         <AssistantPanel
           role={role}

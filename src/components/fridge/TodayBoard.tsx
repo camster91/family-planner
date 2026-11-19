@@ -24,7 +24,6 @@ import type { TodayStarts } from "@/app/dashboard/today/get-started-data";
 import { canCreateList } from "@/lib/role-capabilities";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { mealDayHref } from "@/lib/meal-navigation";
-import { CreateGroceryListButton } from "@/components/dashboard/CreateGroceryListButton";
 import { COMING_UP_DAYS } from "@/lib/board-constants";
 import { DEFAULT_BOARD_DISPLAY, type AmbientState } from "@/lib/ambient";
 import {
@@ -78,6 +77,17 @@ function createUseSoonRegion() {
     return { default: useSoonModule.UseSoonRegion };
   });
 }
+
+/**
+ * Only a household without any grocery list sees "Create a grocery list", so
+ * the button stays out of the board's initial JavaScript until it is shown.
+ */
+const LazyCreateGroceryListButton = React.lazy(async () => {
+  const buttonModule = await import(
+    "@/components/dashboard/CreateGroceryListButton"
+  );
+  return { default: buttonModule.CreateGroceryListButton };
+});
 
 /** Keep the Today layout editor out of the board's initial JavaScript. */
 const LazyTodayLayoutEditor = React.lazy(() => import("./TodayLayoutEditor"));
@@ -917,10 +927,14 @@ export default function TodayBoard({
               action={
                 noGroceryList ? (
                   canCreateList(viewer?.role) ? (
-                    <CreateGroceryListButton
-                      onCreated={refresh}
-                      className={emptyLineActionClass}
-                    />
+                    <LazyChunkBoundary fallback={null}>
+                      <React.Suspense fallback={null}>
+                        <LazyCreateGroceryListButton
+                          onCreated={refresh}
+                          className={emptyLineActionClass}
+                        />
+                      </React.Suspense>
+                    </LazyChunkBoundary>
                   ) : undefined
                 ) : groceriesHref ? (
                   <Link href={groceriesHref} className={emptyLineActionClass}>

@@ -7,6 +7,7 @@ import { refreshStaleSubscriptions } from "@/lib/calendar-import/sync";
 import TodayBoard from "@/components/fridge/TodayBoard";
 import HomeSummary from "@/components/dashboard/HomeSummary";
 import TodaySetup from "@/components/dashboard/TodaySetup";
+import { GetStartedArt } from "@/components/dashboard/GetStartedArt";
 import { loadTodayBoard } from "./board-snapshot";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
 import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
@@ -15,12 +16,10 @@ import { loadGetStarted, loadTodayStarts } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
-import loadable from "next/dynamic";
 // The existing server readiness/role gate decides whether this optional
-// workspace is rendered. A dormant launcher need not enter the cold board.
-const WeeklyResetLauncher = loadable(
-  () => import("@/components/dashboard/WeeklyResetLauncher"),
-);
+// workspace is rendered. A dormant launcher need not enter the cold board: the
+// client boundary splits it, so it loads only when rendered.
+import WeeklyResetLauncher from "@/components/dashboard/LazyWeeklyResetLauncher";
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 import { storageBackend } from "@/lib/storage-backend";
@@ -166,6 +165,7 @@ export default async function TodayBoardPage({
           familyId={familyId}
           steps={getStarted}
           part="getStarted"
+          art={<GetStartedArt />}
         />
       )}
       <HomeSummary

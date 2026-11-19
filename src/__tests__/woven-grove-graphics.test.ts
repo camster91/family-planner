@@ -33,7 +33,8 @@ it('uses the approved woven graphic in the actual landing and shared auth frame 
   expect(auth).toContain('href="/"')
   const file = fs.readFileSync(path.join(__dirname, '../../public/brand/woven-grove/graphics/herewoven-woven-graphic.svg'))
   expect(createHash('sha256').update(file).digest('hex')).toBe('a1577d50c5152a28063c1c5dcdfbd070db933dfdda0b1515dba2846e1eb79f6f')
-  const setup = fs.readFileSync(path.join(__dirname, '../components/dashboard/GetStarted.tsx'), 'utf8')
+  // The Get started card's art is rendered on the server and handed to the card.
+  const setup = fs.readFileSync(path.join(__dirname, '../components/dashboard/GetStartedArt.tsx'), 'utf8')
   expect(setup).toContain('source={ILLUSTRATIONS.wovenGrove}')
   expect(getStartedStorageKey('compatibility-family')).toBe('fp:get-started-hidden:compatibility-family')
 })

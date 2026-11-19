@@ -22,6 +22,8 @@ type TodaySetupProps = {
    * "suggestions" at the end; omitted, both (one mount, as before).
    */
   part?: 'getStarted' | 'suggestions'
+  /** Server-rendered art for the Get started card (GetStartedArt). */
+  art?: React.ReactNode
 }
 
 type SetupChunkBoundaryProps = {
@@ -151,8 +153,8 @@ function createFeatureSuggestions() {
   return React.lazy(() => import('./FeatureSuggestions'))
 }
 
-function LazyGetStarted({ viewer, familyId, steps }: GetStartedProps) {
-  return <LazySetupCard createCard={createGetStarted} cardProps={{ viewer, familyId, steps }} />
+function LazyGetStarted({ viewer, familyId, steps, art }: GetStartedProps) {
+  return <LazySetupCard createCard={createGetStarted} cardProps={{ viewer, familyId, steps, art }} />
 }
 
 function LazyFeatureSuggestions({
@@ -171,7 +173,7 @@ function LazyFeatureSuggestions({
 }
 
 /** Defers the optional onboarding cards until their server and browser gates pass. */
-export default function TodaySetup({ viewer, familyId, steps, part }: TodaySetupProps) {
+export default function TodaySetup({ viewer, familyId, steps, part, art }: TodaySetupProps) {
   const { features, canManage } = useFeatures()
   const getStartedHidden = useGetStartedHidden(familyId)
   const featureSuggestionsHidden = useFeatureSuggestionsHidden(familyId)
@@ -190,7 +192,7 @@ export default function TodaySetup({ viewer, familyId, steps, part }: TodaySetup
 
   return (
     <div className={part === 'getStarted' ? 'mb-6 space-y-4' : 'mt-6 space-y-4'}>
-      {showGetStarted && <LazyGetStarted viewer={viewer} familyId={familyId} steps={steps} />}
+      {showGetStarted && <LazyGetStarted viewer={viewer} familyId={familyId} steps={steps} art={art} />}
       {showFeatureSuggestions && (
         <LazyFeatureSuggestions
           viewer={viewer}

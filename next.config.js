@@ -136,7 +136,11 @@ const nextConfig = {
       if (!eligible(module)) return false
       const owners = initialOwners(module, chunkGraph)
       // Both surfaces must already require every module in this shared chunk.
-      return Boolean(owners?.includes('app/dashboard/layout') && owners.includes('app/device/today/page') && owners.every(owner => owner.startsWith('app/dashboard/') || owner === 'app/device/today/page'))
+      // The design gallery (a dev-only route, 404 in production) renders the
+      // board's regions too; tolerating it as an owner keeps those shared
+      // modules here instead of copying them into both the dashboard layout
+      // and the Today page chunks.
+      return Boolean(owners?.includes('app/dashboard/layout') && owners.includes('app/device/today/page') && owners.every(owner => owner.startsWith('app/dashboard/') || owner === 'app/device/today/page' || owner === 'app/dev/design-system/page'))
     }
     const sharedLayoutGroup = (layout, name, priority) => ({
       test: (module, { chunkGraph }) => inLayout(module, chunkGraph, layout),

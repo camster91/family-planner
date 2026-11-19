@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useTodayBoardText } from '@/i18n/today-board'
+import { useCreateGroceryListText } from '@/i18n/create-grocery-list'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,7 +18,7 @@ export function CreateGroceryListButton({
   onCreated: () => void
   className?: string
 }) {
-  const text = useTodayBoardText()
+  const text = useCreateGroceryListText()
   const [busy, setBusy] = React.useState(false)
   const [failed, setFailed] = React.useState(false)
   const sending = React.useRef(false)

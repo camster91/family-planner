@@ -4,9 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { useUndoToast } from '@/components/ui/toast'
-import { BrandIllustration } from '@/components/ui/brand-illustration'
-import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
-import { useOnboardingText } from '@/i18n/onboarding'
+import { useGetStartedText } from '@/i18n/get-started'
 import { cn } from '@/lib/utils'
 import { allStepsDone, type GetStartedSteps } from '@/app/dashboard/today/get-started-data'
 import { getStartedStorageKey, useGetStartedHidden, writeVisibilityHidden } from './get-started-visibility'
@@ -17,6 +15,11 @@ export interface GetStartedProps {
   viewer: { role: string }
   familyId: string
   steps: GetStartedSteps
+  /**
+   * The card's decorative art, rendered on the server (GetStartedArt) so the
+   * illustration registry stays out of this lazy chunk.
+   */
+  art?: React.ReactNode
 }
 
 /**
@@ -30,8 +33,8 @@ export interface GetStartedProps {
  * the first client render treat the card as not hidden; the stored choice
  * applies right after (useSyncExternalStore's server snapshot).
  */
-export default function GetStarted({ viewer, familyId, steps }: GetStartedProps) {
-  const text = useOnboardingText()
+export default function GetStarted({ viewer, familyId, steps, art }: GetStartedProps) {
+  const text = useGetStartedText()
   const showUndo = useUndoToast()
   const stored = useGetStartedHidden(familyId)
   // Hidden for this visit even if storage refused the write.
@@ -88,10 +91,7 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
   return (
     <section aria-labelledby={headingId} data-testid="get-started" className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-4 md:p-5">
       <div className="flex items-center gap-3">
-        <BrandIllustration
-          source={ILLUSTRATIONS.wovenGrove}
-          className="woven-grove-art hidden h-auto w-16 shrink-0 rounded-[var(--radius-md)] sm:block"
-        />
+        {art}
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">
             {text('getStarted')}

@@ -5,24 +5,8 @@ import { useCoreTranslation } from "@/i18n/core";
 import type { Locale } from "./types";
 
 export const onboardingEnglish = {
-  setupInviteTitle: "Invite your family",
-  setupInviteHint: "Send a link or share your family code",
-  setupChoreTitle: "Add your first chore",
-  setupChoreHint: "Pick a job and who does it",
-  setupEventTitle: "Add an event",
-  setupEventHint: "Put something on the family calendar",
-  setupCalendarTitle: "Connect your calendar",
-  setupCalendarHint: "Bring in a Google, Outlook or school calendar",
-  setupHidden: "Get started hidden",
-  setupProgress: "{done} of {total} done. A few steps to set up your household.",
-  setupHideLabel: "Hide get started",
-  setupHide: "Hide",
-  setupSteps: "Setup steps",
-  setupTodo: "To do: ",
-  setupDone: "Done",
   welcomeDescription:
     "Create a shared place for your household. You can add people now or come back later.",
-  getStarted: "Get started",
   createTitle: "Create your family",
   createDescription:
     "Choose a name for your household. Next, you can add everyone who shares it.",
@@ -76,24 +60,8 @@ export const onboardingEnglish = {
 } as const;
 
 export const onboardingSpanish = {
-  setupInviteTitle: "Invita a tu familia",
-  setupInviteHint: "Envía un enlace o comparte el código familiar",
-  setupChoreTitle: "Añade tu primera tarea",
-  setupChoreHint: "Elige una tarea y quién la hace",
-  setupEventTitle: "Añade un evento",
-  setupEventHint: "Pon algo en el calendario familiar",
-  setupCalendarTitle: "Conecta tu calendario",
-  setupCalendarHint: "Trae un calendario de Google, Outlook o de la escuela",
-  setupHidden: "Primeros pasos ocultos",
-  setupProgress: "{done} de {total} completados. Unos pasos para configurar tu hogar.",
-  setupHideLabel: "Ocultar primeros pasos",
-  setupHide: "Ocultar",
-  setupSteps: "Pasos de configuración",
-  setupTodo: "Pendiente: ",
-  setupDone: "Completado",
   welcomeDescription:
     "Crea un lugar compartido para tu hogar. Puedes añadir personas ahora o volver más tarde.",
-  getStarted: "Empezar",
   createTitle: "Crea tu familia",
   createDescription:
     "Elige un nombre para tu hogar. Después podrás añadir a todas las personas que lo comparten.",
