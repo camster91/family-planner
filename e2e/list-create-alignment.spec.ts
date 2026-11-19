@@ -455,7 +455,9 @@ for (const locale of ["en", "es"] as const) {
         await page.goto("/dashboard/lists");
         const copy = copyFor(locale);
         const overviewAdd =
-          locale === "en" ? listOverviewEnglish.add : listOverviewSpanish.add;
+          locale === "en"
+            ? listOverviewEnglish.newList
+            : listOverviewSpanish.newList;
         const add = page.getByRole("link", { name: overviewAdd });
         await expect(add).toBeVisible();
         await add.click();
