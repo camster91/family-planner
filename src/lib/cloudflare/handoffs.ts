@@ -599,6 +599,7 @@ export async function readD1PublicHandoff(
         emergency_notes: row.emergency_notes ?? null,
         house_notes: row.house_notes ?? null,
         general_notes: row.general_notes ?? null,
+        link_expires_at: new Date(expiry),
         family: { name: row.family_name },
       },
     },

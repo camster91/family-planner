@@ -143,6 +143,8 @@ describe("GET /api/handoff/share/[token]", () => {
       expect(handoff).not.toHaveProperty(field);
     }
     expect(Object.keys(handoff.family)).toEqual(["name"]);
+    // The link's own expiry is shown to the sitter under a public name.
+    expect(handoff.link_expires_at).toEqual(HANDOFFS["tok-valid"].share_expires_at);
     const raw = JSON.stringify(handoff);
     expect(raw).not.toContain("parent-a");
     expect(raw).not.toContain("family-A");
