@@ -14,6 +14,7 @@ import { formatDateOnly, formatRelativePastDate, toDateOnlyLocal, toDateOnlyUTC 
 import { useMaybeToast } from '@/components/ui/toast'
 import { budgetProgress, RECENT_TRANSACTIONS_LIMIT } from '@/lib/budget'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { formatMoney } from '@/lib/money'
 import { useBudgetText } from '@/i18n/budget'
 import type { BudgetPageData } from '@/app/dashboard/budget/page'
 
@@ -28,12 +29,21 @@ function localYearMonth(now: Date = new Date()): string {
 
 function formatCurrency(amount: number, locale: string): string {
   // Locale controls presentation only. No household currency setting exists;
-  // keep the canonical existing USD denomination, independent of the region.
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(Math.abs(amount))
+  // the shared formatter keeps the canonical USD denomination.
+  return formatMoney(Math.abs(amount), locale)
+}
+
+/** `2026-01` as "January 2026" in the viewer's language; anything else as given. */
+export function formatBudgetMonth(month: string, locale: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!match) return month
+  const monthIndex = Number(match[2]) - 1
+  if (monthIndex < 0 || monthIndex > 11) return month
+  return new Date(Date.UTC(Number(match[1]), monthIndex, 1)).toLocaleDateString(locale, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -456,7 +466,7 @@ export default function BudgetDashboard({ initialData, userId, canEdit = true, a
       <LargeHeader
         greeting={text('pageEyebrow')}
         title={text('pageTitle')}
-        subtitle={data.month}
+        subtitle={formatBudgetMonth(data.month, displayLocale)}
         trailing={
           <button
             onClick={refreshData}

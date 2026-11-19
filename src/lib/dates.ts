@@ -91,6 +91,9 @@ export function formatRelativePastDate(value: Date | string, now: Date = new Dat
   return formatDateOnly(value, undefined, locale)
 }
 
+// Everyday date-and-time display lives in its own module; see it for why.
+export { formatDateTime, formatClockTime } from './date-time-format'
+
 /** Add whole days to a UTC-midnight date. */
 export function addUTCDays(date: Date, days: number): Date {
   const next = new Date(date.getTime())

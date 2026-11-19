@@ -319,6 +319,33 @@ export async function readD1HouseholdSearch(
           target: { type: "inventory" } as const,
         }));
       }
+      case "pickup": {
+        // Same rule as the Postgres loader: title, location and notes match;
+        // notes are never returned.
+        const result = await db
+          .prepare(
+            `SELECT id,title,location,pickup_time
+          FROM "Pickup"
+          WHERE family_id=?1 AND (lower(title) LIKE ?2 ESCAPE '\\'
+            OR lower(COALESCE(location,'')) LIKE ?2 ESCAPE '\\'
+            OR lower(COALESCE(notes,'')) LIKE ?2 ESCAPE '\\')
+          ORDER BY pickup_time DESC,id ASC LIMIT ${SEARCH_PER_TYPE}`,
+          )
+          .bind(actor.familyId, pattern)
+          .all<{
+            id: string;
+            title: string;
+            location: string | null;
+            pickup_time: number;
+          }>();
+        return result.results.map((row) => ({
+          id: row.id,
+          title: row.title,
+          subtitle: row.location || undefined,
+          date: timestamp(row.pickup_time),
+          target: { type: "pickup" } as const,
+        }));
+      }
     }
   };
 

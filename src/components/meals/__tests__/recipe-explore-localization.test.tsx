@@ -7,7 +7,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { I18nProvider } from "@/i18n";
-import Explore from "@/app/dashboard/meals/explore/page";
+import Explore from "@/app/dashboard/meals/explore/ExploreClient";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),

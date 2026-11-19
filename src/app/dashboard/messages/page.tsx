@@ -780,7 +780,9 @@ function MessagesContent() {
               ))}
             </div>
           )}
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+          {/* On a phone the text box takes its own full-width row above the
+              buttons, so the placeholder is never cut off ("Message your…"). */}
+          <form onSubmit={handleSendMessage} className="flex flex-wrap items-center gap-2 sm:flex-nowrap" data-testid="message-composer">
             <button
               type="button"
               onClick={() => void togglePickupPicker()}
@@ -817,7 +819,7 @@ function MessagesContent() {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder={messageText('messagePlaceholder')}
-              className="input-apple min-h-[44px] flex-1"
+              className="input-apple order-first min-h-[44px] w-full min-w-0 basis-full sm:order-none sm:w-auto sm:basis-auto sm:flex-1"
               disabled={sending}
               aria-label={messageText('messageTextLabel')}
               aria-invalid={sendError ? true : undefined}
@@ -827,7 +829,7 @@ function MessagesContent() {
               type="submit"
               disabled={sending || writeUnavailable || !newMessage.trim()}
               className={cn(
-                'w-11 h-11 rounded-full flex items-center justify-center transition-colors',
+                'ml-auto w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors sm:ml-0',
                 newMessage.trim()
                   ? 'bg-tint-messages text-white'
                   : 'bg-surface-fill text-label-tertiary'

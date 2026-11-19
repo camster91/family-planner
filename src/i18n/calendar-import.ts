@@ -29,7 +29,7 @@ export const calendarImportEnglish = {
   find: "Find events",
   choose: "Choose a photo or PDF",
   privacy:
-    "What you paste or choose is sent to our AI provider (Anthropic) to read it. It isn't saved by Family Planner.",
+    "What you paste or choose is sent to our AI provider (Anthropic) to read it. It isn't saved by Herewoven.",
   reading: "Looking for events…",
   retry: "Try again",
   foundOne:
@@ -100,7 +100,7 @@ export const calendarImportSpanish: Record<CalendarImportMessage, string> = {
   find: "Buscar eventos",
   choose: "Elegir una foto o PDF",
   privacy:
-    "Lo que pegues o elijas se envía a nuestro proveedor de IA (Anthropic) para leerlo. Family Planner no lo guarda.",
+    "Lo que pegues o elijas se envía a nuestro proveedor de IA (Anthropic) para leerlo. Herewoven no lo guarda.",
   reading: "Buscando eventos…",
   retry: "Reintentar",
   foundOne:

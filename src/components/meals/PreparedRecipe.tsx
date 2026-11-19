@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime } from "@/lib/date-time-format";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { readRecipeJson } from "@/lib/recipe-read-client";
@@ -113,7 +114,7 @@ export function PreparedRecipe({ batchId }: { batchId: string }) {
         {result?.state === "recorded" && (
           <>
             <p className="text-footnote text-label-secondary">
-              {text("preparedRecordedAt", { date: new Date(result.capturedAt).toLocaleString(locale) })}
+              {text("preparedRecordedAt", { date: formatDateTime(result.capturedAt, locale) })}
             </p>
             <RecipeDetail recipe={result.snapshot.recipe} />
           </>

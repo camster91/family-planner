@@ -7,18 +7,46 @@ import { Dialog } from "@/components/ui/dialog";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
 import { RecoveredQueueChanges } from "@/components/ui/recovered-queue-changes";
 import { getPersonQueue } from "@/lib/person-queue-browser";
+import { cn } from "@/lib/utils";
 import {
   isCheckedOperation,
   type CheckedQueuedOperation,
   type OfflineQueue,
 } from "@/lib/offline-queue";
 
-/** Deliberate recovery independent of canonical list/item existence. No item content is stored here. */
-export default function PendingTickRecovery({ userId }: { userId: string }) {
+function needsReview(op: { state: string }) {
+  return op.state === "failed" || op.state === "conflict";
+}
+
+/**
+ * Deliberate recovery independent of canonical list/item existence. No item
+ * content is stored here. The card shows only while this person's queue holds
+ * something to review (a waiting tick, a change needing review, unreadable or
+ * incompatible saved changes), or while its dialog is open; a new family with
+ * nothing queued never sees it. The list pages already load the same
+ * per-person queue for ticks and adds, so watching it here sends nothing new.
+ */
+export default function PendingTickRecovery({
+  userId,
+  className,
+}: {
+  userId: string;
+  /** Lets the host page put the card on its own gutter. */
+  className?: string;
+}) {
   const { t, locale } = useTranslation();
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpenState] = React.useState(false);
+  // Once opened on this visit the card stays, so closing the dialog after the
+  // last tick was discarded returns focus to "Review waiting ticks".
+  const [opened, setOpened] = React.useState(false);
+  const setOpen = (next: boolean) => {
+    if (next) setOpened(true);
+    setOpenState(next);
+  };
   const [ops, setOps] = React.useState<CheckedQueuedOperation[]>([]);
   const [loaded, setLoaded] = React.useState(false);
+  // Something in the queue is worth this card (see above); false until read.
+  const [hasWork, setHasWork] = React.useState(false);
   const [storageBlocked, setStorageBlocked] = React.useState(false);
   const [confirm, setConfirm] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -32,9 +60,9 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
   const generation = React.useRef(0);
 
   React.useEffect(() => {
-    if (!open) return;
     setOps([]);
     setLoaded(false);
+    setHasWork(false);
     setConfirm(null);
     setMessage(null);
     const queue = getPersonQueue(userId);
@@ -44,15 +72,19 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
     const current = ++generation.current;
     const update = () => {
       if (!active) return;
+      const all = queue.list();
+      const ticks = all.filter(
+        (op): op is CheckedQueuedOperation =>
+          op.action === "list-item.set-checked" && isCheckedOperation(op),
+      );
       setStorageBlocked(queue.hasStorageReadError());
       if (queue.requiresCompatibleClient()) setMessage("compatibleClient");
-      setOps(
-        queue
-          .list()
-          .filter(
-            (op) =>
-              op.action === "list-item.set-checked" && isCheckedOperation(op),
-          ),
+      setOps(ticks);
+      setHasWork(
+        ticks.length > 0 ||
+          queue.hasStorageReadError() ||
+          queue.requiresCompatibleClient() ||
+          Boolean(queue.usesOwnerRecovery?.() && all.some(needsReview)),
       );
     };
     const unsubscribe = queue.subscribe((event) => {
@@ -73,7 +105,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
       queueRef.current = null;
       unsubscribe();
     };
-  }, [open, userId]);
+  }, [userId]);
 
   const run = async (id: string, discard: boolean) => {
     const queue = queueRef.current;
@@ -110,10 +142,11 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
 
   const namedQueue =
     recoveryQueue?.userId === userId ? recoveryQueue.queue : null;
+  if (!open && !opened && !(loaded && hasWork)) return null;
   if (namedQueue?.usesOwnerRecovery?.())
     return (
       <section
-        className="card-apple p-5 space-y-3"
+        className={cn("card-apple p-5 space-y-3", className)}
         aria-labelledby="pending-ticks-heading"
       >
         <h2
@@ -139,7 +172,7 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
 
   return (
     <section
-      className="card-apple p-5 space-y-3"
+      className={cn("card-apple p-5 space-y-3", className)}
       aria-labelledby="pending-ticks-heading"
     >
       <h2
@@ -155,11 +188,13 @@ export default function PendingTickRecovery({ userId }: { userId: string }) {
         type="button"
         className="btn-secondary min-h-11"
         onClick={() => {
-          setLoaded(false);
-          setOps([]);
           setConfirm(null);
           setBusy(false);
-          setMessage(null);
+          setMessage(
+            queueRef.current?.requiresCompatibleClient()
+              ? "compatibleClient"
+              : null,
+          );
           setOpen(true);
         }}
       >

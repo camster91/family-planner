@@ -3,7 +3,9 @@ import {
   CHILD_HANDOFF_FIELDS,
   canCreateList,
   canDeleteListOrItem,
+  canEditListItem,
   canEditOwnedRecord,
+  LIST_ITEM_CHILD_MESSAGE,
   canUseCapture,
   shapeHandoffForRole,
 } from '../role-capabilities'
@@ -28,6 +30,16 @@ describe('role capabilities (#102)', () => {
       false,
       false,
     ])
+  })
+
+  it('lists UI review (2026-11): editing or moving an item is parent + teen; a child only adds and ticks', () => {
+    expect([canEditListItem('parent'), canEditListItem('teen'), canEditListItem('child'), canEditListItem(undefined)]).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ])
+    expect(LIST_ITEM_CHILD_MESSAGE).toBe('Ask a parent or teen to change this item.')
   })
 
   it('D9: kids edit only rows they created; parents edit any', () => {

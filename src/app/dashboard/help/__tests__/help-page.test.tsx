@@ -76,6 +76,7 @@ describe('Help page', () => {
       'Calendar, meals and lists',
       'Trouble signing in',
       'Your data',
+      'Report a problem or suggest an idea',
       'Contact support',
     ]) {
       expect(screen.getByRole('heading', { level: 2, name }).closest('details')).toBeTruthy()
@@ -189,4 +190,22 @@ it('does not expose personal sync diagnostics to a child', () => {
   render(<HelpContent role="child" userId="child-viewer" />)
   expect(screen.queryByRole('button', { name: 'View sync details' })).toBeNull()
   expect(screen.queryByRole('region', { name: 'appDiagnostics.title' })).toBeNull()
+})
+
+// Report / Suggest moved off every page (it was a floating pill) into Help
+// and the user menu. The feature and its form stay the same.
+it('opens the private Report / Suggest form from Help', async () => {
+  const { REPORT_OPEN_EVENT } = jest.requireActual('@/lib/report-launcher')
+  const opened = jest.fn()
+  window.addEventListener(REPORT_OPEN_EVENT, opened)
+  try {
+    render(<HelpContent role="parent" />)
+    const section = screen.getByRole('heading', { level: 2, name: 'Report a problem or suggest an idea' }).closest('details')!
+    const button = within(section).getByRole('button', { name: 'Report / Suggest' })
+    expect(button.className).toContain('min-h-[44px]')
+    await userEvent.click(button)
+    expect(opened).toHaveBeenCalledTimes(1)
+  } finally {
+    window.removeEventListener(REPORT_OPEN_EVENT, opened)
+  }
 })

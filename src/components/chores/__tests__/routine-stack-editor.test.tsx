@@ -1152,3 +1152,36 @@ it.each(['confirmed', 'unknown'])('checks original uncertain status as %s withou
   expect(inspections[0].init?.body).toBe(saves[0].init?.body);
   expect((inspections[0].init?.headers as Record<string, string>)['Idempotency-Key']).toBe((saves[0].init?.headers as Record<string, string>)['Idempotency-Key']);
 });
+
+// UI review: "THIS OCCURRENCE · 2026-01-05", "0/99" and ISO dates on steps
+// became plain words.
+it("names the day in plain words and shows no step-limit counter", async () => {
+  const now = new Date(2026, 9, 11, 12);
+  jest.useFakeTimers({ advanceTimers: true }).setSystemTime(now);
+  try {
+    const today = toDateOnlyLocal(now);
+    searchParams = new URLSearchParams({ occurrence_date: today });
+    fetchMock.mockImplementation(() =>
+      response({ ...candidates, occurrence_date: today, candidates: [] }),
+    );
+    const view = renderEditor();
+    await screen.findByLabelText("Routine name");
+    expect(screen.getByTestId("routine-editor-day").textContent).toBe("Today");
+    expect(screen.queryByText(/This occurrence/i)).toBeNull();
+    expect(screen.queryByText(today)).toBeNull();
+    expect(screen.queryByText(/\d+\/99/)).toBeNull();
+    view.unmount();
+
+    searchParams = new URLSearchParams({ occurrence_date: "2026-10-20" });
+    fetchMock.mockImplementation(() =>
+      response({ ...candidates, occurrence_date: "2026-10-20", candidates: [] }),
+    );
+    renderEditor();
+    await screen.findByLabelText("Routine name");
+    expect(screen.getByTestId("routine-editor-day").textContent).toBe(
+      "Tuesday, October 20",
+    );
+  } finally {
+    jest.useRealTimers();
+  }
+});

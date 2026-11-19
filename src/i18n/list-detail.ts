@@ -51,7 +51,7 @@ const en = {
   readFailed:
     "We couldn’t load this list. Check pending changes in recovery and try again.",
   notFound: "List not found",
-  emptyHelp: "Add items using the field below.",
+  emptyHelp: "Add items using the field above.",
   entries: "{count} entries",
   group: "{item}, {count} entries",
   addPlaceholder: "Add an item…",
@@ -82,6 +82,13 @@ const en = {
   notDurable:
     "Couldn’t save changes on this device. Keep this page open until they sync, or they will be lost.",
   dismiss: "Dismiss",
+  more: "More for {item}",
+  itemActions: "Actions for {item}",
+  moveToSection: "Move to section",
+  addPreview: "Will add {count} items: {items}",
+  addedMany: "Added {count} items",
+  addManyStopped:
+    "Added {done} of {count} items. The rest are still in the field.",
 } as const;
 const es: Record<keyof typeof en, string> = {
   itemPages: "Páginas de elementos",
@@ -136,7 +143,7 @@ const es: Record<keyof typeof en, string> = {
     "Cambió el acceso a la lista. Actualiza o inicia sesión otra vez para continuar.",
   progress: "{done} de {total} completados",
   noItems: "Todavía no hay artículos",
-  emptyHelp: "Añade artículos con el campo de abajo.",
+  emptyHelp: "Añade artículos con el campo de arriba.",
   entries: "{count} entradas",
   group: "{item}, {count} entradas",
   addPlaceholder: "Añadir un artículo…",
@@ -171,6 +178,13 @@ const es: Record<keyof typeof en, string> = {
   notDurable:
     "No se pudieron guardar los cambios en este dispositivo. Mantén esta página abierta hasta que se sincronicen para no perderlos.",
   dismiss: "Cerrar",
+  more: "Más opciones para {item}",
+  itemActions: "Acciones para {item}",
+  moveToSection: "Mover a otra sección",
+  addPreview: "Se añadirán {count} artículos: {items}",
+  addedMany: "Se añadieron {count} artículos",
+  addManyStopped:
+    "Se añadieron {done} de {count} artículos. El resto sigue en el campo.",
 };
 export type ListDetailText = (
   key: keyof typeof en,

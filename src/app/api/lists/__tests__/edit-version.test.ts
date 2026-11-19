@@ -72,7 +72,7 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-it.each(["parentA", "teenA", "childA"] as const)(
+it.each(["parentA", "teenA"] as const)(
   "allows the existing %s grocery edit permission with a current version",
   async (as) => {
     const res = await edit(as, data());
@@ -80,6 +80,51 @@ it.each(["parentA", "teenA", "childA"] as const)(
     expect(row()).toMatchObject({ content: "Oat milk", quantity: 2 });
   },
 );
+it("refuses a child's direct edit (tick only) and writes nothing", async () => {
+  const before = { ...row() };
+  const res = await edit("childA", data());
+  expect(res.status).toBe(403);
+  expect(await res.json()).toMatchObject({
+    error: "Ask a parent or teen to change this item.",
+    code: "LIST_ITEM_EDIT_FORBIDDEN",
+  });
+  expect(row()).toMatchObject({
+    content: before.content,
+    quantity: before.quantity,
+  });
+  expect(writesTo("listItem")).toHaveLength(0);
+  expect(db.rows("idempotencyRecord")).toHaveLength(0);
+});
+it("refuses a child's field change through the legacy update route but keeps the tick", async () => {
+  const before = row().content;
+  const changed = await legacy(
+    req({
+      as: "childA",
+      method: "PATCH",
+      body: { itemId: "item-a", content: "Chocolate", quantity: 9 },
+    }),
+  );
+  expect(changed.status).toBe(403);
+  expect(row().content).toBe(before);
+  const mixed = await legacy(
+    req({
+      as: "childA",
+      method: "PATCH",
+      body: { itemId: "item-a", checked: true, quantity: 9 },
+    }),
+  );
+  expect(mixed.status).toBe(403);
+  expect(row().checked).not.toBe(true);
+  const tick = await legacy(
+    req({
+      as: "childA",
+      method: "PATCH",
+      body: { itemId: "item-a", checked: true },
+    }),
+  );
+  expect(tick.status).toBe(200);
+  expect(row().checked).toBe(true);
+});
 it("rejects a stale edit after another member writes and does not change newer values", async () => {
   const stale = data();
   await edit("teenA", { ...stale, content: "Fresh milk" }, K2);
