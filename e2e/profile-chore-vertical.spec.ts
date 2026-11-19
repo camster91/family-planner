@@ -434,7 +434,7 @@ async function createProfileWeeklyChore(
     page,
     "/api/chores/create",
     () =>
-      page.getByRole("button", { name: "Create Chore", exact: true }).click(),
+      page.getByRole("button", { name: "Create chore", exact: true }).click(),
   );
   const resultText = result.text;
   expect(result.status, resultText).toBe(200);
@@ -504,7 +504,7 @@ async function createProfileRoutineChore(
   const result = await captureOnePostBeforeNavigation(
     page,
     "/api/chores/create",
-    () => page.getByRole("button", { name: "Create Chore" }).click(),
+    () => page.getByRole("button", { name: "Create chore" }).click(),
   );
   const resultText = result.text;
   expect(result.status, resultText).toBe(200);
@@ -920,7 +920,7 @@ test.describe.serial("email-free profile chore vertical", () => {
         checkSection.getByText(x.chore, { exact: true }),
       ).toBeVisible();
       const verify = checkSection.getByRole("button", {
-        name: `Verify “${x.chore}”`,
+        name: `Looks good: “${x.chore}”`,
         exact: true,
       });
       await expect(verify).toBeVisible();
@@ -933,7 +933,7 @@ test.describe.serial("email-free profile chore vertical", () => {
       expect((await verified).status()).toBe(200);
       await expect(
         checkSection.getByRole("button", {
-          name: `Verify “${x.chore}”`,
+          name: `Looks good: “${x.chore}”`,
           exact: true,
         }),
       ).toHaveCount(0);
@@ -1169,7 +1169,7 @@ test.describe.serial("email-free profile chore vertical", () => {
 
       await page.goto("/dashboard/chores");
       const verify = page.getByRole("button", {
-        name: `Verify “${recurring.title}”`,
+        name: `Looks good: “${recurring.title}”`,
         exact: true,
       });
       await expect(verify).toBeVisible();
@@ -1511,7 +1511,7 @@ test.describe.serial("email-free profile chore vertical", () => {
           history.getByText(chore.title, { exact: true }),
         ).toBeVisible();
         const verify = page.getByRole("button", {
-          name: `Verify “${chore.title}”`,
+          name: `Looks good: “${chore.title}”`,
           exact: true,
         });
         await expect(verify).toBeVisible();

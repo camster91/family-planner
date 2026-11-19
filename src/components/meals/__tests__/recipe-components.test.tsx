@@ -364,6 +364,32 @@ describe("meal discovery continuity", () => {
       screen.getByRole("searchbox", { name: "What would you like to cook?" }),
     ).toBeVisible();
   });
+
+  it("opens on the quick meal when asked, with Saved and Find online one tap away", async () => {
+    mockFetch(() => ({
+      status: 200,
+      body: { recipes: [SOUP], nextOffset: null },
+    }));
+    const user = userEvent.setup();
+    render(
+      <RecipePicker
+        initiallyQuick
+        quickMeal={<label>Meal name<input /></label>}
+        value={null}
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Meal name")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Quick meal" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("searchbox", { name: "What would you like to cook?" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Saved" }));
+    expect(await screen.findByRole("combobox", { name: "Recipe (optional)" })).toBeVisible();
+    expect(screen.getByLabelText("Meal name")).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Find online" }));
+    expect(
+      await screen.findByRole("searchbox", { name: "What would you like to cook?" }),
+    ).toBeVisible();
+  });
 });
 
 test("publisher ingredients populate editable rows instead of only instructions", async () => {

@@ -1780,6 +1780,8 @@ test.each([false, true])(
       await user.clear(portions);
       await user.type(portions, "2");
     }
+    // A new meal opens on Quick meal; online discovery is one tap away.
+    await user.click(within(dialog).getByRole("button", { name: "Find online" }));
     await user.type(
       await within(dialog).findByRole("searchbox", {
         name: "What would you like to cook?",
@@ -1842,7 +1844,7 @@ test.each([false, true])(
   },
 );
 
-test("empty slot starts with discovery and keeps quick meals behind an explicit choice", async () => {
+test("empty slot starts with a typed quick meal and keeps saved recipes and discovery one tap away", async () => {
   const user = userEvent.setup();
   const { calls } = setup({ meals: [] });
   await user.click(
@@ -1851,23 +1853,36 @@ test("empty slot starts with discovery and keeps quick meals behind an explicit 
     }),
   );
   const dialog = await screen.findByRole("dialog");
-  const discovery = await within(dialog).findByRole("searchbox", {
-    name: "What would you like to cook?",
-  });
-  expect(discovery).toBeVisible();
-  expect(within(dialog).getByLabelText("Recipe name")).not.toBeVisible();
+  const name = within(dialog).getByLabelText("Recipe name");
+  expect(name).toBeVisible();
+  expect(
+    within(dialog).getByRole("button", { name: "Quick meal" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    within(dialog).getByRole("button", { name: "Find online" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  // Discovery is not loaded until it is chosen.
+  expect(
+    within(dialog).queryByRole("searchbox", {
+      name: "What would you like to cook?",
+    }),
+  ).toBeNull();
   const date = within(dialog).getByLabelText("Date");
   expect(date).not.toBeVisible();
   await user.click(date.closest("details")!.querySelector("summary")!);
   expect(date).toBeVisible();
   expect(date).toHaveValue(today);
+  await user.type(name, "Leftover soup");
+  await user.click(within(dialog).getByRole("button", { name: "Saved" }));
+  expect(name).not.toBeVisible();
+  await user.click(within(dialog).getByRole("button", { name: "Find online" }));
+  const discovery = await within(dialog).findByRole("searchbox", {
+    name: "What would you like to cook?",
+  });
+  expect(discovery).toBeVisible();
+  expect(name).not.toBeVisible();
   await user.click(within(dialog).getByRole("button", { name: "Quick meal" }));
   expect(discovery).not.toBeVisible();
-  const name = within(dialog).getByLabelText("Recipe name");
-  expect(name).toBeVisible();
-  await user.type(name, "Leftover soup");
-  await user.click(within(dialog).getByRole("button", { name: "Find online" }));
-  await user.click(within(dialog).getByRole("button", { name: "Quick meal" }));
   expect(name).toHaveValue("Leftover soup");
   await user.click(within(dialog).getByRole("button", { name: "Save" }));
   await waitFor(() =>

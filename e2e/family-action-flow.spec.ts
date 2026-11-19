@@ -134,7 +134,7 @@ test("Today keeps secondary actions tucked away and restores their dialog focus"
 }, info) => {
   await page.goto("/dashboard/today");
   const nav = page.getByRole("navigation", { name: "Today quick actions" });
-  const controls = nav.locator("summary", { hasText: "Today controls" });
+  const controls = nav.locator("summary", { hasText: "Customize" });
   const explore = nav.getByRole("button", { name: "Explore", exact: true });
   await expect(explore).not.toBeVisible();
   await page.screenshot({
@@ -197,7 +197,7 @@ test("wide Today puts dinner beside the schedule without changing saved section 
   });
   // Preview a real customization without saving fixture preferences.
   const nav = page.getByRole("navigation", { name: "Today quick actions" });
-  await nav.locator("summary", { hasText: "Today controls" }).click();
+  await nav.locator("summary", { hasText: "Customize" }).click();
   await nav
     .getByRole("button", { name: "Customize Today", exact: true })
     .click();

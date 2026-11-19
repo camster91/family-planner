@@ -113,11 +113,11 @@ describe("ChoresContent parent check", () => {
     ).toBeTruthy();
     expect(within(queue()!).queryByText("Done by Casey")).toBeNull();
     expect(
-      within(queue()!).getByRole("button", { name: "Verify “Feed the cat”" }),
+      within(queue()!).getByRole("button", { name: "Looks good: “Feed the cat”" }),
     ).toBeTruthy();
     expect(
       within(queue()!).getByRole("button", {
-        name: "Send back “Feed the cat”",
+        name: "Needs another go: “Feed the cat”",
       }),
     ).toBeTruthy();
   });
@@ -147,7 +147,7 @@ describe("ChoresContent parent check", () => {
     });
     renderPage();
     await userEvent.click(
-      within(queue()!).getByRole("button", { name: "Verify “Feed the cat”" }),
+      within(queue()!).getByRole("button", { name: "Looks good: “Feed the cat”" }),
     );
 
     expect(calls).toEqual([
@@ -183,7 +183,7 @@ describe("ChoresContent parent check", () => {
     });
     renderPage();
     await userEvent.click(
-      within(queue()!).getByRole("button", { name: "Send back “Tidy room”" }),
+      within(queue()!).getByRole("button", { name: "Needs another go: “Tidy room”" }),
     );
     expect(calls).toHaveLength(0);
     const dialog = screen.getByRole("dialog", {
@@ -198,7 +198,7 @@ describe("ChoresContent parent check", () => {
       "  Toys still out ",
     );
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Send back" }),
+      within(dialog).getByRole("button", { name: "Needs another go" }),
     );
 
     expect(calls).toEqual([
@@ -223,7 +223,7 @@ describe("ChoresContent parent check", () => {
     );
 
     const secondTrigger = within(queue()!).getByRole("button", {
-      name: "Send back “Feed the cat”",
+      name: "Needs another go: “Feed the cat”",
     });
     await userEvent.click(secondTrigger);
     expect(
@@ -240,7 +240,7 @@ describe("ChoresContent parent check", () => {
   it("cancelling the reason dialog sends nothing and restores focus", async () => {
     renderPage();
     const trigger = within(queue()!).getByRole("button", {
-      name: "Send back “Tidy room”",
+      name: "Needs another go: “Tidy room”",
     });
     await userEvent.click(trigger);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -256,7 +256,7 @@ describe("ChoresContent parent check", () => {
     });
     renderPage();
     await userEvent.click(
-      within(queue()!).getByRole("button", { name: "Verify “Feed the cat”" }),
+      within(queue()!).getByRole("button", { name: "Looks good: “Feed the cat”" }),
     );
 
     await screen.findByText("Couldn't verify");
@@ -287,7 +287,7 @@ describe("ChoresContent parent check", () => {
     });
     renderPage();
     await userEvent.click(
-      within(queue()!).getByRole("button", { name: "Verify “Feed the cat”" }),
+      within(queue()!).getByRole("button", { name: "Looks good: “Feed the cat”" }),
     );
     await screen.findByText("Couldn't verify");
     expect(screen.queryByText("Chore verified")).toBeNull();
@@ -302,14 +302,14 @@ describe("ChoresContent parent check", () => {
     renderPage();
     await userEvent.click(
       within(queue()!).getByRole("button", {
-        name: "Send back “Feed the cat”",
+        name: "Needs another go: “Feed the cat”",
       }),
     );
     const dialog = screen.getByRole("dialog", {
       name: "Send “Feed the cat” back",
     });
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Send back" }),
+      within(dialog).getByRole("button", { name: "Needs another go" }),
     );
     expect(calls[0].body).toEqual({ choreId: "c1", decision: "reject" });
     await screen.findByRole("alert");
@@ -348,12 +348,12 @@ describe("ChoresContent parent check", () => {
     );
     expect(
       within(queue()!).queryByRole("button", {
-        name: 'Verify “Erased profile chore”',
+        name: 'Looks good: “Erased profile chore”',
       }),
     ).toBeNull();
     expect(
       within(queue()!).queryByRole("button", {
-        name: 'Send back “Erased profile chore”',
+        name: 'Needs another go: “Erased profile chore”',
       }),
     ).toBeNull();
     expect(calls).toHaveLength(0);
@@ -396,12 +396,12 @@ describe("ChoresContent parent check", () => {
     expect(await screen.findAllByText(new RegExp(copy))).not.toHaveLength(0);
     expect(
       within(queue()!).queryByRole("button", {
-        name: 'Verify “Brush teeth”',
+        name: 'Looks good: “Brush teeth”',
       }),
     ).toBeNull();
     expect(
       within(queue()!).queryByRole("button", {
-        name: 'Send back “Brush teeth”',
+        name: 'Needs another go: “Brush teeth”',
       }),
     ).toBeNull();
     expect(calls).toHaveLength(0);
@@ -450,10 +450,10 @@ describe("ChoresContent parent check", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: 'Verify “Put away blocks”' }),
+      await screen.findByRole("button", { name: 'Looks good: “Put away blocks”' }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: 'Send back “Put away blocks”' }),
+      screen.getByRole("button", { name: 'Needs another go: “Put away blocks”' }),
     ).toBeTruthy();
   });
 
@@ -489,7 +489,7 @@ describe("ChoresContent parent check", () => {
     renderPage();
     await userEvent.click(
       within(queue()!).getByRole("button", {
-        name: "Send back “Tidy room”",
+        name: "Needs another go: “Tidy room”",
       }),
     );
     const dialog = screen.getByRole("dialog", {
@@ -500,7 +500,7 @@ describe("ChoresContent parent check", () => {
       "Try the routine again",
     );
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Send back" }),
+      within(dialog).getByRole("button", { name: "Needs another go" }),
     );
     await screen.findByRole("alert");
     expect(
@@ -528,7 +528,7 @@ describe("ChoresContent parent check", () => {
     }) as unknown as typeof fetch;
     renderPage();
     const reject = within(queue()!).getByRole("button", {
-      name: "Send back “Tidy room”",
+      name: "Needs another go: “Tidy room”",
     });
     await userEvent.click(reject);
     const dialog = screen.getByRole("dialog", {
@@ -538,7 +538,7 @@ describe("ChoresContent parent check", () => {
       within(dialog).getByRole("textbox", { name: "Reason (optional)" }),
       "Try the routine again",
     );
-    const submit = within(dialog).getByRole("button", { name: "Send back" });
+    const submit = within(dialog).getByRole("button", { name: "Needs another go" });
     await Promise.all([userEvent.click(submit), userEvent.click(submit)]);
     expect(submit.hasAttribute("disabled")).toBe(true);
     expect(calls).toHaveLength(1);
@@ -573,14 +573,14 @@ describe("ChoresContent parent check", () => {
       </I18nProvider>,
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Devolver “Feed the cat”" }),
+      screen.getByRole("button", { name: "Necesita otro intento: “Feed the cat”" }),
     );
     const dialog = screen.getByRole("dialog", {
       name: "Devolver “Feed the cat”",
     });
     expect(within(dialog).getByText("Motivo (opcional)")).toBeTruthy();
     expect(
-      within(dialog).getByRole("button", { name: "Devolver" }),
+      within(dialog).getByRole("button", { name: "Necesita otro intento" }),
     ).toBeTruthy();
   });
 });

@@ -151,6 +151,9 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
           />
         </div>
 
+        {/* Who it is for comes straight after the title, before date and time. */}
+        {peopleSupported && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={loading} />}
+
         {/* Start */}
         <div>
           <label className="label-apple" htmlFor="startDate">{message('start')}</label>
@@ -189,8 +192,6 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
         }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))?.end} />
 
         {repeatSupported && <EventRepeatField value={repeat} onChange={setRepeat} startDate={startDate} disabled={loading} />}
-
-        {peopleSupported && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={loading} />}
 
         {/* End */}
         <EventFormDetails

@@ -9,7 +9,7 @@ test("weekly chores select multiple weekdays without a due-date field", async ({
 }, info) => {
   await page.goto("/dashboard/chores/create");
   await page.getByRole("button", { name: "Weekly", exact: true }).click();
-  await expect(page.getByLabel("Due Date", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Due date", { exact: true })).toHaveCount(0);
   const monday = page.getByRole("checkbox", { name: "Monday", exact: true });
   const thursday = page.getByRole("checkbox", {
     name: "Thursday",

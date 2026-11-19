@@ -105,7 +105,7 @@ describe("profile target in the create chore form", () => {
     await waitFor(() => expect(calls.some(call => call.url === "/api/family/members")).toBe(true));
     if (failed) await screen.findByText(/Email-free profiles could not be checked/);
     else expect(screen.queryByText(/Email-free profiles could not be checked/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Assign To")).toHaveValue("account-1");
+    expect(screen.getByLabelText("Assign to")).toHaveValue("account-1");
   });
 
   it("does not expose profiles when setup is readable but the chore writer is off", async () => {
@@ -160,7 +160,7 @@ describe("profile target in the create chore form", () => {
     const user = userEvent.setup();
     render(<CreateChorePage />);
     const profileOption = await screen.findByRole("option", { name: /Jamie/ });
-    await user.selectOptions(screen.getByLabelText("Assign To"), profileOption);
+    await user.selectOptions(screen.getByLabelText("Assign to"), profileOption);
     expect(
       screen.getByText("Profiles support one-off chores only."),
     ).toBeTruthy();
@@ -173,10 +173,10 @@ describe("profile target in the create chore form", () => {
         .disabled,
     ).toBe(true);
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), {
+    fireEvent.change(screen.getByLabelText("Due date"), {
       target: { value: "2099-10-05" },
     });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
 
     await waitFor(() =>
       expect(
@@ -244,14 +244,14 @@ describe("profile target in the create chore form", () => {
     render(<CreateChorePage />);
     await screen.findByRole("option", { name: /Jamie/ });
     await user.selectOptions(
-      screen.getByLabelText("Assign To"),
+      screen.getByLabelText("Assign to"),
       "profile:profile-jamie",
     );
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), {
+    fireEvent.change(screen.getByLabelText("Due date"), {
       target: { value: "2099-10-05" },
     });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
 
     expect(
       await screen.findByText(
@@ -264,7 +264,7 @@ describe("profile target in the create chore form", () => {
     const firstBody = firstCall.init?.body;
     expect(firstKey).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
     const createCalls = calls.filter((call) => call.url === "/api/chores/create");
     expect(createCalls).toHaveLength(2);
@@ -298,14 +298,14 @@ describe("profile target in the create chore form", () => {
     render(<CreateChorePage />);
     await screen.findByRole("option", { name: /Jamie/ });
     await user.selectOptions(
-      screen.getByLabelText("Assign To"),
+      screen.getByLabelText("Assign to"),
       "profile:profile-jamie",
     );
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), {
+    fireEvent.change(screen.getByLabelText("Due date"), {
       target: { value: "2099-10-05" },
     });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     expect(
       await screen.findByText(/cannot create a profile chore yet/i),
     ).toBeTruthy();
@@ -321,7 +321,7 @@ describe("profile target in the create chore form", () => {
     await user.click(screen.getByRole("button", { name: "Weekly" }));
     await user.click(screen.getByRole("checkbox", { name: "Monday" }));
     await user.selectOptions(
-      screen.getByLabelText("Assign To"),
+      screen.getByLabelText("Assign to"),
       "profile:profile-jamie",
     );
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
@@ -340,7 +340,7 @@ describe("profile target in the create chore form", () => {
         .checked,
     ).toBe(true);
 
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     expect(
       await screen.findByText(/cannot repeat profile chores yet/i),
     ).toBeTruthy();
@@ -382,7 +382,7 @@ describe("profile target in the create chore form", () => {
     render(<CreateChorePage />);
     await screen.findByRole("option", { name: /Jamie/ });
     await user.selectOptions(
-      screen.getByLabelText("Assign To"),
+      screen.getByLabelText("Assign to"),
       "profile:profile-jamie",
     );
     expect(
@@ -395,7 +395,7 @@ describe("profile target in the create chore form", () => {
     fireEvent.change(screen.getByLabelText("Starts on"), {
       target: { value: "2099-10-05" },
     });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
 
     await waitFor(() =>
       expect(
@@ -454,14 +454,14 @@ describe("profile target in the create chore form", () => {
       render(<CreateChorePage />);
       await screen.findByRole("option", { name: /Jamie/ });
       await user.selectOptions(
-        screen.getByLabelText("Assign To"),
+        screen.getByLabelText("Assign to"),
         "profile:profile-jamie",
       );
       await user.click(screen.getByRole("button", { name: "Weekly" }));
       await user.click(screen.getByRole("checkbox", { name: "Monday" }));
       await user.click(screen.getByRole("checkbox", { name: "Thursday" }));
       await user.type(screen.getByLabelText("Title"), "Pack a bag");
-      await user.click(screen.getByRole("button", { name: "Create Chore" }));
+      await user.click(screen.getByRole("button", { name: "Create chore" }));
 
       await waitFor(() =>
         expect(
@@ -524,14 +524,14 @@ describe("profile target in the create chore form", () => {
       render(<CreateChorePage />);
       await screen.findByRole("option", { name: /Jamie/ });
       await user.selectOptions(
-        screen.getByLabelText("Assign To"),
+        screen.getByLabelText("Assign to"),
         "profile:profile-jamie",
       );
       await user.click(screen.getByRole("button", { name: "Weekly" }));
       await user.click(screen.getByRole("checkbox", { name: "Monday" }));
       fireEvent.change(screen.getByLabelText("Starts on or after"), { target: { value: "2026-10-12" } });
       await user.type(screen.getByLabelText("Title"), "Pack a bag");
-      await user.click(screen.getByRole("button", { name: "Create Chore" }));
+      await user.click(screen.getByRole("button", { name: "Create chore" }));
       expect(
         await screen.findByText(/The profile chore could not be created/),
       ).toBeTruthy();
@@ -543,7 +543,7 @@ describe("profile target in the create chore form", () => {
       const title = screen.getByLabelText("Title");
       await user.clear(title); await user.type(title, "Temporary edit");
       await user.clear(title); await user.type(title, "Pack a bag");
-      await user.click(screen.getByRole("button", { name: "Create Chore" }));
+      await user.click(screen.getByRole("button", { name: "Create chore" }));
       await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 
       const createCalls = calls.filter((call) => call.url === "/api/chores/create");
@@ -593,14 +593,14 @@ describe("profile target in the create chore form", () => {
     render(<CreateChorePage />);
     await screen.findByRole("option", { name: /Jamie/ });
     await user.selectOptions(
-      screen.getByLabelText("Assign To"),
+      screen.getByLabelText("Assign to"),
       "profile:profile-jamie",
     );
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), {
+    fireEvent.change(screen.getByLabelText("Due date"), {
       target: { value: "2099-10-05" },
     });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await screen.findByText(/The profile chore could not be created/);
 
     const firstCall = calls.find((call) => call.url === "/api/chores/create")!;
@@ -609,7 +609,7 @@ describe("profile target in the create chore form", () => {
     const title = screen.getByLabelText("Title");
     await user.clear(title);
     await user.type(title, "Pack a lunch");
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
 
     const createCalls = calls.filter((call) => call.url === "/api/chores/create");
@@ -623,7 +623,7 @@ describe("profile target in the create chore form", () => {
     // key, so an ambiguous first write cannot become a second chore.
     await user.clear(title);
     await user.type(title, "Pack a bag");
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await waitFor(() =>
       expect(
         calls.filter((call) => call.url === "/api/chores/create"),
@@ -670,15 +670,15 @@ describe("profile target in the create chore form", () => {
     render(<CreateChorePage />);
     await screen.findByRole("option", { name: /Jamie/ });
     await user.selectOptions(
-      screen.getByLabelText("Assign To"),
+      screen.getByLabelText("Assign to"),
       "profile:profile-jamie",
     );
     const title = screen.getByLabelText("Title") as HTMLInputElement;
     await user.type(title, "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), {
+    fireEvent.change(screen.getByLabelText("Due date"), {
       target: { value: "2099-10-05" },
     });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await waitFor(() => expect(createGate.release).toBeDefined());
     expect(title.closest("fieldset")?.disabled).toBe(true);
     expect(title.matches(":disabled")).toBe(true);
@@ -713,14 +713,14 @@ describe("profile target in the create chore form", () => {
     }) as typeof fetch;
     const user = userEvent.setup(); render(<CreateChorePage />);
     await screen.findByRole("option", { name: /Jamie/ });
-    await user.selectOptions(screen.getByLabelText("Assign To"), "profile:profile-jamie");
+    await user.selectOptions(screen.getByLabelText("Assign to"), "profile:profile-jamie");
     await user.type(screen.getByLabelText("Title"), "Pack a bag");
-    fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2099-10-05" } });
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await screen.findByText(profileSetupMessages.en.profileTargetError);
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await screen.findByText(profileSetupMessages.en.profileTargetUnsupported);
-    await user.click(screen.getByRole("button", { name: "Create Chore" }));
+    await user.click(screen.getByRole("button", { name: "Create chore" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/chores"));
     const writes = calls.filter(call => call.url === "/api/chores/create");
     expect(writes).toHaveLength(3);
