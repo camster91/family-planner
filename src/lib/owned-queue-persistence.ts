@@ -1,10 +1,10 @@
 /** Browser-owned queue journals. No credential, provider, replay or domain writes. */
 import {
-  ownedQueueEnvelope,
+  parseOwnedQueueEnvelope,
   RETIRED_QUEUE_ENVELOPE,
   type QueueOwner,
   type QueueRetirement,
-} from "@/lib/queue-owner-contract";
+} from "@/lib/queue-owner-shape";
 import type { StorageLike } from "@/lib/offline-queue";
 
 const owners = new Map<string, QueueOwner>();
@@ -93,7 +93,7 @@ function readOwner(key: IDBValidKey, value: unknown, kind: QueueOwner["kind"]) {
   )
     return null;
   try {
-    const parsed = ownedQueueEnvelope.safeParse(JSON.parse(value));
+    const parsed = parseOwnedQueueEnvelope(JSON.parse(value));
     if (
       !parsed.success ||
       parsed.data.state !== "active" ||

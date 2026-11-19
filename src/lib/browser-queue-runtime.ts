@@ -11,7 +11,7 @@ import {
   type StorageLike,
 } from "@/lib/offline-queue";
 import { ownedQueueLocation } from "@/lib/owned-queue-persistence";
-import type { QueueOwner } from "@/lib/queue-owner-contract";
+import type { QueueOwner } from "@/lib/queue-owner-shape";
 
 export const queues = new Map<string, OfflineQueue>();
 export const DEVICE_QUEUE_KEY = "device:tablet";

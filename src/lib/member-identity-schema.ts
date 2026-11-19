@@ -5,7 +5,8 @@ import { z } from "zod/mini";
  * separate so client surfaces that only validate an event/profile reference do
  * not pull the complete member subject contract and its schema catalogue.
  */
-export const MEMBER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+import { MEMBER_ID_PATTERN } from "@/lib/member-identity-id";
+export { MEMBER_ID_PATTERN };
 export const memberIdentityIdSchema = z
   .string()
   .check(z.regex(MEMBER_ID_PATTERN));

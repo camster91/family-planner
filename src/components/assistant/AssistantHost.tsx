@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Sparkles, MessageSquareWarning } from "lucide-react";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useFeatures } from "@/components/providers/features-provider";
-import { isFeatureEnabled } from "@/lib/features";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { QuickAddDialog } from "@/components/layout/QuickAddDialog";
 import { useCoreTranslation } from "@/i18n/core";
 import {
