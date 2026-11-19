@@ -216,8 +216,7 @@ for (const role of ["parent", "teen", "child"] as const) {
         });
         const todayMenu = controls.locator("details").filter({
           has: page.locator("summary").filter({
-            hasText:
-              locale === "es" ? /^Personalizar$/ : /^Customize$/,
+            hasText: locale === "es" ? /^Personalizar$/ : /^Customize$/,
           }),
         });
         await todayMenu.locator("summary").click();

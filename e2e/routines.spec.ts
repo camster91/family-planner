@@ -280,7 +280,9 @@ test.describe("Family A parent", () => {
     await verificationDialog
       .getByRole("textbox", { name: "Reason (optional)" })
       .fill("Teeth need another go");
-    await verificationDialog.getByRole("button", { name: "Needs another go" }).click();
+    await verificationDialog
+      .getByRole("button", { name: "Needs another go" })
+      .click();
     const res = await checked;
     expect(res.status()).toBe(200);
     expect(res.request().postDataJSON()).toEqual({
