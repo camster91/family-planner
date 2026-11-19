@@ -537,9 +537,9 @@ test.describe("new household sign-up journey", () => {
       await test.step("parent assigns the first chore to the child", async () => {
         await page.goto("/dashboard/chores/create");
         await expect(
-          page.getByRole("heading", { name: "New Chore" }),
+          page.getByRole("heading", { name: "New chore" }),
         ).toBeVisible();
-        const assignee = page.getByLabel("Assign To");
+        const assignee = page.getByLabel("Assign to");
         // Members load after mount.
         await expect(
           assignee.locator("option", { hasText: x.child.name }),
@@ -548,7 +548,7 @@ test.describe("new household sign-up journey", () => {
         await assignee.selectOption({ label: x.child.name });
         // Date-only, the anchor's UTC day (the form's own minimum).
         await page
-          .getByLabel("Due Date")
+          .getByLabel("Due date")
           .fill(E2E_ANCHOR.toISOString().slice(0, 10));
         await expectNoHorizontalOverflow(page, "new chore form");
         const created = page.waitForResponse(
@@ -556,7 +556,7 @@ test.describe("new household sign-up journey", () => {
             r.url().endsWith("/api/chores/create") &&
             r.request().method() === "POST",
         );
-        await page.getByRole("button", { name: "Create Chore" }).click();
+        await page.getByRole("button", { name: "Create chore" }).click();
         expect((await created).status()).toBe(200);
 
         await page.waitForURL(/\/dashboard\/chores$/);
@@ -614,7 +614,7 @@ test.describe("new household sign-up journey", () => {
             r.request().method() === "POST",
         );
         await queue
-          .getByRole("button", { name: `Verify “${x.chore}”` })
+          .getByRole("button", { name: `Looks good: “${x.chore}”` })
           .click();
         expect((await checked).status()).toBe(200);
         await expect(

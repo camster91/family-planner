@@ -23,7 +23,7 @@ beforeEach(() => { jest.clearAllMocks(); read.mockResolvedValue({ kind: "current
 async function submitOriginal() {
   await screen.findByText(chore.title);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "Original note" } });
-  fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+  fireEvent.click(screen.getAllByRole("button", { name: "Needs another go" }).at(-1)!);
   await screen.findByText(choreVerificationEnglish.reviewUnknown);
 }
 it("freezes the first request and notes across an uncertain retry", async () => {
@@ -42,7 +42,7 @@ it("requires explicit adoption of a different completion before a new request", 
   expect(send).toHaveBeenCalledTimes(1); expect(screen.getByRole("textbox")).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Review latest version" }));
   expect(screen.getByRole("textbox")).not.toBeDisabled();
-  fireEvent.click(screen.getAllByRole("button", { name: "Send back" }).at(-1)!);
+  fireEvent.click(screen.getAllByRole("button", { name: "Needs another go" }).at(-1)!);
   await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
   expect(JSON.parse(send.mock.calls[1][0].body).expected.completionEpoch).toBe(9);
 });

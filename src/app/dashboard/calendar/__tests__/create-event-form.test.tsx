@@ -7,6 +7,7 @@ import * as React from 'react'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import CreateEventPage from '../create/page'
+import CreateEventForm from '../create/CreateEventForm'
 
 const push = jest.fn()
 
@@ -134,4 +135,35 @@ it('retains optional notes and location when folded before creating', async () =
   const body = JSON.parse(String((fetch as jest.Mock).mock.calls[0][1].body))
   expect(body).toMatchObject({ description: 'Bring the family bags', location: 'School gym' })
   expect(+new Date(body.end_time) - +new Date(body.start_time)).toBe(1800000)
+})
+
+it('asks who it is for right after the title, before date, time, duration and repeat', async () => {
+  global.fetch = jest.fn(async (url: string) => ({
+    ok: true,
+    status: 200,
+    json: async () =>
+      url === '/api/events/people'
+        ? { supported: true, people: [{ kind: 'account', id: 'u1', name: 'Avery', color: 'green' }] }
+        : {},
+  })) as unknown as typeof fetch
+  render(<CreateEventForm peopleSupported repeatSupported />)
+  const people = await screen.findByRole('group', { name: 'Who is it for?' })
+  const order = [
+    screen.getByLabelText('Title'),
+    people,
+    document.getElementById('startDate')!,
+    document.getElementById('startTime')!,
+    screen.getByLabelText('Duration'),
+    screen.getByTestId('event-repeat'),
+  ]
+  for (let i = 1; i < order.length; i++) {
+    expect(order[i - 1].compareDocumentPosition(order[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  }
+})
+
+it('labels the default duration choice in plain words without changing it', () => {
+  render(<CreateEventPage />)
+  const duration = screen.getByLabelText('Duration') as HTMLSelectElement
+  expect(duration.value).toBe('')
+  expect(duration.selectedOptions[0].textContent).toBe('Exact end time')
 })

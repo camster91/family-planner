@@ -317,6 +317,16 @@ export default function CreateChoreForm({
     }
   }, []);
 
+  // Smart default: a new chore is due today (the person's local day). Runs once
+  // the local day is known, after the caller's ?date= above, and never replaces
+  // a date that is already set, a capture-review draft, or a cleared field.
+  const dueDateDefaulted = useRef(false);
+  useEffect(() => {
+    if (reviewRef.current || dueDateDefaulted.current || !todayKey) return;
+    dueDateDefaulted.current = true;
+    setDueDate((current) => current || todayKey);
+  }, [todayKey]);
+
   useEffect(() => {
     if (reviewRef.current) return;
     const requestedProfileId = new URLSearchParams(window.location.search).get("profile");

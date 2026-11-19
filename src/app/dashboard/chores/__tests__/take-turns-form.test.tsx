@@ -26,6 +26,11 @@ jest.mock('@/components/providers/features-provider', () => ({
   useFeatureEnabled: () => true,
 }))
 
+function localTodayKey(now = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
 const members = [
   { id: 'sam', name: 'Sam', role: 'parent' },
   { id: 'alex', name: 'Alex', role: 'teen' },
@@ -131,8 +136,19 @@ describe('New chore form', () => {
     render(<CreateChorePage />)
     await waitFor(() => expect(screen.getByRole('option', { name: 'Sam' })).toBeTruthy())
     await user.type(screen.getByLabelText('Title'), 'Dishes')
-    await user.type(screen.getByLabelText('Due Date'), '2099-10-05')
+    await user.clear(screen.getByLabelText('Due date'))
+    await user.type(screen.getByLabelText('Due date'), '2099-10-05')
   }
+
+  it('starts the due date on today (local day) and sends it unchanged', async () => {
+    const user = userEvent.setup()
+    render(<CreateChorePage />)
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Sam' })).toBeTruthy())
+    expect((screen.getByLabelText('Due date') as HTMLInputElement).value).toBe(localTodayKey())
+    await user.type(screen.getByLabelText('Title'), 'Dishes')
+    await user.click(screen.getByRole('button', { name: 'Create chore' }))
+    await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ due_date: localTodayKey(), frequency: 'once' }))
+  })
 
   it('"Take turns" shows only for repeating chores', async () => {
     const user = userEvent.setup()
@@ -149,9 +165,9 @@ describe('New chore form', () => {
     await user.click(screen.getByRole('button', { name: 'Weekly' }))
     await user.click(screen.getByRole('checkbox', { name: 'Monday' }))
     await user.click(screen.getByRole('switch', { name: 'Take turns' }))
-    // The order decides who goes first, so "Assign To" is hidden.
-    expect(screen.queryByLabelText('Assign To')).toBeNull()
-    const submit = screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement
+    // The order decides who goes first, so "Assign to" is hidden.
+    expect(screen.queryByLabelText('Assign to')).toBeNull()
+    const submit = screen.getByRole('button', { name: 'Create chore' }) as HTMLButtonElement
     const picker = screen.getByRole('group', { name: /Tap people in the order/ })
     await user.click(within(picker).getByRole('button', { name: 'Alex' }))
     expect(submit.disabled).toBe(true)
@@ -164,17 +180,21 @@ describe('New chore form', () => {
     expect(body.assigned_to).toBeUndefined()
   })
 
-  it('says why "Create Chore" is greyed out, and the hint goes once it can be pressed', async () => {
+  it('says why "Create chore" is greyed out, and the hint goes once it can be pressed', async () => {
     const user = userEvent.setup()
     render(<CreateChorePage />)
     await waitFor(() => expect(screen.getByRole('option', { name: 'Sam' })).toBeTruthy())
-    const submit = screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement
+    const submit = screen.getByRole('button', { name: 'Create chore' }) as HTMLButtonElement
     expect(submit.disabled).toBe(true)
-    expect(screen.getByText('Add a title and a due date first.')).toBeTruthy()
+    // The due date starts on today, so only the title is missing at first.
+    expect(screen.getByText('Add a title first.')).toBeTruthy()
     expect(submit.getAttribute('aria-describedby')).toBeTruthy()
     await user.type(screen.getByLabelText('Title'), 'Dishes')
+    expect(submit.disabled).toBe(false)
+    await user.clear(screen.getByLabelText('Due date'))
+    expect(submit.disabled).toBe(true)
     expect(screen.getByText('Add a due date first.')).toBeTruthy()
-    await user.type(screen.getByLabelText('Due Date'), '2099-10-05')
+    await user.type(screen.getByLabelText('Due date'), '2099-10-05')
     await user.click(screen.getByRole('button', { name: 'Weekly' }))
     await user.click(screen.getByRole('checkbox', { name: 'Monday' }))
     await user.click(screen.getByRole('switch', { name: 'Take turns' }))
@@ -229,7 +249,7 @@ describe('New chore form', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Monday' }))
     await user.click(screen.getByRole('switch', { name: 'Take turns' }))
     await user.click(screen.getByRole('button', { name: 'Once' }))
-    await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+    await user.click(screen.getByRole('button', { name: 'Create chore' }))
     await waitFor(() => expect(sent('/api/chores/create')).toBeDefined())
     const body = sent('/api/chores/create')
     expect(body).toMatchObject({ frequency: 'once', assigned_to: 'sam' })
@@ -267,7 +287,7 @@ describe('Edit chore form', () => {
     expect(screen.getByRole('button', { name: 'Turn 3: Jo' })).toBeTruthy()
     // This occurrence's own person can still be changed by hand.
     expect(screen.getByLabelText('This time')).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores').rotation).toBeUndefined()
   })
@@ -281,7 +301,7 @@ describe('Edit chore form', () => {
     expect(screen.getByText('Choose Once, then save to stop future copies. Existing history stays.')).toBeTruthy()
     expect(sent('/api/chores')).toBeUndefined()
 
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores')).toMatchObject({ frequency: 'once', apply_to_series: true })
   })
@@ -291,13 +311,13 @@ describe('Edit chore form', () => {
     render(<EditChorePage />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Turn 2: Alex' })).toBeTruthy())
     await user.click(screen.getByRole('button', { name: 'Turn 2: Alex' }))
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores').rotation).toEqual(['sam', 'jo'])
 
     calls = []
     await user.click(screen.getByRole('switch', { name: 'Take turns' }))
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores').rotation).toBeNull()
   })
@@ -308,7 +328,7 @@ describe('Edit chore form', () => {
     render(<EditChorePage />)
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Take turns' })).toBeTruthy())
     expect(screen.getByRole('switch', { name: 'Take turns' }).getAttribute('aria-checked')).toBe('false')
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(sent('/api/chores')).toBeDefined())
     expect(sent('/api/chores').rotation).toBeUndefined()
   })
@@ -384,11 +404,11 @@ it('creates a weekly chore on selected days without entering a due date', async 
   await screen.findByRole('option', { name: 'Sam' })
   await user.type(screen.getByLabelText('Title'), 'Take out trash')
   await user.click(screen.getByRole('button', { name: 'Weekly' }))
-  expect(screen.queryByLabelText('Due Date')).toBeNull()
-  expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.queryByLabelText('Due date')).toBeNull()
+  expect((screen.getByRole('button', { name: 'Create chore' }) as HTMLButtonElement).disabled).toBe(true)
   await user.click(screen.getByRole('checkbox', { name: 'Monday' }))
   await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
-  await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+  await user.click(screen.getByRole('button', { name: 'Create chore' }))
   await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({frequency:'weekly',weekly_days:[1,4]}))
   const occurrence = sent('/api/chores/create').due_date
   expect(occurrence).toMatch(/^\d{4}-\d{2}-\d{2}$/)
@@ -405,7 +425,7 @@ it('starts a weekly schedule on the first selected day on or after an optional f
   await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
   await user.click(screen.getByText('Start later (optional)'))
   await user.type(screen.getByLabelText('Starts on or after'), '2099-10-20')
-  await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+  await user.click(screen.getByRole('button', { name: 'Create chore' }))
   await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ frequency: 'weekly', weekly_days: [1,4], due_date: '2099-10-22' }))
 })
 
@@ -415,7 +435,7 @@ it('edits weekdays on a generated copy for the whole weekly series', async () =>
   const user = userEvent.setup()
   render(<EditChorePage />)
   await screen.findByRole('checkbox', {name:'Monday'})
-  expect(screen.queryByLabelText('Due Date')).toBeNull()
+  expect(screen.queryByLabelText('Due date')).toBeNull()
   await user.click(screen.getByRole('checkbox', {name:'Thursday'}))
   await user.click(screen.getByRole('button', {name:/save/i}))
   await waitFor(() => expect(sent('/api/chores')).toMatchObject({frequency:'weekly',weekly_days:[1,4],apply_to_series:true}))
@@ -428,18 +448,19 @@ describe('Add routine step shortcut', () => {
   it('prefills routine, next step, date and a current household member', async () => {
     window.history.replaceState({}, '', '/?routine=Evening+reset&step=3&member=sam&date=2026-10-09')
     render(<CreateChorePage />)
-    await waitFor(() => expect((screen.getByLabelText('Assign To') as HTMLSelectElement).value).toBe('sam'))
+    await waitFor(() => expect((screen.getByLabelText('Assign to') as HTMLSelectElement).value).toBe('sam'))
     expect((screen.getByLabelText('Routine') as HTMLInputElement).value).toBe('Evening reset')
     expect((screen.getByLabelText('Step') as HTMLInputElement).value).toBe('3')
-    expect((screen.getByLabelText('Due Date') as HTMLInputElement).value).toBe('2026-10-09')
+    expect((screen.getByLabelText('Due date') as HTMLInputElement).value).toBe('2026-10-09')
   })
   it('rejects a foreign member and invalid step or date in the shortcut', async () => {
     window.history.replaceState({}, '', '/?routine=Evening&step=100&member=foreign&date=2026-02-31')
     render(<CreateChorePage />)
     await waitFor(() => expect(screen.getByRole('option', { name: 'Sam' })).toBeTruthy())
-    expect((screen.getByLabelText('Assign To') as HTMLSelectElement).value).toBe('sam')
+    expect((screen.getByLabelText('Assign to') as HTMLSelectElement).value).toBe('sam')
     expect((screen.getByLabelText('Step') as HTMLInputElement).value).toBe('')
-    expect((screen.getByLabelText('Due Date') as HTMLInputElement).value).toBe('')
+    // The invalid shortcut date is ignored, so the new chore falls back to today.
+    expect((screen.getByLabelText('Due date') as HTMLInputElement).value).toBe(localTodayKey())
   })
 })
 
@@ -449,19 +470,20 @@ it('restores the date requirement when changing Weekly back to Once', async () =
   render(<CreateChorePage />)
   await screen.findByRole('option', { name: 'Sam' })
   await user.type(screen.getByLabelText('Title'), 'Trash')
+  await user.clear(screen.getByLabelText('Due date'))
   await user.click(screen.getByRole('button', { name: 'Weekly' }))
   await user.click(screen.getByRole('checkbox', { name: 'Thursday' }))
-  expect(screen.queryByLabelText('Due Date')).toBeNull()
-  expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(false)
+  expect(screen.queryByLabelText('Due date')).toBeNull()
+  expect((screen.getByRole('button', { name: 'Create chore' }) as HTMLButtonElement).disabled).toBe(false)
   for (const frequency of ['Daily', 'Monthly']) {
     await user.click(screen.getByRole('button', { name: frequency }))
     expect(screen.getByLabelText('Starts on')).toBeTruthy()
-    expect(screen.queryByLabelText('Due Date')).toBeNull()
+    expect(screen.queryByLabelText('Due date')).toBeNull()
     expect(screen.getByText('Add a start date first.')).toBeTruthy()
   }
   await user.click(screen.getByRole('button', { name: 'Once' }))
-  expect(screen.getByLabelText('Due Date')).toBeTruthy()
-  expect((screen.getByRole('button', { name: 'Create Chore' }) as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.getByLabelText('Due date')).toBeTruthy()
+  expect((screen.getByRole('button', { name: 'Create chore' }) as HTMLButtonElement).disabled).toBe(true)
 })
 
 
@@ -472,9 +494,12 @@ it('accepts a same-day chore in the evening after UTC midnight', async () => {
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
     render(<CreateChorePage />)
     await screen.findByRole('option', { name: 'Sam' })
-    const date = screen.getByLabelText('Due Date') as HTMLInputElement
+    const date = screen.getByLabelText('Due date') as HTMLInputElement
     expect(date.min).toBe('2026-10-09')
+    // A new chore defaults to the person's local day, not the UTC day.
+    expect(date.value).toBe('2026-10-09')
     await user.type(screen.getByLabelText('Title'), 'Do it today')
+    await user.clear(date)
     await user.type(date, '2026-10-09')
     expect(date.validity.rangeUnderflow).toBe(false)
     expect(date.checkValidity()).toBe(true)
@@ -486,7 +511,7 @@ it('accepts a same-day chore in the evening after UTC midnight', async () => {
     expect(date.validity.rangeUnderflow).toBe(true)
     await user.clear(date)
     await user.type(date, '2026-10-09')
-    await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+    await user.click(screen.getByRole('button', { name: 'Create chore' }))
     await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ due_date: '2026-10-09', frequency: 'once' }))
   } finally {
     jest.useRealTimers()
@@ -502,10 +527,11 @@ it('keeps essentials visible and preserves optional values when their sections c
   expect(sections).toHaveLength(3)
   for (const section of sections) expect(section.open).toBe(false)
   expect(screen.getByLabelText('Title').closest('details')).toBeNull()
-  expect(screen.getByLabelText('Assign To').closest('details')).toBeNull()
-  expect(screen.getByLabelText('Due Date').closest('details')).toBeNull()
+  expect(screen.getByLabelText('Assign to').closest('details')).toBeNull()
+  expect(screen.getByLabelText('Due date').closest('details')).toBeNull()
   await user.type(screen.getByLabelText('Title'), 'Kitchen reset')
-  await user.type(screen.getByLabelText('Due Date'), '2099-10-09')
+  await user.clear(screen.getByLabelText('Due date'))
+  await user.type(screen.getByLabelText('Due date'), '2099-10-09')
   await user.click(sections[0].querySelector('summary')!)
   await user.type(screen.getByLabelText('Description'), 'Wipe around the sink')
   await user.click(screen.getByRole('button', { name: /Hard/ }))
@@ -513,6 +539,6 @@ it('keeps essentials visible and preserves optional values when their sections c
   expect(sections[0].open).toBe(false)
   expect(sections[0].querySelector('summary')?.textContent).toContain('Instructions added')
   expect(sections[0].querySelector('summary')?.textContent).toContain('Hard difficulty')
-  await user.click(screen.getByRole('button', { name: 'Create Chore' }))
+  await user.click(screen.getByRole('button', { name: 'Create chore' }))
   await waitFor(() => expect(sent('/api/chores/create')).toMatchObject({ description:'Wipe around the sink',difficulty:'hard' }))
 })

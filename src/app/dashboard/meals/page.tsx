@@ -502,7 +502,9 @@ function MealModal({
             }
           >
             <RecipePicker
-              initiallyOnline={mode === "add" && !defaultRecipe}
+              // A new meal opens on the typed quick meal; Saved recipes and
+              // Find online stay one tap away in the source switch.
+              initiallyQuick={mode === "add" && !defaultRecipe}
               onPlanImportedRecipe={
                 mode === "add" ? handlePlanImportedRecipe : undefined
               }

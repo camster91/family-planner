@@ -96,7 +96,7 @@ it("retains English copy when no Spanish locale is selected", () => {
       <ChoreCreateSheet />
     </I18nProvider>,
   );
-  expect(screen.getByRole("dialog", { name: "New Chore" })).toBeInTheDocument();
+  expect(screen.getByRole("dialog", { name: "New chore" })).toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Close and return" }),
   ).toBeInTheDocument();

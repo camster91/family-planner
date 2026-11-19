@@ -217,7 +217,7 @@ for (const role of ["parent", "teen", "child"] as const) {
         const todayMenu = controls.locator("details").filter({
           has: page.locator("summary").filter({
             hasText:
-              locale === "es" ? /^Controles de hoy$/ : /^Today controls$/,
+              locale === "es" ? /^Personalizar$/ : /^Customize$/,
           }),
         });
         await todayMenu.locator("summary").click();
@@ -359,7 +359,7 @@ for (const role of ["parent", "teen", "child"] as const) {
             geometry,
             violations,
             scope:
-              "all-on person Today controls and kid touch discovery; fixture features restored; no event/domain writes, no shared-device/native acceptance",
+              "all-on person Customize controls and kid touch discovery; fixture features restored; no event/domain writes, no shared-device/native acceptance",
           }),
           contentType: "application/json",
         });

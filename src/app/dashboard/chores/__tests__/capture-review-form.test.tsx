@@ -63,7 +63,7 @@ it("requires a deliberate account choice and returns a reviewed request without 
       }}
     />,
   );
-  const assignment = await screen.findByRole("combobox", { name: "Assign To" });
+  const assignment = await screen.findByRole("combobox", { name: "Assign to" });
   await screen.findByRole("option", { name: "Synthetic parent" });
   expect((assignment as HTMLSelectElement).value).toBe("");
   expect(
@@ -108,10 +108,26 @@ it("keeps unfinished date and number strings when restoring a saved task", () =>
   expect((screen.getByLabelText("Points") as HTMLInputElement).value).toBe(
     "1.",
   );
-  expect((screen.getByLabelText("Due Date") as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText("Due date") as HTMLInputElement).value).toBe(
     "2099-",
   );
   expect((screen.getByLabelText("Step") as HTMLInputElement).value).toBe("2.");
+});
+
+it("does not fill today into a restored draft that has no due date", async () => {
+  render(
+    <CreateChoreForm
+      inSheet
+      review={{
+        initial: { ...initial, dueDate: "" },
+        onChange: jest.fn(),
+        onReview: jest.fn(),
+        submitLabel: "Use reviewed task",
+      }}
+    />,
+  );
+  await screen.findByRole("option", { name: "Synthetic parent" });
+  expect((screen.getByLabelText("Due date") as HTMLInputElement).value).toBe("");
 });
 
 // Authored UNRUN: failed choices can retry without replacing the captured draft.
@@ -131,7 +147,7 @@ it("preserves task fields through explicit family-choice retry", async () => {
   fireEvent.click(retry);
   await screen.findByRole("option", { name: "Synthetic parent" });
   expect(screen.getByDisplayValue(initial.title)).toBeInTheDocument();
-  expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("");
+  expect((screen.getByRole("combobox", { name: "Assign to" }) as HTMLSelectElement).value).toBe("");
   expect(memberAttempts).toBe(2);
 });
 
@@ -145,9 +161,9 @@ it("serializes ordinary submits and holds an interrupted create before any repla
   }) as typeof fetch;
   render(<CreateChoreForm inSheet />);
   await screen.findByRole("option", { name: "Synthetic parent" });
-  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("fixture-parent"));
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign to" }) as HTMLSelectElement).value).toBe("fixture-parent"));
   fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Synthetic ordinary task" } });
-  fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+  fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2099-10-05" } });
   const form = screen.getByLabelText("Title").closest("form")!;
   fireEvent.submit(form); fireEvent.submit(form);
   await screen.findByText("We couldn’t confirm your save.");
@@ -156,7 +172,7 @@ it("serializes ordinary submits and holds an interrupted create before any repla
   expect(typeof (writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]).toBe("string");
   expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
   await screen.findByText("No matching receipt is visible. This does not prove the original save failed.");
-  expect(screen.queryByRole("button", { name: "Create Chore" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Create chore" })).not.toBeInTheDocument();
   const receiptCall = jest.mocked(fetch).mock.calls.find(([path]) => path === "/api/chores/create/receipt")!;
   expect(new Headers(receiptCall[1]?.headers).get("Idempotency-Key")).toBe((writes[0][1]!.headers as Record<string, string>)["Idempotency-Key"]);
   expect(receiptCall[1]?.method).toBeUndefined();
@@ -175,13 +191,13 @@ it("automatically confirms an interrupted save from its receipt without resubmit
   }) as typeof fetch;
   render(<CreateChoreForm inSheet />);
   await screen.findByRole("option", { name: "Synthetic parent" });
-  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("fixture-parent"));
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign to" }) as HTMLSelectElement).value).toBe("fixture-parent"));
   fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Synthetic saved task" } });
-  fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+  fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2099-10-05" } });
   fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
   await screen.findByText("Chore saved.");
   expect(screen.queryByRole("button", { name: "Check save status" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Create Chore" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Create chore" })).not.toBeInTheDocument();
   expect(jest.mocked(fetch).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
   expect(jest.mocked(fetch).mock.calls.filter(([path]) => path === "/api/chores/create/receipt")).toHaveLength(1);
 });
@@ -199,9 +215,9 @@ it("retries only the frozen original save with its original owner and key", asyn
   }) as typeof fetch;
   render(<CreateChoreForm inSheet contextIdentity={{ userId: "fixture-parent", familyId: "fixture-family" }} />);
   await screen.findByRole("option", { name: "Synthetic parent" });
-  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign To" }) as HTMLSelectElement).value).toBe("fixture-parent"));
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Assign to" }) as HTMLSelectElement).value).toBe("fixture-parent"));
   fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Original task" } });
-  fireEvent.change(screen.getByLabelText("Due Date"), { target: { value: "2099-10-05" } });
+  fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2099-10-05" } });
   fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
   await screen.findByText("No matching receipt is visible. This does not prove the original save failed.");
   fireEvent.click(screen.getByRole("button", { name: "Retry this save" }));

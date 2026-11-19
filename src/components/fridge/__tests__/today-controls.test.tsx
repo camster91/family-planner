@@ -29,7 +29,7 @@ function mount(role = "parent", online = true, choices = links) {
 function openQuickAdd(label = "Add or ask") {
   fireEvent.click(screen.getByRole("button", { name: label }));
 }
-function disclosure(label = "Today controls") {
+function disclosure(label = "Customize") {
   return screen
     .getByText(label, { selector: "summary" })
     .closest("details") as HTMLDetailsElement;
@@ -51,7 +51,7 @@ it.each(["parent", "teen"] as const)(
       expect.objectContaining({ type: "herewoven:quick-add" }),
     );
     dispatch.mockRestore();
-    openDisclosure("Today controls");
+    openDisclosure("Customize");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument();
   },
@@ -105,7 +105,7 @@ it("uses the typed Today dictionary for Spanish controls", () => {
   expect(
     screen.getByRole("button", { name: "Añadir o preguntar" }),
   ).toBeInTheDocument();
-  openDisclosure("Controles de hoy");
+  openDisclosure("Personalizar");
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Actualizar ahora" }),
@@ -122,7 +122,7 @@ it("refreshes, closes the disclosure and returns focus", () => {
 });
 it("disables refresh offline", () => {
   mount("parent", false);
-  openDisclosure("Today controls");
+  openDisclosure("Customize");
   expect(screen.getByRole("button", { name: "Refresh now" })).toBeDisabled();
   expect(screen.getByText("Reconnect to refresh.")).toBeInTheDocument();
 });
@@ -148,7 +148,7 @@ it("leaves an open child dialog in charge of Escape", () => {
       </div>
     </TodayControls>,
   );
-  const details = openDisclosure("Today controls");
+  const details = openDisclosure("Customize");
   const child = screen.getByRole("button", { name: "Child action" });
   child.focus();
   fireEvent.keyDown(child, { key: "Escape" });

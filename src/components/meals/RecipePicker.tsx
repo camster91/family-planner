@@ -44,6 +44,7 @@ export function RecipePicker({
   quickMeal,
   canCreate = true,
   initiallyOnline = false,
+  initiallyQuick = false,
   initialRecipe,
   onCreatingChange,
   onEditingChange,
@@ -60,6 +61,8 @@ export function RecipePicker({
   canCreate?: boolean;
   /** Empty meal slots start with discovery; other pickers retain saved recipes. */
   initiallyOnline?: boolean;
+  /** Open on the typed quick meal (needs `quickMeal`); Saved and Find online stay one tap away. */
+  initiallyQuick?: boolean;
   /** The meal's current recipe, shown even before (or if) the list loads. */
   initialRecipe?: RecipeOption | null;
   /** Pending create blocks the owning meal form and dismissal. */
@@ -78,7 +81,9 @@ export function RecipePicker({
   const [onlineVisited, setOnlineVisited] = React.useState(
     initiallyOnline && canCreate,
   );
-  const [quick, setQuick] = React.useState(false);
+  const [quick, setQuick] = React.useState(
+    initiallyQuick && Boolean(quickMeal) && !(initiallyOnline && canCreate),
+  );
   const onlineSaving = React.useRef(false);
   const [onlinePending, setOnlinePending] = React.useState(false);
   const [onlineEditing, setOnlineEditing] = React.useState(false);

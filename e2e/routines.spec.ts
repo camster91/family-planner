@@ -272,7 +272,7 @@ test.describe("Family A parent", () => {
       r.url().endsWith("/api/chores/verify"),
     );
     await verificationRow(queue, 0)
-      .getByRole("button", { name: `Send back “${STEPS[0].title}”` })
+      .getByRole("button", { name: `Needs another go: “${STEPS[0].title}”` })
       .click();
     const verificationDialog = page.getByRole("dialog", {
       name: `Send “${STEPS[0].title}” back`,
@@ -280,7 +280,7 @@ test.describe("Family A parent", () => {
     await verificationDialog
       .getByRole("textbox", { name: "Reason (optional)" })
       .fill("Teeth need another go");
-    await verificationDialog.getByRole("button", { name: "Send back" }).click();
+    await verificationDialog.getByRole("button", { name: "Needs another go" }).click();
     const res = await checked;
     expect(res.status()).toBe(200);
     expect(res.request().postDataJSON()).toEqual({
