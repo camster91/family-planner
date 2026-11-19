@@ -542,8 +542,8 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("link", {
             name:
               locale === "en"
-                ? listOverviewEnglish.add
-                : listOverviewSpanish.add,
+                ? listOverviewEnglish.newList
+                : listOverviewSpanish.newList,
           }),
         ).toHaveCount(0);
         await page.goto("/dashboard/lists/create");
