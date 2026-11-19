@@ -83,7 +83,11 @@ export default async function ListsPage({
             : null,
         }}
       />
-      <PendingTickRecovery key={actor.id} userId={actor.id} />
+      <PendingTickRecovery
+        key={actor.id}
+        userId={actor.id}
+        className="mx-4 mt-6"
+      />
     </>
   );
 }

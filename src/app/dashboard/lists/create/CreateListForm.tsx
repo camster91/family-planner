@@ -57,11 +57,17 @@ export default function CreateListForm({
   onBusyChange,
   canCreate = true,
   initialType,
+  defaultType,
 }: {
   inSheet?: boolean;
   onBusyChange?: (busy: boolean) => void;
   canCreate?: boolean;
   initialType?: ListFilterKey | null;
+  /**
+   * Type to start on when the link names none: To-do once the household
+   * already has a grocery list (read by the page), else Grocery.
+   */
+  defaultType?: "todo";
 } = {}) {
   const router = useRouter();
   const { locale } = useTranslation();
@@ -71,7 +77,9 @@ export default function CreateListForm({
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [type, setType] = React.useState<ListTypeKey>(
-    initialType && initialType !== "meal_plan" ? initialType : "grocery",
+    initialType && initialType !== "meal_plan"
+      ? initialType
+      : (defaultType ?? "grocery"),
   );
   const [returnFilter, setReturnFilter] = React.useState<ListFilterKey | null>(
     initialType ?? null,

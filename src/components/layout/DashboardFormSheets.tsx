@@ -81,9 +81,12 @@ export function FormSheet({
 export function ListCreateSheet({
   canCreate = true,
   initialType,
+  defaultType,
 }: {
   canCreate?: boolean;
   initialType?: ListTypeKey | null;
+  /** Passed through to CreateListForm (To-do once a grocery list exists). */
+  defaultType?: "todo";
 }) {
   const [busy, setBusy] = useState(false);
   const { locale } = useTranslation();
@@ -98,6 +101,7 @@ export function ListCreateSheet({
       <CreateListForm
         canCreate={canCreate}
         initialType={initialType}
+        defaultType={defaultType}
         inSheet
         onBusyChange={setBusy}
       />

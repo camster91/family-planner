@@ -16,6 +16,10 @@ import { authorizePersonListItemReplay } from "@/lib/person-list-item-create";
 import { updateListItem } from "@/lib/list-item-update";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import {
+  canEditListItem,
+  LIST_ITEM_CHILD_MESSAGE,
+} from "@/lib/role-capabilities";
 
 export const dynamic = "force-dynamic";
 const schema = z
@@ -34,6 +38,12 @@ export async function PATCH(request: NextRequest) {
     if (error) return error;
     const gate = await featureGate(auth.user.family_id, "lists");
     if (gate) return gate;
+    // A child may tick but not change an item; refused before either backend.
+    if (!canEditListItem(auth.user.role))
+      return NextResponse.json(
+        { error: LIST_ITEM_CHILD_MESSAGE, code: "LIST_ITEM_EDIT_FORBIDDEN" },
+        { status: 403 },
+      );
     const { key, error: keyError } = readIdempotencyKey(request);
     if (keyError) return keyError;
     if (!key) return idempotencyError("IDEMPOTENCY_KEY_REQUIRED");
