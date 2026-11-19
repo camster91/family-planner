@@ -2,6 +2,7 @@
 
 import { PreparationEntry } from "@/components/calendar/preparation/PreparationEntry";
 import type { PreparationBacklinks } from "@/lib/event-preparation/discovery";
+import Link from "next/link";
 import { CalendarDays, CheckSquare } from "lucide-react";
 import type { BoardChore } from "@/app/dashboard/today/today-board-data";
 import { useTodayBoardText } from "@/i18n/today-board";
@@ -9,7 +10,9 @@ import {
   Region,
   ScheduleEventRows,
   ChoreRow,
+  EmptyRegionLine,
   areaClass,
+  emptyLineActionClass,
   type BoardPerson,
 } from "./regions";
 import { emptyTextClass, metaTextClass } from "./styles";
@@ -28,7 +31,19 @@ export function NextUpRegion({
   canTick,
   preparationEnabled = false,
   preparationBacklinks = {},
+  compactEmpty = false,
+  addEventHref = null,
+  addChoreHref = null,
+  noChoresYet = false,
 }: {
+  /** Shrink an empty card to one line with its first action (personal Today). */
+  compactEmpty?: boolean;
+  /** "Add event" on an empty schedule; null hides it. */
+  addEventHref?: string | null;
+  /** "Add a chore" when the household never added one; null hides it. */
+  addChoreHref?: string | null;
+  /** The household has never added a chore (not just none due today). */
+  noChoresYet?: boolean;
   preparationEnabled?: boolean;
   preparationBacklinks?: PreparationBacklinks;
   events: TodayEvent[];
@@ -59,6 +74,23 @@ export function NextUpRegion({
     : 0;
   return (
     <div className={`${areaClass.today} ${personalStyles.nextSections} ${!showChores ? personalStyles.singleSection : ""}`}>
+    {compactEmpty && shownEvents.length === 0 ? (
+      <EmptyRegionLine
+        id="board-next-up"
+        area="today"
+        title={text("today")}
+        icon={CalendarDays}
+        glyph="calendar"
+        message={text("calendarEmptyToday")}
+        action={
+          addEventHref ? (
+            <Link href={addEventHref} className={emptyLineActionClass}>
+              {text("addEvent")}
+            </Link>
+          ) : undefined
+        }
+      />
+    ) : (
     <Region
       id="board-next-up"
       area="today"
@@ -86,7 +118,24 @@ export function NextUpRegion({
         </p>
       )}
     </Region>
-      {showChores && (
+    )}
+      {showChores && compactEmpty && open.length === 0 && done === 0 ? (
+        <EmptyRegionLine
+          id="next-up-chores"
+          area="chores"
+          title={text("choresToday")}
+          icon={CheckSquare}
+          glyph="chore"
+          message={text(noChoresYet ? "choresNone" : "choresEmpty")}
+          action={
+            noChoresYet && addChoreHref ? (
+              <Link href={addChoreHref} className={emptyLineActionClass}>
+                {text("addFirstChore")}
+              </Link>
+            ) : undefined
+          }
+        />
+      ) : showChores && (
         <Region
           id="next-up-chores"
           area="chores"
@@ -96,7 +145,7 @@ export function NextUpRegion({
           href={choresHref}
           hrefLabel={text("openChores")}
         >
-          {open.length === 0 && done === 0 && <p className={emptyTextClass}>{text("choresEmpty")}</p>}
+          {open.length === 0 && done === 0 && <p className={emptyTextClass}>{text(noChoresYet ? "choresNone" : "choresEmpty")}</p>}
           {shownChores.length > 0 && <ul className="space-y-1">
             {shownChores.map(({ chore, member }) => (
               <ChoreRow

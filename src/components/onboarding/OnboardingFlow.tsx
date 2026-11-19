@@ -3,19 +3,13 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import {
-  Users,
-  ArrowRight,
-  CheckCircle,
-  Sparkles,
-  UserPlus,
-  Mail,
-} from "lucide-react";
+import { Users, CheckCircle, UserPlus, Mail } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { readHouseholdProfiles } from "@/lib/household-profile-types";
 import { useOnboardingText } from "@/i18n/onboarding";
 import { useHydrated } from "@/components/ui/use-hydrated";
+import { InviteRoleChoice } from "@/components/family/InviteRoleChoice";
 
 const ProfileSetupPanel = dynamic(
   () =>
@@ -147,7 +141,8 @@ export default function OnboardingFlow({
   const [memberCount, setMemberCount] = useState(1);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<InviteRole>("child");
+  // No default: the parent picks Parent, Teen or Child for each invite.
+  const [inviteRole, setInviteRole] = useState<InviteRole | null>(null);
   const [sendingInvite, setSendingInvite] = useState(false);
   const sendingInviteRef = useRef(false);
   const [inviteError, setInviteError] = useState("");
@@ -246,7 +241,7 @@ export default function OnboardingFlow({
   }, [profileAvailability]);
 
   useEffect(() => {
-    if (step !== 3) return;
+    if (step !== 2) return;
     void loadProfileAvailability();
   }, [loadProfileAvailability, step]);
 
@@ -265,7 +260,7 @@ export default function OnboardingFlow({
           : null;
       if (response.ok && user && isNonEmptyString(user.family_id)) {
         setNotice(text("reconcileFound"));
-        setStep(3);
+        setStep(2);
         setMemberCount(1);
         return "found";
       }
@@ -341,7 +336,7 @@ export default function OnboardingFlow({
         return;
       }
       setMemberCount(1);
-      setStep(3);
+      setStep(2);
     } catch {
       if ((await reconcileFamily()) === "found") return;
       setError(text("reconcileUnknown"));
@@ -354,7 +349,7 @@ export default function OnboardingFlow({
   async function sendInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const email = inviteEmail.trim();
-    if (!email || sendingInviteRef.current) return;
+    if (!email || !inviteRole || sendingInviteRef.current) return;
     sendingInviteRef.current = true;
     setSendingInvite(true);
     setInviteError("");
@@ -378,6 +373,7 @@ export default function OnboardingFlow({
         return;
       }
       setInviteEmail("");
+      setInviteRole(null);
       setInviteOpen(false);
       setNotice(text("inviteSent"));
       // The invite row/mail commit is complete. Release the mutation guard
@@ -406,7 +402,7 @@ export default function OnboardingFlow({
         className="mb-8 flex items-center justify-center gap-4"
         aria-label={text("progressLabel")}
       >
-        {[1, 2, 3].map((item) => (
+        {[1, 2].map((item) => (
           <div
             key={item}
             aria-current={item === step ? "step" : undefined}
@@ -428,31 +424,6 @@ export default function OnboardingFlow({
       </div>
 
       {step === 1 && (
-        <div className="space-y-6 text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent-tint)]">
-            <Sparkles className="h-10 w-10 text-primary" aria-hidden="true" />
-          </div>
-          <h2 className="text-2xl font-bold text-foreground">
-            {text("welcomeTitle")}
-          </h2>
-          <p className="mx-auto max-w-md text-muted-foreground">
-            {text("welcomeDescription")}
-          </p>
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            disabled={!hydrated}
-            aria-busy={!hydrated ? "true" : undefined}
-            aria-disabled={!hydrated || undefined}
-            className="inline-flex min-h-[44px] items-center rounded-xl bg-accent-fill px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-fill-hover disabled:cursor-wait disabled:opacity-60"
-          >
-            {text("getStarted")}
-            <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
-      )}
-
-      {step === 2 && (
         <div className="space-y-6">
           <div className="text-center">
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--success-tint)]">
@@ -464,6 +435,10 @@ export default function OnboardingFlow({
             <h2 className="text-2xl font-bold text-foreground">
               {text("createTitle")}
             </h2>
+            {/* The old welcome screen's line, folded into the first step. */}
+            <p className="mx-auto mt-2 max-w-md text-muted-foreground">
+              {text("welcomeDescription")}
+            </p>
             <p className="mt-2 text-muted-foreground">
               {text("createDescription")}
             </p>
@@ -510,7 +485,8 @@ export default function OnboardingFlow({
             <button
               type="button"
               onClick={() => void createFamily()}
-              disabled={loading}
+              disabled={loading || !hydrated}
+              aria-busy={!hydrated ? "true" : undefined}
               className="min-h-[44px] w-full rounded-xl bg-accent-fill px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-fill-hover disabled:opacity-50"
             >
               {loading ? text("creatingFamily") : text("createFamily")}
@@ -533,7 +509,7 @@ export default function OnboardingFlow({
         </div>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <div className="space-y-6">
           <div className="text-center">
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--accent-tint)]">
@@ -651,15 +627,9 @@ export default function OnboardingFlow({
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/dashboard"
-              className="btn-tinted inline-flex min-h-[44px] items-center justify-center"
+              className="btn-filled inline-flex min-h-[44px] items-center justify-center sm:min-w-[160px]"
             >
-              {text("finishLater")}
-            </Link>
-            <Link
-              href="/dashboard"
-              className="btn-secondary inline-flex min-h-[44px] items-center justify-center"
-            >
-              {text("continueToToday")}
+              {text("done")}
             </Link>
           </div>
         </div>
@@ -676,7 +646,7 @@ export default function OnboardingFlow({
           <button
             type="submit"
             form="onboarding-account-invite-form"
-            disabled={sendingInvite || !inviteEmail.trim()}
+            disabled={sendingInvite || !inviteEmail.trim() || !inviteRole}
             className="btn-filled min-h-[44px] w-full"
           >
             <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -714,24 +684,18 @@ export default function OnboardingFlow({
               disabled={sendingInvite}
             />
           </div>
-          <div>
-            <label htmlFor="onboarding-invite-role" className="label-apple">
-              {text("roleLabel")}
-            </label>
-            <select
-              id="onboarding-invite-role"
-              value={inviteRole}
-              onChange={(event) =>
-                setInviteRole(event.target.value as InviteRole)
-              }
-              className="input-apple"
-              disabled={sendingInvite}
-            >
-              <option value="child">{text("roleChild")}</option>
-              <option value="teen">{text("roleTeen")}</option>
-              <option value="parent">{text("roleParent")}</option>
-            </select>
-          </div>
+          <InviteRoleChoice
+            name="onboarding-invite-role"
+            legend={text("roleLabel")}
+            labels={{
+              parent: text("roleParent"),
+              teen: text("roleTeen"),
+              child: text("roleChild"),
+            }}
+            value={inviteRole}
+            onChange={setInviteRole}
+            disabled={sendingInvite}
+          />
         </form>
       </Dialog>
     </div>

@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n'
 import { PRODUCT_BRAND } from '@/lib/brand'
 import { BrandIllustration, BrandMark } from '@/components/ui/brand-illustration'
 import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
+import { FamilyCodeEntry } from '@/components/auth/FamilyCodeEntry'
 
 export default function Home() {
   const { t, locale } = useTranslation()
@@ -33,6 +34,7 @@ export default function Home() {
               <Link href="#everyday" className="btn-plain">{t('landing.seeDay')}</Link>
             </div>
             <p className="marketing-note">{t('landing.startSmall')}</p>
+            <FamilyCodeEntry className="marketing-note" linkClassName="btn-plain px-2" />
           </div>
           <div className="marketing-hero-art">
             <BrandIllustration source={ILLUSTRATIONS.wovenGrove} priority className="woven-grove-art block h-auto w-full" />

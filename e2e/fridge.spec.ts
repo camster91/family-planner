@@ -1075,24 +1075,38 @@ test.describe("Today board: empty household", () => {
     expect(res.status(), await res.text()).toBe(200);
 
     await openBoard(page);
+    // Personal Today: each empty card is one line that says what to do first.
     await expect(region(page, "today")).toContainText(
-      "Nothing else on the calendar today.",
+      "Nothing on the calendar today.",
     );
+    await expect(
+      region(page, "today").getByRole("link", { name: "Add event" }),
+    ).toHaveAttribute("href", "/dashboard/calendar/create");
     await expect(region(page, "dinner")).toContainText(
       "No dinner planned yet.",
     );
     await expect(
       region(page, "dinner").getByRole("link", { name: "Plan dinner" }),
     ).toHaveAttribute("href", "/dashboard/meals?start=2026-01-05");
+    // This fixture household has no grocery list at all (an older household).
     await expect(region(page, "groceries")).toContainText(
-      "The grocery list is clear.",
+      "No grocery list yet.",
     );
-    await expect(region(page, "chores")).toContainText("No chores due today.");
-    // The parent gets a next step instead of only empty regions.
-    await expect(page.getByTestId("get-started")).toBeVisible();
     await expect(
-      region(page, "coming").getByText("Nothing on the calendar"),
-    ).toHaveCount(3);
+      region(page, "groceries").getByRole("button", {
+        name: "Create a grocery list",
+      }),
+    ).toBeVisible();
+    // It has never added a chore: not "No chores due today".
+    await expect(region(page, "chores")).toContainText("No chores yet.");
+    await expect(
+      region(page, "chores").getByRole("link", { name: "Add a chore" }),
+    ).toHaveAttribute("href", "/dashboard/chores/create");
+    // The parent gets a next step first, above the empty regions.
+    await expect(page.getByTestId("get-started")).toBeVisible();
+    await expect(region(page, "coming")).toContainText(
+      "Nothing on the calendar for the next few days.",
+    );
     // Nothing from the busy household.
     await expect(board(page)).not.toContainText("Dentist (Casey)");
     await expect(board(page)).not.toContainText("Milk");

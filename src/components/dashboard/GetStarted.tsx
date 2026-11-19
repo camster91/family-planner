@@ -21,8 +21,9 @@ export interface GetStartedProps {
 
 /**
  * The parent's first steps on a new household's Today board: invite the
- * family, add a chore, add an event. Each step is ticked from real household
- * data (./get-started-data.ts). The card goes away once all three are done,
+ * family, add a chore, add an event, connect a calendar. Each step is ticked
+ * from real household data (./get-started-data.ts). The card goes away once
+ * all four are done,
  * or when a parent presses Hide (with Undo).
  *
  * Hydration: the server cannot read localStorage, so the server render and
@@ -60,6 +61,14 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
       hint: text('setupEventHint'),
       href: '/dashboard/calendar/create',
       done: steps.hasEvent,
+    },
+    {
+      key: 'calendar',
+      title: text('setupCalendarTitle'),
+      hint: text('setupCalendarHint'),
+      // The existing subscriptions section; two-way sync sits right below it.
+      href: '/dashboard/settings#calendar-subscriptions',
+      done: steps.hasCalendar,
     },
   ]
   const doneCount = rows.filter((r) => r.done).length
@@ -101,7 +110,7 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
         </button>
       </div>
 
-      <ol className="mt-3 grid gap-1 md:grid-cols-3 md:gap-3" aria-label={text('setupSteps')}>
+      <ol className="mt-3 grid gap-1 md:grid-cols-2 md:gap-3 xl:grid-cols-4" aria-label={text('setupSteps')}>
         {rows.map((row) => (
           <li key={row.key} data-testid={`get-started-${row.key}`}>
             <Link

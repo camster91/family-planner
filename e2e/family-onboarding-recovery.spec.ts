@@ -248,10 +248,7 @@ async function createFamily(
   // goto can race the login response and leave the page on /login.
   await page.waitForURL(/\/dashboard$/);
   await page.goto(path);
-  await expect(
-    page.getByRole("heading", { name: "Welcome to Herewoven" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Get started" }).click();
+  // Naming the family is the first onboarding screen (no welcome step).
   await expect(
     page.getByRole("heading", { name: "Create your family" }),
   ).toBeVisible();
@@ -418,6 +415,11 @@ async function openInvite(page: Page, email: string): Promise<void> {
   const dialog = page.getByTestId("onboarding-account-invite");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Email").fill(email);
+  // The role is always chosen explicitly; nothing is picked by default.
+  await expect(
+    dialog.getByRole("button", { name: "Send invite" }),
+  ).toBeDisabled();
+  await dialog.getByRole("radio", { name: "Child" }).check();
 }
 
 test.describe.serial("family onboarding recovery", () => {

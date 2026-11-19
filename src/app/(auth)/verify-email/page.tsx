@@ -3,7 +3,7 @@
 // Email confirm step (O-24). The emailed link opens this page; opening it does
 // nothing to the token, so a mail scanner that fetches the link cannot use it
 // up. Only the "Confirm my email" button POSTs /api/auth/verify-email.
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MailCheck } from "lucide-react";
@@ -18,6 +18,7 @@ import {
   emailConfirmationMessages,
   type EmailConfirmationMessage,
 } from "@/i18n/email-confirmation";
+import { readPendingJoin, withJoinRedirect } from "@/lib/pending-join";
 
 type State = "idle" | "submitting" | Exclude<VerifyOutcome, "verified">;
 
@@ -30,13 +31,16 @@ function VerifyEmailConfirm() {
   const router = useRouter();
   const token = useSearchParams().get("token");
   const [state, setState] = useState<State>("idle");
+  // A family code kept from sign-up (this browser only): sign-in returns to it.
+  const [joinPath, setJoinPath] = useState<string | null>(null);
+  useEffect(() => setJoinPath(readPendingJoin()), []);
 
   const confirm = async () => {
     if (!token) return;
     setState("submitting");
     const outcome = await confirmEmailToken(token);
     if (outcome === "verified") {
-      router.replace(VERIFIED_REDIRECT);
+      router.replace(withJoinRedirect(VERIFIED_REDIRECT, readPendingJoin()));
       return;
     }
     setState(outcome);
@@ -102,7 +106,7 @@ function VerifyEmailConfirm() {
           )}
 
           <Link
-            href="/login"
+            href={withJoinRedirect("/login", joinPath)}
             className="btn-plain w-full py-3 mt-3 flex justify-center"
           >
             {copy("signIn")}

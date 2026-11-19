@@ -4,7 +4,7 @@ import { addUTCDays, startOfTodayUTC } from '@/lib/dates'
 import { canRoleAccessPath } from '@/lib/kid-access'
 import type { MemberProtocol } from '@/lib/member-subject-contract'
 import type { HomeSummaryData } from '@/app/dashboard/today/home-summary-data'
-import type { GetStartedSteps } from '@/app/dashboard/today/get-started-data'
+import type { GetStartedSteps, TodayStarts } from '@/app/dashboard/today/get-started-data'
 
 function profileProtocolRefusal() {
   return { code: 'MEMBER_PROTOCOL_UNAVAILABLE' as const, recovery: 'refresh-and-retain-pending' as const, requiredProtocol: 2 as const, receivedProtocol: 1 as const }
@@ -45,11 +45,23 @@ export async function readD1GetStarted(
 ): Promise<GetStartedSteps | null> {
   if (role !== 'parent') return null
   const db = (database ?? await getD1Database()).withSession('first-primary')
-  const [members, invite, chore, event] = await Promise.all([
+  const [members, invite, chore, event, calendar] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS total FROM "User" WHERE family_id=?1`).bind(familyId).first<{ total: number }>(),
     db.prepare(`SELECT id FROM "FamilyInvite" WHERE family_id=?1 AND accepted_at IS NULL AND expires_at>?2 LIMIT 1`).bind(familyId, now.getTime()).first<{ id: string }>(),
     db.prepare(`SELECT id FROM "Chore" WHERE family_id=?1 LIMIT 1`).bind(familyId).first<{ id: string }>(),
     db.prepare(`SELECT id FROM "Event" WHERE family_id=?1 LIMIT 1`).bind(familyId).first<{ id: string }>(),
+    db.prepare(`SELECT 1 AS found WHERE EXISTS (SELECT 1 FROM "CalendarConnection" WHERE family_id=?1)
+      OR EXISTS (SELECT 1 FROM "CalendarSubscription" WHERE family_id=?1)`).bind(familyId).first<{ found: number }>(),
   ])
-  return { invited: Number(members?.total ?? 0) > 1 || invite !== null, hasChore: chore !== null, hasEvent: event !== null }
+  return { invited: Number(members?.total ?? 0) > 1 || invite !== null, hasChore: chore !== null, hasEvent: event !== null, hasCalendar: calendar !== null }
+}
+
+/** Native D1 counterpart of `loadTodayStarts` (honest Today empty states). */
+export async function readD1TodayStarts(familyId: string, database?: D1Store): Promise<TodayStarts> {
+  const db = (database ?? await getD1Database()).withSession('first-primary')
+  const [chore, list] = await Promise.all([
+    db.prepare(`SELECT id FROM "Chore" WHERE family_id=?1 LIMIT 1`).bind(familyId).first<{ id: string }>(),
+    db.prepare(`SELECT id FROM "List" WHERE family_id=?1 AND type IN ('grocery','shopping') LIMIT 1`).bind(familyId).first<{ id: string }>(),
+  ])
+  return { hasChore: chore !== null, hasGroceryList: list !== null }
 }

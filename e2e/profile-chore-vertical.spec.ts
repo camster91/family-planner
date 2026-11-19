@@ -291,9 +291,7 @@ async function createFamilyAndProfiles(
 ): Promise<Record<string, string>> {
   await loginViaUi(page, x.parent.email, PASSWORD);
   await page.waitForURL(/\/dashboard$/);
-  await page
-    .getByRole("button", { name: onboardingEnglish.getStarted, exact: true })
-    .click();
+  // Naming the family is the first onboarding screen (no welcome step).
   await page
     .getByLabel(onboardingEnglish.familyNameLabel, { exact: true })
     .fill(x.family);
@@ -312,7 +310,7 @@ async function createFamilyAndProfiles(
   ).toBeVisible();
   const profileIds = await saveProfiles(page, x.profiles);
   await page
-    .getByRole("link", { name: onboardingEnglish.finishLater, exact: true })
+    .getByRole("link", { name: onboardingEnglish.done, exact: true })
     .click();
   await page.waitForURL(/\/dashboard\/today/);
   return profileIds;

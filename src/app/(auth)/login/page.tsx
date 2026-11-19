@@ -16,6 +16,13 @@ import { clearCaptureRecoveryStorage } from "@/lib/capture-recovery-storage";
 import { clearRewardCreateIntents } from "@/lib/reward-create-intent-store";
 import { loginNoticeFor, safeRedirectPath } from "@/lib/safe-redirect";
 import { replaceWithFreshDocument } from "@/lib/auth-navigation";
+import { FamilyCodeEntry } from "@/components/auth/FamilyCodeEntry";
+import {
+  clearPendingJoin,
+  pendingJoinPath,
+  readPendingJoin,
+  withJoinRedirect,
+} from "@/lib/pending-join";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -29,6 +36,8 @@ export default function LoginPage() {
     "idle",
   );
   const [registerHref, setRegisterHref] = useState("/register");
+  // Signing in to join with a family code: no second way in to offer.
+  const [joining, setJoining] = useState(false);
   const [deletedNotice, setDeletedNotice] = useState<
     "householdDeleted" | "accountDeleted" | null
   >(null);
@@ -51,6 +60,12 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     if (token) setRegisterHref(`/register?token=${encodeURIComponent(token)}`);
+    // A family code waiting to be used (from /join): "Sign up" keeps it.
+    const joinPath = pendingJoinPath(params.get("redirect"));
+    if (joinPath) {
+      setJoining(true);
+      if (!token) setRegisterHref(withJoinRedirect("/register", joinPath));
+    }
     // After Settings → Delete (docs/product/ACCOUNT_DELETION.md).
     const deleted = params.get("deleted");
     if (deleted === "household") setDeletedNotice("householdDeleted");
@@ -93,6 +108,8 @@ export default function LoginPage() {
       const destination =
         redirect ??
         (token ? `/join?token=${encodeURIComponent(token)}` : "/dashboard");
+      // The kept family code is used now (or was never this sign-in's).
+      if (redirect && redirect === readPendingJoin()) clearPendingJoin();
       replaceWithFreshDocument(destination);
     } catch {
       setError({ shared: "auth.unexpectedError" });
@@ -269,6 +286,12 @@ export default function LoginPage() {
                 {t("auth.signUp")}
               </Link>
             </p>
+            {!joining && (
+              <FamilyCodeEntry
+                className="text-[15px] text-[var(--label-secondary)]"
+                linkClassName="btn-plain py-1 px-2 -my-1"
+              />
+            )}
           </div>
         </div>
 

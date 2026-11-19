@@ -11,6 +11,8 @@ export const onboardingEnglish = {
   setupChoreHint: "Pick a job and who does it",
   setupEventTitle: "Add an event",
   setupEventHint: "Put something on the family calendar",
+  setupCalendarTitle: "Connect your calendar",
+  setupCalendarHint: "Bring in a Google, Outlook or school calendar",
   setupHidden: "Get started hidden",
   setupProgress: "{done} of {total} done. A few steps to set up your household.",
   setupHideLabel: "Hide get started",
@@ -18,7 +20,6 @@ export const onboardingEnglish = {
   setupSteps: "Setup steps",
   setupTodo: "To do: ",
   setupDone: "Done",
-  welcomeTitle: "Welcome to Herewoven",
   welcomeDescription:
     "Create a shared place for your household. You can add people now or come back later.",
   getStarted: "Get started",
@@ -34,7 +35,7 @@ export const onboardingEnglish = {
   joinExisting: "Join an existing family",
   addEveryoneTitle: "Add everyone in your family",
   addEveryoneDescription:
-    "Choose how each person will use Herewoven. You can invite an account, add a shared-screen profile when supported, or finish later.",
+    "Choose how each person will use Herewoven. You can invite an account, add a shared-screen profile when supported, or do it later from Family.",
   accountOptionTitle: "Their own account or phone",
   accountOptionDescription:
     "Send an email invite for a login, or use the in-person code on another phone. Choose a parent, teen, or child role.",
@@ -47,8 +48,7 @@ export const onboardingEnglish = {
     "Shared-screen profiles are unavailable on this server. Use an account invite instead.",
   profileChecking: "Checking shared-screen support…",
   checkAgain: "Check again",
-  finishLater: "Finish later",
-  continueToToday: "Continue to Today",
+  done: "Done",
   peopleAddedOne: "{count} household person added",
   peopleAddedMany: "{count} household people added",
   accountInviteTitle: "Invite someone with an account",
@@ -82,6 +82,8 @@ export const onboardingSpanish = {
   setupChoreHint: "Elige una tarea y quién la hace",
   setupEventTitle: "Añade un evento",
   setupEventHint: "Pon algo en el calendario familiar",
+  setupCalendarTitle: "Conecta tu calendario",
+  setupCalendarHint: "Trae un calendario de Google, Outlook o de la escuela",
   setupHidden: "Primeros pasos ocultos",
   setupProgress: "{done} de {total} completados. Unos pasos para configurar tu hogar.",
   setupHideLabel: "Ocultar primeros pasos",
@@ -89,7 +91,6 @@ export const onboardingSpanish = {
   setupSteps: "Pasos de configuración",
   setupTodo: "Pendiente: ",
   setupDone: "Completado",
-  welcomeTitle: "Te damos la bienvenida a Herewoven",
   welcomeDescription:
     "Crea un lugar compartido para tu hogar. Puedes añadir personas ahora o volver más tarde.",
   getStarted: "Empezar",
@@ -105,7 +106,7 @@ export const onboardingSpanish = {
   joinExisting: "Unirse a una familia existente",
   addEveryoneTitle: "Añade a todas las personas de tu familia",
   addEveryoneDescription:
-    "Elige cómo usará Herewoven cada persona. Puedes invitar una cuenta, añadir un perfil para una pantalla compartida cuando esté disponible o terminar más tarde.",
+    "Elige cómo usará Herewoven cada persona. Puedes invitar una cuenta, añadir un perfil para una pantalla compartida cuando esté disponible o hacerlo más tarde desde Familia.",
   accountOptionTitle: "Su propia cuenta o teléfono",
   accountOptionDescription:
     "Envía una invitación por correo para crear un inicio de sesión o usa el código en otro teléfono. Elige el rol de padre o madre, adolescente o niño o niña.",
@@ -118,8 +119,7 @@ export const onboardingSpanish = {
     "Los perfiles para pantallas compartidas no están disponibles en este servidor. Usa una invitación con cuenta.",
   profileChecking: "Comprobando la compatibilidad con pantallas compartidas…",
   checkAgain: "Comprobar de nuevo",
-  finishLater: "Terminar más tarde",
-  continueToToday: "Continuar a Hoy",
+  done: "Listo",
   peopleAddedOne: "{count} persona del hogar añadida",
   peopleAddedMany: "{count} personas del hogar añadidas",
   accountInviteTitle: "Invita a alguien con una cuenta",

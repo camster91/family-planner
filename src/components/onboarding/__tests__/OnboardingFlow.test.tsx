@@ -31,16 +31,26 @@ import OnboardingFlow from "../OnboardingFlow";
 
 describe("OnboardingFlow", () => {
   afterEach(() => jest.restoreAllMocks());
-  it("welcomes the family by the product name", () => {
+  it("opens straight on naming the family, with the welcome line folded in", () => {
     render(<OnboardingFlow userId="u1" />);
+    // No button-only welcome screen before the first real step.
+    expect(screen.queryByRole("button", { name: /get started/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /welcome to/i })).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "Welcome to Herewoven" }),
+      screen.getByRole("heading", { name: "Create your family" }),
     ).toBeTruthy();
+    expect(
+      screen.getByText(/create a shared place for your household/i),
+    ).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /family name/i })).toBeTruthy();
+    // Two steps now: name the family, then add everyone.
+    expect(
+      screen.getByLabelText("Onboarding progress").children,
+    ).toHaveLength(2);
   });
 
   it("offers joining an existing family next to creating one", async () => {
     render(<OnboardingFlow userId="u1" />);
-    await userEvent.click(screen.getByRole("button", { name: /get started/i }));
     expect(screen.getByRole("button", { name: /create family/i })).toBeTruthy();
     expect(
       screen
@@ -49,7 +59,7 @@ describe("OnboardingFlow", () => {
     ).toBe("/join");
   });
 
-  it("keeps the server button inert until hydration, then opens step two", () => {
+  it("keeps the server create button inert until hydration, then enables it", () => {
     jest.useFakeTimers();
     let hydrated: Hydrated | null = null;
     try {
@@ -60,12 +70,9 @@ describe("OnboardingFlow", () => {
       expect(hydrated.html).toContain('aria-busy="true"');
       expect(hydrated.html).toContain("disabled");
 
-      const getStarted = screen.getByRole("button", { name: /get started/i });
-      expect(getStarted).toBeEnabled();
-      fireEvent.click(getStarted);
-      expect(
-        screen.getByRole("button", { name: /create family/i }),
-      ).toBeTruthy();
+      const create = screen.getByRole("button", { name: /create family/i });
+      expect(create).toBeEnabled();
+      expect(create.getAttribute("aria-busy")).toBeNull();
     } finally {
       hydrated?.unmount();
       jest.useRealTimers();
@@ -78,7 +85,6 @@ describe("family creation next step", () => {
 
   async function enterFamily() {
     const view = render(<OnboardingFlow userId="u1" />);
-    await userEvent.click(screen.getByRole("button", { name: /get started/i }));
     await userEvent.type(
       screen.getByRole("textbox", { name: /family name/i }),
       "Our Family",
@@ -210,9 +216,14 @@ describe("family creation next step", () => {
     expect(
       screen.getByText(/shared-screen profiles are unavailable/i),
     ).toBeTruthy();
+    // One way to finish, not "Finish later" and "Continue to Today" side by side.
     expect(
-      screen.getByRole("link", { name: /finish later/i }).getAttribute("href"),
+      screen.getByRole("link", { name: "Done" }).getAttribute("href"),
     ).toBe("/dashboard");
+    expect(screen.queryByRole("link", { name: /finish later/i })).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: /continue to today/i }),
+    ).toBeNull();
     expect(fetch).toHaveBeenCalledWith(
       "/api/family",
       expect.objectContaining({
@@ -321,6 +332,16 @@ describe("family creation next step", () => {
       screen.getByRole("button", { name: /invite an account/i }),
     );
     await userEvent.type(screen.getByLabelText("Email"), "kid@example.com");
+    // No silent default: nothing is picked and Send stays off until a role is.
+    for (const role of ["Parent", "Teen", "Child"])
+      expect(
+        (screen.getByRole("radio", { name: role }) as HTMLInputElement)
+          .checked,
+      ).toBe(false);
+    expect(
+      screen.getByRole("button", { name: /send invite/i }),
+    ).toBeDisabled();
+    await userEvent.click(screen.getByRole("radio", { name: "Child" }));
     await userEvent.click(screen.getByRole("button", { name: /send invite/i }));
 
     expect(await screen.findByText(/invite sent/i)).toBeTruthy();
@@ -474,6 +495,7 @@ describe("family creation next step", () => {
     );
     const emailInput = screen.getByLabelText("Email") as HTMLInputElement;
     await userEvent.type(emailInput, "kid@example.com");
+    await userEvent.click(screen.getByRole("radio", { name: "Child" }));
     await userEvent.click(screen.getByRole("button", { name: /send invite/i }));
 
     expect((await screen.findByRole("alert")).textContent).toMatch(
@@ -531,6 +553,7 @@ describe("family creation next step", () => {
       await screen.findByRole("button", { name: /invite an account/i }),
     );
     await user.type(screen.getByLabelText("Email"), "kid@example.com");
+    await user.click(screen.getByRole("radio", { name: "Child" }));
     await user.click(screen.getByRole("button", { name: /send invite/i }));
     expect(await screen.findByText(/invite sent/i)).toBeTruthy();
 
@@ -599,7 +622,6 @@ describe("family creation next step", () => {
         <OnboardingFlow userId="u1" />
       </I18nProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: /empezar/i }));
     await userEvent.type(
       screen.getByRole("textbox", { name: /nombre de la familia/i }),
       "Nuestra familia",
