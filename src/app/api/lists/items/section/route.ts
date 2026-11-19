@@ -15,6 +15,10 @@ import {
 } from "@/lib/grocery-section-http";
 import { logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
+import {
+  canEditListItem,
+  LIST_ITEM_CHILD_MESSAGE,
+} from "@/lib/role-capabilities";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +28,8 @@ export const dynamic = "force-dynamic";
  *
  * Sets the household's section for the row's normalized name
  * (`GrocerySectionPreference`) and, for a row linked to an ingredient,
- * `Ingredient.section`. Every member may do it (like editing an item, D9).
+ * `Ingredient.section`. Parents and teens may do it, like editing an item; a
+ * child gets 403 `LIST_ITEM_EDIT_FORBIDDEN` on both backends.
  * A paired shared device is refused before person auth (403
  * `DEVICE_WRITE_NOT_ALLOWED`, no device writes until #157). Setting the same
  * section twice is harmless, so no `Idempotency-Key` is needed; the offline
@@ -40,6 +45,13 @@ export async function PATCH(request: NextRequest) {
 
     const gate = await featureGate(auth.user.family_id, "lists");
     if (gate) return gate;
+
+    if (!canEditListItem(auth.user.role))
+      return sectionError(
+        403,
+        "LIST_ITEM_EDIT_FORBIDDEN",
+        LIST_ITEM_CHILD_MESSAGE,
+      );
 
     const json = await readSectionJson(request);
     if (!json.ok) return json.response;

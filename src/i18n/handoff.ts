@@ -9,7 +9,8 @@ export const handoffEnglish = {
   codeWordsPlaceholder: "e.g. Code word for emergencies: PINEAPPLE",
   petCarePlaceholder: "e.g. Dog: walk at 7pm, cat: no special care",
   emergencyPlaceholder: "Allergies, medical info, emergency contacts...",
-  houseNotesPlaceholder: "e.g. Thermostat, TV codes, alarm code...",
+  houseNotesPlaceholder:
+    "e.g. Thermostat, TV remote, bins. Don’t write alarm or door codes here; share them in person.",
   notesPlaceholder: "Any other notes for the sitter...",
 
   deleteTitle: "Remove “{name}”?",
@@ -32,7 +33,8 @@ export const handoffSpanish: Record<HandoffMessage, string> = {
   codeWordsPlaceholder: "p. ej., palabra clave para emergencias: PIÑA",
   petCarePlaceholder: "p. ej., perro: paseo a las 19:00; gato: sin cuidados especiales",
   emergencyPlaceholder: "Alergias, información médica, contactos de emergencia...",
-  houseNotesPlaceholder: "p. ej., termostato, códigos de TV y alarma...",
+  houseNotesPlaceholder:
+    "p. ej., termostato, mando de la TV, basura. No escribas aquí códigos de alarma ni de puertas; compártelos en persona.",
   notesPlaceholder: "Otras notas para quien cuida a los niños...",
 
   deleteTitle: "¿Quitar «{name}»?",

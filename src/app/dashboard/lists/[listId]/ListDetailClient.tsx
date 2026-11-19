@@ -20,9 +20,21 @@ import {
 import { EditGroceryDialog, type EditableGrocery } from "./EditGroceryDialog";
 import { ListItemTaskControl } from "./ListItemTaskControl";
 import type { ListItemTaskView } from "@/lib/list-tasks";
-import { Plus, CheckSquare, CloudOff, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  Check,
+  CheckSquare,
+  CloudOff,
+  AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CheckboxRow } from "@/components/ui/checkbox-row";
+import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
+import {
+  ListItemActions,
+  ListItemMoreButton,
+  type ListItemAction,
+} from "./ListItemMenu";
+import { splitListItems, splitItemText, type SplitItem } from "./split-items";
 import { SwipeRow } from "@/components/ui/swipe-row";
 import { Glyph } from "@/components/ui/glyph";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -133,6 +145,8 @@ interface ListDetailClientProps {
   ownerGeneration?: number;
   /** D9 (#102): deleting an item is parent-only. */
   canDeleteItems?: boolean;
+  /** Editing or moving an item: parents and teens; a child only ticks. */
+  canEditItems?: boolean;
   /** Store sections (#273); only used on grocery/shopping lists. */
   sectionSort?: SectionSortProps;
   /**
@@ -164,6 +178,7 @@ export default function ListDetailClient({
   userId,
   ownerGeneration,
   canDeleteItems = true,
+  canEditItems = true,
   sectionSort = DEFAULT_SECTION_SORT,
   tasks,
   canSetTasks = false,
@@ -171,7 +186,15 @@ export default function ListDetailClient({
 }: ListDetailClientProps) {
   const storeText = useStoreSectionText();
   const text = useListDetailText();
+  const { locale } = useTranslation();
   const router = useRouter();
+  // The one row whose "•••" actions are open, and each row's "•••" button so
+  // closing the actions can put focus back on it.
+  const [openMenu, setOpenMenu] = React.useState<string | null>(null);
+  const moreButtons = React.useRef(new Map<string, HTMLButtonElement>());
+  // Idempotency keys for a several-items add, kept per item until it is saved
+  // so retrying the rest after a failure cannot add an item twice.
+  const addKeys = React.useRef(new Map<string, string>());
   const readSync = useListVersionSync({
     listId,
     version,
@@ -321,16 +344,26 @@ export default function ListDetailClient({
   // when sorting is off or the list is not a grocery list. Open rows for the
   // same ingredient are shown together within a section (ADR-0007 O-3).
   // Checked rows stay in their section at their list position.
+  // To-do style lists (not groceries) keep done items below open ones.
   const sectionOf = (item: Item) => storeSectionOf(item, overrides);
+  const orderedItems = isGrocery
+    ? listItems
+    : [
+        ...listItems.filter((item) => !displayChecked(item)),
+        ...listItems.filter((item) => displayChecked(item)),
+      ];
   const sections = storeSort
-    ? buildGrocerySections(listItems, displayChecked, {
+    ? buildGrocerySections(orderedItems, displayChecked, {
         sectionOf,
         order: sectionSort.order,
         label: (key) => (isGrocerySection(key) ? storeText(key) : key),
       })
-    : buildGrocerySections(listItems, displayChecked, {
+    : buildGrocerySections(orderedItems, displayChecked, {
         label: (key) => (key === "Other" ? text("other") : key),
       });
+  // A lone "Other" header says nothing; store sections always keep theirs.
+  const showSectionHeaders =
+    storeSort || sections.length > 1 || sections[0]?.key !== "Other";
 
   const handleSortChange = async (next: boolean) => {
     if (sortingRef.current) return;
@@ -623,6 +656,81 @@ export default function ListDetailClient({
     });
   };
 
+  // Several items typed at once ("milk, eggs and 2 bread"): the same create
+  // request per item, each with its own idempotency key, in order. A failure
+  // stops there and leaves the items not yet added in the field.
+  const addMany = async (items: SplitItem[]) => {
+    addingRef.current = true;
+    setLoading(true);
+    setAddError(null);
+    const added: Item[] = [];
+    let failure: string | null = null;
+    let index = 0;
+    try {
+      for (; index < items.length; index++) {
+        const entry = items[index];
+        const intent = `${entry.quantity}\u0000${entry.content}`;
+        const key = addKeys.current.get(intent) ?? newIdempotencyKey();
+        addKeys.current.set(intent, key);
+        let res: Response;
+        try {
+          res = await fetch("/api/lists/items/create", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [IDEMPOTENCY_HEADER]: key,
+            },
+            body: JSON.stringify({
+              listId,
+              content: entry.content,
+              ...(entry.quantity > 1 ? { quantity: entry.quantity } : {}),
+            }),
+          });
+        } catch {
+          const offline =
+            typeof navigator !== "undefined" && navigator.onLine === false;
+          failure = offline
+            ? text("addOffline", { item: entry.content })
+            : text("addFailed", { item: entry.content });
+          break;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.item) {
+          const reason =
+            typeof data?.error === "string" && data.error
+              ? data.error
+              : text("tryAgain");
+          failure = text("addReason", { item: entry.content, reason });
+          break;
+        }
+        addKeys.current.delete(intent);
+        added.push(toItem(data.item));
+      }
+    } finally {
+      addingRef.current = false;
+      setLoading(false);
+    }
+    if (added.length > 0) {
+      if (paging) router.refresh();
+      else setListItems((prev) => [...prev, ...added]);
+    }
+    if (failure) {
+      setNewItemText(items.slice(index).map(splitItemText).join("\n"));
+      setAddError(
+        added.length > 0
+          ? `${text("addManyStopped", { done: added.length, count: items.length })} ${failure}`
+          : failure,
+      );
+      return;
+    }
+    setNewItemText("");
+    addToast({
+      type: "success",
+      title: text("addedMany", { count: added.length }),
+      ...(paging ? { message: text("savedPageHint") } : {}),
+    });
+  };
+
   const handleAdd = async () => {
     const trimmed = newItemText.trim();
     if (!trimmed || addingRef.current) return;
@@ -630,6 +738,8 @@ export default function ListDetailClient({
       setAddError(text("addOffline", { item: trimmed }));
       return;
     }
+    const many = splitListItems(trimmed, locale);
+    if (many) return addMany(many);
     addingRef.current = true;
     setLoading(true);
     setAddError(null);
@@ -677,9 +787,14 @@ export default function ListDetailClient({
     }
   };
 
+  // Enter adds (as before); Shift+Enter starts a new line for one item per line.
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleAdd();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleAdd();
+    }
   };
+  const addPreview = isGrocery ? null : splitListItems(newItemText, locale);
 
   const editItem = editTarget
     ? listItems.find((item) => item.id === editTarget.id)
@@ -716,14 +831,53 @@ export default function ListDetailClient({
         ? text("deleteUnknown")
         : (status ??
           ([detail, checkedBy].filter(Boolean).join(" · ") || undefined));
+    const live = !item.removedElsewhere && !item.deleteUnknown;
+    // Edit, Move to section and Delete live behind one "•••" per row so the
+    // item name keeps the full row width. A child's rows only tick.
+    const actions: ListItemAction[] = [];
+    if (canEditItems && isGrocery && item.updated_at && live)
+      actions.push({
+        key: "edit",
+        label: text("edit"),
+        ariaLabel: text("editLabel", { item: item.content }),
+        disabled: Boolean(op),
+        dialog: true,
+        onSelect: () =>
+          setEditTarget({
+            id: item.id,
+            content: item.content,
+            quantity: item.quantity,
+            updated_at: item.updated_at!,
+          }),
+      });
+    if (canEditItems && storeSort && !checked && live)
+      actions.push({
+        key: "move",
+        label: text("moveToSection"),
+        ariaLabel: storeText("moveItem", { item: item.content }),
+        dialog: true,
+        testId: "move-section",
+        onSelect: () => openMove(item),
+      });
+    if (canDeleteItems && live)
+      actions.push({
+        key: "delete",
+        label: text("delete"),
+        ariaLabel: text("deleteLabel", { item: item.content }),
+        disabled: Boolean(op),
+        danger: true,
+        onSelect: () => void handleDeleteItem(item.id),
+      });
+    const menuOpen = openMenu === item.id && actions.length > 0;
+    const menuId = `list-item-actions-${item.id}`;
+    const toggleDisabled =
+      item.removedElsewhere || item.deleteUnknown || sync.storageBlocked;
     return (
       <SwipeRow
         key={item.id}
         swipeLeftTone="delete"
         onSwipeLeft={
-          canDeleteItems && !item.removedElsewhere && !item.deleteUnknown
-            ? () => handleDeleteItem(item.id)
-            : undefined
+          canDeleteItems && live ? () => handleDeleteItem(item.id) : undefined
         }
       >
         <div
@@ -735,84 +889,92 @@ export default function ListDetailClient({
           data-testid="list-item"
         >
           <div className="flex items-stretch">
-            <div className="min-w-0 flex-1">
-              <CheckboxRow
-                checked={checked}
-                disabled={
-                  item.removedElsewhere ||
-                  item.deleteUnknown ||
-                  sync.storageBlocked
-                }
-                onChange={() => handleToggle(item.id, !checked)}
-                title={item.content}
-                subtitle={subtitle}
-                wrap
-                className={cn(isLast && !needsAction(op) && "border-b-0")}
+            {/* The tick comes first; tapping anywhere on the name ticks too. */}
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={checked}
+              aria-disabled={toggleDisabled || undefined}
+              onClick={() => {
+                if (!toggleDisabled) handleToggle(item.id, !checked);
+              }}
+              className={cn(
+                "flex min-h-[52px] min-w-0 flex-1 items-start gap-3 py-3 pl-4 text-left",
+                actions.length > 0 ? "pr-1" : "pr-4",
+                "active:bg-[var(--surface-fill-secondary)] transition-colors duration-200",
+                "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
+              )}
+            >
+              <span
+                aria-hidden="true"
+                data-testid="list-item-tick"
+                className={cn(
+                  "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-all duration-200",
+                  checked
+                    ? "animate-check-pop border-success bg-success"
+                    : "border-label-tertiary",
+                )}
+              >
+                {checked && (
+                  <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    "block text-body [overflow-wrap:break-word] [word-break:normal]",
+                    checked
+                      ? "text-label-tertiary line-through"
+                      : "text-label-primary",
+                  )}
+                >
+                  {item.content}
+                </span>
+                {subtitle && (
+                  <span className="block text-footnote text-label-secondary [overflow-wrap:break-word]">
+                    {subtitle}
+                  </span>
+                )}
+              </span>
+            </button>
+            {actions.length > 0 && (
+              <ListItemMoreButton
+                ref={(node) => {
+                  if (node) moreButtons.current.set(item.id, node);
+                  else moreButtons.current.delete(item.id);
+                }}
+                label={text("more", { item: item.content })}
+                open={menuOpen}
+                controls={menuId}
+                onToggle={() => setOpenMenu(menuOpen ? null : item.id)}
               />
-            </div>
-            {isGrocery &&
-              item.updated_at &&
-              !item.removedElsewhere &&
-              !item.deleteUnknown && (
-                <button
-                  type="button"
-                  disabled={Boolean(op)}
-                  onClick={() =>
-                    setEditTarget({
-                      id: item.id,
-                      content: item.content,
-                      quantity: item.quantity,
-                      updated_at: item.updated_at!,
-                    })
-                  }
-                  aria-label={text("editLabel", { item: item.content })}
-                  aria-haspopup="dialog"
-                  className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
-                >
-                  {text("edit")}
-                </button>
-              )}
-            {storeSort &&
-              !checked &&
-              !item.removedElsewhere &&
-              !item.deleteUnknown && (
-                <button
-                  type="button"
-                  onClick={() => openMove(item)}
-                  aria-label={storeText("moveItem", { item: item.content })}
-                  aria-haspopup="dialog"
-                  data-testid="move-section"
-                  className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-[var(--accent-text)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
-                >
-                  {storeText("move")}
-                </button>
-              )}
-            {canDeleteItems &&
-              !item.removedElsewhere &&
-              !item.deleteUnknown && (
-                <button
-                  type="button"
-                  disabled={Boolean(op)}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() => void handleDeleteItem(item.id)}
-                  aria-label={text("deleteLabel", { item: item.content })}
-                  className="min-h-[44px] min-w-[44px] shrink-0 self-center px-3 text-subhead text-danger-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--danger)] disabled:opacity-40"
-                >
-                  {text("delete")}
-                </button>
-              )}
+            )}
           </div>
-          {tasks && !isGrocery && !item.removedElsewhere && !item.deleteUnknown && (
-            <ListItemTaskControl
-              itemId={item.id}
-              itemName={item.content}
-              initial={savedTasks[item.id] ?? tasks[item.id]}
-              onSaved={rememberTask}
-              done={displayChecked(item)}
-              canEdit={canSetTasks}
-              disabled={Boolean(op)}
+          {menuOpen && (
+            <ListItemActions
+              id={menuId}
+              label={text("itemActions", { item: item.content })}
+              actions={actions}
+              onClose={(restoreFocus) => {
+                setOpenMenu(null);
+                if (restoreFocus) moreButtons.current.get(item.id)?.focus();
+              }}
             />
           )}
+          {tasks &&
+            !isGrocery &&
+            !item.removedElsewhere &&
+            !item.deleteUnknown && (
+              <ListItemTaskControl
+                itemId={item.id}
+                itemName={item.content}
+                initial={savedTasks[item.id] ?? tasks[item.id]}
+                onSaved={rememberTask}
+                done={displayChecked(item)}
+                canEdit={canSetTasks}
+                disabled={Boolean(op)}
+              />
+            )}
           {item.deleteUnknown && (
             <div
               role="group"
@@ -925,6 +1087,71 @@ export default function ListDetailClient({
         onDismiss={sync.dismissNotice}
       />
 
+      {/* Add item field: at the top, above the sections. */}
+      <PersonGroceryAdd
+        userId={userId}
+        listId={listId}
+        allowNew={isGrocery}
+        showCompatibilityNotice={false}
+      />
+      {!isGrocery && (
+        <div className="card-apple px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
+            <textarea
+              rows={Math.min(Math.max(newItemText.split("\n").length, 1), 6)}
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={text("addPlaceholder")}
+              aria-label={text("addLabel")}
+              aria-invalid={addError ? true : undefined}
+              aria-describedby={
+                [
+                  addError ? "list-add-error" : null,
+                  addPreview ? "list-add-preview" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
+              disabled={loading}
+              className="min-w-0 flex-1 resize-none bg-transparent py-2 text-body text-label-primary placeholder:text-label-tertiary outline-none"
+            />
+            {newItemText.trim() && (
+              <button
+                onClick={handleAdd}
+                disabled={loading}
+                type="button"
+                className="min-h-[44px] min-w-[44px] px-2 -mr-2 text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {text("add")}
+              </button>
+            )}
+          </div>
+          {addPreview && (
+            <p
+              id="list-add-preview"
+              role="status"
+              data-testid="list-add-preview"
+              className="pt-2 text-footnote text-label-secondary [overflow-wrap:break-word]"
+            >
+              {text("addPreview", {
+                count: addPreview.length,
+                items: addPreview.map(splitItemText).join(" · "),
+              })}
+            </p>
+          )}
+          {addError && (
+            <p
+              id="list-add-error"
+              role="alert"
+              className="pt-2 text-footnote text-[var(--danger-text)]"
+            >
+              {addError}
+            </p>
+          )}
+        </div>
+      )}
       {isGrocery && (
         <SectionSortControl
           enabled={sortBySection}
@@ -945,7 +1172,9 @@ export default function ListDetailClient({
             data-testid={storeSort ? "store-section" : undefined}
             data-section={storeSort ? section.key : undefined}
           >
-            <SectionHeader>{section.category}</SectionHeader>
+            {showSectionHeaders && (
+              <SectionHeader>{section.category}</SectionHeader>
+            )}
             <InsetList>
               {section.entries.map((entry, i) => {
                 const isLastEntry = i === section.entries.length - 1;
@@ -1032,52 +1261,6 @@ export default function ListDetailClient({
         onPick={(section) => void handleMove(section)}
         onClose={() => setMoveTarget(null)}
       />
-
-      {/* Add item field */}
-      <PersonGroceryAdd
-        userId={userId}
-        listId={listId}
-        allowNew={isGrocery}
-        showCompatibilityNotice={false}
-      />
-      {!isGrocery && (
-        <div className="card-apple px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Plus className="w-5 h-5 text-label-tertiary shrink-0" />
-            <input
-              type="text"
-              value={newItemText}
-              onChange={(e) => setNewItemText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={text("addPlaceholder")}
-              aria-label={text("addLabel")}
-              aria-invalid={addError ? true : undefined}
-              aria-describedby={addError ? "list-add-error" : undefined}
-              disabled={loading}
-              className="min-w-0 flex-1 bg-transparent text-body text-label-primary placeholder:text-label-tertiary outline-none"
-            />
-            {newItemText.trim() && (
-              <button
-                onClick={handleAdd}
-                disabled={loading}
-                type="button"
-                className="min-h-[44px] min-w-[44px] px-2 -mr-2 text-[var(--accent)] text-subhead font-medium active:scale-95 transition-transform disabled:opacity-50"
-              >
-                {text("add")}
-              </button>
-            )}
-          </div>
-          {addError && (
-            <p
-              id="list-add-error"
-              role="alert"
-              className="pt-2 text-footnote text-[var(--danger-text)]"
-            >
-              {addError}
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

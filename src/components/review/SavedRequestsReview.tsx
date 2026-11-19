@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime } from "@/lib/date-time-format";
 import * as React from "react";
 import Link from "next/link";
 import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";
@@ -179,7 +180,7 @@ export default function SavedRequestsReview({
                   dateTime={row.issuedAt}
                   className="text-footnote text-label-secondary"
                 >
-                  {new Date(row.issuedAt).toLocaleString(locale)}
+                  {formatDateTime(row.issuedAt, locale)}
                 </time>
               ) : (
                 <p className="text-footnote text-label-secondary">

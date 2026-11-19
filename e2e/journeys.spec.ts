@@ -447,8 +447,8 @@ test.describe("Family A child", () => {
     await expect(page).toHaveURL(/\/dashboard\/lists$/);
     const main = page.locator("#main-content");
     await expect(main.getByText("Groceries").first()).toBeVisible();
-    // A child cannot create a list: no "Add list" link.
-    await expect(main.getByRole("link", { name: "Add list" })).toHaveCount(0);
+    // A child cannot create a list: no "New list" link.
+    await expect(main.getByRole("link", { name: "New list" })).toHaveCount(0);
 
     await page.goto(`/dashboard/lists/${FIXTURE_IDS.familyA.list}`);
     await expect(main.getByText("Return library books")).toBeVisible();

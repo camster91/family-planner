@@ -1,14 +1,15 @@
 /** Personal inbox reads share existing owned deadlines and stream bounds. */
 import { runOwnedForeground } from "./owned-request-http";
 import { readBoundedJsonResponse } from "./bounded-json-response";
-import { REMINDER_TIME_ZONE_HEADER } from "./event-reminder-constants";
+import { reminderTimeZoneHeaders } from "./notification-events";
+
+export {
+  NOTIFICATIONS_CHANGED_EVENT,
+  announceNotificationsChanged,
+  reminderTimeZoneHeaders,
+} from "./notification-events";
 
 export const NOTIFICATION_READ_BYTES = 512 * 1024;
-/** Fired on window when this page read, snoozed or removed a notification, so the bell can recount. */
-export const NOTIFICATIONS_CHANGED_EVENT = "family-planner:notifications-changed";
-export function announceNotificationsChanged(): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
-}
 export interface NotificationItem {
   id: string;
   type: string;
@@ -45,13 +46,6 @@ export type NotificationPage = {
   pagingSupported: boolean;
 };
 export class NotificationPageError extends Error {}
-/** The browser's zone for reminder text; empty when the runtime cannot say. */
-export function reminderTimeZoneHeaders(): Record<string, string> {
-  try {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return zone ? { [REMINDER_TIME_ZONE_HEADER]: zone } : {};
-  } catch { return {}; }
-}
 
 export async function readNotificationPage(
   url: string,

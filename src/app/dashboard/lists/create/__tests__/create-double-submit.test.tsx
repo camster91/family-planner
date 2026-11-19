@@ -284,6 +284,21 @@ it.each([
   },
 );
 
+it("starts on To-do when the household already has a grocery list, unless the link names a type", () => {
+  const { unmount } = render(
+    <CreateListForm initialType={null} defaultType="todo" />,
+  );
+  expect(screen.getByLabelText("Type")).toHaveValue("todo");
+  unmount();
+  render(<CreateListForm initialType="grocery" defaultType="todo" />);
+  expect(screen.getByLabelText("Type")).toHaveValue("grocery");
+});
+
+it("keeps Grocery as the default for a household without a grocery list", () => {
+  render(<CreateListForm initialType={null} />);
+  expect(screen.getByLabelText("Type")).toHaveValue("grocery");
+});
+
 it("uses validated server context on first render even when the browser URL differs", () => {
   render(<CreateListForm initialType="custom" />);
   expect(screen.getByLabelText("Type")).toHaveValue("custom");

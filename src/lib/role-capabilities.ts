@@ -32,9 +32,20 @@ export function canDeleteListOrItem(role: string | undefined | null): boolean {
   return isParentRole(role)
 }
 
-// #273 — Store sections. Every member may "Move to…" an item (like editing an
-// item); switching a grocery list's section sorting on or off changes the
-// list for everyone, so it follows list creation (parent and teen).
+// Lists UI review (2026-11): a child may add and tick items but not change
+// one. Editing an item's name or quantity (`PATCH /api/lists/items/edit`, and
+// any non-tick field on `PATCH /api/lists/items/update`) and "Move to…"
+// (`PATCH /api/lists/items/section`) are parent and teen only; children get 403
+// with this message. Deleting an item stays parent-only (above).
+export const LIST_ITEM_CHILD_MESSAGE = 'Ask a parent or teen to change this item.'
+
+export function canEditListItem(role: string | undefined | null): boolean {
+  return role === 'parent' || role === 'teen'
+}
+
+// #273 — Store sections. "Move to…" an item follows editing an item (parent
+// and teen, above); switching a grocery list's section sorting on or off
+// changes the list for everyone, so it follows list creation (parent and teen).
 export function canChangeListSectionSort(role: string | undefined | null): boolean {
   return canCreateList(role)
 }

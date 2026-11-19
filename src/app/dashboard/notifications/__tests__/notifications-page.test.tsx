@@ -74,6 +74,26 @@ describe('/dashboard/notifications', () => {
     expect(within(rows[1]).getByRole('button', { name: 'Delete "Swim lesson"' }).className).toContain('min-h-[44px]')
   })
 
+  it('labels Mark read in words and keeps the rest in a named overflow menu (no bare "Options")', async () => {
+    mockFetch(list)
+    renderPage()
+    const rows = await screen.findAllByTestId('notification-row')
+    const mark = within(rows[0]).getByTestId('notification-mark-read')
+    // The visible word is always there, not only on wide screens.
+    const word = within(mark).getByText('Mark read')
+    expect(word.className).not.toContain('hidden')
+    expect(mark.className).toContain('min-h-[44px]')
+    for (const row of rows) {
+      const overflow = within(row).getByTestId('notification-overflow')
+      expect(overflow.tagName).toBe('SUMMARY')
+      expect(overflow.getAttribute('aria-label')).toMatch(/^More actions for "/)
+      expect(overflow.className).toContain('min-h-[44px]')
+      expect(overflow.textContent).not.toContain('Options')
+    }
+    // The paging status is for screen readers only.
+    expect(screen.getByText('All notifications loaded.').className).toContain('sr-only')
+  })
+
   it('marks a notification read with the keyboard-usable button', async () => {
     const user = userEvent.setup()
     const calls = mockFetch((method) => (method === 'PATCH' ? { status: 200, body: { success: true } } : list()))

@@ -12,6 +12,8 @@ import {
   type PersonGroceryAddOperation,
 } from "@/lib/offline-queue";
 import { QueueStorageRecovery } from "@/components/ui/queue-storage-recovery";
+import { useListDetailText } from "@/i18n/list-detail";
+import { splitListItems, splitItemText } from "./split-items";
 
 /** Only submitted grocery text is persisted, never an unsent draft or arbitrary list fields. */
 export function PersonGroceryAdd({
@@ -25,7 +27,8 @@ export function PersonGroceryAdd({
   allowNew?: boolean;
   showCompatibilityNotice?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const listText = useListDetailText();
   const router = useRouter();
   const refresh = React.useRef(router.refresh);
   refresh.current = router.refresh;
@@ -140,7 +143,17 @@ export function PersonGroceryAdd({
   const submit = async () => {
     const content = text.trim();
     if (!allowNew || signedOut || !content || submitting.current) return;
-    if (content.length > 500) {
+    // Several items typed at once ("milk, eggs and 2 bread") are queued one
+    // by one through the same offline queue; one item is queued as before.
+    const many = splitListItems(content, locale);
+    const entries: { content: string; quantity?: number }[] = many
+      ? many.map((item) =>
+          item.quantity > 1
+            ? { content: item.content, quantity: item.quantity }
+            : { content: item.content },
+        )
+      : [{ content }];
+    if (entries.some((entry) => entry.content.length > 500)) {
       setError("personLength");
       return;
     }
@@ -160,13 +173,18 @@ export function PersonGroceryAdd({
     const submittingGeneration = generation.current;
     setBusy(true);
     setError(null);
+    let index = 0;
     try {
-      const op = await queue.enqueue("list-item.grocery-add", {
-        listId,
-        content,
-      });
-      if (!mounted.current || generation.current !== submittingGeneration)
-        return;
+      let op: Awaited<ReturnType<OfflineQueue["enqueue"]>> | null = null;
+      for (; index < entries.length; index++) {
+        op = await queue.enqueue("list-item.grocery-add", {
+          listId,
+          ...entries[index],
+        });
+        if (!mounted.current || generation.current !== submittingGeneration)
+          return;
+      }
+      if (!op) return;
       setText("");
       // An immediate send may finish before enqueue returns. Keep its confirmed
       // notice rather than replace it with a premature queued/saved claim.
@@ -174,6 +192,19 @@ export function PersonGroceryAdd({
         setNotice(op.durable ? "queued" : "pageOnly");
     } catch (caught) {
       if (mounted.current && generation.current === submittingGeneration) {
+        // Items already queued stay queued; only the rest stay in the field.
+        if (index > 0)
+          setText(
+            entries
+              .slice(index)
+              .map((entry) =>
+                splitItemText({
+                  content: entry.content,
+                  quantity: entry.quantity ?? 1,
+                }),
+              )
+              .join("\n"),
+          );
         if (
           caught instanceof QueueError &&
           caught.code === "STORAGE_UNAVAILABLE"
@@ -213,6 +244,7 @@ export function PersonGroceryAdd({
     !storageReadError &&
     !queue.hasStorageReadError() &&
     !queue.requiresCompatibleClient();
+  const preview = allowNew ? splitListItems(text, locale) : null;
 
   if (
     !allowNew &&
@@ -241,12 +273,13 @@ export function PersonGroceryAdd({
               className="w-5 h-5 text-label-tertiary shrink-0"
               aria-hidden="true"
             />
-            <input
-              type="text"
+            {/* Enter adds; Shift+Enter starts a new line (one item per line). */}
+            <textarea
+              rows={Math.min(Math.max(text.split("\n").length, 1), 6)}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   void submit();
                 }
@@ -254,9 +287,16 @@ export function PersonGroceryAdd({
               placeholder={t("groceries.placeholder")}
               aria-label={t("groceries.inputLabel")}
               aria-invalid={error ? true : undefined}
-              aria-describedby={error ? "grocery-add-error" : undefined}
+              aria-describedby={
+                [
+                  error ? "grocery-add-error" : null,
+                  preview ? "grocery-add-preview" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
               disabled={busy}
-              className="min-w-0 flex-1 bg-transparent text-body text-label-primary placeholder:text-label-tertiary outline-none"
+              className="min-w-0 flex-1 resize-none bg-transparent py-2 text-body text-label-primary placeholder:text-label-tertiary outline-none"
             />
             {text.trim() && (
               <button
@@ -269,6 +309,19 @@ export function PersonGroceryAdd({
               </button>
             )}
           </div>
+          {preview && (
+            <p
+              id="grocery-add-preview"
+              role="status"
+              data-testid="grocery-add-preview"
+              className="pt-2 text-footnote text-label-secondary [overflow-wrap:break-word]"
+            >
+              {listText("addPreview", {
+                count: preview.length,
+                items: preview.map(splitItemText).join(" · "),
+              })}
+            </p>
+          )}
           {error && (
             <p
               id="grocery-add-error"
@@ -339,6 +392,9 @@ export function PersonGroceryAdd({
           >
             <p className="text-body text-label-primary break-words">
               {op.payload.content}
+              {op.payload.quantity && op.payload.quantity > 1
+                ? ` × ${op.payload.quantity}`
+                : ""}
             </p>
             <p className="text-footnote text-label-secondary mt-1">{status}</p>
             {op.state !== "syncing" && (

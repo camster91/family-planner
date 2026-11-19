@@ -1434,22 +1434,20 @@ function MealsPageInner() {
                       {tWeek("moreFailed")}
                     </p>
                   )}
-                  <button
-                    type="button"
-                    className="btn-tinted min-h-[44px]"
-                    aria-disabled={loadingMore || !hasMore}
-                    onClick={() => {
-                      if (!loadingMore && hasMore) void loadMore();
-                    }}
-                  >
-                    {tWeek(
-                      loadingMore
-                        ? "loading"
-                        : hasMore
-                          ? "loadMore"
-                          : "complete",
-                    )}
-                  </button>
+                  {/* No "All meals loaded" button once everything is in;
+                      the status line below still tells screen readers. */}
+                  {hasMore && (
+                    <button
+                      type="button"
+                      className="btn-tinted min-h-[44px]"
+                      aria-disabled={loadingMore}
+                      onClick={() => {
+                        if (!loadingMore) void loadMore();
+                      }}
+                    >
+                      {tWeek(loadingMore ? "loading" : "loadMore")}
+                    </button>
+                  )}
                   <p role="status" className="sr-only">
                     {tWeek("loaded", { count: meals.length })}
                   </p>

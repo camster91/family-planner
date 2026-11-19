@@ -135,6 +135,31 @@ describe('GET /api/search', () => {
     }
   })
 
+  it('finds pickups (title, place or notes) for every role while pickups are on, household-scoped', async () => {
+    // Pickups are off by default: nothing until the household turns them on.
+    expect(await results('parentA', 'soccer')).toEqual([])
+    db.rows('pickup').push(
+      { id: 'pickup-soccer-a', family_id: FAMILY_A, title: 'Soccer practice drop-off', location: 'Home field', pickup_time: new Date('2026-03-02T16:00:00Z'), completed: false, completed_at: null, assigned_to: 'parent-a', notes: 'Bring Home cleats', created_by: 'parent-a', created_at: new Date() },
+      { id: 'pickup-soccer-b', family_id: FAMILY_B, title: `Soccer ${FOREIGN}`, location: null, pickup_time: new Date('2026-03-02T16:00:00Z'), completed: false, completed_at: null, assigned_to: 'parent-b', notes: null, created_by: 'parent-b', created_at: new Date() },
+    )
+    setFeatures(FAMILY_A, { ...ALL_ON, pickups: true })
+    setFeatures(FAMILY_B, { ...ALL_ON, pickups: true })
+    const rows = await results('parentA', 'soccer')
+    expect(rows).toEqual([
+      { type: 'pickup', id: 'pickup-soccer-a', title: 'Soccer practice drop-off', subtitle: 'Home field', href: '/dashboard/pickups', date: '2026-03-02T16:00:00.000Z' },
+    ])
+    // Pickups are a shared household page: teens and children find them too.
+    expect((await results('teenA', 'soccer')).map((r) => r.id)).toEqual(['pickup-soccer-a'])
+    expect((await results('childA', 'soccer')).map((r) => r.id)).toEqual(['pickup-soccer-a'])
+    // Notes match but are never returned.
+    const byNote = await results('parentA', 'cleats')
+    expect(byNote.map((r) => r.id)).toEqual(['pickup-soccer-a'])
+    expect(JSON.stringify(byNote)).not.toContain('cleats')
+    // Off again: no pickup results.
+    setFeatures(FAMILY_A, ALL_ON)
+    expect(await results('parentA', 'soccer')).toEqual([])
+  })
+
   it('leaves out a type while its feature is off', async () => {
     setFeatures(FAMILY_A, { meals: false, notes: false, inventory: false })
     expect(types(await results('parentA', 'home'))).toEqual(['event', 'chore', 'list', 'list_item'])

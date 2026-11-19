@@ -59,8 +59,12 @@ it("switches mounted recipe chrome and picker state without reloading or transla
     name: "Recipe (optional)",
   });
   await screen.findByRole("option", { name: recipe.title });
+  // A short "no recipe" choice that fits the picker (it was cut off as
+  // "No recipe (just a na…").
+  expect(screen.getByRole("option", { name: "No recipe" })).toBeTruthy();
   await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: "Fixture language" }));
+  expect(screen.getByRole("option", { name: "Sin receta" })).toBeTruthy();
   expect(screen.getByRole("combobox", { name: "Receta (opcional)" })).toBe(
     picker,
   );

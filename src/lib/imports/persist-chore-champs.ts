@@ -113,7 +113,7 @@ export async function importChoreChamps(
             summary.skipped.push({
               sourceModel: "Chore",
               sourceId: source.sourceId,
-              reason: "No assignment with a mapped Family Planner user",
+              reason: "No assignment with a mapped Herewoven user",
             });
             continue;
           }

@@ -10,6 +10,7 @@ import { useTranslation } from '@/i18n'
 import { useToast } from '@/components/ui/toast'
 import { Dialog } from '@/components/ui/dialog'
 import { OFFLINE_MESSAGE, responseErrorMessage } from '@/lib/fetch-error'
+import { useSickDayDurationText } from '@/i18n/sick-day-duration'
 
 interface TemperatureEntry {
   value: number
@@ -226,6 +227,7 @@ export default function SickDaysPage() {
 
 function SickDaysPageInner() {
   const { t, locale } = useTranslation()
+  const sickDuration = useSickDayDurationText()
   const [sickDays, setSickDays] = React.useState<SickDay[]>([])
   const [members, setMembers] = React.useState<FamilyMember[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -596,12 +598,6 @@ function SickDaysPageInner() {
     return `${latest.value}°${latest.unit}`
   }
 
-  function daysSince(iso: string): number {
-    const start = new Date(iso)
-    const now = new Date()
-    return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-  }
-
   // D1 (#102): a teen or child sees only their own sick days and medications
   // (the API filters them), may report only themselves as sick, and may log a
   // dose of their own medication. Temperatures, ending a sick day and
@@ -673,7 +669,7 @@ function SickDaysPageInner() {
                   icon={Thermometer}
                   glyphColor="family"
                   title={sd.person_name}
-                  subtitle={`${t(`sickDays.severity.${sd.severity}`)} · ${daysSince(sd.started_at)} ${t('sickDays.daysSince')}`}
+                  subtitle={sickDuration(sd.started_at)}
                   trailing={
                     <div className="flex items-center gap-2">
                       <SeverityBadge severity={sd.severity} label={t(`sickDays.severity.${sd.severity}`)} />
@@ -789,7 +785,7 @@ function SickDaysPageInner() {
             <div className="flex items-center gap-2 text-footnote text-label-secondary">
               <Avatar name={selectedSickDay.person_name} src={selectedSickDay.person_avatar || undefined} size="sm" />
               <span>
-                {daysSince(selectedSickDay.started_at)} {t('sickDays.daysSince')} · {t('sickDays.startedOn')}{' '}
+                {sickDuration(selectedSickDay.started_at)} · {t('sickDays.startedOn')}{' '}
                 {new Date(selectedSickDay.started_at).toLocaleDateString(locale)}
               </span>
             </div>

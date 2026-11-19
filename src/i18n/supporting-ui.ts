@@ -5,9 +5,9 @@ import { useTranslation } from "@/i18n";
 
 const en = {
   notifications: "Notifications",
-  notificationOptions: "Options",
+  notificationOptions: "More",
   notificationDelete: "Delete",
-  notificationOptionsLabel: 'Options for "{title}"',
+  notificationOptionsLabel: 'More actions for "{title}"',
   refreshNotifications: "Refresh notifications",
   notificationReadChanged: "Notifications changed while loading. Refresh or retry to see the latest state.",
   openNotification: "Open",
@@ -88,13 +88,14 @@ const en = {
   recipe: "Recipes",
   note: "Notes",
   inventory: "Food at home",
+  pickup: "Pickups",
   due: "Due {date}",
 } as const;
 const es: Record<keyof typeof en, string> = {
   notifications: "Notificaciones",
-  notificationOptions: "Opciones",
+  notificationOptions: "Más",
   notificationDelete: "Eliminar",
-  notificationOptionsLabel: 'Opciones de "{title}"',
+  notificationOptionsLabel: 'Más acciones para "{title}"',
   refreshNotifications: "Actualizar notificaciones",
   notificationReadChanged: "Las notificaciones cambiaron durante la carga. Actualiza o reintenta para ver el estado más reciente.",
   openNotification: "Abrir",
@@ -175,6 +176,7 @@ const es: Record<keyof typeof en, string> = {
   recipe: "Recetas",
   note: "Notas",
   inventory: "Alimentos en casa",
+  pickup: "Recogidas",
   due: "Para el {date}",
 };
 export function useSupportingText() {

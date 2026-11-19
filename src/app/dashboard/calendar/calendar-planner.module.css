@@ -562,6 +562,20 @@
   .headerActions .connectionMenu summary {
     justify-content: center;
   }
+  /* On phones the open menu opens in place, full width, and pushes the
+     schedule down instead of floating over it: an overlay here left events
+     partly covered (below the 24px target minimum) while it was open. */
+  .headerActions .connectionMenu[open] {
+    flex-basis: 100%;
+  }
+  .connectionMenu > div {
+    position: static;
+    width: auto;
+    border: 0;
+    border-top: 1px solid var(--surface-separator-opaque);
+    border-radius: 0 0 12px 12px;
+    box-shadow: none;
+  }
   .header h1 {
     font-size: 28px;
   }

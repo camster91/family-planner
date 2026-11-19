@@ -237,6 +237,9 @@ test.describe("store sections: Family A parent", () => {
   }, testInfo) => {
     await openList(page);
     await page
+      .getByRole("button", { name: "More for E2E aisles zzyzx widget" })
+      .click();
+    await page
       .getByRole("button", {
         name: "Move E2E aisles zzyzx widget to another section",
       })
@@ -279,6 +282,9 @@ test.describe("store sections: Family A parent", () => {
       "Household",
     ]);
     // The choice can be undone from the same sheet.
+    await page
+      .getByRole("button", { name: "More for E2E aisles zzyzx widget" })
+      .click();
     await page
       .getByRole("button", {
         name: "Move E2E aisles zzyzx widget to another section",
@@ -345,6 +351,9 @@ test.describe("store sections: Family A parent", () => {
     ).toHaveAttribute("aria-checked", "true");
     // Moving needs a connection and says so.
     await row(page, IDS.bananas)
+      .getByRole("button", { name: /^More for / })
+      .click();
+    await row(page, IDS.bananas)
       .getByRole("button", { name: /^Move / })
       .click();
     await page.getByRole("button", { name: "Bakery" }).click();
@@ -380,7 +389,7 @@ test.describe("store sections: Family A parent", () => {
 test.describe("store sections: Family A child", () => {
   test.use({ storageState: authFile("childA") });
 
-  test("sees sections and may move an item, but cannot switch sorting", async ({
+  test("sees sections and ticks, but cannot move an item or switch sorting", async ({
     page,
   }, testInfo) => {
     await openList(page);
@@ -388,15 +397,22 @@ test.describe("store sections: Family A child", () => {
     await expect(
       page.getByText("Sort by store section: On", { exact: true }),
     ).toBeVisible();
-    await row(page, IDS.bananas)
-      .getByRole("button", { name: /^Move / })
-      .click();
-    await page.getByRole("button", { name: "Snacks & drinks" }).click();
+    // A child's rows only tick (lists UI review): no "More" menu, no Move.
     await expect(
-      page
-        .getByRole("region", { name: "Snacks & drinks" })
-        .getByRole("checkbox", { name: /E2E aisles bananas/ }),
+      row(page, IDS.bananas).getByRole("checkbox", {
+        name: /E2E aisles bananas/,
+      }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^(More for|Move) / }),
+    ).toHaveCount(0);
+    // The API refuses a direct move too.
+    const moved = await browserSend(page, "PATCH", "/api/lists/items/section", {
+      itemId: IDS.bananas,
+      section: "snacks_drinks",
+    });
+    expect(moved.status).toBe(403);
+    expect(JSON.parse(moved.body).error.code).toBe("LIST_ITEM_EDIT_FORBIDDEN");
     const res = await browserSend(page, "PATCH", "/api/lists/section-sort", {
       listId: IDS.list,
       sortBySection: false,

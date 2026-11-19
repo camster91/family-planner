@@ -66,6 +66,12 @@ export interface AddGroceryPayload {
 export interface PersonGroceryAddPayload {
   listId: string
   content: string
+  /**
+   * Optional whole-number quantity (2..9999) from a several-items add
+   * ("2 bread, milk"). Absent means 1, so older stored operations and older
+   * clients keep exactly the body they always sent.
+   */
+  quantity?: number
 }
 
 interface ActionSpec<P> {
@@ -103,12 +109,18 @@ export const QUEUEABLE_ACTIONS = {
     path: '/api/lists/items/grocery-add',
     parse(payload: unknown): PersonGroceryAddPayload | null {
       if (!isRecord(payload)) return null
-      const { listId, content } = payload
+      const { listId, content, quantity } = payload
       if (typeof listId !== 'string' || !ID_PATTERN.test(listId)) return null
       if (typeof content !== 'string' || !content.trim() || content.trim().length > 500) return null
-      return { listId, content: content.trim() }
+      if (quantity !== undefined && (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1 || quantity > 9999)) return null
+      return quantity !== undefined && quantity > 1
+        ? { listId, content: content.trim(), quantity }
+        : { listId, content: content.trim() }
     },
-    body: (p: PersonGroceryAddPayload) => ({ listId: p.listId, content: p.content }),
+    body: (p: PersonGroceryAddPayload) =>
+      p.quantity !== undefined && p.quantity > 1
+        ? { listId: p.listId, content: p.content, quantity: p.quantity }
+        : { listId: p.listId, content: p.content },
     target: (_p: PersonGroceryAddPayload, operationId: string) => `list-add:${operationId}`,
   } satisfies ActionSpec<PersonGroceryAddPayload>,
   /** Tick or untick a list item (grocery list proof action). Explicit state, not a toggle. */

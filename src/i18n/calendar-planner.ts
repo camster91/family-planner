@@ -6,12 +6,12 @@ export const calendarPlannerEnglish = {
   subscribed: "Subscribed calendar",
   selected: "Selected calendar",
   ics: "{source} · ICS subscription",
-  continuing: "Continuing timed event",
+  continuing: "Continues",
   until: "Until {time}",
   fromContinues: "From {time} · continues",
   continuesFrom: "Continues from {time}",
   continuesTo: "Continues to {time}",
-  eyebrow: "Calendar · Private planner",
+  eyebrow: "Calendar",
   view: "Calendar view",
   day: "Day",
   week: "Week",
@@ -77,8 +77,7 @@ export const calendarPlannerEnglish = {
   lateHelp:
     "These events start too close to midnight for a minimum-size grid target. Their actual times are shown here.",
   loadingZone: "UTC (loading viewer time)",
-  timesHelp:
-    "Times shown in {zone}. Continuing events keep their stored start and end. Local repeating rules are not expanded here; this is not a complete repeating-event planner.",
+  timesHelp: "Times shown in {zone}.",
   readOnly:
     "Read-only calendar. Changes belong in the original subscription calendar.",
   recurrence:
@@ -110,12 +109,12 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   subscribed: "Calendario suscrito",
   selected: "Calendario seleccionado",
   ics: "{source} · Suscripción ICS",
-  continuing: "Evento en curso",
+  continuing: "Continúa",
   until: "Hasta las {time}",
   fromContinues: "Desde las {time} · continúa",
   continuesFrom: "Continúa desde {time}",
   continuesTo: "Continúa hasta {time}",
-  eyebrow: "Calendario · Planificador privado",
+  eyebrow: "Calendario",
   view: "Vista del calendario",
   day: "Día",
   week: "Semana",
@@ -185,8 +184,7 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   lateHelp:
     "Estos eventos empiezan demasiado cerca de medianoche para un control de tamaño mínimo en la cuadrícula. Aquí se muestran sus horas reales.",
   loadingZone: "UTC (cargando la hora del usuario)",
-  timesHelp:
-    "Las horas se muestran en {zone}. Los eventos en curso conservan su inicio y fin guardados. Las reglas de repetición locales no se expanden aquí; este no es un planificador completo de eventos recurrentes.",
+  timesHelp: "Las horas se muestran en {zone}.",
   readOnly:
     "Calendario de solo lectura. Los cambios se hacen en el calendario suscrito original.",
   recurrence:

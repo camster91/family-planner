@@ -26,6 +26,9 @@ export const handoffRecoveryEnglish = {
   newLinkFailed: "Couldn't make a new link",
   publicLoadErrorTitle: 'This handoff could not be loaded',
   publicLoadErrorDescription: 'Check your connection and try again.',
+  emergencyHeading: 'In an emergency',
+  callNumber: 'Call {number}',
+  publicWorksUntil: 'This link works until {date}.',
 } as const
 
 export type HandoffRecoveryMessage = keyof typeof handoffRecoveryEnglish
@@ -56,6 +59,9 @@ export const handoffRecoverySpanish: HandoffRecoveryMessages = {
   newLinkFailed: 'No se pudo crear un enlace nuevo',
   publicLoadErrorTitle: 'No se pudo cargar esta entrega',
   publicLoadErrorDescription: 'Revisa tu conexión e inténtalo de nuevo.',
+  emergencyHeading: 'En una emergencia',
+  callNumber: 'Llamar al {number}',
+  publicWorksUntil: 'Este enlace funciona hasta el {date}.',
 }
 
 export const handoffRecoveryMessages = {
