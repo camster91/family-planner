@@ -840,7 +840,13 @@ for (const locale of ["en", "es"] as const) {
       ).toHaveAttribute("href", "/dashboard/lists/groceries");
       const useSoon = board.getByTestId("board-slot-use-soon");
       await expect(useSoon).toBeVisible();
-      await expect(useSoon.getByTestId("use-soon-item")).toHaveCount(5);
+      // Tablet and wider fridge layouts fit one screen: 3 rows plus an exact
+      // "more" count (2026-11-19); phones keep 5.
+      const fittedUseSoon = !info.project.name.startsWith("phone-");
+      const useSoonRows = fittedUseSoon ? 3 : 5;
+      await expect(useSoon.getByTestId("use-soon-item")).toHaveCount(
+        useSoonRows,
+      );
       await expect(useSoon).toContainText("QA spinach");
       await expect(useSoon.getByRole("heading")).toHaveText(
         locale === "es" ? "Usar pronto" : "Use soon",
@@ -918,7 +924,7 @@ for (const locale of ["en", "es"] as const) {
           const restoredUseSoon = board.getByTestId("board-slot-use-soon");
           await expect(
             restoredUseSoon.getByTestId("use-soon-item"),
-          ).toHaveCount(5);
+          ).toHaveCount(useSoonRows);
           await expect(restoredUseSoon).toContainText("QA spinach");
           await expect(restoredUseSoon.getByRole("heading")).toHaveText(
             locale === "es" ? "Usar pronto" : "Use soon",
