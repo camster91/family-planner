@@ -15,6 +15,7 @@ import {
   isProfileChoreRecurrenceSupported,
 } from "@/lib/profile-chore-gates";
 import { isRoutineIconKey } from "@/lib/routine-icons";
+import { MAX_OVERDUE_CHORES } from "@/lib/chore-today";
 import { addUTCDays, startOfTodayUTC, toDateOnlyUTC } from "@/lib/dates";
 import { COMING_UP_DAYS } from "@/lib/board-constants";
 import { resolveMemberColors } from "@/lib/member-colors";
@@ -283,19 +284,29 @@ async function readChores(
   through: Date,
   profileGate: boolean,
   memberProtocol: MemberProtocol,
+  overdue = false,
 ): Promise<{ rows: ChoreRow[]; hasProfileRows: boolean }> {
   const db = store.withSession("first-primary");
   const rows: ChoreRow[] = [];
   let cursor: [number, number, string] | null = null;
   let hasProfileRows = false;
+  // `overdue`: still-open rows due before `through` (here the window start),
+  // most recently due first and bounded (owner decision 2026-11-19,
+  // src/lib/chore-today.ts). Otherwise the window, oldest first.
+  const max = overdue ? MAX_OVERDUE_CHORES : MAX_CHORES;
+  const cmp = overdue ? "<" : ">";
+  const dir = overdue ? "DESC" : "ASC";
+  const statusSql = overdue
+    ? ` AND c.status IN ('pending','in_progress','overdue')`
+    : "";
   // Keep going past hidden routine occurrences. A single SQL LIMIT must never
   // let paused/unsupported rows consume the visible board cap.
-  for (let page = 0; page < 32 && rows.length < MAX_CHORES; page++) {
+  for (let page = 0; page < 32 && rows.length < max; page++) {
     const values: SqlValue[] = [familyId, from.getTime(), through.getTime()];
     let cursorSql = "";
     if (cursor) {
       values.push(cursor[0], cursor[1], cursor[2]);
-      cursorSql = ` AND (c.due_date>?4 OR (c.due_date=?4 AND (c.created_at>?5 OR (c.created_at=?5 AND c.id>?6))))`;
+      cursorSql = ` AND (c.due_date${cmp}?4 OR (c.due_date=?4 AND (c.created_at${cmp}?5 OR (c.created_at=?5 AND c.id${cmp}?6))))`;
     }
     const result = await db
       .prepare(
@@ -310,9 +321,9 @@ async function readChores(
       LEFT JOIN "HouseholdMember" m ON m.id=c.assigned_member_id AND m.family_id=c.family_id
       LEFT JOIN "HouseholdMemberLegacyMapping" lm ON lm.member_id=m.id AND lm.family_id=m.family_id
       LEFT JOIN "HouseholdMemberAccountLink" al ON al.member_id=m.id AND al.family_id=m.family_id
-      WHERE c.family_id=?1 AND c.due_date>=?2 AND c.due_date<?3
+      WHERE c.family_id=?1 AND c.due_date>=?2 AND c.due_date<?3${statusSql}
         AND (c.assigned_to IS NOT NULL OR c.assigned_member_id IS NOT NULL)${cursorSql}
-      ORDER BY c.due_date ASC,c.created_at ASC,c.id ASC LIMIT 120`,
+      ORDER BY c.due_date ${dir},c.created_at ${dir},c.id ${dir} LIMIT 120`,
       )
       .bind(...values)
       .all<ChoreRow>();
@@ -345,7 +356,7 @@ async function readChores(
       )
         hasProfileRows = true;
       rows.push(row);
-      if (rows.length >= MAX_CHORES) break;
+      if (rows.length >= max) break;
     }
     const last = candidates[candidates.length - 1];
     cursor = [last.due_date, last.created_at, last.id];
@@ -685,7 +696,7 @@ export async function readD1TodayBoard(
     membersResult,
     profilesResult,
     eventsResult,
-    choresResult,
+    windowChoresResult,
     dinners,
     shopping,
     useSoon,
@@ -720,14 +731,25 @@ export async function readD1TodayBoard(
       )
       .bind(options.familyId, now.getTime(), through.getTime(), MAX_EVENTS)
       .all<Row>(),
-    readChores(
-      store,
-      options.familyId,
-      from,
-      through,
-      profileGate,
-      memberProtocol,
-    ),
+    Promise.all([
+      readChores(
+        store,
+        options.familyId,
+        new Date(-8640000000000000),
+        from,
+        profileGate,
+        memberProtocol,
+        true,
+      ),
+      readChores(
+        store,
+        options.familyId,
+        from,
+        through,
+        profileGate,
+        memberProtocol,
+      ),
+    ]),
     isFeatureEnabled(features, "meals")
       ? readDinners(db, options.familyId, from, through, withMissing)
       : Promise.resolve([]),
@@ -740,6 +762,14 @@ export async function readD1TodayBoard(
       : readPhotos(db, options.familyId, jsonValue(family?.ambient_photo_ids)),
   ]);
 
+  // Overdue rows first (oldest due first), then the window (owner decision
+  // 2026-11-19, src/lib/chore-today.ts).
+  const [overdueChoresResult, inWindowChoresResult] = windowChoresResult;
+  const choresResult = {
+    rows: [...overdueChoresResult.rows.slice().reverse(), ...inWindowChoresResult.rows],
+    hasProfileRows:
+      overdueChoresResult.hasProfileRows || inWindowChoresResult.hasProfileRows,
+  };
   const accountColors = membersResult.results.map((row) => ({
     id: row.id,
     board_color: row.board_color,

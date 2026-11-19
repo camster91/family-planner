@@ -4,7 +4,11 @@ import * as React from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RoutineIcon } from "@/components/chores/RoutineIcon";
-import type { RoutineGroup } from "@/lib/routine-icons";
+import {
+  suggestRoutineIconForTitle,
+  type RoutineGroup,
+} from "@/lib/routine-icons";
+import { ReadAloudButton } from "@/components/ui/read-aloud-button";
 import { useKidHomeText } from "@/i18n/kid-home";
 import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
 import type { OwnPreparationContext } from "@/lib/event-preparation/discovery";
@@ -177,7 +181,9 @@ export default function KidRoutines({
                           flex items does not render. */}{" "}
                       <span className="relative" aria-hidden>
                         <RoutineIcon
-                          icon={step.icon}
+                          icon={
+                            step.icon ?? suggestRoutineIconForTitle(step.title)
+                          }
                           className={cn(
                             "h-24 w-24",
                             state === "next"
@@ -194,6 +200,7 @@ export default function KidRoutines({
                         )}
                       </span>
                       <span
+                        id={`${headingId}-step-${i}`}
                         className={cn(
                           "text-body font-semibold leading-tight break-words max-w-full text-label-primary",
                         )}
@@ -226,6 +233,13 @@ export default function KidRoutines({
                         </span>
                       )}
                     </button>
+                    <div className="mt-1 flex justify-center">
+                      <ReadAloudButton
+                        text={step.title}
+                        label={kidHomeText("readAloud")}
+                        describedBy={`${headingId}-step-${i}`}
+                      />
+                    </div>
                     {preparationContext[step.id] && (
                       <OwnPreparationNote
                         title={preparationContext[step.id].eventTitle}

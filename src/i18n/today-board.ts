@@ -52,6 +52,7 @@ export const todayBoardEnglish = {
   choresEmpty: "No chores due today.",
   allDoneToday: "All done for today",
   inProgress: "In progress",
+  overdue: "Overdue",
   profileChoreArchived:
     "This profile is archived. History is kept and actions are paused.",
   profileChorePaused:
@@ -171,6 +172,7 @@ export const todayBoardSpanish: TodayBoardMessages = {
   choresEmpty: "No hay tareas para hoy.",
   allDoneToday: "Todo listo por hoy",
   inProgress: "En curso",
+  overdue: "Atrasada",
   profileChoreArchived:
     "Este perfil está archivado. El historial se conserva y las acciones están en pausa.",
   profileChorePaused:

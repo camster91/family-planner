@@ -25,7 +25,12 @@ function dbWith(rows: unknown[]) {
       : await readChores(args)
     const rows = (Array.isArray(values) ? values : values ? [values] : []).map((row: any) => ({
       ...row, due_date: row.due_date ?? NOW, created_at: row.created_at ?? NOW,
-    }))
+    })).filter((row: any) =>
+      // The overdue read (owner decision 2026-11-19) asks only for open rows
+      // due before the window; honour the bounds so fixtures stay in place.
+      (!where.due_date?.lt || row.due_date < where.due_date.lt) &&
+      (!where.due_date?.gte || row.due_date >= where.due_date.gte) &&
+      (!where.status?.in || where.status.in.includes(row.status)))
     rows.sort((a: any, b: any) => a.due_date.getTime() - b.due_date.getTime() ||
       a.created_at.getTime() - b.created_at.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     const after = args.where.AND?.[1]?.OR?.[2]
@@ -170,5 +175,32 @@ describe('loadHomeSummary subject compatibility', () => {
 
     expect(data.chores).toEqual([])
     expect(data.protocolError).toBeUndefined()
+  })
+})
+
+describe('loadHomeSummary overdue chores (owner decision 2026-11-19)', () => {
+  it('adds still-open chores due before the window, from the caller household only', async () => {
+    const db = dbWith([
+      { id: 'today', title: 'Dishes', due_date: NOW, status: 'pending', assigned_to: 'u_teen', assigned_member_id: null },
+      { id: 'mow', title: 'Mow the lawn', due_date: new Date('2026-01-02T00:00:00.000Z'), status: 'overdue', assigned_to: 'u_teen', assigned_member_id: null },
+      { id: 'old-done', title: 'Old done', due_date: new Date('2026-01-01T00:00:00.000Z'), status: 'verified', assigned_to: 'u_teen', assigned_member_id: null },
+    ])
+    const data = await loadHomeSummary(db, { familyId: 'fam_a', role: 'teen', memberProtocol: 2, now: NOW })
+    expect(data.chores.map((c) => [c.id, c.dueDay])).toEqual([
+      ['mow', '2026-01-02'],
+      ['today', '2026-01-05'],
+    ])
+    const overdueRead = (db.chore.findMany as jest.Mock).mock.calls
+      .map(([args]) => args.where.AND?.[0] ?? args.where)
+      .find((where) => where.status)
+    expect(overdueRead).toMatchObject({
+      family_id: 'fam_a',
+      status: { in: ['pending', 'in_progress', 'overdue'] },
+      due_date: { lt: new Date('2026-01-04T00:00:00.000Z') },
+    })
+    // Every chore read names the caller's household.
+    for (const [args] of (db.chore.findMany as jest.Mock).mock.calls) {
+      expect((args.where.AND?.[0] ?? args.where).family_id).toBe('fam_a')
+    }
   })
 })

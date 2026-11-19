@@ -82,11 +82,14 @@ describe('ChoresContent server render vs hydration', () => {
     expect(hydrated.errors).toEqual([])
 
     expect(screen.queryByTestId('chores-pending')).toBeNull()
-    expect(screen.getByText(/^1 to do( · \d+ to check)?$/)).toBeTruthy()
+    // Yesterday's still-open chore is now overdue: it stays on Today with a
+    // plain label (owner decision 2026-11-19), so it counts as one to do.
+    expect(screen.getByText(/^2 to do( · \d+ to check)?$/)).toBeTruthy()
     const today = screen.getByText('Now', { selector: 'p' }).closest('section') as HTMLElement
     expect(within(today).getByText('Water plants')).toBeTruthy()
     expect(within(today).getByText('Casey · Today')).toBeTruthy()
-    expect(within(today).queryByText('Feed the cat')).toBeNull()
+    expect(within(today).getByText('Feed the cat')).toBeTruthy()
+    expect(within(today).getByText(/^Casey · Overdue · was due /)).toBeTruthy()
   })
 
   it("shows due days in the viewer's locale (en-GB) without a hydration mismatch", async () => {

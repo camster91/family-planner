@@ -334,6 +334,19 @@ it("child gets reports but no paid assistant; shared fridge shows neither launch
   render(<AssistantHost role="parent" />);
   expect(screen.queryByRole("button", { name: "Report / Suggest" })).toBeNull();
 });
+it("a child's home has no Report / Suggest; their other pages and a teen's home keep it (owner review 2026-11-19)", () => {
+  mockPathname = "/dashboard";
+  const home = render(<AssistantHost role="child" />);
+  expect(screen.queryByRole("button", { name: "Report / Suggest" })).toBeNull();
+  home.unmount();
+  mockPathname = "/dashboard/lists";
+  const lists = render(<AssistantHost role="child" />);
+  expect(screen.getByRole("button", { name: "Report / Suggest" })).toBeTruthy();
+  lists.unmount();
+  mockPathname = "/dashboard";
+  render(<AssistantHost role="teen" />);
+  expect(screen.getByRole("button", { name: "Report / Suggest" })).toBeTruthy();
+});
 it("tucks launchers away for external form focus and restores dialog focus", async () => {
   const user = userEvent.setup();
   render(

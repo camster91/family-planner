@@ -67,6 +67,11 @@ export default function AssistantHost({
   const canChat = role === "parent" || role === "teen";
   const hidden =
     params.get("mode") === "fridge" || pathname.startsWith("/device");
+  // A child's home keeps the one main job first (owner review 2026-11-19):
+  // no "Report / Suggest" launcher there. It stays on every other page.
+  const reportHidden =
+    role === "child" &&
+    (pathname === "/dashboard" || pathname === "/dashboard/");
   const [launcherSuppressed, setLauncherSuppressed] = React.useState(false);
 
   // The launchers stay in the document flow so they cannot cover dashboard
@@ -162,6 +167,7 @@ export default function AssistantHost({
   }, [canChat, hidden, open, panelBusy]);
 
   if (hidden) return null;
+  if (reportHidden && !canChat && !panelLoaded) return null;
   const shellLinks = {
     calendar: isFeatureEnabled(features, "calendar")
       ? "/dashboard/calendar"
@@ -192,6 +198,7 @@ export default function AssistantHost({
             <span className="max-[320px]:sr-only">{msg("launcherAddAsk")}</span>
           </button>
         )}
+        {!reportHidden && (
         <button
           type="button"
           tabIndex={launcherSuppressed ? -1 : undefined}
@@ -202,6 +209,7 @@ export default function AssistantHost({
           <MessageSquareWarning size={20} aria-hidden="true" />
           <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>
         </button>
+        )}
       </div>
       <QuickAddDialog
         open={quickAddOpen}

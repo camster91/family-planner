@@ -44,6 +44,7 @@ const mockCreate = (prisma as any).pickup.create as jest.Mock;
 const USERS = [
   { id: "parent-a", email: "pa@a.test", role: "parent", family_id: "family-A" },
   { id: "child-a", email: "ca@a.test", role: "child", family_id: "family-A" },
+  { id: "teen-a", email: "ta@a.test", role: "teen", family_id: "family-A" },
   { id: "parent-b", email: "pb@b.test", role: "parent", family_id: "family-B" },
   { id: "child-b", email: "cb@b.test", role: "child", family_id: "family-B" },
 ];
@@ -82,8 +83,16 @@ describe("POST /api/pickups — cross-family references", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it("rejects a family-B assigned_to from a family-A child with 400", async () => {
+  it("refuses a family-A child with 403 before any assignee lookup (owner decision 2026-11-19)", async () => {
     mockGetServerUser.mockResolvedValue(user("child-a"));
+    const res = await POST(makeRequest({ ...base, assigned_to: "child-b" }));
+    expect(res.status).toBe(403);
+    expect(mockUserFindFirst).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a family-B assigned_to from a family-A teen with 400", async () => {
+    mockGetServerUser.mockResolvedValue(user("teen-a"));
     const res = await POST(makeRequest({ ...base, assigned_to: "child-b" }));
     expect(res.status).toBe(400);
     expect(mockCreate).not.toHaveBeenCalled();
