@@ -1,5 +1,5 @@
 "use client";
-import { formatDateTime } from "@/lib/dates";
+import { formatDateTime } from "@/lib/date-time-format";
 import * as React from "react";
 import { Dialog } from "@/components/ui/dialog";
 import type { CaptureChoreDraft } from "@/lib/capture-chore-review";

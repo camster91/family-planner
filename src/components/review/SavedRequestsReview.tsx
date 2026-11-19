@@ -1,5 +1,5 @@
 "use client";
-import { formatDateTime } from "@/lib/dates";
+import { formatDateTime } from "@/lib/date-time-format";
 import * as React from "react";
 import Link from "next/link";
 import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation";

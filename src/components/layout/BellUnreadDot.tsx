@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NOTIFICATIONS_CHANGED_EVENT, reminderTimeZoneHeaders } from "@/lib/notification-read-client";
+import { NOTIFICATIONS_CHANGED_EVENT, reminderTimeZoneHeaders } from "@/lib/notification-events";
+import { BELL_COUNT_MAX, bellCountLabel } from "./badge-count";
 
-/** The badge shows exact counts up to this; one more unread row reads as "9+". */
-export const BELL_COUNT_MAX = 9;
+export { BELL_COUNT_MAX, bellCountLabel };
 
 /**
  * How many unread notifications the signed-in person has, for the bell. Every
@@ -40,9 +40,6 @@ export function useBellUnread(enabled: boolean, pathname: string | null): number
   }, [enabled, pathname, changes]);
   return enabled ? unread : 0;
 }
-
-/** What the badge and the bell's name say for a count from useBellUnread. */
-export const bellCountLabel = (count: number) => (count > BELL_COUNT_MAX ? `${BELL_COUNT_MAX}+` : String(count));
 
 export function BellUnreadDot({ count }: { count: number }) {
   return (

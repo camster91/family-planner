@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDateTime } from "@/lib/dates";
+import { formatDateTime } from "@/lib/date-time-format";
 import Link from "next/link";
 import { notificationDestination } from "@/lib/notification-destination";
 import { useState, useEffect, useCallback, useRef } from "react";

@@ -1,5 +1,5 @@
 'use client'
-import { formatDateTime } from '@/lib/dates'
+import { formatDateTime } from '@/lib/date-time-format'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Dialog } from '@/components/ui/dialog'

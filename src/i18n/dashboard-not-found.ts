@@ -1,6 +1,8 @@
 "use client";
 import { useCallback } from "react";
-import { useTranslation } from "@/i18n";
+// Core (shell) translation only: this screen is part of the dashboard layout
+// bundle, so it must not pull the full app dictionary into every page.
+import { useCoreTranslation } from "@/i18n/core";
 
 /** Copy for the in-app "page not available" screen under /dashboard. */
 const en = {
@@ -17,7 +19,7 @@ const es: Record<keyof typeof en, string> = {
 };
 export const dashboardNotFoundMessages = { en, es };
 export function useDashboardNotFoundText() {
-  const { t } = useTranslation();
+  const { t } = useCoreTranslation();
   return useCallback(
     (key: keyof typeof en) => t(key, undefined, dashboardNotFoundMessages),
     [t],

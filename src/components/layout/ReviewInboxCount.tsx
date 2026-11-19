@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BELL_COUNT_MAX, bellCountLabel } from "./BellUnreadDot";
+import { BELL_COUNT_MAX, bellCountLabel } from "./badge-count";
 
 /**
  * How many finished chores are waiting for a parent's check, for the review

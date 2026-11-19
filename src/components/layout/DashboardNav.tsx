@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { assistantShellMessages } from "@/i18n/assistant-shell";
 import { openReportForm } from "@/lib/report-launcher";
+import { BellUnreadBadge } from "./BellUnreadDot";
+import { ReviewInboxBadge } from "./ReviewInboxCount";
 import { Dialog } from "@/components/ui/dialog";
 import NotificationPreferences from "@/components/account/LazyNotificationPreferences";
 import type { NavUser } from "@/types";
@@ -76,26 +78,15 @@ export default function DashboardNav({ user }: DashboardNavProps) {
   ) => t(key, params, navigationMessages);
   const pathname = usePathname();
   // The bell's unread badge counts ANY unread notification (not only event
-  // reminders) for a signed-in person. It loads on demand after first paint.
+  // reminders) for a signed-in person. It reads after first paint. The badge
+  // code is small and every signed-in page needs it, so it ships with the top
+  // bar rather than as a separate on-demand chunk (an extra request and a
+  // separately compressed file on every page).
   const [bellUnread, setBellUnread] = useState(0);
-  const [BellBadge, setBellBadge] = useState<typeof import("./BellUnreadDot").BellUnreadBadge | null>(null);
   const wantsBell = user !== null;
-  useEffect(() => {
-    if (!wantsBell) return;
-    let active = true;
-    void import("./BellUnreadDot").then((loaded) => { if (active) setBellBadge(() => loaded.BellUnreadBadge); }).catch(() => {});
-    return () => { active = false; };
-  }, [wantsBell]);
   // The review inbox icon (parents only) shows how many items wait for a check.
   const [reviewCount, setReviewCount] = useState(0);
-  const [ReviewBadge, setReviewBadge] = useState<typeof import("./ReviewInboxCount").ReviewInboxBadge | null>(null);
   const wantsReviewCount = user?.role === "parent";
-  useEffect(() => {
-    if (!wantsReviewCount) return;
-    let active = true;
-    void import("./ReviewInboxCount").then((loaded) => { if (active) setReviewBadge(() => loaded.ReviewInboxBadge); }).catch(() => {});
-    return () => { active = false; };
-  }, [wantsReviewCount]);
   const [avatarOpen, setAvatarOpen] = useState(false);
   // Children cannot open Settings (kid-access.ts), so their "Delete my
   // account" (D-3, ACCOUNT_DELETION.md) and their notification switches (#286)
@@ -289,7 +280,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 }
               >
                 <Inbox className="h-5 w-5" aria-hidden="true" />
-                {wantsReviewCount && ReviewBadge && <ReviewBadge pathname={pathname} onCount={setReviewCount} />}
+                {wantsReviewCount && <ReviewInboxBadge pathname={pathname} onCount={setReviewCount} />}
               </Link>
             )}
             {/* Notifications bell */}
@@ -300,7 +291,7 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 aria-label={bellUnread > 0 ? msg("notificationsUnread", { count: bellUnread > 9 ? "9+" : bellUnread }) : msg("notifications")}
               >
                 <Bell className="w-5 h-5" aria-hidden="true" />
-                {wantsBell && BellBadge && <BellBadge pathname={pathname} onCount={setBellUnread} />}
+                {wantsBell && <BellUnreadBadge pathname={pathname} onCount={setBellUnread} />}
               </Link>
             )}
 

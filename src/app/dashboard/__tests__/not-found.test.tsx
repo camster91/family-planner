@@ -11,10 +11,11 @@ import { I18nProvider } from "@/i18n";
 import DashboardNotFound from "../not-found";
 
 describe("dashboard not-found page", () => {
-  it("says the page is not available and links Home (44px target)", () => {
+  it("says the page is not available and links Home (44px target)", async () => {
     render(<DashboardNotFound />);
+    // The body loads on demand so it stays out of every page's initial JS.
     expect(
-      screen.getByRole("heading", { level: 1, name: "This page isn't available" }),
+      await screen.findByRole("heading", { level: 1, name: "This page isn't available" }),
     ).toBeTruthy();
     const home = screen.getByRole("link", { name: "Go to Home" });
     expect(home.getAttribute("href")).toBe("/dashboard");
@@ -22,14 +23,14 @@ describe("dashboard not-found page", () => {
     expect(screen.queryByText(/404|could not be found/i)).toBeNull();
   });
 
-  it("speaks Spanish too", () => {
+  it("speaks Spanish too", async () => {
     render(
       <I18nProvider locale="es">
         <DashboardNotFound />
       </I18nProvider>,
     );
     expect(
-      screen.getByRole("heading", { level: 1, name: "Esta página no está disponible" }),
+      await screen.findByRole("heading", { level: 1, name: "Esta página no está disponible" }),
     ).toBeTruthy();
     expect(screen.getByRole("link", { name: "Ir a Inicio" })).toBeTruthy();
   });
