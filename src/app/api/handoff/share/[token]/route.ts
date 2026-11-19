@@ -13,7 +13,9 @@ export const dynamic = "force-dynamic";
 // GET /api/handoff/share/[token] - Public share view (no auth, no CSRF)
 // Returns handoff by share_token if not expired; 404 if not found or expired.
 // Only the fields the babysitter page (src/app/handoff/[token]) renders are
-// returned — no family_id, created_by, share token or timestamps.
+// returned — no family_id, created_by, share token or record timestamps. The
+// link's own expiry is returned as `link_expires_at` so the sitter can see
+// when the link stops working.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
@@ -79,9 +81,10 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const publicHandoff: Partial<typeof handoff> = { ...handoff };
-    delete publicHandoff.share_expires_at;
-    return NextResponse.json({ handoff: publicHandoff });
+    const { share_expires_at: linkExpiresAt, ...publicHandoff } = handoff;
+    return NextResponse.json({
+      handoff: { ...publicHandoff, link_expires_at: linkExpiresAt },
+    });
   } catch (err) {
     logRouteError("GET /api/handoff/share/[token]", err, getRequestId(request));
     return NextResponse.json(

@@ -15,6 +15,18 @@ export const emergencyEnglish = {
   deleteConfirmDescription:
     "This removes this medical and emergency card from the family. It cannot be undone.",
   closeDelete: "Close delete confirmation",
+  callNumber: "Call {number}",
+  chipAllergies: "Allergies: {value}",
+  chipMedications: "Medicines: {value}",
+  viewer: {
+    you: "You",
+    parent: "Parent",
+    grandparent: "Grandparent",
+    teen: "Teen",
+    child: "Child",
+    sibling: "Brother or sister",
+    other: "Other",
+  },
   groups: {
     person: "Person",
     medical: "Medical details",
@@ -56,6 +68,18 @@ export const emergencySpanish: Localized<typeof emergencyEnglish> = {
   deleteConfirmDescription:
     "Se eliminará esta tarjeta médica y de emergencia de la familia. No se puede deshacer.",
   closeDelete: "Cerrar confirmación de eliminación",
+  callNumber: "Llamar al {number}",
+  chipAllergies: "Alergias: {value}",
+  chipMedications: "Medicamentos: {value}",
+  viewer: {
+    you: "Tú",
+    parent: "Madre o padre",
+    grandparent: "Abuela o abuelo",
+    teen: "Adolescente",
+    child: "Niño o niña",
+    sibling: "Hermano o hermana",
+    other: "Otro",
+  },
   groups: {
     person: "Persona",
     medical: "Datos médicos",

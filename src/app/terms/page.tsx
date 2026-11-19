@@ -1,98 +1,122 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { LegalPage, type LegalSection } from '@/components/legal/LegalPage'
+import { PRODUCT_BRAND } from '@/lib/brand'
+
+const NAME = PRODUCT_BRAND.name
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
-  description: 'Family Planner terms of service.',
+  description: `${NAME} terms of service.`,
 }
+
+const link = 'text-primary underline underline-offset-2'
+
+const sections: LegalSection[] = [
+  {
+    id: 'what-it-is',
+    title: `What ${NAME} is`,
+    body: (
+      <p>
+        {NAME} is a family organizer. You can use it to track chores, share a family calendar, keep shopping and
+        other lists, plan projects and run a family budget. It is a hosted service: we run it for you on Cloudflare,
+        as described in our{' '}
+        <Link href="/privacy#where-it-lives" className={link}>
+          Privacy Policy
+        </Link>
+        . A free tier is available.
+      </p>
+    ),
+  },
+  {
+    id: 'acceptable-use',
+    title: 'Acceptable use',
+    body: (
+      <ul className="list-disc space-y-2 pl-6">
+        <li>Don&apos;t use it for illegal activity.</li>
+        <li>Don&apos;t try to break the service or get around its limits.</li>
+        <li>You&apos;re responsible for what you and your family members post.</li>
+        <li>Don&apos;t use it to harass or harm others.</li>
+      </ul>
+    ),
+  },
+  {
+    id: 'your-account',
+    title: 'Your account',
+    body: (
+      <p>
+        You are responsible for your password and for what happens under your account. Tell us promptly if you
+        think someone else has used it. You confirm your email address before you can sign in.
+      </p>
+    ),
+  },
+  {
+    id: 'ending',
+    title: 'Ending your account',
+    body: (
+      <p>
+        You can delete your account at any time in Settings, Privacy &amp; data. If you are the only parent in your
+        household, first invite another parent to delete only your own account, or delete the whole household. We may
+        suspend accounts that break these terms.
+      </p>
+    ),
+  },
+  {
+    id: 'no-warranty',
+    title: 'No warranty',
+    body: (
+      <p>
+        {NAME} is provided as-is. We work hard to keep it running and your information safe, but we can&apos;t
+        promise the service will never be interrupted.
+      </p>
+    ),
+  },
+  {
+    id: 'liability',
+    title: 'Liability',
+    body: (
+      <p>
+        We&apos;re not liable for any indirect damages from using {NAME}. Our total liability is limited to what
+        you&apos;ve paid us (which is currently $0 for the free tier).
+      </p>
+    ),
+  },
+  {
+    id: 'changes',
+    title: 'Changes to these terms',
+    body: (
+      <p>We may update these terms. We will email you about important changes at least 30 days in advance.</p>
+    ),
+  },
+  {
+    id: 'contact',
+    title: 'Contact',
+    body: (
+      <p>
+        Questions? Email{' '}
+        <a href="mailto:support@ashbi.ca" className={link}>
+          support@ashbi.ca
+        </a>
+        .
+      </p>
+    ),
+  },
+]
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-background py-12 px-4">
-      <div className="max-w-3xl mx-auto bg-card rounded-2xl shadow-sm p-8 md:p-12">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Terms of Service</h1>
-        <p className="text-sm text-label-tertiary mb-8">Last updated: June 2026</p>
-
-        <div className="prose prose-gray max-w-none space-y-6 text-foreground">
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">What Family Planner is</h2>
-            <p>
-              Family Planner is a family organization tool. You can use it to track
-              chores, share a family calendar, manage shopping lists, plan projects,
-              and run a family budget. It is provided as a hosted service (free tier
-              available).
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">Acceptable use</h2>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>Don&apos;t use it for illegal activity.</li>
-              <li>Don&apos;t try to break the service or circumvent rate limits.</li>
-              <li>You&apos;re responsible for what you and your family members post.</li>
-              <li>Don&apos;t use it to harass or harm others.</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">Your account</h2>
-            <p>
-              You are responsible for your password and for activity under your
-              account. Let us know promptly if you suspect unauthorized access.
-              Email verification is required before login.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">Termination</h2>
-            <p>
-              You can delete your account at any time from Settings. We may suspend
-              accounts that violate these terms. If you&apos;re the only parent in your
-              family, you&apos;ll need to add another parent (or transfer ownership)
-              before deletion.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">No warranty</h2>
-            <p>
-              Family Planner is provided as-is. We work hard to keep it running and
-              your data safe (daily backups, encrypted passwords, secure sessions),
-              but we can&apos;t guarantee uninterrupted service.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">Liability</h2>
-            <p>
-              We&apos;re not liable for any indirect damages from using Family Planner.
-              Our total liability is limited to what you&apos;ve paid us (which is
-              currently $0 for the free tier).
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">Changes</h2>
-            <p>
-              We may update these terms. Material changes will be announced via
-              email at least 30 days in advance.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-foreground mb-3">Contact</h2>
-            <p>
-              Questions? <a href="mailto:support@ashbi.ca" className="text-primary hover:underline">support@ashbi.ca</a>
-            </p>
-          </section>
-        </div>
-
-        <div className="mt-10 pt-6 border-t border-border text-center">
-          <Link href="/" className="text-primary hover:underline font-medium">
-            ← Back to home
-          </Link>
-        </div>
-      </div>
-    </div>
+    <LegalPage
+      current="terms"
+      title="Terms of Service"
+      updated="November 2026"
+      summary={[
+        <>{NAME} is a hosted family organizer that we run for you on Cloudflare. A free tier is available.</>,
+        <>Use it lawfully and kindly. You are responsible for what you and your family post.</>,
+        <>Keep your password safe. You can delete your account at any time in Settings.</>,
+        <>The service is provided as-is, and our liability is limited.</>,
+        <>We will email you at least 30 days before important changes to these terms.</>,
+      ]}
+      sections={sections}
+    />
   )
 }

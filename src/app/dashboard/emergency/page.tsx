@@ -1,12 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { Heart, Plus, X, Trash2, Printer } from "lucide-react";
-import { ListRow, InsetList, SectionHeader } from "@/components/ui/list-row";
+import { ChevronRight, Heart, Plus, X, Trash2, Printer } from "lucide-react";
+import { InsetList, SectionHeader } from "@/components/ui/list-row";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { Dialog } from "@/components/ui/dialog";
 import { usePendingFormNavigationController } from "@/components/layout/pending-form-navigation";
 import { useEmergencyText } from "@/i18n/emergency";
+import { PhoneLink } from "@/components/ui/phone-link";
+import {
+  emergencyRelationshipKey,
+  type EmergencyMember,
+  type EmergencyViewer,
+} from "@/lib/emergency-viewer-label";
+
+/** Fill `{name}` placeholders in an already-translated string. */
+function fill(template: string, values: Record<string, string>) {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) => values[key] ?? match);
+}
 
 interface EmergencyContact {
   id: string;
@@ -390,20 +401,34 @@ function FormActions({
 function EmergencyCardPrint({
   contact,
   t,
+  relationshipLabel,
+  headingRef,
 }: {
   contact: EmergencyContact;
   t: (key: string) => string;
+  relationshipLabel: string;
+  /** Focus target when the card is opened from the list. */
+  headingRef?: React.RefObject<HTMLHeadingElement>;
 }) {
-  const rel = contact.relationship as ContactFormData["relationship"];
+  const phone = (number: string) => (
+    <PhoneLink
+      number={number}
+      label={fill(t("emergency.callNumber"), { number })}
+    />
+  );
   return (
     <div className="p-4 border-b border-[var(--surface-separator)] last:border-b-0">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-title-2 font-semibold text-label-primary">
+          <h3
+            ref={headingRef}
+            tabIndex={headingRef ? -1 : undefined}
+            className="text-title-2 font-semibold text-label-primary break-words focus:outline-none"
+          >
             {contact.person_name}
           </h3>
           <p className="text-subhead text-label-secondary">
-            {t(`emergency.relationships.${rel}`)}
+            {relationshipLabel}
           </p>
         </div>
         {contact.blood_type && (
@@ -460,7 +485,7 @@ function EmergencyCardPrint({
                   {t("emergency.doctorPhone")}:{" "}
                 </span>
                 <span className="text-label-primary font-medium">
-                  {contact.doctor_phone}
+                  {phone(contact.doctor_phone)}
                 </span>
               </div>
             )}
@@ -482,7 +507,7 @@ function EmergencyCardPrint({
                   {t("emergency.dentistPhone")}:{" "}
                 </span>
                 <span className="text-label-primary font-medium">
-                  {contact.dentist_phone}
+                  {phone(contact.dentist_phone)}
                 </span>
               </div>
             )}
@@ -527,7 +552,7 @@ function EmergencyCardPrint({
             {contact.emergency_contact_phone && (
               <span className="text-label-tertiary">
                 {" "}
-                — {contact.emergency_contact_phone}
+                — {phone(contact.emergency_contact_phone)}
               </span>
             )}
           </div>
@@ -544,6 +569,76 @@ function EmergencyCardPrint({
         )}
       </div>
     </div>
+  );
+}
+
+/** Short medical facts on each row so the list is useful at a glance. The
+ * label text says what each chip is, so meaning never depends on colour. */
+function EmergencyRow({
+  contact,
+  relationshipLabel,
+  t,
+  last,
+  selected,
+  onOpen,
+}: {
+  contact: EmergencyContact;
+  relationshipLabel: string;
+  t: (key: string) => string;
+  last: boolean;
+  selected: boolean;
+  onOpen: () => void;
+}) {
+  const chips = [
+    contact.allergies?.trim()
+      ? fill(t("emergency.chipAllergies"), { value: contact.allergies.trim() })
+      : null,
+    contact.medications?.trim()
+      ? fill(t("emergency.chipMedications"), {
+          value: contact.medications.trim(),
+        })
+      : null,
+  ].filter((chip): chip is string => Boolean(chip));
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-current={selected ? "true" : undefined}
+      className="block w-full text-left"
+      data-testid={`emergency-row-${contact.id}`}
+    >
+      <span
+        className={`row-apple flex items-start${last ? "" : " border-b border-[var(--surface-separator)]"}`}
+      >
+        <span className="glyph bg-tint-family" aria-hidden="true">
+          <Heart className="w-5 h-5 text-white" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-body text-label-primary break-words">
+            {contact.person_name}
+          </span>
+          <span className="block text-footnote text-label-secondary">
+            {relationshipLabel}
+          </span>
+          {chips.length > 0 && (
+            <span className="mt-1 flex flex-wrap gap-1">
+              {chips.map((chip) => (
+                <span
+                  key={chip}
+                  className="max-w-full truncate rounded-full border border-danger-text bg-[var(--danger-tint)] px-2 py-0.5 text-caption-1 font-medium text-danger-text"
+                >
+                  {chip}
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+        <ChevronRight
+          className="mt-1 w-4 h-4 text-label-tertiary shrink-0"
+          aria-hidden="true"
+        />
+      </span>
+    </button>
   );
 }
 
@@ -584,6 +679,10 @@ function EmergencyPageInner() {
   // them); only parents can add, edit or delete. Unknown until /api/auth/me
   // answers, so the controls stay hidden rather than flash for a child.
   const [isParent, setIsParent] = React.useState(false);
+  // Who is reading: teens and children see relationships from their side.
+  const [viewer, setViewer] = React.useState<EmergencyViewer | null>(null);
+  const [members, setMembers] = React.useState<EmergencyMember[]>([]);
+  const previewHeadingRef = React.useRef<HTMLHeadingElement>(null);
 
   const [roleError, setRoleError] = React.useState(false);
   const [roleLoading, setRoleLoading] = React.useState(true);
@@ -599,10 +698,16 @@ function EmergencyPageInner() {
         throw new Error("Role unavailable");
       if (read !== roleReadRef.current) return;
       setIsParent(data.user.role === "parent");
+      setViewer({
+        id: typeof data.user.id === "string" ? data.user.id : "",
+        role: data.user.role,
+        name: typeof data.user.name === "string" ? data.user.name : null,
+      });
       setRoleError(false);
     } catch {
       if (read !== roleReadRef.current) return;
       setIsParent(false);
+      setViewer(null);
       setRoleError(true);
     } finally {
       if (read === roleReadRef.current) setRoleLoading(false);
@@ -614,6 +719,51 @@ function EmergencyPageInner() {
       roleReadRef.current += 1;
     };
   }, [fetchRole]);
+
+  // Member roles let a teen's or child's view name a linked card "Parent" or
+  // "Teen". Optional: without them the labels fall back to the card itself.
+  const viewerRole = viewer?.role;
+  React.useEffect(() => {
+    if (viewerRole !== "teen" && viewerRole !== "child") return;
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/family/members", {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!active || !Array.isArray(data?.members)) return;
+        setMembers(
+          data.members.filter(
+            (member: unknown): member is EmergencyMember =>
+              !!member &&
+              typeof (member as EmergencyMember).id === "string" &&
+              typeof (member as EmergencyMember).role === "string",
+          ),
+        );
+      } catch {
+        // Labels fall back to the stored relationship.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [viewerRole]);
+
+  const relationshipLabel = (contact: EmergencyContact) =>
+    t(emergencyRelationshipKey(contact, viewer, members));
+  // Children read the cards on screen; printing stays with parents and teens.
+  const canPrint = !roleLoading && viewer?.role !== "child";
+  const openCard = (contact: EmergencyContact) => {
+    setPreviewContact(contact);
+    // On phones the card opens above the list; move focus (and the view) to it.
+    setTimeout(() => {
+      const heading = previewHeadingRef.current;
+      heading?.focus();
+      heading?.scrollIntoView?.({ block: "start" });
+    }, 0);
+  };
 
   const fetchContacts = React.useCallback(
     async (background = false) => {
@@ -851,7 +1001,7 @@ function EmergencyPageInner() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {contacts.length > 0 && (
+            {contacts.length > 0 && canPrint && (
               <button
                 type="button"
                 onClick={handlePrint}
@@ -892,24 +1042,29 @@ function EmergencyPageInner() {
               <SectionHeader>{t("emergency.title")}</SectionHeader>
               <InsetList>
                 {contacts.map((c, i) => (
-                  <ListRow
+                  <EmergencyRow
                     key={c.id}
-                    icon={Heart}
-                    glyphColor="family"
-                    title={c.person_name}
-                    subtitle={t(`emergency.relationships.${c.relationship}`)}
-                    showChevron
+                    contact={c}
+                    relationshipLabel={relationshipLabel(c)}
+                    t={t}
                     last={i === contacts.length - 1}
-                    onClick={() => setPreviewContact(c)}
+                    selected={previewContact?.id === c.id}
+                    onOpen={() => openCard(c)}
                   />
                 ))}
               </InsetList>
             </div>
 
             {/* Right: active card preview. Print shows the previewed card, or
-                every card (the print-only block below) when none is previewed. */}
+                every card (the print-only block below) when none is previewed.
+                On phones an opened card moves above the list, and the empty
+                "select a card" panel is not shown at all. */}
             <div
-              className={previewContact ? "print-card" : undefined}
+              className={
+                previewContact
+                  ? "print-card order-first md:order-none"
+                  : "hidden md:block"
+              }
               data-testid="emergency-preview"
             >
               {previewContact ? (
@@ -930,23 +1085,32 @@ function EmergencyPageInner() {
                       />
                     </button>
                   </div>
-                  <EmergencyCardPrint contact={previewContact} t={t} />
+                  <EmergencyCardPrint
+                    contact={previewContact}
+                    t={t}
+                    relationshipLabel={relationshipLabel(previewContact)}
+                    headingRef={previewHeadingRef}
+                  />
                   <div className="px-4 py-3 border-t border-[var(--surface-separator)] flex gap-2 no-print">
                     {isParent && (
                       <button
+                        type="button"
                         onClick={() => setEditContact(previewContact)}
-                        className="px-3 py-1.5 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
+                        className="min-h-[44px] px-3 py-1.5 rounded-lg bg-[var(--accent-fill)] text-white text-subhead font-semibold"
                       >
                         {t("emergency.editCard")}
                       </button>
                     )}
-                    <button
-                      onClick={handlePrint}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-fill)] text-label-primary text-subhead font-medium"
-                    >
-                      <Printer className="w-4 h-4" />
-                      {t("emergency.print")}
-                    </button>
+                    {canPrint && (
+                      <button
+                        type="button"
+                        onClick={handlePrint}
+                        className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-fill)] text-label-primary text-subhead font-medium"
+                      >
+                        <Printer className="w-4 h-4" aria-hidden="true" />
+                        {t("emergency.print")}
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -966,7 +1130,11 @@ function EmergencyPageInner() {
               >
                 {contacts.map((c) => (
                   <div key={c.id} className="break-inside-avoid">
-                    <EmergencyCardPrint contact={c} t={t} />
+                    <EmergencyCardPrint
+                      contact={c}
+                      t={t}
+                      relationshipLabel={relationshipLabel(c)}
+                    />
                   </div>
                 ))}
               </div>

@@ -167,6 +167,8 @@ export async function testHandoffs(db: D1Store) {
     publicRead.status === 200 &&
       (publicRead.body as any).handoff.family.name === "Handoff A" &&
       !(publicRead.body as any).handoff.share_token &&
+      !(publicRead.body as any).handoff.share_expires_at &&
+      (publicRead.body as any).handoff.link_expires_at instanceof Date &&
       !(publicRead.body as any).handoff.family_id,
     "public token projection",
   );
