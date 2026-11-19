@@ -1479,12 +1479,13 @@ test.describe.serial("email-free profile chore vertical", () => {
             response.request().method() === "POST",
         );
         await choreButton.click();
-        const chooser = tablet.page.getByTestId("who-is-this");
-        await expect(chooser).toBeVisible();
-        await chooser
-          .getByRole("button", { name: chore.profileName, exact: true })
-          .click();
+        // One tap: a one-person chore is done for its profile without asking
+        // "Who's this?" (owner decision 2026-11-19).
         expect((await completion).status()).toBe(200);
+        await expect(tablet.page.getByTestId("who-is-this")).toHaveCount(0);
+        await expect(tablet.page.getByTestId("undo-toast")).toContainText(
+          `Done for ${chore.profileName.trim().split(/\s+/)[0]}`,
+        );
         await expect(
           tablet.page
             .getByTestId("board-chore")
