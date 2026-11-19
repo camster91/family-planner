@@ -17,6 +17,7 @@ export type SectionErrorCode =
   | 'LIST_NOT_FOUND'
   | 'LIST_NOT_GROCERY'
   | 'SECTION_SORT_FORBIDDEN'
+  | 'LIST_ITEM_EDIT_FORBIDDEN'
   | 'INTERNAL_ERROR'
 
 export function sectionError(status: number, code: SectionErrorCode, message: string): NextResponse {

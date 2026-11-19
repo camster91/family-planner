@@ -127,6 +127,14 @@ for (const locale of ["en", "es"] as const) {
       : raw;
     return item === undefined ? value : value.replace("{item}", item);
   };
+  // The row's "More" menu (src/i18n/list-detail.ts) holds Move to section.
+  const moreTemplate =
+    locale === "es" ? "Más opciones para {item}" : "More for {item}";
+  const moreFor = (item: string) =>
+    (isPseudolocaleEnabled(process.env)
+      ? pseudolocalizeTemplate(moreTemplate)
+      : moreTemplate
+    ).replace("{item}", item);
   const moveErrorTemplate =
     locale === "es"
       ? "No se pudo mover el artículo. Inténtalo de nuevo."
@@ -171,10 +179,23 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("region", { name: text("pantry"), exact: true }),
         ).toContainText(content);
         await capture(page, sort, info, `${locale}-${role}-sort-on`);
+        const more = page.getByRole("button", {
+          name: moreFor(content),
+          exact: true,
+        });
+        if (role === "childA") {
+          // A child's rows only tick: no "More" menu, so no Move.
+          await expect(more).toHaveCount(0);
+          await expect(
+            page.getByRole("button", { name: text("moveItem", content) }),
+          ).toHaveCount(0);
+          return;
+        }
         const move = page.getByRole("button", {
           name: text("moveItem", content),
           exact: true,
         });
+        await more.click();
         await move.click();
         const dialog = page.getByRole("dialog", {
           name: text("moveTitle", content),
@@ -244,6 +265,7 @@ for (const locale of ["en", "es"] as const) {
         await expect(
           page.getByRole("region", { name: text("dairy_eggs"), exact: true }),
         ).toContainText(content);
+        await more.click();
         await move.click();
         await expect(
           dialog.getByRole("button", { name: text("automatic"), exact: true }),

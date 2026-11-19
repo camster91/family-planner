@@ -154,7 +154,7 @@ describe("/dashboard/lists ?type=", () => {
     const user = userEvent.setup();
     render(<ListsClient lists={lists} familyName="Home" initialType="todo" />);
     expect(screen.getByRole("status").textContent).toBe(
-      "Showing to-dos lists only",
+      "Showing to-do lists only",
     );
     expect(screen.getByText("Chores to fix")).toBeTruthy();
     expect(
@@ -165,7 +165,7 @@ describe("/dashboard/lists ?type=", () => {
       screen.getByRole("button", { name: /To-dos/, pressed: true }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Add list" }).getAttribute("href"),
+      screen.getByRole("link", { name: "New list" }).getAttribute("href"),
     ).toBe("/dashboard/lists/create?type=todo");
 
     const showAll = screen.getByRole("button", { name: "Show all lists" });
@@ -237,11 +237,21 @@ describe("/dashboard/lists ?type=", () => {
     expect(screen.queryByRole("link", { name: /Create List/ })).toBeNull();
   });
 
-  it('"Add list" is the same filled primary "+" as Chores and Calendar', () => {
+  it('"New list" is the same filled primary "+" as Chores and Calendar, with a visible label', () => {
     render(<ListsClient lists={lists} familyName="Home" canCreate />);
-    const add = screen.getByRole("link", { name: "Add list" });
+    const add = screen.getByRole("link", { name: "New list" });
     expect(add.className).toContain("btn-filled");
     expect(add.className).not.toContain("btn-tinted");
+    expect(add).not.toHaveAttribute("aria-label");
+    expect(add).toHaveTextContent("New list");
+  });
+
+  it('spells the to-do filter copy "to-do lists"', () => {
+    render(
+      <ListsClient lists={[]} familyName="Home" initialType="todo" canCreate />,
+    );
+    expect(document.body.textContent).toContain("No to-do lists");
+    expect(document.body.textContent).not.toMatch(/to-dos list/i);
   });
 
   it("a child sees the filter but no create action", () => {
@@ -254,7 +264,7 @@ describe("/dashboard/lists ?type=", () => {
       />,
     );
     expect(screen.getByText("Weekly shop")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Add list" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "New list" })).toBeNull();
   });
 });
 
@@ -303,7 +313,7 @@ describe("localized list overview (#411)", () => {
     expect(screen.getByText("2/5")).toBeTruthy();
     expect(screen.getAllByText("Pat 🥛")).toHaveLength(2);
     expect(
-      screen.getByRole("link", { name: "Añadir lista" }).getAttribute("href"),
+      screen.getByRole("link", { name: "Nueva lista" }).getAttribute("href"),
     ).toBe("/dashboard/lists/create?type=grocery");
     expect(mockReplace).not.toHaveBeenCalled();
     await user.click(
@@ -357,7 +367,7 @@ describe("localized list overview (#411)", () => {
     expect(screen.getByText("Legacy family menu")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Crear lista" })).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Añadir lista" }).getAttribute("href"),
+      screen.getByRole("link", { name: "Nueva lista" }).getAttribute("href"),
     ).toBe("/dashboard/lists/create");
   });
 
@@ -373,7 +383,7 @@ describe("localized list overview (#411)", () => {
     expect(
       screen.getByText("Pide a un padre o madre que cree una lista nueva."),
     ).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Añadir lista" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Nueva lista" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Crear lista" })).toBeNull();
     unmount();
     rtlRender(
@@ -415,7 +425,7 @@ it("filters custom lists without renaming household content", async () => {
   expect(screen.getByText("Camping packing")).toBeTruthy();
   expect(screen.queryByText("Weekly shop")).toBeNull();
   expect(
-    screen.getByRole("link", { name: "Add list" }).getAttribute("href"),
+    screen.getByRole("link", { name: "New list" }).getAttribute("href"),
   ).toBe("/dashboard/lists/create?type=custom");
 });
 
@@ -452,7 +462,7 @@ it("shows a scoped list-read failure with retry instead of a false empty state",
       "Private database detail",
     );
     expect(screen.queryByRole("heading", { name: "No lists yet" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Add list" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "New list" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(mockRefresh).toHaveBeenCalledTimes(1);
     expect(mockReplace).not.toHaveBeenCalled();
@@ -469,7 +479,7 @@ it("shows a scoped list-read failure with retry instead of a false empty state",
     );
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe(
-      "Showing to-dos lists only",
+      "Showing to-do lists only",
     );
     expect(screen.queryByRole("link", { name: /Weekly shop/ })).toBeNull();
   } finally {
@@ -495,7 +505,7 @@ it("localizes the read failure without exposing child creation controls", () => 
   expect(
     screen.queryByRole("heading", { name: "Aún no hay listas" }),
   ).toBeNull();
-  expect(screen.queryByRole("link", { name: "Añadir lista" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Nueva lista" })).toBeNull();
 });
 
 it("keeps mounted filters aligned with incoming URL state", () => {
@@ -511,14 +521,14 @@ it("keeps mounted filters aligned with incoming URL state", () => {
   expect(screen.queryByRole("link", { name: /Weekly shop/ })).toBeNull();
   expect(screen.getByRole("link", { name: /Chores to fix/ })).toBeTruthy();
   expect(screen.getByRole("status").textContent).toBe(
-    "Showing to-dos lists only",
+    "Showing to-do lists only",
   );
   expect(mockReplace).not.toHaveBeenCalled();
 });
 
 it("offers one creation action when the selected list type is empty", () => {
   render(<ListsClient lists={lists} familyName="Home" initialType="custom" />);
-  expect(screen.queryByRole("link", { name: "Add list" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "New list" })).toBeNull();
   expect(
     screen.getByRole("link", { name: "Create List" }).getAttribute("href"),
   ).toBe("/dashboard/lists/create?type=custom");

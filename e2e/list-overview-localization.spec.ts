@@ -126,7 +126,7 @@ for (const locale of ["en", "es"] as const) {
             scope.getByText("Pan {count} 🥖 overview QA", { exact: true }),
           ).toBeVisible();
           await expect(
-            scope.getByRole("link", { name: text("add"), exact: true }),
+            scope.getByRole("link", { name: text("newList"), exact: true }),
           ).toHaveAttribute("href", "/dashboard/lists/create");
           await captureOverview(page, scope, info, `overview-${locale}`);
           const filters = scope.getByRole("region", {
@@ -152,7 +152,7 @@ for (const locale of ["en", "es"] as const) {
             scope.getByText("Pan {count} 🥖 overview QA", { exact: true }),
           ).toBeVisible();
           await expect(
-            scope.getByRole("link", { name: text("add"), exact: true }),
+            scope.getByRole("link", { name: text("newList"), exact: true }),
           ).toHaveAttribute("href", "/dashboard/lists/create?type=grocery");
           await captureOverview(page, scope, info, `filtered-${locale}`);
           await scope
@@ -202,7 +202,7 @@ for (const locale of ["en", "es"] as const) {
           scope.getByRole("link", { name: text("create"), exact: true }),
         ).toHaveCount(0);
         await expect(
-          scope.getByRole("link", { name: text("add"), exact: true }),
+          scope.getByRole("link", { name: text("newList"), exact: true }),
         ).toHaveCount(role === "parentA" ? 1 : 0);
         await captureOverview(
           page,

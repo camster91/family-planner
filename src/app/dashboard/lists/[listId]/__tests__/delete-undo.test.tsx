@@ -159,12 +159,19 @@ function renderList(
   )
 }
 
-it('exposes a labeled delete action alongside the swipe gesture', async () => {
+it('exposes a labeled delete action, in the row\'s "More" menu, alongside the swipe gesture', async () => {
   const user = userEvent.setup()
   renderList()
 
+  expect(screen.queryByRole('button', { name: 'Delete Tofu' })).toBeNull()
+  const more = screen.getByRole('button', { name: 'More for Tofu' })
+  expect(more).toHaveClass('min-h-[44px]', 'min-w-[44px]')
+  expect(more).toHaveAttribute('aria-expanded', 'false')
+  await user.click(more)
+  expect(more).toHaveAttribute('aria-expanded', 'true')
   const deleteButton = screen.getByRole('button', { name: 'Delete Tofu' })
-  expect(deleteButton).toHaveClass('min-w-[44px]')
+  expect(deleteButton).toHaveClass('min-h-[44px]')
+  expect(deleteButton).toHaveFocus()
   await user.click(deleteButton)
   expect(calls[0]).toMatchObject({
     url: '/api/lists/items/a',

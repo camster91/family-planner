@@ -131,9 +131,12 @@ describe('lists — ADR-0007 API changes', () => {
   })
 
   it('updates and clears amount, unit and ingredient_id', async () => {
-    const set = await update('childA', { itemId: 'item-a', amount: 2, unit: 'l', ingredient_id: 'ingredient-a' })
+    // A child may tick but not change an item's fields (403 before any write).
+    expect((await update('childA', { itemId: 'item-a', amount: 2 })).status).toBe(403)
+    expect((await update('childA', { itemId: 'item-a', amount: null })).status).toBe(403)
+    const set = await update('teenA', { itemId: 'item-a', amount: 2, unit: 'l', ingredient_id: 'ingredient-a' })
     expect((await set.json()).item).toMatchObject({ amount: 2, unit: 'l', ingredient_id: 'ingredient-a' })
-    const cleared = await update('childA', { itemId: 'item-a', amount: null, unit: null, ingredient_id: null })
+    const cleared = await update('teenA', { itemId: 'item-a', amount: null, unit: null, ingredient_id: null })
     expect((await cleared.json()).item).toMatchObject({ amount: null, unit: null, ingredient_id: null })
     expect((await update('childA', { itemId: 'item-a', amount: -1 })).status).toBe(400)
     expect((await update('childA', { itemId: 'item-a', unit: '' })).status).toBe(400)

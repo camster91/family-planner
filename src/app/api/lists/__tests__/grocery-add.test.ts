@@ -26,9 +26,22 @@ it('creates a minimal grocery row attributed to the authenticated child and repl
   expect(replay.headers.get('Idempotency-Replayed')).toBe('true'); expect(await replay.json()).toEqual(body)
   expect(creates()).toHaveLength(1)
 })
-it.each(['notes', 'quantity', 'price', 'actingMemberId', 'ingredient_id'])('rejects the unreviewed field %s before writing', async field => {
-  expect((await add('parentA', { ...BODY, [field]: field === 'quantity' || field === 'price' ? 2 : 'PRIVATE' })).status).toBe(400)
+it.each(['notes', 'price', 'actingMemberId', 'ingredient_id'])('rejects the unreviewed field %s before writing', async field => {
+  expect((await add('parentA', { ...BODY, [field]: field === 'price' ? 2 : 'PRIVATE' })).status).toBe(400)
   expect(creates()).toHaveLength(0); expect(writesTo('idempotencyRecord')).toHaveLength(0)
+})
+it.each([0, 2.5, 10000, '2', null])('rejects a quantity that is not a whole number from 1 to 9999 (%p) before writing', async quantity => {
+  expect((await add('parentA', { ...BODY, quantity })).status).toBe(400)
+  expect(creates()).toHaveLength(0); expect(writesTo('idempotencyRecord')).toHaveLength(0)
+})
+it('accepts an optional quantity from a several-items add, replays it once and refuses a changed quantity', async () => {
+  const first = await add('childA', { ...BODY, content: 'Bread', quantity: 2 })
+  expect(first.status).toBe(200)
+  expect((await first.json()).item).toMatchObject({ content: 'Bread', quantity: 2 })
+  const replay = await add('childA', { ...BODY, content: 'Bread', quantity: 2 })
+  expect(replay.headers.get('Idempotency-Replayed')).toBe('true')
+  expect((await add('childA', { ...BODY, content: 'Bread', quantity: 3 })).status).toBe(422)
+  expect(creates()).toHaveLength(1)
 })
 it('requires a valid stable key and bounded grocery text', async () => {
   expect((await add('parentA', BODY, null)).status).toBe(400)

@@ -22,6 +22,8 @@ const schema = z
   .object({
     listId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
     content: z.string().trim().min(1).max(500),
+    // Optional (several-items add, "2 bread"); absent means 1, as before.
+    quantity: z.number().int().min(1).max(9999).optional(),
   })
   .strict();
 
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Use a grocery list and 1 to 500 characters, with no extra fields.",
+            "Use a grocery list, 1 to 500 characters and an optional whole-number quantity from 1 to 9999, with no extra fields.",
         },
         { status: 400 },
       );
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
           role: auth.user.role,
           generation: auth.payload?.tv ?? 0,
         },
-        { ...parsed.data, quantity: 1 },
+        { ...parsed.data, quantity: parsed.data.quantity ?? 1 },
         key,
       );
       return NextResponse.json(result.body, {
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
       ({ recordId }) =>
         createPersonListItem(
           prisma!,
-          { ...parsed.data, quantity: 1 },
+          { ...parsed.data, quantity: parsed.data.quantity ?? 1 },
           actor,
           recordId,
           { groceryOnly: true },
