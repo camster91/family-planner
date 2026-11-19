@@ -197,6 +197,9 @@ function CardHeader({
  * unless CAPTURE_AI_SETTINGS_ENABLED is on or the household already saved a
  * key. While it is off the form is not rendered and its API is not called.
  *
+ * `smartHelpers` (server-decided) mounts the Smart helpers (AI) switch only
+ * when this deployment can call Claude; otherwise nothing renders or fetches.
+ *
  * `sharedDevice` is null unless the shared-device kill switch is on AND the
  * viewer is a parent. `betaMetrics` (#287) is the household's beta usage
  * counts switch, read on the server for a parent only (null otherwise, and the
@@ -209,6 +212,7 @@ export default function SettingsClient({
   calendarSync = false,
   aiCaptureSettings = false,
   aiUsage,
+  smartHelpers = false,
   calendarFeedReviewScope,
 }: {
   viewerRole: SettingsViewerRole;
@@ -217,6 +221,7 @@ export default function SettingsClient({
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
   aiUsage?: { userId: string; familyId: string };
+  smartHelpers?: boolean;
   calendarFeedReviewScope?: string;
 }) {
   const copy = useSettingsCopy();
@@ -1147,8 +1152,8 @@ export default function SettingsClient({
           )}
 
           {/* Smart helpers (AI, #144): parent-only household switch, off by
-              default; renders nothing when this deployment has no smart helpers. */}
-          {isParent && familyContentReady && (
+              default; mounted only when the server says this deployment has them. */}
+          {isParent && smartHelpers && familyContentReady && (
             <Suspense fallback={null}>
               <LazySmartHelpersSettings />
             </Suspense>

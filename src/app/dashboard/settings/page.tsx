@@ -10,6 +10,7 @@ import { isParentRole } from '@/lib/role-capabilities'
 import { isSharedDeviceEnabled } from '@/lib/device-http'
 import { isCalendarSyncEnabled } from '@/lib/calendar-sync/config'
 import { isCaptureAiSettingsEnabled } from '@/lib/capture-settings-flag'
+import { claudeAiDeploymentReady } from '@/lib/ai/flags'
 import SettingsClient, { type SettingsViewerRole } from './SettingsClient'
 
 export const metadata: Metadata = { title: 'Settings' }
@@ -51,6 +52,7 @@ export default async function SettingsPage({ searchParams = Promise.resolve({}) 
       calendarSync={viewerRole === 'parent' && isCalendarSyncEnabled()}
       aiCaptureSettings={Boolean(parentFamilyId && (isCaptureAiSettingsEnabled() || seed.aiKeyStored || (await searchParams).setup === 'ai'))}
       aiUsage={parentFamilyId && isAiUsageAdopted() ? { userId: actor.id, familyId: parentFamilyId } : undefined}
+      smartHelpers={Boolean(parentFamilyId) && claudeAiDeploymentReady()}
     />
   }
   const sessionUser = await getServerUser()
@@ -93,6 +95,7 @@ export default async function SettingsPage({ searchParams = Promise.resolve({}) 
       calendarSync={viewerRole === 'parent' && isCalendarSyncEnabled()}
       aiCaptureSettings={aiCaptureSettings}
       aiUsage={parentFamilyId && isAiUsageAdopted() ? { userId: sessionUser.id, familyId: parentFamilyId } : undefined}
+      smartHelpers={Boolean(parentFamilyId) && claudeAiDeploymentReady()}
     />
   )
 }
