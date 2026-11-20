@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { refreshStaleSubscriptions } from "@/lib/calendar-import/sync";
 import TodayBoard from "@/components/fridge/TodayBoard";
 import HomeSummary from "@/components/dashboard/HomeSummary";
-import TodaySetup from "@/components/dashboard/TodaySetup";
 import { GetStartedArt } from "@/components/dashboard/GetStartedArt";
 import { loadTodayBoard } from "./board-snapshot";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
@@ -17,9 +16,12 @@ import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
 // The existing server readiness/role gate decides whether this optional
-// workspace is rendered. A dormant launcher need not enter the cold board; the
-// client boundary owns the code split (a server-side next/dynamic cannot).
-import WeeklyResetLauncher from "@/components/dashboard/LazyWeeklyResetLauncher";
+// workspace (and the setup card) is rendered. Dormant ones need not enter the
+// cold board, so they are split in a client wrapper.
+import {
+  TodaySetup,
+  WeeklyResetLauncher,
+} from "@/components/dashboard/TodayDeferred";
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 import { storageBackend } from "@/lib/storage-backend";

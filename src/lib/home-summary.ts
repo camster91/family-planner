@@ -9,10 +9,13 @@
  *   - everyone else reads their own list: "You have 2 chores left" or
  *     "You're done for today".
  *
- * "Today" is the viewer's local calendar day (the server cannot know it), and
- * only chores due today count, like the Today board: no overdue pile-up, no
- * shaming (BRAND.md).
+ * "Today" is the viewer's local calendar day (the server cannot know it).
+ * Chores due today count, plus still-open chores whose day has passed, shown
+ * with a plain "Overdue" label (owner decision 2026-11-19, src/lib/chore-today.ts),
+ * so this sentence, the Today board, Chores › Today and the kid home agree.
  */
+
+import { belongsToToday, isOverdueChore } from '@/lib/chore-today'
 
 export type HomeChoreStatus = 'pending' | 'in_progress' | 'overdue' | 'completed' | 'verified' | string
 
@@ -41,6 +44,7 @@ export interface HomeSummaryPresentationMessages {
   doneWaiting: string
   checkedByParent: string
   dueToday: string
+  overdue: string
   toCheck: (count: number) => string
   allChores: string
   everyChoreDoneToday: string
@@ -72,6 +76,7 @@ export const defaultHomeSummaryMessages: HomeSummaryPresentationMessages = {
   doneWaiting: 'Done · waiting for a parent to check',
   checkedByParent: 'Checked by a parent',
   dueToday: 'Due today',
+  overdue: 'Overdue',
   toCheck: (count) => `${count} ${count === 1 ? 'chore' : 'chores'} to check`,
   allChores: 'All chores',
   everyChoreDoneToday: 'Every chore is done for today',
@@ -92,9 +97,17 @@ function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name
 }
 
-/** Chores due on `todayKey` (the viewer's local `YYYY-MM-DD`). */
+/**
+ * Chores for `todayKey` (the viewer's local `YYYY-MM-DD`): due that day, or
+ * still open and overdue.
+ */
 export function choresDueOn(chores: HomeChore[], todayKey: string): HomeChore[] {
-  return chores.filter((c) => c.dueDay === todayKey)
+  return chores.filter((c) => belongsToToday(c.dueDay, c.status, todayKey))
+}
+
+/** An open chore whose due day is before `todayKey`. */
+export function isOverdueHomeChore(chore: HomeChore, todayKey: string): boolean {
+  return isOverdueChore(chore.dueDay, chore.status, todayKey)
 }
 
 /**

@@ -562,7 +562,9 @@ test.describe("Today board: Family A parent", () => {
       groceries.getByRole("link", { name: /Groceries\s*, open grocery lists/ }),
     ).toHaveAttribute("href", "/dashboard/lists/groceries");
 
-    // Chores due today, per person, household order, no points.
+    // Chores due today plus still-open overdue ones (owner decision
+    // 2026-11-19, src/lib/chore-today.ts), per person, household order, no
+    // points.
     const chores = region(page, "chores");
     const people = chores.getByTestId("chore-person");
     await expect(people).toHaveCount(2);
@@ -570,11 +572,21 @@ test.describe("Today board: Family A parent", () => {
     await expect(people.nth(0)).toContainText("Casey");
     await expect(people.nth(0)).toContainText("Tidy bedroom");
     await expect(people.nth(0)).toContainText("In progress");
+    await expect(people.nth(0).getByTestId("board-chore-overdue")).toHaveCount(
+      0,
+    );
     await expect(people.nth(1)).toContainText("Taylor");
     await expect(people.nth(1)).toContainText("Take out recycling");
     await expect(people.nth(1)).toContainText("Vacuum living room");
-    // Not due today (overdue from earlier / due later): no guilt, no clutter.
-    await expect(chores).not.toContainText("Mow the lawn");
+    // Overdue from earlier and still open: shown first, with a plain label.
+    const taylorChores = people.nth(1).getByTestId("board-chore");
+    await expect(taylorChores).toHaveCount(3);
+    await expect(taylorChores.nth(0)).toContainText("Mow the lawn");
+    await expect(
+      taylorChores.nth(0).getByTestId("board-chore-overdue"),
+    ).toHaveText("Overdue");
+    await expect(chores.getByTestId("board-chore-overdue")).toHaveCount(1);
+    // Due later (tomorrow) stays off today's list.
     await expect(chores).not.toContainText("Pack school bag");
 
     // Coming up: the next three local days.
@@ -613,13 +625,21 @@ test.describe("Today board: Family A parent", () => {
     await expect(events.nth(2)).toContainText("Soccer practice");
     await expect(next).toContainText("1 more later today");
     await expect(next).not.toContainText(FIXTURE_LONG_TEXT.eventTitle);
+    // Four open chores today (one overdue, listed first per person): three
+    // rows fit beside the events and the rest is counted, never dropped.
     const chores = region(page, "chores");
-    await expect(chores.getByTestId("board-chore")).toHaveCount(3);
+    const rows = chores.getByTestId("board-chore");
+    await expect(rows).toHaveCount(3);
     await expect(chores).toContainText("Casey");
     await expect(chores).toContainText("Taylor");
-    await expect(chores).toContainText("Tidy bedroom");
-    await expect(chores).toContainText("Take out recycling");
-    await expect(chores).toContainText("Vacuum living room");
+    await expect(rows.nth(0)).toContainText("Tidy bedroom");
+    await expect(rows.nth(1)).toContainText("Mow the lawn");
+    await expect(rows.nth(1).getByTestId("board-chore-overdue")).toHaveText(
+      "Overdue",
+    );
+    await expect(rows.nth(2)).toContainText("Take out recycling");
+    await expect(chores).not.toContainText("Vacuum living room");
+    await expect(chores.getByText("1 more", { exact: true })).toBeVisible();
     await expect(next.getByTestId("region-link-today")).toHaveAttribute(
       "href",
       "/dashboard/calendar?view=agenda",

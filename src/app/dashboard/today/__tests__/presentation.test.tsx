@@ -31,6 +31,9 @@ const follows = (a: HTMLElement, b: HTMLElement) => Boolean(a.compareDocumentPos
 it('puts an unfinished Get started first, above the plans, and the optional suggestions last', async () => {
   render(await TodayBoardPage({ searchParams: Promise.resolve({}) }))
   // TodaySetup itself shows Get started only while it is incomplete and not hidden.
+  // It is code-split (TodayDeferred), so it appears a moment later.
+  await screen.findByTestId('setup-getStarted')
+  await screen.findByTestId('setup-suggestions')
   expect(follows(screen.getByTestId('setup-getStarted'), screen.getByTestId('summary'))).toBe(true)
   expect(follows(screen.getByTestId('summary'), screen.getByTestId('board'))).toBe(true)
   expect(follows(screen.getByTestId('board'), screen.getByTestId('setup-suggestions'))).toBe(true)

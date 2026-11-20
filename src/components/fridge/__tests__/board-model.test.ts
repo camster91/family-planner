@@ -81,7 +81,7 @@ describe('choresDueTodayByPerson', () => {
         chore('t-open', 't', '2026-01-05'),
         chore('t-done', 't', '2026-01-05', 'verified'),
         chore('t-tomorrow', 't', '2026-01-06'),
-        chore('p-yesterday', 'p', '2026-01-04'),
+        chore('p-yesterday', 'p', '2026-01-04', 'verified'),
       ],
       members,
       NOW,
@@ -102,6 +102,27 @@ describe('choresDueTodayByPerson', () => {
   it('reports a person with everything done', () => {
     const out = choresDueTodayByPerson([chore('d', 'p', '2026-01-05', 'completed')], members, NOW)
     expect(out).toEqual([{ member: members[0], open: [], doneCount: 1, awaitingCheckCount: 1 }])
+  })
+
+  it('lists still-open overdue chores first, flagged, for every person (owner decision 2026-11-19)', () => {
+    const out = choresDueTodayByPerson(
+      [
+        chore('t-today', 't', '2026-01-05'),
+        chore('t-mow', 't', '2026-01-02', 'overdue'),
+        chore('t-late', 't', '2026-01-04', 'pending'),
+        chore('t-old-done', 't', '2026-01-03', 'completed'),
+      ],
+      members,
+      NOW,
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].open.map((c) => [c.id, Boolean(c.overdue)])).toEqual([
+      ['t-mow', true],
+      ['t-late', true],
+      ['t-today', false],
+    ])
+    // A done chore from an earlier day is not counted as done today.
+    expect(out[0].doneCount).toBe(0)
   })
 
   it('is empty when nothing is due today', () => {
