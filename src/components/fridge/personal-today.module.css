@@ -12,6 +12,12 @@
 .nextSections > section {
   padding: 16px;
 }
+/* An empty card shrunk to one line (title, what is missing, first action). */
+.layout > div > section[data-empty-line],
+.nextSections > section[data-empty-line] {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
 .layout [data-region-heading] {
   min-height: 44px;
   margin-bottom: 8px;

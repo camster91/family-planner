@@ -57,7 +57,9 @@ try {
   const input = (userId, familyId, tokenVersion = 0) => ({
     userId, familyId, tokenVersion, name: 'Fabricated household',
     inviteCode: `code-${familyId}`, features: JSON.stringify({ chores: true, gamification: false }), now: 1000,
+    groceryListId: `groceries-${familyId}`, groceryListName: 'Groceries',
   })
+  const groceryLists = async (familyId) => (await db.prepare(`SELECT id,name,type,created_by FROM "List" WHERE family_id=?1`).bind(familyId).all()).results
   const familyCount = async () => (await db.prepare('SELECT count(*) AS n FROM "Family"').first()).n
   await addUser('owner-a')
   const concurrent = await Promise.all(Array.from({ length: 12 }, (_, i) => createD1Family(db, input('owner-a', `family-${i}`))))
@@ -67,6 +69,9 @@ try {
   const owner = await db.prepare('SELECT family_id,role FROM "User" WHERE id=?1').bind('owner-a').first()
   assert.equal(owner.role, 'parent')
   assert.ok(concurrent.some(result => typeof result === 'object' && result.id === owner.family_id))
+  // The winning create made exactly one "Groceries" list in the same batch; the losers made none.
+  assert.deepEqual(await groceryLists(owner.family_id), [{ id: `groceries-${owner.family_id}`, name: 'Groceries', type: 'grocery', created_by: 'owner-a' }])
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM "List"').first()).n, 1)
   assert.equal(await createD1Family(db, input('missing-account', 'no-owner')), 'gone')
   await addUser('revoked-account', 3)
   assert.equal(await createD1Family(db, input('revoked-account', 'revoked-family', 2)), 'gone')
@@ -77,6 +82,7 @@ try {
   await db.exec(`CREATE TRIGGER fail_membership BEFORE UPDATE ON "User" WHEN OLD.id = 'rollback-account' BEGIN SELECT RAISE(ABORT, 'fixture membership failure'); END;`)
   await assert.rejects(createD1Family(db, input('rollback-account', 'rolled-back-family')))
   assert.equal(await familyCount(), 1)
+  assert.deepEqual(await groceryLists('rolled-back-family'), [])
   await db.exec('DROP TRIGGER fail_membership;')
 
   // An invite-code collision must leave the second account unattached.

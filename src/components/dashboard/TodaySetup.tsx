@@ -16,6 +16,14 @@ type TodaySetupProps = {
   viewer: { id: string; role: string }
   familyId: string
   steps: GetStartedSteps
+  /**
+   * Which card this mount may show. Today mounts "getStarted" first on the page
+   * (a new household's first steps come before its empty cards) and
+   * "suggestions" at the end; omitted, both (one mount, as before).
+   */
+  part?: 'getStarted' | 'suggestions'
+  /** Server-rendered art for the Get started card (GetStartedArt). */
+  art?: React.ReactNode
 }
 
 type SetupChunkBoundaryProps = {
@@ -145,8 +153,8 @@ function createFeatureSuggestions() {
   return React.lazy(() => import('./FeatureSuggestions'))
 }
 
-function LazyGetStarted({ viewer, familyId, steps }: GetStartedProps) {
-  return <LazySetupCard createCard={createGetStarted} cardProps={{ viewer, familyId, steps }} />
+function LazyGetStarted({ viewer, familyId, steps, art }: GetStartedProps) {
+  return <LazySetupCard createCard={createGetStarted} cardProps={{ viewer, familyId, steps, art }} />
 }
 
 function LazyFeatureSuggestions({
@@ -165,7 +173,7 @@ function LazyFeatureSuggestions({
 }
 
 /** Defers the optional onboarding cards until their server and browser gates pass. */
-export default function TodaySetup({ viewer, familyId, steps }: TodaySetupProps) {
+export default function TodaySetup({ viewer, familyId, steps, part, art }: TodaySetupProps) {
   const { features, canManage } = useFeatures()
   const getStartedHidden = useGetStartedHidden(familyId)
   const featureSuggestionsHidden = useFeatureSuggestionsHidden(familyId)
@@ -175,13 +183,16 @@ export default function TodaySetup({ viewer, familyId, steps }: TodaySetupProps)
 
   if (!isParent) return null
 
-  const showGetStarted = !setupDone && !getStartedHidden
+  const showGetStarted = part !== 'suggestions' && !setupDone && !getStartedHidden
   const showFeatureSuggestions =
+    part !== 'getStarted' &&
     canManage && (setupDone || getStartedHidden) && !featureSuggestionsHidden && initialPicked.length > 0
 
+  if (!showGetStarted && !showFeatureSuggestions) return null
+
   return (
-    <div className="mt-6 space-y-4">
-      {showGetStarted && <LazyGetStarted viewer={viewer} familyId={familyId} steps={steps} />}
+    <div className={part === 'getStarted' ? 'mb-6 space-y-4' : 'mt-6 space-y-4'}>
+      {showGetStarted && <LazyGetStarted viewer={viewer} familyId={familyId} steps={steps} art={art} />}
       {showFeatureSuggestions && (
         <LazyFeatureSuggestions
           viewer={viewer}

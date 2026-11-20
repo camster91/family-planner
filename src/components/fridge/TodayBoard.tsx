@@ -7,12 +7,23 @@ import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import { useTodayBoardText } from "@/i18n/today-board";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Maximize2, Minimize2, SlidersHorizontal } from "lucide-react";
+import {
+  CalendarRange,
+  Maximize2,
+  Minimize2,
+  ShoppingCart,
+  SlidersHorizontal,
+  UtensilsCrossed,
+} from "lucide-react";
 import type {
   BoardDisplayData,
   BoardPhoto,
   TodayBoardData,
 } from "@/app/dashboard/today/today-board-data";
+import type { TodayStarts } from "@/app/dashboard/today/get-started-data";
+import { canCreateList } from "@/lib/role-capabilities";
+import { canRoleAccessPath } from "@/lib/kid-access";
+import { mealDayHref } from "@/lib/meal-navigation";
 import { COMING_UP_DAYS } from "@/lib/board-constants";
 import { DEFAULT_BOARD_DISPLAY, type AmbientState } from "@/lib/ambient";
 import {
@@ -40,9 +51,11 @@ import {
   ChoresRegion,
   ComingUpRegion,
   DinnerRegion,
+  EmptyRegionLine,
   GroceriesRegion,
   ScheduleRegion,
   areaClass,
+  emptyLineActionClass,
   type BoardPerson,
 } from "./regions";
 import { actionLinkClass, regionClass } from "./styles";
@@ -64,6 +77,17 @@ function createUseSoonRegion() {
     return { default: useSoonModule.UseSoonRegion };
   });
 }
+
+/**
+ * Only a household without any grocery list sees "Create a grocery list", so
+ * the button stays out of the board's initial JavaScript until it is shown.
+ */
+const LazyCreateGroceryListButton = React.lazy(async () => {
+  const buttonModule = await import(
+    "@/components/dashboard/CreateGroceryListButton"
+  );
+  return { default: buttonModule.CreateGroceryListButton };
+});
 
 /** Keep the Today layout editor out of the board's initial JavaScript. */
 const LazyTodayLayoutEditor = React.lazy(() => import("./TodayLayoutEditor"));
@@ -665,8 +689,15 @@ export default function TodayBoard({
   choresShownElsewhere,
   preparationBacklinks = {},
   onCoveredChange,
+  starts,
 }: {
   onCoveredChange?: (covered: boolean) => void;
+  /**
+   * Household facts for honest empty cards on the personal page (never sent
+   * to the fridge or the paired tablet): has a chore ever been added, is
+   * there a grocery list. Omitted: the plain empty copy.
+   */
+  starts?: TodayStarts;
   preparationBacklinks?: import("@/lib/event-preparation/discovery").PreparationBacklinks;
   data: TodayBoardData;
   /** Exact chore IDs rendered by the personal home summary. Ignored in fridge mode. */
@@ -884,6 +915,26 @@ export default function TodayBoard({
   }
 
   const personal = Boolean(viewer && !tileActions && !fridgeMode);
+  // A household with no grocery list at all (older households; new ones get
+  // "Groceries" at creation). The tablet knows from its own list read.
+  const noGroceryList = data.groceryLists
+    ? data.groceryLists.length === 0
+    : starts
+      ? !starts.hasGroceryList
+      : false;
+  const isParentViewer = viewer?.role === "parent";
+  const addEventHref =
+    data.links.calendar &&
+    viewer &&
+    canRoleAccessPath(viewer.role, "/dashboard/calendar/create")
+      ? "/dashboard/calendar/create"
+      : null;
+  const addChoreHref =
+    data.links.chores && isParentViewer ? "/dashboard/chores/create" : null;
+  const groceriesHref =
+    data.links.lists === "/dashboard/lists"
+      ? "/dashboard/lists/groceries"
+      : data.links.lists;
   const availableSections: TodaySection[] = ["next", "coming"];
   if (data.dinners !== null) availableSections.push("dinner");
   if (data.links.lists && tiles.shopping) availableSections.push("groceries");
@@ -904,6 +955,10 @@ export default function TodayBoard({
               Boolean(data.links.calendar && data.links.chores)
             }
             preparationBacklinks={preparationBacklinks}
+            compactEmpty
+            addEventHref={addEventHref}
+            addChoreHref={addChoreHref}
+            noChoresYet={starts ? !starts.hasChore : false}
             events={view.today}
             people={view.people}
             chores={view.chores}
@@ -915,6 +970,27 @@ export default function TodayBoard({
           />
         );
       case "dinner":
+        if (data.dinners !== null && !view.dinner)
+          return (
+            <EmptyRegionLine
+              id="board-dinner"
+              area="dinner"
+              title={text("dinnerTonight")}
+              icon={UtensilsCrossed}
+              glyph="meals"
+              message={text("dinnerEmpty")}
+              action={
+                data.links.meals ? (
+                  <Link
+                    href={mealDayHref(data.links.meals, view.day)!}
+                    className={emptyLineActionClass}
+                  >
+                    {text("planDinner")}
+                  </Link>
+                ) : undefined
+              }
+            />
+          );
         return (
           <DinnerRegion
             day={view.day}
@@ -925,6 +1001,37 @@ export default function TodayBoard({
           />
         );
       case "groceries":
+        if (tiles.shopping && tiles.shopping.total === 0)
+          return (
+            <EmptyRegionLine
+              id="board-groceries"
+              area="groceries"
+              title={text("groceries")}
+              icon={ShoppingCart}
+              glyph="lists"
+              message={text(
+                noGroceryList ? "groceryNoList" : "groceryNothingToBuy",
+              )}
+              action={
+                noGroceryList ? (
+                  canCreateList(viewer?.role) ? (
+                    <LazyChunkBoundary fallback={null}>
+                      <React.Suspense fallback={null}>
+                        <LazyCreateGroceryListButton
+                          onCreated={refresh}
+                          className={emptyLineActionClass}
+                        />
+                      </React.Suspense>
+                    </LazyChunkBoundary>
+                  ) : undefined
+                ) : groceriesHref ? (
+                  <Link href={groceriesHref} className={emptyLineActionClass}>
+                    {text("addGroceries")}
+                  </Link>
+                ) : undefined
+              }
+            />
+          );
         return (
           <GroceriesRegion
             shopping={tiles.shopping}
@@ -934,6 +1041,33 @@ export default function TodayBoard({
           />
         );
       case "coming":
+        if (
+          view.comingUp.every(
+            (day) =>
+              day.events.length === 0 &&
+              !(data.dinners !== null && day.dinner),
+          )
+        )
+          return (
+            <EmptyRegionLine
+              id="board-coming"
+              area="coming"
+              title={text("comingUp")}
+              icon={CalendarRange}
+              glyph="family"
+              message={text("comingEmptyAll")}
+              action={
+                isParentViewer && data.links.calendar ? (
+                  <Link
+                    href="/dashboard/settings#calendar-subscriptions"
+                    className={emptyLineActionClass}
+                  >
+                    {text("connectCalendar")}
+                  </Link>
+                ) : undefined
+              }
+            />
+          );
         return (
           <ComingUpRegion
             days={view.comingUp}
@@ -1160,6 +1294,7 @@ export default function TodayBoard({
             )}
             <GroceriesRegion
               compactLandscape={fridgeMode}
+              noList={noGroceryList}
               shopping={tiles.shopping}
               listsHref={data.links.lists}
               onTick={tiles.tickGrocery}

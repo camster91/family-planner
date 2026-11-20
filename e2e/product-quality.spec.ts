@@ -976,10 +976,10 @@ for (const locale of ["en", "es"] as const) {
           await page.screenshot(),
         );
         const chores = board.getByTestId("region-chores");
-        const lowerChore = chores
-          .getByTestId("board-chore")
-          .filter({ hasText: "Vacuum living room" });
-        await expect(lowerChore).toHaveCount(1);
+        // The last chore row the fitted board shows (overdue chores and the
+        // fridge row limits decide which one that is) must be reachable.
+        const lowerChore = chores.getByTestId("board-chore").last();
+        await expect(lowerChore).toBeVisible();
         await expect(chores).toHaveAttribute("tabindex", "0");
         const choreLayout = await chores.evaluate((element) => ({
           scrollHeight: element.scrollHeight,

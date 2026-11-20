@@ -1,4 +1,5 @@
 import { storageBackend } from "@/lib/storage-backend";
+import { DEFAULT_GROCERY_LIST_NAME } from "@/lib/grocery-from-recipe-contract";
 import { getD1Database } from "@/lib/cloudflare/database";
 import { deletePrivateObject } from "@/lib/cloudflare/storage";
 import { familyNameHttp } from "@/lib/family-name-http";
@@ -105,6 +106,18 @@ export async function POST(request: NextRequest) {
         await tx.user.update({
           where: { id: payload.userId },
           data: { family_id: newFamily.id, role: "parent" },
+        });
+        // Every new household starts with its "Groceries" list, in the same
+        // write: the family row is new in this transaction, so this is its
+        // only grocery list, and a retried transaction rolls back with it.
+        await tx.list.create({
+          data: {
+            family_id: newFamily.id,
+            name: DEFAULT_GROCERY_LIST_NAME,
+            type: "grocery",
+            created_by: payload.userId,
+          },
+          select: { id: true },
         });
         return newFamily;
       });

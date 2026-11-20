@@ -1449,7 +1449,28 @@ export default function ChoresContent({
                 )}
               </div>
             </section>
-          ) : showInlineRoutines ? null : (
+          ) : showInlineRoutines ? null : localChores.length === 0 &&
+            !nextCursor ? (
+            // Nothing loaded and no older history to page in: this household
+            // has not added a chore yet, so "All clear!" would mislead. Say
+            // what to do first instead.
+            <EmptyState
+              icon={CheckSquare}
+              glyphColor="chore"
+              title={overviewText("noChoresYet")}
+              description={overviewText("noChoresYetHint")}
+              action={
+                <Link
+                  href="/dashboard/chores/create"
+                  className="btn-filled min-h-[44px]"
+                  data-testid="chores-add-first"
+                >
+                  <Plus className="w-4 h-4" aria-hidden="true" />
+                  <span>{overviewText("addFirstChore")}</span>
+                </Link>
+              }
+            />
+          ) : (
             <EmptyState
               icon={CheckSquare}
               glyphColor="chore"

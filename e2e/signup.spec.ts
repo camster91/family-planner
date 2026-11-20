@@ -16,16 +16,19 @@
  *    /verify-email?token=… on the E2E server, checks the account is still
  *    unverified, presses "Confirm my email" and lands on /login?verified=1.
  *    No app code or test-only switch is involved.
- * 3. The parent signs in, lands on onboarding, creates the household and is
- *    sent to the Today board (empty chores region, and a "Get started" card
- *    with three steps, none done). The household is stored with only the six
- *    sections a new household starts with (O-38) and no "Turn on more" card
+ * 3. The parent signs in, lands on onboarding (naming the family is the first
+ *    screen), creates the household, presses Done and is sent to the Today
+ *    board: a "Get started" card with four steps, none done, comes first,
+ *    above one-line empty cards that say what to do first ("No chores yet").
+ *    The household is stored with only the six sections a new household
+ *    starts with (O-38) and its "Groceries" list, and no "Turn on more" card
  *    shows while Get started is open.
  * 4. Settings → Invite → "In person instead" shows the family code (the one
  *    stored for the new household).
  * 5. The child registers and verifies the same way in a second browser
  *    context, signs in, follows onboarding's "Join an existing family" to
- *    /join, checks the code, joins and lands on the kid home.
+ *    /join, enters the code, presses Continue, then "Join <family>", and
+ *    lands on the kid home.
  * 6. The parent assigns the first chore (due on the anchor day) to the child.
  * 7. The child sees it under "Today's Missions" and marks it done.
  * 8. The parent sees "1 chore to check" on the board and verifies it on the
@@ -314,20 +317,10 @@ test.describe("new household sign-up journey", () => {
     await test.step("parent signs in and creates the household", async () => {
       await loginViaUi(page, x.parent.email, PASSWORD);
       await page.waitForURL(/\/dashboard$/);
+      // No button-only welcome screen: naming the family comes first.
       await expect(
-        page.getByRole("heading", {
-          name: onboardingEnglish.welcomeTitle,
-          exact: true,
-        }),
+        page.getByText(onboardingEnglish.welcomeDescription, { exact: true }),
       ).toBeVisible();
-      await expectNoHorizontalOverflow(page, "onboarding welcome");
-      await page
-        .getByRole("button", {
-          name: onboardingEnglish.getStarted,
-          exact: true,
-        })
-        .click();
-
       await expect(
         page.getByRole("heading", {
           name: onboardingEnglish.createTitle,
@@ -374,7 +367,7 @@ test.describe("new household sign-up journey", () => {
       await expectNoHorizontalOverflow(page, "add everyone onboarding");
       await page
         .getByRole("link", {
-          name: onboardingEnglish.finishLater,
+          name: onboardingEnglish.done,
           exact: true,
         })
         .click();
@@ -382,17 +375,39 @@ test.describe("new household sign-up journey", () => {
       // A parent's home is the Today board (#269).
       await page.waitForURL(/\/dashboard\/today/);
       await expect(page.getByTestId("region-today")).toContainText(
-        "Nothing else on the calendar today.",
+        "Nothing on the calendar today.",
       );
+      // Never added a chore: say what to do first, not "No chores due today".
       await expect(page.getByTestId("region-chores")).toContainText(
-        "No chores due today.",
+        "No chores yet.",
       );
-      // A parent of a new household gets three first steps, none done yet.
+      await expect(
+        page
+          .getByTestId("region-chores")
+          .getByRole("link", { name: "Add a chore" }),
+      ).toHaveAttribute("href", "/dashboard/chores/create");
+      // The household's "Groceries" list was made with it; it is just empty.
+      await expect(page.getByTestId("region-groceries")).toContainText(
+        "Nothing on the grocery list yet.",
+      );
+      // A parent of a new household gets four first steps, none done yet,
+      // first on the page, above the (still empty) cards.
       const getStarted = page.getByRole("region", { name: "Get started" });
       await expect(getStarted).toBeVisible();
+      expect(
+        await getStarted.evaluate(
+          (card, board) =>
+            Boolean(
+              board &&
+              card.compareDocumentPosition(board) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+            ),
+          await page.getByTestId("today-board").elementHandle(),
+        ),
+      ).toBe(true);
       await expect(
         getStarted.getByTestId("get-started-progress"),
-      ).toContainText("0 of 3 done");
+      ).toContainText("0 of 4 done");
       await expect(
         getStarted.getByRole("link", { name: /Invite your family/ }),
       ).toHaveAttribute("href", "/dashboard/family/invite");
@@ -402,6 +417,9 @@ test.describe("new household sign-up journey", () => {
       await expect(
         getStarted.getByRole("link", { name: /Add an event/ }),
       ).toHaveAttribute("href", "/dashboard/calendar/create");
+      await expect(
+        getStarted.getByRole("link", { name: /Connect your calendar/ }),
+      ).toHaveAttribute("href", "/dashboard/settings#calendar-subscriptions");
       // The board's chores region already says there are none; no second card repeats it.
       await expect(page.getByTestId("home-summary")).toHaveCount(0);
       // "Turn on more" (O-38) waits until Get started is done or hidden.
@@ -445,6 +463,14 @@ test.describe("new household sign-up journey", () => {
       });
       familyId = row.rows[0].family_id;
       inviteCode = row.rows[0].invite_code;
+      // Created with the household, in the same write: one "Groceries" list.
+      const lists = await withDb((db) =>
+        db.query<{ name: string; type: string }>(
+          `SELECT name, type FROM "List" WHERE family_id = $1`,
+          [familyId],
+        ),
+      );
+      expect(lists.rows).toEqual([{ name: "Groceries", type: "grocery" }]);
       // Stored canonical: lowercase, no dashes; shown as XXXX-XXXX-XXXX.
       expect(inviteCode).toMatch(
         new RegExp(`^[a-z2-9]{${FAMILY_CODE_LENGTH}}$`),
@@ -474,12 +500,6 @@ test.describe("new household sign-up journey", () => {
         await loginViaUi(kid, x.child.email, PASSWORD);
         await kid.waitForURL(/\/dashboard$/);
         await kid
-          .getByRole("button", {
-            name: onboardingEnglish.getStarted,
-            exact: true,
-          })
-          .click();
-        await kid
           .getByRole("link", {
             name: onboardingEnglish.joinExisting,
             exact: true,
@@ -493,7 +513,10 @@ test.describe("new household sign-up journey", () => {
 
         // Typed the way a parent reads it out: capitals and dashes.
         await kid.getByLabel("Family Code").fill(formatFamilyCode(inviteCode));
-        await kid.getByRole("button", { name: "Check Code" }).click();
+        // One button: Continue checks the code, then it offers to join.
+        await kid
+          .getByRole("button", { name: "Continue", exact: true })
+          .click();
         await expect(
           kid.getByText("Ready to join as a child or teen."),
         ).toBeVisible();
@@ -505,7 +528,9 @@ test.describe("new household sign-up journey", () => {
             r.url().endsWith("/api/family/join") &&
             r.request().method() === "POST",
         );
-        await kid.getByRole("button", { name: "Join Family" }).click();
+        await kid
+          .getByRole("button", { name: `Join ${x.familyName}`, exact: true })
+          .click();
         expect((await joined).status()).toBe(200);
         await expect(
           kid.getByText(`Successfully joined ${x.familyName}!`),
@@ -594,12 +619,12 @@ test.describe("new household sign-up journey", () => {
         await expect(
           page.getByRole("link", { name: "1 chore to check" }).first(),
         ).toBeVisible();
-        // The child joined and a chore exists; only the event step is left.
+        // The child joined and a chore exists; the event and calendar steps are left.
         await expect(
           page
             .getByRole("region", { name: "Get started", exact: true })
             .getByTestId("get-started-progress"),
-        ).toContainText("2 of 3 done");
+        ).toContainText("2 of 4 done");
         await expectNoHorizontalOverflow(page, "Today board (one to check)");
 
         await page.goto("/dashboard/chores");
