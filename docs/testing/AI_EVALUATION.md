@@ -42,6 +42,31 @@ independent paste-link workflow remain separate app capabilities, subject to
 publisher permissions. After the provider decision, use the existing adapter and
 quality suite; do not create another planning or recipe database.
 
+## Provider decision and smart Add contracts — 2026-11-19
+
+Cameron chose **Anthropic Claude** for app-held AI (Gemini stays blocked):
+model `claude-haiku-5-5`, one server key `FAMILY_AI_ANTHROPIC_API_KEY`,
+parent/teen only, household opt-in off by default, $2/household/month cap,
+gated by `FAMILY_CLAUDE_AI_READY` (exactly `1`) and the kill switch
+`FAMILY_AI_PROVIDER_DISABLED`. Plan and guardrails: `docs/plans/ai-claude-v1.md`.
+
+`src/lib/ai-evaluation/smart-add-contracts.ts` adds a separate, versioned
+suite (`herewoven.smart-add-contract-evaluation.2026-11-19.v1`) of 20 fixed,
+fabricated smart Add cases across multi-item notes, relative dates across DST
+(fall back, spring-forward gap, southern hemisphere), ambiguous and invented
+people, placeholder titles mapped back, list-name aliasing, injection text
+("ignore previous instructions"), injected actions/kinds refused by the
+schema, and bounds (far dates, quantities, row cap, control characters).
+Each case states what may and may not leave our server and the drafts our
+server must produce from a fabricated provider answer. It runs with
+`npm run test:ai:contracts` (no provider, database or flag); with
+`WRITE_AI_CONTRACT_REPORT=1` it also writes
+`test-results/smart-add-contract-report.json`. It measures our privacy,
+schema, date and mapping contract only: real-model accuracy, latency and cost
+stay unmeasured and `aiReleaseAccepted` stays false. The same notes and
+expected facts are the reviewed-provider dataset for later QA against the
+real model. The original 15-case canonical suite below is unchanged.
+
 ## Offline canonical contract evaluation
 
 `src/lib/ai-evaluation/contracts.ts` defines fabricated inputs and independent

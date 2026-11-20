@@ -13,7 +13,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import Explore from "@/app/dashboard/meals/explore/page";
+import Explore from "@/app/dashboard/meals/explore/ExploreClient";
+import ExplorePage from "@/app/dashboard/meals/explore/page";
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(window.location.search),
@@ -257,4 +258,34 @@ it('masks the original library instead of opening a preview from another session
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.queryByRole('link', { name: 'Fixture pasta' })).toBeNull();
   expect(saves).toHaveLength(0);
+});
+// UI review: "Saved recipe work" opened on "not enabled here" while that
+// feature was off. The link now shows only when the server flag is on.
+it("shows the saved recipe work link only while saved work is switched on", async () => {
+  setup();
+  const view = render(<Explore />);
+  await screen.findByLabelText("Recipe link");
+  expect(
+    screen.queryByRole("link", { name: "Continue saved recipe work" }),
+  ).toBeNull();
+  view.unmount();
+  setup();
+  render(<Explore savedWorkEnabled />);
+  await screen.findByLabelText("Recipe link");
+  expect(
+    screen.getByRole("link", { name: "Continue saved recipe work" }),
+  ).toHaveAttribute("href", "/dashboard/meals/review");
+});
+it("the Explore route passes the server's saved-work flag to the page", () => {
+  const previous = process.env.FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY;
+  try {
+    delete process.env.FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY;
+    expect(ExplorePage().props.savedWorkEnabled).toBe(false);
+    process.env.FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY = "1";
+    expect(ExplorePage().props.savedWorkEnabled).toBe(true);
+  } finally {
+    if (previous === undefined)
+      delete process.env.FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY;
+    else process.env.FAMILY_REVIEW_DOCUMENTS_ROLLBACK_READY = previous;
+  }
 });

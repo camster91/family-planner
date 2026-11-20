@@ -42,34 +42,63 @@ test.describe("open grocery list convergence", () => {
       ).toBe(200);
     }
   });
-  test("child and parent editors receive each other's writes while retaining a stale draft", async ({
+  test("two editors receive each other's writes while retaining a stale draft; a child only ticks", async ({
     page,
     browser,
   }, info) => {
+    // Since the lists UI review a child cannot edit items, so the second
+    // editor is the parent's second device; the child still sees the result.
     const context = await browser.newContext({
+      storageState: authFile("parentA"),
+      viewport: info.project.use.viewport,
+    });
+    const childContext = await browser.newContext({
       storageState: authFile("childA"),
       viewport: info.project.use.viewport,
     });
-    const child = await context.newPage();
+    const other = await context.newPage();
+    const child = await childContext.newPage();
     try {
+      await other.clock.install({ time: E2E_ANCHOR });
+      await other.goto(`/dashboard/lists/${listId}`);
       await child.clock.install({ time: E2E_ANCHOR });
       await child.goto(`/dashboard/lists/${listId}`);
+      await expect(
+        child.getByRole("checkbox", { name: /Milk/ }).first(),
+      ).toBeVisible();
+      await expect(
+        child.getByRole("button", { name: "More for Milk", exact: true }),
+      ).toHaveCount(0);
+      expect(
+        (
+          await browserSend(child, "PATCH", "/api/lists/items/section", {
+            itemId,
+            section: "household",
+          })
+        ).status,
+      ).toBe(403);
+      await page
+        .getByRole("button", { name: "More for Milk", exact: true })
+        .click();
       await page
         .getByRole("button", { name: "Edit Milk", exact: true })
         .click();
       await page.getByLabel("Item name", { exact: true }).fill("Parent draft");
-      await child
+      await other
+        .getByRole("button", { name: "More for Milk", exact: true })
+        .click();
+      await other
         .getByRole("button", { name: "Edit Milk", exact: true })
         .click();
-      await child.getByLabel("Item name", { exact: true }).fill("Child bread");
-      await child.getByLabel("Quantity", { exact: true }).fill("2");
-      await child
+      await other.getByLabel("Item name", { exact: true }).fill("Other bread");
+      await other.getByLabel("Quantity", { exact: true }).fill("2");
+      await other
         .getByRole("button", { name: "Save changes", exact: true })
         .click();
-      await expect(child.getByRole("dialog")).toBeHidden();
+      await expect(other.getByRole("dialog")).toBeHidden();
       await page.clock.fastForward(BOARD_POLL_MS + 1000);
       await expect(
-        page.getByText("Current list: Child bread · quantity 2", {
+        page.getByText("Current list: Other bread · quantity 2", {
           exact: true,
         }),
       ).toBeVisible();
@@ -105,6 +134,7 @@ test.describe("open grocery list convergence", () => {
       );
     } finally {
       await context.close();
+      await childContext.close();
     }
   });
   test("remote deletion removes canonical data but keeps a queued tick recoverable", async ({

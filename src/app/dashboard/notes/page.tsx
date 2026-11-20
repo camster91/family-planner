@@ -14,7 +14,6 @@ import { usePendingFormNavigationController } from '@/components/layout/pending-
 import { Skeleton } from '@/components/ui/Skeleton'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/i18n'
-import { useDisplayLocale } from '@/components/ui/use-display-locale'
 
 type NoteJournal = ReturnType<typeof import('@/lib/note-create-recovery-browser').browserNoteRecovery>
 type NoteEntry = import('@/lib/note-create-recovery-contract').NoteRecoveryEntry
@@ -99,7 +98,6 @@ function NotesFeatureOffState() {
 function NotesPageInner() {
   const { canManage } = useFeatures()
   const { t } = useTranslation()
-  const locale = useDisplayLocale()
   const headingRef = React.useRef<HTMLHeadingElement>(null)
   const colorOptions: Array<{ key: 'yellow' | 'pink' | 'blue' | 'green' | 'purple'; label: string }> = [
     { key: 'yellow', label: t('notes.colorYellow') },
@@ -514,7 +512,6 @@ function NotesPageInner() {
         <div>
           <h1 ref={headingRef} tabIndex={-1} className="text-large-title font-display rounded-[var(--radius-sm)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">{t('notes.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('notes.subtitle')}</p>
-          {!loading && !error && <p className="mt-2 text-footnote text-label-secondary">{t(notes.length === 1 ? 'notes.pageCountOne' : 'notes.pageCountMany', { count: notes.length.toLocaleString(locale) })}</p>}
         </div>
         {error !== 'household' && <button
           type="button"

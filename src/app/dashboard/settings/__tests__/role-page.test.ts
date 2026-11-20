@@ -77,6 +77,8 @@ describe("Settings server page", () => {
       betaMetrics: null,
       calendarSync: false,
       aiCaptureSettings: false,
+      // Smart helpers (AI) are parent-only and off unless the deployment is ready.
+      smartHelpers: false,
     });
     expect(mockPinFind).not.toHaveBeenCalled();
     expect(mockFamilyFind).not.toHaveBeenCalled();
@@ -93,6 +95,7 @@ describe("Settings server page", () => {
       aiCaptureSettings: false,
       aiUsage: undefined,
       calendarFeedReviewScope: "fam-1",
+      smartHelpers: false,
     });
   });
 

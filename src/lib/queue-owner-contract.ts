@@ -1,17 +1,22 @@
 import { z } from "zod/mini";
+import { QUEUE_OWNER_CONTRACT } from "@/lib/queue-owner-shape";
 
-export const QUEUE_OWNER_CONTRACT = "herewoven.queue-owner.v1";
-export const QUEUE_OWNER_HEADER = "X-Queue-Owner";
-export const QUEUE_RETIREMENT_HEADER = "X-Queue-Retirement";
-export const QUEUE_REVIEW_REQUIRED = "QUEUE_REVIEW_REQUIRED";
-export const ORIGINAL_DEVICE_REQUIRED = "ORIGINAL_DEVICE_REQUIRED";
-export type QueueOwner = {
-  kind: "person" | "device";
-  ownerId: string;
-  scope: string;
-  generation: number;
-  householdScope: string;
-};
+// Constants, types and the owner comparison live in the Zod-free shape module
+// so browser queue startup does not load Zod; these schemas stay canonical.
+export {
+  QUEUE_OWNER_CONTRACT,
+  QUEUE_OWNER_HEADER,
+  QUEUE_RETIREMENT_HEADER,
+  QUEUE_REVIEW_REQUIRED,
+  ORIGINAL_DEVICE_REQUIRED,
+  RETIRED_QUEUE_ENVELOPE,
+  sameQueueOwner,
+} from "@/lib/queue-owner-shape";
+export type {
+  QueueOwner,
+  QueueOwnerResponse,
+  QueueRetirement,
+} from "@/lib/queue-owner-shape";
 
 const queueOwnerMiniSchema = z.strictObject({
   kind: z.enum(["person", "device"]),
@@ -34,17 +39,6 @@ export const queueOwnerResponse = z.discriminatedUnion("enabled", [
     owner: queueOwnerSchema,
   }),
 ]);
-export type QueueOwnerResponse =
-  | {
-      contract: typeof QUEUE_OWNER_CONTRACT;
-      enabled: false;
-      owner?: QueueOwner;
-    }
-  | {
-      contract: typeof QUEUE_OWNER_CONTRACT;
-      enabled: true;
-      owner: QueueOwner;
-    };
 export const queueRetirementSchema = z.discriminatedUnion("mode", [
   z.strictObject({
     mode: z.literal("household"),
@@ -61,11 +55,6 @@ export const queueRetirementSchema = z.discriminatedUnion("mode", [
     ownerId: z.string().check(z.minLength(1), z.maxLength(128)),
   }),
 ]);
-export type QueueRetirement =
-  | { mode: "household"; householdScope: string }
-  | { mode: "scope"; owner: QueueOwner }
-  | { mode: "generation"; ownerId: string; throughGeneration: number }
-  | { mode: "device"; ownerId: string };
 export const ownedQueueEnvelope = z.discriminatedUnion("state", [
   z.strictObject({
     v: z.literal(2),
@@ -86,18 +75,3 @@ export const ownedQueueEnvelope = z.discriminatedUnion("state", [
     state: z.literal("retired"),
   }),
 ]);
-export const RETIRED_QUEUE_ENVELOPE = JSON.stringify({
-  v: 2,
-  envelope: "herewoven.queue-store.v2",
-  state: "retired",
-});
-
-export function sameQueueOwner(a: QueueOwner, b: QueueOwner) {
-  return (
-    a.kind === b.kind &&
-    a.ownerId === b.ownerId &&
-    a.scope === b.scope &&
-    a.generation === b.generation &&
-    a.householdScope === b.householdScope
-  );
-}

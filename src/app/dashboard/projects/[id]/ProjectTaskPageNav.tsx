@@ -20,9 +20,12 @@ export function ProjectTaskPageNav({ projectId, loaded, total, nextCursor, paged
   }
   return (
     <nav aria-label={text("taskPages")} className="mb-3 space-y-2" aria-busy={busy}>
-      <p className="text-footnote text-label-secondary" role={invalid ? "alert" : undefined}>
-        {invalid ? text("invalidTaskPage") : !loaded && total ? text("emptyTaskPage") : text("taskPageHint", { loaded, total })}
-      </p>
+      {/* Only real problems get a line; no "Showing N tasks on this page". */}
+      {(invalid || (!loaded && total > 0)) && (
+        <p className="text-footnote text-label-secondary" role={invalid ? "alert" : undefined}>
+          {invalid ? text("invalidTaskPage") : text("emptyTaskPage")}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {(paged || invalid) && <Link href={first} onClick={(event) => navigate(event, first)}
           aria-disabled={busy} className="btn-secondary min-h-[44px]">{text("firstTasks")}</Link>}

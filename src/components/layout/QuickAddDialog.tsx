@@ -16,6 +16,13 @@ import { Dialog } from "@/components/ui/dialog";
 import { canCreateList } from "@/lib/role-capabilities";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { useTodayBoardText } from "@/i18n/today-board";
+// Smart Add (#144) loads only when a parent or teen opens Quick add, so the
+// shell every page starts with does not carry it.
+const SmartAddBox = React.lazy(() =>
+  import("@/components/assistant/SmartAddBox").then((m) => ({
+    default: m.SmartAddBox,
+  })),
+);
 
 type QuickAddLinks = {
   calendar?: string | null;
@@ -94,6 +101,13 @@ export function QuickAddDialog({
         className="grid gap-2 sm:grid-cols-2"
         data-testid="quick-add-actions"
       >
+        {/* Smart Add (#144): renders nothing unless the server says this
+            person may use it; the buttons below always stay. */}
+        {open && (role === "parent" || role === "teen") && (
+          <React.Suspense fallback={null}>
+            <SmartAddBox role={role} open={open} />
+          </React.Suspense>
+        )}
         {onAsk && (role === "parent" || role === "teen") && (
           <button
             type="button"

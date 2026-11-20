@@ -50,6 +50,9 @@ test.describe("grocery field edit conflicts", () => {
     expect(added.status).toBe(200);
     itemId = JSON.parse(added.body).item.id;
     await page.goto(`/dashboard/lists/${listId}`);
+    await page
+      .getByRole("button", { name: "More for Milk", exact: true })
+      .click();
     await page.getByRole("button", { name: "Edit Milk", exact: true }).click();
     await expect(
       page.getByRole("dialog", { name: "Edit grocery item" }),
@@ -223,6 +226,9 @@ test.describe("grocery field edit conflicts", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(`/dashboard/lists/${listId}`);
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    await page
+      .getByRole("button", { name: "More for Milk", exact: true })
+      .click();
     await page.getByRole("button", { name: "Edit Milk", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Edit grocery item" });
     await page
@@ -269,8 +275,9 @@ test.describe("grocery field edit conflicts", () => {
     await capture(page, "dark-long-draft", info.project.name);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
+    // Edit lives in the row's "More" menu, which closes; focus returns to it.
     await expect(
-      page.getByRole("button", { name: "Edit Milk", exact: true }),
+      page.getByRole("button", { name: "More for Milk", exact: true }),
     ).toBeFocused();
   });
 });

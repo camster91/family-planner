@@ -15,8 +15,15 @@ import { apiError, logRouteError } from "@/lib/api-error";
 import { getRequestId } from "@/lib/request-id";
 import { personQueueOwner, queueOwnerMatches } from "@/lib/queue-owner-server";
 import { QUEUE_OWNER_HEADER } from "@/lib/queue-owner-contract";
+import {
+  canEditListItem,
+  LIST_ITEM_CHILD_MESSAGE,
+} from "@/lib/role-capabilities";
 
 export const dynamic = "force-dynamic";
+
+/** Fields a child may send: a tick or untick, nothing that changes the item. */
+const TICK_FIELDS = new Set(["itemId", "checked", "expectedUpdatedAt"]);
 
 /** Idempotency action name (#162); part of the stored request hash. */
 const LIST_ITEM_UPDATE_ACTION = "list-item.update";
@@ -75,6 +82,18 @@ export async function PATCH(request: NextRequest) {
         { status: 400 },
       );
     }
+    // A child may tick but not change an item (name, quantity, amount...).
+    // Checked before either backend so D1 and Postgres refuse alike.
+    if (
+      !canEditListItem(auth.user.role) &&
+      Object.entries(parsed.data).some(
+        ([field, value]) => value !== undefined && !TICK_FIELDS.has(field),
+      )
+    )
+      return NextResponse.json(
+        { error: LIST_ITEM_CHILD_MESSAGE, code: "LIST_ITEM_EDIT_FORBIDDEN" },
+        { status: 403 },
+      );
 
     const actor = {
       familyId: auth.user.family_id,

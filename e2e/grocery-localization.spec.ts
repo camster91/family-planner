@@ -93,9 +93,16 @@ for (const locale of ["en", "es"] as const) {
     test("uncertain edit keeps original text and quantity", async ({
       page,
     }, info) => {
-      await page
-        .getByRole("main")
+      // Row actions sit behind the row's "More" button (ListItemMenu).
+      const main = page.getByRole("main");
+      await main
         .locator(`[data-item-id="${itemId}"]`)
+        .getByRole("button", {
+          name: `${locale === "es" ? "Más opciones para" : "More for"} Leche 🥛`,
+          exact: true,
+        })
+        .click();
+      await main
         .getByRole("button", {
           name: `${locale === "es" ? "Editar" : "Edit"} Leche 🥛`,
           exact: true,

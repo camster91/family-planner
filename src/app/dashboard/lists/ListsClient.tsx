@@ -214,12 +214,9 @@ export default function ListsClient({
           !loadFailed &&
           (shown.length > 0 || activeType === "meal_plan") ? (
             // Same filled primary "+" as Chores and Calendar.
-            <Link
-              href={createHref}
-              className="btn-filled shrink-0"
-              aria-label={text("add")}
-            >
+            <Link href={createHref} className="btn-filled min-h-11 shrink-0">
               <Plus className="w-4 h-4" aria-hidden="true" />
+              <span>{text("newList")}</span>
             </Link>
           ) : undefined
         }

@@ -186,6 +186,12 @@ it("keeps offline state after a second disconnect during translated recovery", (
   );
 });
 
+// The top bar also reads the bell and review-inbox counts; only count the
+// sign-out requests here.
+const logoutCalls = () =>
+  (global.fetch as jest.Mock).mock.calls.filter(
+    ([url]) => url === "/api/auth/logout",
+  );
 it("keeps an in-flight sign-out single across a mounted locale switch", async () => {
   let finish!: () => void;
   mockClearQueues.mockImplementationOnce(
@@ -200,13 +206,13 @@ it("keeps an in-flight sign-out single across a mounted locale switch", async ()
   fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
   act(() => changeLocale("es"));
   await waitFor(() => expect(mockClearQueues).toHaveBeenCalledTimes(1));
-  expect(global.fetch).not.toHaveBeenCalled();
+  expect(logoutCalls()).toHaveLength(0);
   expect(mockReplace).not.toHaveBeenCalled();
   await act(async () => {
     finish();
     await Promise.resolve();
   });
-  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(logoutCalls()).toHaveLength(1);
   expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", {
     method: "POST",
   });
@@ -223,7 +229,7 @@ it("still logs out on the server when queue loading or clearing fails", async ()
   expect(global.fetch).toHaveBeenCalledWith("/api/auth/logout", {
     method: "POST",
   });
-  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(logoutCalls()).toHaveLength(1);
 });
 it("keeps a teen restricted to its canonical feature-gated tabs in Spanish", () => {
   mockFeatures = { ...defaultFeatures(), meals: false };

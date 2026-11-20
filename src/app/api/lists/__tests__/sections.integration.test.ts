@@ -35,6 +35,7 @@ describeWithDatabase('grocery store sections against Postgres', () => {
   const FAM2 = 'secint-family-2'
   const PARENT = 'secint-parent'
   const CHILD = 'secint-child'
+  const TEEN = 'secint-teen'
   const OTHER = 'secint-other'
   const LIST = 'secint-list'
   const LIST2 = 'secint-list-2'
@@ -53,7 +54,7 @@ describeWithDatabase('grocery store sections against Postgres', () => {
 
   async function cleanup() {
     await prisma.family.deleteMany({ where: { id: { in: [FAM, FAM2] } } })
-    await prisma.user.deleteMany({ where: { id: { in: [PARENT, CHILD, OTHER] } } })
+    await prisma.user.deleteMany({ where: { id: { in: [PARENT, CHILD, TEEN, OTHER] } } })
   }
 
   async function row(id: string, listId: string, content: string, extra: Record<string, unknown> = {}) {
@@ -81,6 +82,7 @@ describeWithDatabase('grocery store sections against Postgres', () => {
       data: [
         { id: PARENT, email: 'p@secint.test', name: 'P', role: 'parent', family_id: FAM },
         { id: CHILD, email: 'c@secint.test', name: 'C', role: 'child', family_id: FAM },
+        { id: TEEN, email: 't@secint.test', name: 'T', role: 'teen', family_id: FAM },
         { id: OTHER, email: 'o@secint.test', name: 'O', role: 'parent', family_id: FAM2 },
       ],
     })
@@ -115,7 +117,7 @@ describeWithDatabase('grocery store sections against Postgres', () => {
     await row('secint-milk-b', LIST2, 'Milk')
     const targets = ['household', 'frozen', 'pantry', 'bakery', 'household', 'frozen', 'pantry', 'bakery']
     const results = await Promise.all(
-      targets.map((s, i) => section.PATCH(request(i % 2 ? CHILD : PARENT, { itemId: i % 2 ? 'secint-milk-2' : 'secint-milk', section: s })))
+      targets.map((s, i) => section.PATCH(request(i % 2 ? TEEN : PARENT, { itemId: i % 2 ? 'secint-milk-2' : 'secint-milk', section: s })))
     )
     expect(results.map((r) => r.status)).toEqual(targets.map(() => 200))
     const prefs = await prisma.grocerySectionPreference.findMany({ where: { family_id: FAM } })
@@ -151,7 +153,9 @@ describeWithDatabase('grocery store sections against Postgres', () => {
     const tomato = await prisma.ingredient.create({ data: { family_id: FAM, name: 'Tomatoes' } })
     await row('secint-tom', LIST, 'Tomatoes', { ingredient_id: tomato.id })
     await row('secint-roma', LIST, 'Roma', { ingredient_id: tomato.id })
-    const res = await section.PATCH(request(CHILD, { itemId: 'secint-tom', section: 'pantry' }))
+    // Children can only tick and add (owner decision 2026-11-19); a teen moves it.
+    expect((await section.PATCH(request(CHILD, { itemId: 'secint-tom', section: 'pantry' }))).status).toBe(403)
+    const res = await section.PATCH(request(TEEN, { itemId: 'secint-tom', section: 'pantry' }))
     expect(await res.json()).toMatchObject({ sections: { 'secint-tom': 'pantry', 'secint-roma': 'pantry' } })
     expect((await prisma.ingredient.findUniqueOrThrow({ where: { id: tomato.id } })).section).toBe('pantry')
     await prisma.grocerySectionPreference.deleteMany({ where: { family_id: FAM } })
@@ -176,9 +180,9 @@ describeWithDatabase('grocery store sections against Postgres', () => {
 
   it('cascades: deleting a member keeps the household choice; deleting the list or household removes its data', async () => {
     await row('secint-soap', LIST, 'Hand soap')
-    await section.PATCH(request(CHILD, { itemId: 'secint-soap', section: 'household' }))
-    await prisma.listItem.deleteMany({ where: { added_by: CHILD } })
-    await prisma.user.delete({ where: { id: CHILD } })
+    await section.PATCH(request(TEEN, { itemId: 'secint-soap', section: 'household' }))
+    await prisma.listItem.deleteMany({ where: { added_by: TEEN } })
+    await prisma.user.delete({ where: { id: TEEN } })
     const pref = await prisma.grocerySectionPreference.findFirstOrThrow({ where: { family_id: FAM, name_key: 'hand soap' } })
     expect(pref.updated_by).toBeNull()
 

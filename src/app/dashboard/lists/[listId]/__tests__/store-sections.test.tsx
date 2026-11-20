@@ -133,6 +133,16 @@ function renderList(
   );
 }
 
+// Edit / Move / Delete sit in each row's "More for <item>" menu.
+function moveButton(item: string, index = 0) {
+  fireEvent.click(
+    screen.getAllByRole("button", { name: `More for ${item}` })[index],
+  );
+  return screen.getByRole("button", {
+    name: `Move ${item} to another section`,
+  });
+}
+
 const sectionNames = () =>
   screen
     .getAllByTestId("store-section")
@@ -196,12 +206,11 @@ describe("grocery list grouped by store section (#273)", () => {
     expect(bread.getAttribute("aria-checked")).toBe("true");
     expect(bread.textContent).toContain("✓ Sam");
     // Ticked rows have no "Move" action; open rows do.
+    fireEvent.click(screen.getByRole("button", { name: "More for Bread" }));
     expect(
       screen.queryByRole("button", { name: "Move Bread to another section" }),
     ).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Move Milk to another section" }),
-    ).toBeTruthy();
+    expect(moveButton("Milk")).toBeTruthy();
   });
 
   it("follows a learned walking order and says so", () => {
@@ -266,11 +275,7 @@ describe("grocery list grouped by store section (#273)", () => {
     }));
     global.fetch = fetchMock as unknown as typeof fetch;
     renderList();
-    fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Move Tomatoes to another section",
-      })[0],
-    );
+    fireEvent.click(moveButton("Tomatoes"));
     const dialog = screen.getByRole("dialog", { name: "Move “Tomatoes”" });
     const options = within(dialog)
       .getAllByRole("button", { pressed: false })
@@ -313,11 +318,7 @@ describe("grocery list grouped by store section (#273)", () => {
     ).toBeTruthy();
 
     // The household choice can be undone from the same sheet.
-    fireEvent.click(
-      screen.getAllByRole("button", {
-        name: "Move Tomatoes to another section",
-      })[0],
-    );
+    fireEvent.click(moveButton("Tomatoes"));
     expect(
       screen.getByRole("button", { name: "Use the automatic section" }),
     ).toBeTruthy();
@@ -330,9 +331,7 @@ describe("grocery list grouped by store section (#273)", () => {
       json: async () => ({}),
     })) as unknown as typeof fetch;
     renderList();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Move Milk to another section" }),
-    );
+    fireEvent.click(moveButton("Milk"));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Household" }));
     });
@@ -425,13 +424,31 @@ describe("grocery list grouped by store section (#273)", () => {
     );
   });
 
-  it("a child sees the current setting as text, without a switch, and can still move items", () => {
-    renderList({ sectionSort: sort({ canChange: false }) });
+  it("a teen sees the current setting as text, without a switch, and can still move items", () => {
+    renderList({
+      sectionSort: sort({ canChange: false }),
+      canDeleteItems: false,
+    });
     expect(screen.queryByRole("switch")).toBeNull();
     expect(screen.getByText("Sort by store section: On")).toBeTruthy();
+    expect(moveButton("Milk")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Delete Milk" })).toBeNull();
+  });
+
+  it("a child sees the setting as text and rows that only tick: no More, Edit, Move or Delete", () => {
+    renderList({
+      sectionSort: sort({ canChange: false }),
+      canDeleteItems: false,
+      canEditItems: false,
+    });
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getByText("Sort by store section: On")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^More for / })).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Move Milk to another section" }),
-    ).toBeTruthy();
+      screen.queryByRole("button", { name: /^(Edit|Move|Delete) / }),
+    ).toBeNull();
+    expect(screen.queryByTestId("move-section")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: /Milk/ })).toBeTruthy();
   });
 
   it("keeps an open current/chosen move target and exact automatic payload on locale change", async () => {
@@ -453,11 +470,7 @@ describe("grocery list grouped by store section (#273)", () => {
       sectionSort: sort({ overrides: { "milk {section} 🥛": "dairy_eggs" } }),
     });
     const beforeOrder = order();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: `Move ${content} to another section`,
-      }),
-    );
+    fireEvent.click(moveButton(content));
     const dialog = screen.getByRole("dialog", { name: `Move “${content}”` });
     expect(
       within(dialog).getByRole("button", {

@@ -1541,6 +1541,16 @@ describe('minimal personal grocery creates', () => {
     for (const payload of [{ ...add, listId: '../x' }, { ...add, content: ' ' }, { ...add, content: 'x'.repeat(501) }])
       await expect(t.queue.enqueue('list-item.grocery-add', payload)).rejects.toMatchObject({ code: 'INVALID_PAYLOAD' })
   })
+  it('keeps an optional quantity above 1 from a several-items add and drops a quantity of 1', async () => {
+    const t = setup({ online: false })
+    await t.queue.enqueue('list-item.grocery-add', { ...add, content: 'Bread', quantity: 2 })
+    await t.queue.enqueue('list-item.grocery-add', { ...add, quantity: 1 })
+    expect(t.queue.list().map(op => op.payload)).toEqual([{ ...add, content: 'Bread', quantity: 2 }, add])
+    for (const quantity of [0, 2.5, 10000, '2'])
+      await expect(t.queue.enqueue('list-item.grocery-add', { ...add, quantity })).rejects.toMatchObject({ code: 'INVALID_PAYLOAD' })
+    t.setOnline(true); await t.queue.drain()
+    expect(t.sent.map(x => x.body)).toEqual([{ ...add, content: 'Bread', quantity: 2 }, add])
+  })
   it('preserves separate same-text intents and uncertain same-key/body replay after restart', async () => {
     const t = setup({ replies: ['network'], online: false })
     const first = await t.queue.enqueue('list-item.grocery-add', add)

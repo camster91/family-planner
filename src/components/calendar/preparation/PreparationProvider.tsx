@@ -4,13 +4,13 @@ import { PREPARATION_CHANGED_EVENT } from "@/lib/event-preparation/changes";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  preparationLocationSchema,
+  parsePreparationLocation,
   type PreparationLocation,
-} from "@/lib/preparation-location-contract";
+} from "@/lib/preparation-location-shape";
 import { usePreparationShellText } from "@/i18n/event-preparation-shell";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 const Sheet = React.lazy(() => import("./PreparationSheet"));
-export type { PreparationLocation } from "@/lib/preparation-location-contract";
+export type { PreparationLocation } from "@/lib/preparation-location-shape";
 const Context = React.createContext<{
   active: boolean;
   allowed: boolean;
@@ -33,7 +33,7 @@ export default function PreparationProvider({
     role === "parent" &&
     params.get("mode") !== "fridge" &&
     !path.startsWith("/device");
-  const parsed = preparationLocationSchema.safeParse({
+  const parsed = parsePreparationLocation({
     eventId: params.get("prepareEvent"),
     timeZone: params.get("prepareZone"),
   });
@@ -79,7 +79,7 @@ export default function PreparationProvider({
     });
   }
   function open(input: PreparationLocation) {
-    const checked = preparationLocationSchema.safeParse(input);
+    const checked = parsePreparationLocation(input);
     if (
       !personal ||
       !checked.success ||
@@ -177,10 +177,7 @@ export function PreparationButton({
 }) {
   const context = React.useContext(Context),
     copy = usePreparationShellText();
-  if (
-    !context?.allowed ||
-    !preparationLocationSchema.safeParse(location).success
-  )
+  if (!context?.allowed || !parsePreparationLocation(location).success)
     return null;
   return (
     <button

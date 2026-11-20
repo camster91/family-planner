@@ -68,13 +68,13 @@ beforeEach(() => {
   getQueue.mockReturnValue(queue);
 });
 async function open() {
-  fireEvent.click(screen.getByRole("button", { name: "Review waiting ticks" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Review waiting ticks" }));
   await screen.findByText("Change 1: Tick an item");
 }
-it("loads only the signed-in queue when deliberately opened, hides IDs and device operations", async () => {
+it("loads only the signed-in queue, hides IDs and device operations", async () => {
   render(<PendingTickRecovery userId="viewer" />);
-  expect(getQueue).not.toHaveBeenCalled();
   await open();
+  expect(getQueue).toHaveBeenCalledTimes(1);
   expect(getQueue).toHaveBeenCalledWith("viewer");
   expect(screen.getAllByTestId("pending-tick-recovery-row")).toHaveLength(2);
   expect(screen.getByRole("dialog").textContent).not.toMatch(
@@ -148,15 +148,46 @@ it("clears stale confirmation on terminal auth loss", async () => {
   expect(screen.getByText("No saved ticks are waiting.")).toBeTruthy();
   expect(screen.getByText(/Your session ended/)).toBeTruthy();
 });
-it("labels the actual empty queue and allows closing while storage is loading", async () => {
+it("labels a queue that empties while open and allows closing; the card is gone on the next visit", async () => {
+  ops = [op("key-one", true, "pending")];
+  const { unmount } = render(<PendingTickRecovery userId="viewer" />);
+  await open();
   ops = [];
-  render(<PendingTickRecovery userId="viewer" />);
-  fireEvent.click(screen.getByRole("button", { name: "Review waiting ticks" }));
+  act(() => listener({ type: "change" }));
   await screen.findByText("No saved ticks are waiting.");
   fireEvent.click(
     within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }),
   );
   expect(screen.queryByRole("dialog")).toBeNull();
+  // Kept for this visit so focus can return to its button.
+  expect(
+    screen.getByRole("button", { name: "Review waiting ticks" }),
+  ).toBeInTheDocument();
+  unmount();
+  render(<PendingTickRecovery userId="viewer" />);
+  await act(async () => {
+    await queue.ready;
+  });
+  expect(
+    screen.queryByRole("button", { name: "Review waiting ticks" }),
+  ).toBeNull();
+});
+
+it("shows no card when nothing is waiting (a new family), only once a tick is queued", async () => {
+  ops = [{ ...op("device-key", true), action: "device.list-item.set-checked" }];
+  const { container } = render(
+    <PendingTickRecovery userId="viewer" className="mx-4" />,
+  );
+  await act(async () => {
+    await queue.ready;
+  });
+  expect(screen.queryByText("Waiting list changes")).toBeNull();
+  expect(container.querySelector("section")).toBeNull();
+  ops = [...ops, op("key-one", true, "pending")];
+  act(() => listener({ type: "change" }));
+  const heading = await screen.findByText("Waiting list changes");
+  // On the host page's gutter, not edge to edge.
+  expect(heading.closest("section")).toHaveClass("card-apple", "mx-4");
 });
 
 it("translates a live retry notice and open discard confirmation without subscribing again or changing the selected tick", async () => {
@@ -201,7 +232,7 @@ it("shows retained-work recovery instead of claiming there are no pending change
   ops = [];
   queue.requiresCompatibleClient = () => true;
   render(<PendingTickRecovery userId="viewer" />);
-  fireEvent.click(screen.getByRole("button", { name: "Review waiting ticks" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Review waiting ticks" }));
   await screen.findByText(/Pending changes need a compatible app version/);
   expect(
     screen.queryByText("No saved ticks are waiting."),
@@ -221,7 +252,7 @@ it("offers safe storage recovery rather than an empty-state claim for unread tic
     listener({ type: "change" });
   });
   render(<PendingTickRecovery userId="viewer" />);
-  fireEvent.click(screen.getByRole("button", { name: "Review waiting ticks" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Review waiting ticks" }));
   const retry = await screen.findByRole("button", { name: "Try loading saved changes" });
   expect(screen.queryByText("No saved ticks are waiting.")).not.toBeInTheDocument();
   expect(queue.retry).not.toHaveBeenCalled();

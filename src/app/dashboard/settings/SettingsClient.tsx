@@ -71,6 +71,7 @@ const LazyCalendarSubscriptionsSection = lazy(
 const LazyCalendarFeedReview = lazy(() => import("./CalendarFeedReview"));
 const LazyCalendarSyncSection = lazy(() => import("./CalendarSyncSection"));
 const LazySharedDeviceSettings = lazy(() => import("./SharedDeviceSettings"));
+const LazySmartHelpersSettings = lazy(() => import("./SmartHelpersSettings"));
 const LazyAiUsagePanel = lazy(() =>
   import("@/components/assistant/AiUsagePanel").then(({ AiUsagePanel }) => ({
     default: AiUsagePanel,
@@ -196,6 +197,9 @@ function CardHeader({
  * unless CAPTURE_AI_SETTINGS_ENABLED is on or the household already saved a
  * key. While it is off the form is not rendered and its API is not called.
  *
+ * `smartHelpers` (server-decided) mounts the Smart helpers (AI) switch only
+ * when this deployment can call Claude; otherwise nothing renders or fetches.
+ *
  * `sharedDevice` is null unless the shared-device kill switch is on AND the
  * viewer is a parent. `betaMetrics` (#287) is the household's beta usage
  * counts switch, read on the server for a parent only (null otherwise, and the
@@ -208,6 +212,7 @@ export default function SettingsClient({
   calendarSync = false,
   aiCaptureSettings = false,
   aiUsage,
+  smartHelpers = false,
   calendarFeedReviewScope,
 }: {
   viewerRole: SettingsViewerRole;
@@ -216,6 +221,7 @@ export default function SettingsClient({
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
   aiUsage?: { userId: string; familyId: string };
+  smartHelpers?: boolean;
   calendarFeedReviewScope?: string;
 }) {
   const copy = useSettingsCopy();
@@ -393,28 +399,7 @@ export default function SettingsClient({
     loadUserData();
   }, []);
 
-  // Which server build is running (GET /api/version: { version, commit, builtAt }).
-  // Purely informational, so any failure just leaves the line out.
-  const [build, setBuild] = useState<string | null>(null);
-  useEffect(() => {
-    fetch("/api/version")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (
-          !d ||
-          typeof d.version !== "string" ||
-          !d.version ||
-          d.version === "unknown"
-        )
-          return;
-        const commit =
-          typeof d.commit === "string" && d.commit !== "unknown"
-            ? d.commit.slice(0, 7)
-            : "";
-        setBuild(commit ? `${d.version} (${commit})` : d.version);
-      })
-      .catch(() => {});
-  }, []);
+  // The app version and build live in Help › diagnostics, not this footer.
 
   // Load the family's calendar feed token, if one exists. Parents only — the
   // API refuses everyone else too.
@@ -1145,6 +1130,14 @@ export default function SettingsClient({
             </Suspense>
           )}
 
+          {/* Smart helpers (AI, #144): parent-only household switch, off by
+              default; mounted only when the server says this deployment has them. */}
+          {isParent && smartHelpers && familyContentReady && (
+            <Suspense fallback={null}>
+              <LazySmartHelpersSettings />
+            </Suspense>
+          )}
+
           {/* AI capture: the household's provider key. Only when the deployment
               turns the form on, a key is already saved, or a parent follows the explicit AI setup link. */}
           {aiCaptureSettings && (
@@ -1341,11 +1334,10 @@ export default function SettingsClient({
       {/* App Info */}
       <div className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">
         <p className="font-semibold text-foreground">{PRODUCT_BRAND.wordmark}</p>
-        {build && <p>{copy("version", { build })}</p>}
         <p className="mt-1 text-label-tertiary">
           {copy("copyright", {
             year: new Date().getFullYear(),
-            brand: PRODUCT_BRAND.legacyName,
+            brand: PRODUCT_BRAND.name,
           })}
         </p>
       </div>

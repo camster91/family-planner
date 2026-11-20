@@ -117,8 +117,14 @@ test.describe("saved tick recovery after page restart", () => {
     await expect(
       page.getByRole("button", { name: "Review waiting ticks" }),
     ).toBeFocused();
+    // With nothing waiting, the next visit shows no recovery card at all.
     await page.reload();
-    await page.getByRole("button", { name: "Review waiting ticks" }).click();
-    await expect(page.getByText("No saved ticks are waiting.")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Lists", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Review waiting ticks" }),
+    ).toHaveCount(0);
+    await expect(page.getByText("Waiting list changes")).toHaveCount(0);
   });
 });
