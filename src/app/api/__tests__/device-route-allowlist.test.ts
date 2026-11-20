@@ -651,6 +651,12 @@ const COMMON_PERSON_AUTH_ROUTES = [
   "GET /api/coordination/weekly-reset/summary",
   "GET /api/family/ai-usage",
   "POST /api/family/ai-usage",
+  // Smart Add (#144): spends the household AI cap; tablet AI stays off unless
+  // the owner opts in later, so a paired tablet is refused like any person route.
+  "GET /api/ai/smart-add",
+  "POST /api/ai/smart-add",
+  "GET /api/family/smart-helpers",
+  "PUT /api/family/smart-helpers",
   "PATCH /api/family/name",
   "GET /api/family/display-defaults",
   "PATCH /api/family/display-defaults",

@@ -10,7 +10,7 @@ Do not create a second feature train or count archived umbrella issues as new wo
 | Order | Owner issue | Exit condition |
 | --- | --- | --- |
 | 1 | [#450](https://github.com/camster91/family-planner/issues/450) | Finish confirmed routine-save recovery cleanup and verify create/reopen/pause/resume/stop and independent-step behavior. |
-| 2 | [#144](https://github.com/camster91/family-planner/issues/144) | Implement Cameron's Gemini-off decision across applicable server/Settings paths; preserve imports, saved recipes and manual workflows. |
+| 2 | [#144](https://github.com/camster91/family-planner/issues/144) | Gemini stays off. Owner decision 2026-11-19: app-held AI uses Anthropic Claude (`claude-haiku-5-5`) with one server key (`FAMILY_AI_ANTHROPIC_API_KEY`), parent/teen only, household opt-in (off by default), $2/household/month cap, behind `FAMILY_CLAUDE_AI_READY` (exactly `1`; off) and `FAMILY_AI_PROVIDER_DISABLED`. Smart Add source + offline contract fixtures on branch `ai-foundation-smart-add`; real-model QA, secret and activation remain. Plan: [ai-claude-v1](plans/ai-claude-v1.md). Preserve imports, saved recipes and manual workflows. |
 | 3 | [#499](https://github.com/camster91/family-planner/issues/499) | Verify the connected web journey matrix, fix actual failures, preserve features, accessibility, roles and household isolation. |
 | 4 | [#137](https://github.com/camster91/family-planner/issues/137) | Current-candidate checks, recovery, migration compatibility, auth/mail, immutable artifact and release readiness. |
 | Ship | [#377](https://github.com/camster91/family-planner/issues/377) | Authorized protected merge/deploy, matching live version and successful household smoke checks. |
@@ -31,6 +31,9 @@ Do not create a second feature train or count archived umbrella issues as new wo
   That decision has not yet been implemented: the current config omits
   `FAMILY_GOOGLE_RECIPE_SEARCH_READY`, and unset can permit configured search.
   Do not claim provider inactivity from an absent key or a fixture test.
+- November 19: Cameron chose Anthropic Claude for app-held AI (see
+  `docs/plans/ai-claude-v1.md`). Source only; no secret, flag or deployment
+  change is made by that branch.
 - Child reward-update placement and profile/account credit/link/unlink semantics
   are unresolved. Do not invent permissions or transfer rules.
 - Calling remains removed. Physical device/store/provider/customer acceptance

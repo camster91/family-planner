@@ -71,6 +71,7 @@ const LazyCalendarSubscriptionsSection = lazy(
 const LazyCalendarFeedReview = lazy(() => import("./CalendarFeedReview"));
 const LazyCalendarSyncSection = lazy(() => import("./CalendarSyncSection"));
 const LazySharedDeviceSettings = lazy(() => import("./SharedDeviceSettings"));
+const LazySmartHelpersSettings = lazy(() => import("./SmartHelpersSettings"));
 const LazyAiUsagePanel = lazy(() =>
   import("@/components/assistant/AiUsagePanel").then(({ AiUsagePanel }) => ({
     default: AiUsagePanel,
@@ -196,6 +197,9 @@ function CardHeader({
  * unless CAPTURE_AI_SETTINGS_ENABLED is on or the household already saved a
  * key. While it is off the form is not rendered and its API is not called.
  *
+ * `smartHelpers` (server-decided) mounts the Smart helpers (AI) switch only
+ * when this deployment can call Claude; otherwise nothing renders or fetches.
+ *
  * `sharedDevice` is null unless the shared-device kill switch is on AND the
  * viewer is a parent. `betaMetrics` (#287) is the household's beta usage
  * counts switch, read on the server for a parent only (null otherwise, and the
@@ -208,6 +212,7 @@ export default function SettingsClient({
   calendarSync = false,
   aiCaptureSettings = false,
   aiUsage,
+  smartHelpers = false,
   calendarFeedReviewScope,
 }: {
   viewerRole: SettingsViewerRole;
@@ -216,6 +221,7 @@ export default function SettingsClient({
   calendarSync?: boolean;
   aiCaptureSettings?: boolean;
   aiUsage?: { userId: string; familyId: string };
+  smartHelpers?: boolean;
   calendarFeedReviewScope?: string;
 }) {
   const copy = useSettingsCopy();
@@ -1121,6 +1127,14 @@ export default function SettingsClient({
                 identity={aiUsage}
                 refreshKey={aiProviderRevision}
               />
+            </Suspense>
+          )}
+
+          {/* Smart helpers (AI, #144): parent-only household switch, off by
+              default; mounted only when the server says this deployment has them. */}
+          {isParent && smartHelpers && familyContentReady && (
+            <Suspense fallback={null}>
+              <LazySmartHelpersSettings />
             </Suspense>
           )}
 

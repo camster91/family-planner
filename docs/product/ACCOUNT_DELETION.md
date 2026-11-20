@@ -322,7 +322,8 @@ former-member source cases are authored; runtime acceptance is deferred.
 ## Additive profile-link and AI accounting metadata
 
 Whole-household deletion explicitly clears `HouseholdProfileLinkChallenge`,
-`AiUsageRequest` and `AiUsagePolicy` before profiles/accounts. Each fixed SQL
+`AiUsageRequest`, `AiUsagePolicy` and `HouseholdAiSetting` (the smart-helpers
+switch and monthly cap) before profiles/accounts. Each fixed SQL
 cleanup probes table presence and binds the already-authorized household ID;
 missing additive tables during rollback are skipped, while probe/delete failures
 abort the surrounding transaction. This works without newer Prisma delegates.
