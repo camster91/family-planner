@@ -2,7 +2,7 @@
 import { ResponsibilityButton } from '@/components/responsibility/ResponsibilityProvider'
 
 import * as React from 'react'
-import { Plus, Pencil, Trash2, Printer, Link2, Copy, Share2, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Printer, Link2, Copy, Share2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { FeatureGate } from '@/components/ui/feature-gate'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useTranslation } from '@/i18n'
@@ -13,6 +13,8 @@ import { useHandoffRecoveryText } from '@/i18n/handoff-recovery'
 import { isoToLocalDateTimeInput, localDateTimeToISO } from '@/lib/dates'
 import { canShareAppLink, shareAppLink } from '@/lib/native-app'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
+import { PhoneLink, TextWithPhoneLinks } from '@/components/ui/phone-link'
+import { formatHandoffTime } from '@/lib/handoff-format'
 
 // D2 (#102): the API returns every field to parents, everything except the
 // share token to teens, and only id/sitter_name/arrival_time/departure_time to
@@ -524,7 +526,7 @@ function ShareLinkDialog({
             />
             {handoff.share_expires_at && (
               <p className="mt-1 text-caption-1 text-label-secondary">
-                {text('worksUntil', { date: new Date(handoff.share_expires_at).toLocaleString(displayLocale) })}
+                {text('worksUntil', { date: formatHandoffTime(handoff.share_expires_at, displayLocale) ?? '' })}
               </p>
             )}
           </div>
@@ -600,6 +602,7 @@ function HandoffCard({
   onPrint,
   printing = false,
   t,
+  callLabel,
   displayLocale,
 }: {
   handoff: Handoff
@@ -611,8 +614,21 @@ function HandoffCard({
   /** This is the card being printed: the print stylesheet shows only it. */
   printing?: boolean
   t: (key: string) => string
+  /** Accessible name for a tap-to-call link, e.g. "Call 555-0100". */
+  callLabel: (number: string) => string
   displayLocale: string
 }) {
+  const arrival = formatHandoffTime(handoff.arrival_time, displayLocale)
+  const departure = formatHandoffTime(handoff.departure_time, displayLocale)
+  const details: Array<[string, string | null | undefined]> = [
+    ['handoff.kidsBedtimes', handoff.kids_bedtimes],
+    ['handoff.whereSnacks', handoff.where_snacks],
+    ['handoff.pickupAuthorized', handoff.pickup_authorized],
+    ['handoff.codeWords', handoff.code_words],
+    ['handoff.petCare', handoff.pet_care],
+    ['handoff.houseNotes', handoff.house_notes],
+    ['handoff.generalNotes', handoff.general_notes],
+  ]
   return (
     <div
       className={`card-apple overflow-hidden${printing ? ' print-card' : ''}`}
@@ -623,7 +639,7 @@ function HandoffCard({
           <div>
             <h2 className="text-headline font-semibold text-label-primary">{handoff.sitter_name}</h2>
             {handoff.sitter_phone && (
-              <p className="text-subhead text-label-secondary mt-0.5">{handoff.sitter_phone}</p>
+              <PhoneLink number={handoff.sitter_phone} label={callLabel(handoff.sitter_phone)} className="text-subhead" />
             )}
           </div>
           <div className="flex flex-wrap gap-1 no-print">
@@ -662,66 +678,43 @@ function HandoffCard({
           </div>
         </div>
       </div>
+      {/* Emergency notes come first and stand out: they are what matters most. */}
+      {handoff.emergency_notes?.trim() && (
+        <section
+          className="mx-4 mt-4 rounded-xl border-2 border-danger-text bg-[var(--danger-tint)] p-3"
+          data-testid={`handoff-emergency-${handoff.id}`}
+        >
+          <h3 className="flex items-center gap-1.5 text-subhead font-semibold text-danger-text">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {t('handoff.emergencyNotes')}
+          </h3>
+          <p className="mt-1 whitespace-pre-line break-words text-body text-label-primary">
+            <TextWithPhoneLinks text={handoff.emergency_notes} callLabel={callLabel} />
+          </p>
+        </section>
+      )}
       <div className="p-4 space-y-2 text-footnote">
-        {handoff.arrival_time && (
+        {arrival && (
           <div>
             <span className="text-label-tertiary">{t('handoff.arrivalTime')}: </span>
-            <span className="text-label-primary font-medium">{new Date(handoff.arrival_time).toLocaleString(displayLocale)}</span>
+            <span className="text-label-primary font-medium">{arrival}</span>
           </div>
         )}
-        {handoff.departure_time && (
+        {departure && (
           <div>
             <span className="text-label-tertiary">{t('handoff.departureTime')}: </span>
-            <span className="text-label-primary font-medium">{new Date(handoff.departure_time).toLocaleString(displayLocale)}</span>
+            <span className="text-label-primary font-medium">{departure}</span>
           </div>
         )}
-        {handoff.kids_bedtimes && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.kidsBedtimes')}: </span>
-            <span className="text-label-primary font-medium">{handoff.kids_bedtimes}</span>
-          </div>
-        )}
-        {handoff.where_snacks && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.whereSnacks')}: </span>
-            <span className="text-label-primary font-medium">{handoff.where_snacks}</span>
-          </div>
-        )}
-        {handoff.pickup_authorized && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.pickupAuthorized')}: </span>
-            <span className="text-label-primary font-medium">{handoff.pickup_authorized}</span>
-          </div>
-        )}
-        {handoff.code_words && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.codeWords')}: </span>
-            <span className="text-label-primary font-medium">{handoff.code_words}</span>
-          </div>
-        )}
-        {handoff.pet_care && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.petCare')}: </span>
-            <span className="text-label-primary font-medium">{handoff.pet_care}</span>
-          </div>
-        )}
-        {handoff.emergency_notes && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.emergencyNotes')}: </span>
-            <span className="text-label-primary font-medium">{handoff.emergency_notes}</span>
-          </div>
-        )}
-        {handoff.house_notes && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.houseNotes')}: </span>
-            <span className="text-label-primary font-medium">{handoff.house_notes}</span>
-          </div>
-        )}
-        {handoff.general_notes && (
-          <div>
-            <span className="text-label-tertiary">{t('handoff.generalNotes')}: </span>
-            <span className="text-label-primary font-medium">{handoff.general_notes}</span>
-          </div>
+        {details.map(([key, value]) =>
+          value ? (
+            <div key={key}>
+              <span className="text-label-tertiary">{t(key)}: </span>
+              <span className="whitespace-pre-line break-words text-label-primary font-medium">
+                <TextWithPhoneLinks text={value} callLabel={callLabel} />
+              </span>
+            </div>
+          ) : null,
         )}
       </div>
     </div>
@@ -1009,6 +1002,7 @@ function HandoffPageInner() {
               onPrint={() => handlePrint(h.id)}
               printing={printRequest?.id === h.id}
               t={t}
+              callLabel={(number) => recoveryText('callNumber', { number })}
               displayLocale={displayLocale}
             />
           ))}

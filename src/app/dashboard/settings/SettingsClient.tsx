@@ -393,28 +393,7 @@ export default function SettingsClient({
     loadUserData();
   }, []);
 
-  // Which server build is running (GET /api/version: { version, commit, builtAt }).
-  // Purely informational, so any failure just leaves the line out.
-  const [build, setBuild] = useState<string | null>(null);
-  useEffect(() => {
-    fetch("/api/version")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (
-          !d ||
-          typeof d.version !== "string" ||
-          !d.version ||
-          d.version === "unknown"
-        )
-          return;
-        const commit =
-          typeof d.commit === "string" && d.commit !== "unknown"
-            ? d.commit.slice(0, 7)
-            : "";
-        setBuild(commit ? `${d.version} (${commit})` : d.version);
-      })
-      .catch(() => {});
-  }, []);
+  // The app version and build live in Help › diagnostics, not this footer.
 
   // Load the family's calendar feed token, if one exists. Parents only — the
   // API refuses everyone else too.
@@ -1341,11 +1320,10 @@ export default function SettingsClient({
       {/* App Info */}
       <div className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">
         <p className="font-semibold text-foreground">{PRODUCT_BRAND.wordmark}</p>
-        {build && <p>{copy("version", { build })}</p>}
         <p className="mt-1 text-label-tertiary">
           {copy("copyright", {
             year: new Date().getFullYear(),
-            brand: PRODUCT_BRAND.legacyName,
+            brand: PRODUCT_BRAND.name,
           })}
         </p>
       </div>

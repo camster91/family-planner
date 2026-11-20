@@ -267,8 +267,6 @@ const messages = {
     notes: {
       title: 'Notes',
       subtitle: 'Shared with your household',
-      pageCountOne: '{count} note on this page',
-      pageCountMany: '{count} notes on this page',
       pages: 'Note pages',
       newest: 'Newest notes',
       previous: 'Previous page',
@@ -383,10 +381,11 @@ const messages = {
       editItem: 'Edit {title}',
       deleteItem: 'Delete {title}',
       status: {
-        idle: 'Idle',
+        // Friendly labels; the stored values stay idle/denied.
+        idle: 'Wished for',
         onTheWay: 'On the way',
         received: 'Received',
-        denied: 'Denied',
+        denied: 'Not this time',
       },
       coming: 'Coming!',
       gotIt: 'Got it!',
@@ -836,8 +835,6 @@ const messages = {
     notes: {
       title: 'Notas',
       subtitle: 'Compartidas con tu hogar',
-      pageCountOne: '{count} nota en esta página',
-      pageCountMany: '{count} notas en esta página',
       pages: 'Páginas de notas',
       newest: 'Notas más recientes',
       previous: 'Página anterior',
@@ -952,10 +949,10 @@ const messages = {
       editItem: 'Editar {title}',
       deleteItem: 'Eliminar {title}',
       status: {
-        idle: 'Pendiente',
+        idle: 'Deseado',
         onTheWay: 'En camino',
         received: 'Recibido',
-        denied: 'Denegado',
+        denied: 'Esta vez no',
       },
       coming: 'Viene en camino!',
       gotIt: 'Ya lo tengo!',

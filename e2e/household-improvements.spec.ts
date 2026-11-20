@@ -53,11 +53,14 @@ test("private report and AI dialogs close back to Today without submitting", asy
   page.on("request", (request) => {
     if (!["GET", "HEAD"].includes(request.method())) writes.push(request.url());
   });
-  const report = page.getByRole("button", {
-    name: "Report / Suggest",
-    exact: true,
-  });
-  await report.scrollIntoViewIfNeeded();
+  // No floating Report / Suggest pill on the page any more; the private
+  // report form opens from the user menu (and from Help).
+  await expect(
+    page.getByRole("button", { name: "Report / Suggest", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: /User menu$/ }).click();
+  const report = page.getByTestId("user-menu-report");
+  await expect(report).toHaveText("Report / Suggest");
   expect(
     await report.evaluate((button) => {
       const rect = button.getBoundingClientRect();
@@ -69,9 +72,7 @@ test("private report and AI dialogs close back to Today without submitting", asy
       );
     }),
   ).toBe(true);
-  await page
-    .getByRole("button", { name: "Report / Suggest", exact: true })
-    .click();
+  await report.click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByLabel("Title", { exact: true }).fill("Fixture report draft");
   await page
@@ -83,8 +84,11 @@ test("private report and AI dialogs close back to Today without submitting", asy
   });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(report).toBeFocused();
-  await report.click();
+  // The menu closed when the form opened; focus returns to its button.
+  const menuButton = page.getByRole("button", { name: /User menu$/ });
+  await expect(menuButton).toBeFocused();
+  await menuButton.click();
+  await page.getByTestId("user-menu-report").click();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
     "Fixture report draft",
   );

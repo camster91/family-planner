@@ -102,7 +102,14 @@ describe('grocery store sections (#273)', () => {
     expect((await todo.json()).item).not.toHaveProperty('section')
   })
 
-  it.each<[UserKey]>([['parentA'], ['teenA'], ['childA']])('%s may move an item; the override is keyed by normalized name', async (who) => {
+  it('a child may not move an item (tick only); nothing is stored', async () => {
+    const res = await move('childA', { itemId: 'item-a', section: 'household' })
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('LIST_ITEM_EDIT_FORBIDDEN')
+    expect(db.rows('grocerySectionPreference')).toHaveLength(0)
+  })
+
+  it.each<[UserKey]>([['parentA'], ['teenA']])('%s may move an item; the override is keyed by normalized name', async (who) => {
     addRow('milk-2', 'list-a', '  HOME   milk ')
     const res = await move(who, { itemId: 'item-a', section: 'household' })
     expect(res.status).toBe(200)
@@ -121,7 +128,7 @@ describe('grocery store sections (#273)', () => {
     await move('teenA', { itemId: 'item-a', section: 'frozen' })
     expect(db.rows('grocerySectionPreference')).toHaveLength(1)
     expect(db.rows('grocerySectionPreference')[0]).toMatchObject({ section: 'frozen', updated_by: 'teen-a' })
-    const cleared = await (await move('childA', { itemId: 'item-a', section: null })).json()
+    const cleared = await (await move('parentA', { itemId: 'item-a', section: null })).json()
     expect(cleared).toEqual({ nameKey: 'home milk', override: null, sections: { 'item-a': 'dairy_eggs' } })
     expect(db.rows('grocerySectionPreference')).toHaveLength(0)
   })

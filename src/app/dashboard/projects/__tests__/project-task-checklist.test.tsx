@@ -65,6 +65,20 @@ function renderList(
 }
 
 describe("ProjectTaskChecklist", () => {
+  it("gives each row exactly one done control that shows the real state (no decorative tick)", () => {
+    renderList();
+    const sweep = screen.getByRole("checkbox", { name: /Sweep floor/ });
+    const shelves = screen.getByRole("checkbox", { name: /Hang shelves/ });
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    // An open task shows no tick anywhere in its row.
+    expect(sweep.getAttribute("aria-checked")).toBe("false");
+    expect(sweep.textContent).not.toContain("✓");
+    expect(sweep.querySelector("svg.lucide-check")).toBeNull();
+    // A done task shows one tick, inside its one control.
+    expect(shelves.getAttribute("aria-checked")).toBe("true");
+    expect(shelves.querySelectorAll("svg.lucide-check")).toHaveLength(1);
+  });
+
   it("renders each task as a full-row checkbox (>= 44px) with its date-only due day", () => {
     renderList();
     const sweep = screen.getByRole("checkbox", { name: /Sweep floor/ });

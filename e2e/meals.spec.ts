@@ -619,7 +619,9 @@ test.describe("meals (parent)", () => {
     await page.goto("/dashboard/lists/create");
     const type = page.getByRole("combobox", { name: "Type", exact: true });
     await expect(type).toBeVisible();
-    await expect(type).toHaveValue("grocery");
+    // Family A already has the fixture "Groceries" list, so a new list starts
+    // as a to-do (lists UI review); Grocery is still offered.
+    await expect(type).toHaveValue("todo");
     await expect(type.getByRole("option")).toHaveText([
       "Grocery",
       "To-dos",

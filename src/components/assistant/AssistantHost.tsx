@@ -3,7 +3,8 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Sparkles, MessageSquareWarning } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { REPORT_OPEN_EVENT } from "@/lib/report-launcher";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useFeatures } from "@/components/providers/features-provider";
 import { isFeatureEnabled } from "@/lib/features";
@@ -31,12 +32,15 @@ const AssistantPanel = dynamic(() => import("./AssistantPanel"), {
   loading: () => <AssistantLoading />,
 });
 
-// The quick-add sheet (its actions, icons and role checks) loads on first open,
-// like the assistant panel, so it stays out of every page's initial JavaScript.
+// The quick-add sheet (and its action copy) loads the first time a person
+// opens it, like the assistant panel, so it is not part of every dashboard
+// page's initial JavaScript.
 const QuickAddDialog = dynamic(
   () =>
-    import("@/components/layout/QuickAddDialog").then((m) => m.QuickAddDialog),
-  { ssr: false, loading: () => <AssistantLoading /> },
+    import("@/components/layout/QuickAddDialog").then(
+      (loaded) => loaded.QuickAddDialog,
+    ),
+  { ssr: false },
 );
 
 const target =
@@ -71,10 +75,11 @@ export default function AssistantHost({
   const [panelLoaded, setPanelLoaded] = React.useState(false);
   const [panelBusy, setPanelBusy] = React.useState(false);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
-  // Mount the sheet from its first opening on, so it can close and reopen
-  // without loading again.
   const [quickAddLoaded, setQuickAddLoaded] = React.useState(false);
-  if (quickAddOpen && !quickAddLoaded) setQuickAddLoaded(true);
+  const openQuickAddDialog = React.useCallback(() => {
+    setQuickAddLoaded(true);
+    setQuickAddOpen(true);
+  }, []);
   const canChat = role === "parent" || role === "teen";
   const hidden =
     params.get("mode") === "fridge" || pathname.startsWith("/device");
@@ -159,18 +164,23 @@ export default function AssistantHost({
   React.useEffect(() => {
     if (hidden) return;
     const openQuickAdd = () => {
-      if (!panelBusy && canChat) setQuickAddOpen(true);
+      if (!panelBusy && canChat) openQuickAddDialog();
     };
     const openAssistant = () => {
       if (canChat) open("chat");
     };
+    // Report / Suggest has no floating pill any more: Help and the user
+    // menu open it with this event (every role may send a report).
+    const openReport = () => open("report");
     window.addEventListener("herewoven:quick-add", openQuickAdd);
     window.addEventListener("herewoven:assistant-open", openAssistant);
+    window.addEventListener(REPORT_OPEN_EVENT, openReport);
     return () => {
       window.removeEventListener("herewoven:quick-add", openQuickAdd);
       window.removeEventListener("herewoven:assistant-open", openAssistant);
+      window.removeEventListener(REPORT_OPEN_EVENT, openReport);
     };
-  }, [canChat, hidden, open, panelBusy]);
+  }, [canChat, hidden, open, openQuickAddDialog, panelBusy]);
 
   if (hidden) return null;
   const shellLinks = {
@@ -184,36 +194,30 @@ export default function AssistantHost({
   };
   return (
     <>
-      <div
-        data-person-assistant
-        data-launchers-suppressed={launcherSuppressed ? "true" : undefined}
-        aria-hidden={launcherSuppressed ? "true" : undefined}
-        className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-4 transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
-      >
-        {canChat && (
-          <button
-            type="button"
-            tabIndex={launcherSuppressed ? -1 : undefined}
-            data-secondary-quick-add
-            onClick={() => setQuickAddOpen(true)}
-            disabled={panelBusy}
-            className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
-          >
-            <Sparkles size={20} aria-hidden="true" />
-            <span className="max-[320px]:sr-only">{msg("launcherAddAsk")}</span>
-          </button>
-        )}
-        <button
-          type="button"
-          tabIndex={launcherSuppressed ? -1 : undefined}
-          onClick={() => open("report")}
-          disabled={panelBusy}
-          className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
+      {canChat && (
+        <div
+          data-person-assistant
+          data-launchers-suppressed={launcherSuppressed ? "true" : undefined}
+          aria-hidden={launcherSuppressed ? "true" : undefined}
+          className={`relative z-30 mx-auto flex w-full flex-wrap gap-2 px-4 py-3 pb-4 transition-opacity motion-reduce:transition-none sm:px-6 lg:px-8 md:pb-6 max-[320px]:w-full max-[320px]:flex-nowrap max-[320px]:justify-end max-[320px]:border-t max-[320px]:border-[var(--surface-separator)] max-[320px]:bg-[var(--surface-grouped)] max-[320px]:px-4 max-[320px]:pt-2 ${launcherSuppressed ? "invisible pointer-events-none opacity-0" : ""}`}
         >
-          <MessageSquareWarning size={20} aria-hidden="true" />
-          <span className="max-[320px]:sr-only">{msg("launcherReport")}</span>
-        </button>
-      </div>
+          {canChat && (
+            <button
+              type="button"
+              tabIndex={launcherSuppressed ? -1 : undefined}
+              data-secondary-quick-add
+              onClick={openQuickAddDialog}
+              disabled={panelBusy}
+              className={`${target} max-[320px]:h-11 max-[320px]:w-11 max-[320px]:shrink-0 max-[320px]:justify-center max-[320px]:gap-0 max-[320px]:px-0 max-[320px]:py-0 border border-[var(--surface-separator)] bg-[var(--surface-elevated)] text-label-primary shadow-lg inline-flex items-center gap-2`}
+            >
+              <Sparkles size={20} aria-hidden="true" />
+              <span className="max-[320px]:sr-only">
+                {msg("launcherAddAsk")}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
       {quickAddLoaded && (
         <QuickAddDialog
           open={quickAddOpen}

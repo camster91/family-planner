@@ -260,6 +260,10 @@ export function CalendarPlanner({
     e.source_subscription_id || e.source
       ? msg("ics", { source: sourceName(e) })
       : sourceName(e);
+  // Events made in this app need no source line ("In-app" under every event
+  // was noise); only connected and subscribed calendars are named.
+  const isLocalEvent = (e: PlanningEvent) =>
+    !e.source_subscription_id && !e.source && !e.source_connection_id;
   const label = options.find((s) => s.id === filter)?.name || msg("selected");
   const format = (d: Date, options: Intl.DateTimeFormatOptions) =>
     d.toLocaleString(locale, {
@@ -330,7 +334,7 @@ export function CalendarPlanner({
           <strong>{e.title}</strong>
           <small><EventPeopleLine people={e.participants} label={msg("eventFor")} /></small>
           {e.series_id && <small data-testid="event-repeats">{msg("repeats")}</small>}
-          <small>{sourceLabel(e)}</small>
+          {!isLocalEvent(e) && <small>{sourceLabel(e)}</small>}
           {segment.continuesBefore && (
             <small>
               {msg("continuesFrom", {
@@ -600,8 +604,13 @@ export function CalendarPlanner({
                             }}
                           >
                             <span className="sr-only">{msg("reviewEvent")} </span>
-                            <strong>{event.title}</strong>{" "}
-                            <small>{sourceLabel(event)}</small>
+                            <strong>{event.title}</strong>
+                            {!isLocalEvent(event) && (
+                              <>
+                                {" "}
+                                <small>{sourceLabel(event)}</small>
+                              </>
+                            )}
                           </button>
                           <ScheduleReviewButton
                             scope={{
@@ -977,7 +986,7 @@ export function CalendarPlanner({
               {msg("eventFor")} <EventPeopleLine people={selected.participants} label={msg("eventFor")} />
             </p>
           )}
-          <p>{sourceLabel(selected)}</p>
+          {!isLocalEvent(selected) && <p>{sourceLabel(selected)}</p>}
           {selected.location && <p>{selected.location}</p>}
           {selected.description && (
             <p className={styles.description}>{selected.description}</p>

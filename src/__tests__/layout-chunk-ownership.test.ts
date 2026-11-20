@@ -84,6 +84,32 @@ describe("shared layout chunks preserve initial entrypoint ownership", () => {
       ).toBe(false);
     },
   );
+  test("the dev-only design gallery does not split shell code from real routes", () => {
+    // Otherwise the layout's shared code is copied into each route's own
+    // chunks and Today downloads it twice.
+    expect(
+      admitted("herewovenDashboardLayout", [
+        "app/dashboard/layout",
+        "app/dashboard/today/page",
+        "app/dev/design-system/page",
+      ]),
+    ).toBe(true);
+    expect(
+      admitted("herewovenBoardShell", [
+        "app/dashboard/layout",
+        "app/device/today/page",
+        "app/dev/design-system/page",
+      ]),
+    ).toBe(true);
+    // A real outside route still keeps its own chunks.
+    expect(
+      admitted("herewovenDashboardLayout", [
+        "app/dashboard/layout",
+        "app/dev/design-system/page",
+        "app/(auth)/login/page",
+      ]),
+    ).toBe(false);
+  });
   test("never admits async-only feature modules", () => {
     expect(
       admitted(

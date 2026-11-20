@@ -531,3 +531,72 @@ it("retains unfamiliar stored work and the unsent draft with an actionable recov
   expect(raw).toBe(original);
   expect(send).not.toHaveBeenCalled();
 });
+
+it("previews several items typed at once, then queues each through the offline queue with its quantity", async () => {
+  render(<PersonGroceryAdd {...props} />);
+  const user = userEvent.setup();
+  const field = screen.getByRole("textbox", { name: "Add an item" });
+  await waitFor(() =>
+    expect(
+      document.querySelector('[data-queue-settled="true"]'),
+    ).not.toBeNull(),
+  );
+  await user.type(field, "milk, eggs and 2 bread");
+  expect(screen.getByTestId("grocery-add-preview").textContent).toBe(
+    "Will add 3 items: milk · eggs · 2 bread",
+  );
+  await user.click(screen.getByRole("button", { name: /^Add$/ }));
+  await waitFor(() =>
+    expect(screen.getAllByTestId("queued-grocery-add")).toHaveLength(3),
+  );
+  expect((field as HTMLTextAreaElement).value).toBe("");
+  expect(screen.queryByTestId("grocery-add-preview")).toBeNull();
+  expect(JSON.parse(raw!).ops.map((op: any) => op.payload)).toEqual([
+    { listId: "list-a", content: "milk" },
+    { listId: "list-a", content: "eggs" },
+    { listId: "list-a", content: "bread", quantity: 2 },
+  ]);
+  expect(screen.getByText("bread × 2")).toBeTruthy();
+});
+
+it("keeps one item exactly as before: no preview, a leading number stays in the name", async () => {
+  render(<PersonGroceryAdd {...props} />);
+  const user = userEvent.setup();
+  await waitFor(() =>
+    expect(
+      document.querySelector('[data-queue-settled="true"]'),
+    ).not.toBeNull(),
+  );
+  await user.type(
+    screen.getByRole("textbox", { name: "Add an item" }),
+    "2 bread",
+  );
+  expect(screen.queryByTestId("grocery-add-preview")).toBeNull();
+  await user.keyboard("{Enter}");
+  await waitFor(() =>
+    expect(JSON.parse(raw!).ops.map((op: any) => op.payload)).toEqual([
+      { listId: "list-a", content: "2 bread" },
+    ]),
+  );
+});
+
+it("adds one item per line from a pasted list", async () => {
+  render(<PersonGroceryAdd {...props} />);
+  await waitFor(() =>
+    expect(
+      document.querySelector('[data-queue-settled="true"]'),
+    ).not.toBeNull(),
+  );
+  const field = screen.getByRole("textbox", { name: "Add an item" });
+  fireEvent.change(field, { target: { value: "apples\n3 lemons\n" } });
+  expect(screen.getByTestId("grocery-add-preview").textContent).toBe(
+    "Will add 2 items: apples · 3 lemons",
+  );
+  fireEvent.keyDown(field, { key: "Enter" });
+  await waitFor(() =>
+    expect(JSON.parse(raw!).ops.map((op: any) => op.payload)).toEqual([
+      { listId: "list-a", content: "apples" },
+      { listId: "list-a", content: "lemons", quantity: 3 },
+    ]),
+  );
+});

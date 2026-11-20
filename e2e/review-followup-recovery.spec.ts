@@ -82,6 +82,10 @@ test("list deletion committed before response loss still offers a working Undo",
   const checkbox = row.getByRole("checkbox");
   await checkbox.click();
   await expect(checkbox).toHaveAttribute("aria-checked", "true");
+  // Row actions sit behind the row's "More" button (ListItemMenu).
+  await row
+    .getByRole("button", { name: `More for ${itemName}`, exact: true })
+    .click();
   const deleteButton = row.getByRole("button", {
     name: `Delete ${itemName}`,
     exact: true,

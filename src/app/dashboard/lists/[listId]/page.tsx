@@ -21,6 +21,7 @@ import {
   canChangeListSectionSort,
   canCreateList,
   canDeleteListOrItem,
+  canEditListItem,
 } from "@/lib/role-capabilities";
 
 export const dynamic = "force-dynamic";
@@ -177,6 +178,7 @@ export default async function ListDetailPage({
         userId={actor.id}
         ownerGeneration={actor.tokenVersion}
         canDeleteItems={canDelete}
+        canEditItems={canEditListItem(actor.role)}
         tasks={tasks}
         canSetTasks={canCreateList(actor.role)}
         paging={{
@@ -200,7 +202,12 @@ export default async function ListDetailPage({
           canChange: canChangeListSectionSort(actor.role),
         }}
       />
-      <PendingTickRecovery key={actor.id} userId={actor.id} />
+      {/* On the list's own gutter; shown only when something is waiting. */}
+      <PendingTickRecovery
+        key={actor.id}
+        userId={actor.id}
+        className="mx-4 mt-5"
+      />
     </div>
   );
 }

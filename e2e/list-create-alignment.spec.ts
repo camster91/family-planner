@@ -455,7 +455,9 @@ for (const locale of ["en", "es"] as const) {
         await page.goto("/dashboard/lists");
         const copy = copyFor(locale);
         const overviewAdd =
-          locale === "en" ? listOverviewEnglish.add : listOverviewSpanish.add;
+          locale === "en"
+            ? listOverviewEnglish.newList
+            : listOverviewSpanish.newList;
         const add = page.getByRole("link", { name: overviewAdd });
         await expect(add).toBeVisible();
         await add.click();
@@ -540,8 +542,8 @@ for (const locale of ["en", "es"] as const) {
           page.getByRole("link", {
             name:
               locale === "en"
-                ? listOverviewEnglish.add
-                : listOverviewSpanish.add,
+                ? listOverviewEnglish.newList
+                : listOverviewSpanish.newList,
           }),
         ).toHaveCount(0);
         await page.goto("/dashboard/lists/create");

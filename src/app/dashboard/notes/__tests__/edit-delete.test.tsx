@@ -101,6 +101,13 @@ beforeEach(() => {
   }) as unknown as typeof fetch
 })
 
+it('shows no "N notes on this page" count line', async () => {
+  render(<NotesPage />)
+  await screen.findByText('Wifi code')
+  expect(screen.queryByText(/notes\.pageCount/)).toBeNull()
+  expect(screen.queryByText(/on this page/i)).toBeNull()
+})
+
 it('saving an edit PATCHes /api/notes/<id>', async () => {
   const user = userEvent.setup()
   render(<NotesPage />)

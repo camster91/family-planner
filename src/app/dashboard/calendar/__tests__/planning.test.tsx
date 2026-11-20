@@ -110,7 +110,8 @@ it("labels a full continuing timed segment without inventing all-day or midnight
   })) as jest.Mock;
   render(<CalendarPlanner initialDate="2026-01-05" initialView="day" />);
   await screen.findByRole("button", { name: /Workshop/ });
-  expect(screen.getByText("Continuing timed event")).toBeTruthy();
+  expect(screen.getByText("Continues")).toBeTruthy();
+  expect(screen.queryByText("Continuing timed event")).toBeNull();
   expect(screen.queryByText(/all.day/i)).toBeNull();
 });
 it("loads a bounded week, discovers empty sources and opens teen details without edit", async () => {
@@ -158,4 +159,26 @@ it('keeps the week grid available when there are no events', async () => {
   await screen.findByText('No events in this range');
   expect(screen.getByLabelText('Timed calendar, all 24 hours')).toBeTruthy();
   expect(screen.getByRole('heading', { name: /Mon/ }).textContent).toContain('5');
+});
+// UI review: no "In-app" line under every app event, no "Private planner" in
+// the header and no developer disclaimer at the bottom.
+it("shows app events without an In-app line, a plain header and no planner disclaimer", async () => {
+  global.fetch = jest.fn(async (url) => ({
+    ok: true, headers: calendarReadOwnerHeaders(),
+    json: async () =>
+      String(url).includes("subscriptions")
+        ? { subscriptions: [] }
+        : {
+            events: [{ ...event, title: "Piano", source_connection_id: null }],
+            hasMore: false,
+            nextCursor: null,
+          },
+  })) as jest.Mock;
+  render(<CalendarPlanner initialDate="2026-01-05" initialView="day" />);
+  const chip = await screen.findByRole("button", { name: /Piano/ });
+  expect(within(chip).queryByText("In-app")).toBeNull();
+  expect(screen.getAllByText("Calendar").length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Private planner/)).toBeNull();
+  expect(screen.queryByText(/repeating-event planner/)).toBeNull();
+  expect(screen.getByText(/^Times shown in .+\.$/)).toBeTruthy();
 });
