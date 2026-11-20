@@ -720,3 +720,28 @@
   font-size: 11px;
   background: transparent;
 }
+/* Who an event is for: person chips in the agenda; in the narrow week and
+   day grid only the initials on their colours stay visible, and the first
+   names stay in the button's accessible name and in the event details. */
+.eventPeople {
+  font-size: 12px;
+}
+.gridScroll .eventContent > .eventPeople {
+  overflow: visible;
+  white-space: normal;
+  gap: 2px;
+}
+.gridScroll .eventPeople [data-testid="person-chip"] {
+  padding: 0;
+  background: transparent;
+}
+.gridScroll .eventPeople [data-person-name] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

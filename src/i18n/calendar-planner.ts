@@ -83,6 +83,10 @@ export const calendarPlannerEnglish = {
   recurrence:
     "Repeating rule stored on this event. Only the stored occurrence is shown; series editing is not available.",
   eventFor: "For",
+  personFilter: "Show events for",
+  everyone: "Everyone",
+  emptyPerson: "No events for {name} in this range",
+  showEveryone: "Show everyone",
   repeats: "Repeats",
   repeatsDetail: "This event repeats. Open it to change this one or this and later ones.",
   close: "Close details",
@@ -190,6 +194,10 @@ export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
   recurrence:
     "Este evento tiene una regla de repetición guardada. Solo se muestra la instancia guardada; no se puede editar la serie.",
   eventFor: "Para",
+  personFilter: "Mostrar eventos de",
+  everyone: "Todos",
+  emptyPerson: "No hay eventos de {name} en este intervalo",
+  showEveryone: "Mostrar a todos",
   repeats: "Se repite",
   repeatsDetail: "Este evento se repite. Ábrelo para cambiar solo este o este y los siguientes.",
   close: "Cerrar detalles",

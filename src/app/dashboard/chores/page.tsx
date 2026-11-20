@@ -15,6 +15,7 @@ import { ROUTINE_SCHEDULE_READY_ENV } from "@/lib/routine-schedule-gates";
 import { getServerActor } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import ChoresContent from "./ChoresContent";
+import { readHouseholdPeopleOptions } from "@/lib/household-people-options";
 import { eventPreparationReady } from "@/lib/event-preparation/owner";
 import {
   isGamificationOn,
@@ -329,8 +330,14 @@ async function renderChoresPage(
     )
       return null;
   }
+  // Faces and colours for who each chore is for, and the person filter. This
+  // household only; identity key, name and colour.
+  const people = familyId
+    ? await readHouseholdPeopleOptions(familyId, "/dashboard/chores")
+    : [];
   return (
     <ChoresContent
+      people={people}
       requestedRoutineView={params.view === "routines"}
       ownedCheck={ownedCheck}
       notificationFocus={notificationFocus}

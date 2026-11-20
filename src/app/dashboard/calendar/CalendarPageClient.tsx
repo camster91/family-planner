@@ -17,6 +17,7 @@ import type { ImportCommitResult } from "@/lib/event-import-contract";
 import { IMPORT_UNDO_WINDOW_MS } from "@/lib/event-import-contract";
 import { CalendarPlanner } from "./CalendarPlanner";
 import type { PlanningView } from "@/lib/calendar-planning/view";
+import type { PersonOption } from "@/lib/person-display";
 
 const LazyImportEventsDialog = React.lazy(() =>
   import("./ImportEventsDialog").then(({ ImportEventsDialog }) => ({
@@ -38,6 +39,8 @@ interface CalendarPageClientProps {
   canEditEvents?: boolean;
   calendarSyncAvailable?: boolean;
   monthFromUrl?: boolean;
+  /** Household people for the person filter; empty when people on events is off. */
+  people?: PersonOption[];
 }
 /** Legacy month URLs remain valid; do not change this exported contract. */
 export function calendarMonthHref(year: number, month: number): string {
@@ -58,6 +61,7 @@ export default function CalendarPageClient({
   canEditEvents = false,
   calendarSyncAvailable = false,
   monthFromUrl = true,
+  people,
 }: CalendarPageClientProps) {
   const { t } = useCoreTranslation();
   const msg = (
@@ -98,6 +102,7 @@ export default function CalendarPageClient({
         chooseLocalToday={!monthFromUrl}
         canEditEvents={canEditEvents}
         calendarSyncAvailable={calendarSyncAvailable}
+        people={people}
         refreshKey={`${refreshKey}:${JSON.stringify(events)}`}
         headerAction={<CaptureSheet onSaved={refresh} requested={captureRequested} canCreateManually={canCreateEvents} />}
       />

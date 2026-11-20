@@ -41,7 +41,7 @@ for (const locale of ["en", "es"] as const) {
       .replace("{item}", "“Tidy bedroom”");
     await expect(page.getByText(text.toCheck, { exact: true })).toBeVisible();
     await expect(
-      page.getByText(`Casey Fixture-A · ${text.today}`, { exact: true }),
+      page.getByText(`Casey · ${text.today}`, { exact: true }),
     ).toBeVisible();
     const opener = page.getByRole("button", { name: menuName, exact: true });
     await opener.press("Enter");
