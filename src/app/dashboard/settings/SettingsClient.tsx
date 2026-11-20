@@ -866,6 +866,7 @@ export default function SettingsClient({
             className="grid grid-cols-3 gap-2"
             role="group"
             aria-label={t("preferences.theme")}
+            data-testid="theme-picker"
           >
             {(["light", "dark", "auto"] as const).map((themeOption) => (
               <button
