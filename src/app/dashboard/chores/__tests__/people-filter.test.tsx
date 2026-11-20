@@ -6,7 +6,6 @@ import { I18nProvider } from "@/i18n";
 import { ToastProvider } from "@/components/ui/toast";
 import ChoresContent from "../ChoresContent";
 import { personFilterStorageKey } from "@/lib/person-filter-preference";
-import type { Chore } from "@/types";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
@@ -14,7 +13,7 @@ jest.mock("next/navigation", () => ({
 jest.mock("@/components/providers/features-provider", () => ({
   useFeatureEnabled: () => false,
 }));
-const row = (id: string, extra: Partial<Chore> & Record<string, unknown> = {}) => ({
+const row = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
   family_id: "family",
   title: id,
