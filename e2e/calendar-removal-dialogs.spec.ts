@@ -85,8 +85,8 @@ for (const locale of ["en", "es"] as const)
           const themes = page
             .locator("#settings-account")
             .locator("..")
-            .getByRole("group")
-            .first()
+            // Named: Settings › Your account now lists Notifications first.
+            .getByRole("group", { name: /^(Theme|Tema)$/ })
             .getByRole("button");
           await themes.nth(1).click();
           await expect(themes.nth(1)).toHaveAttribute("aria-pressed", "true");
