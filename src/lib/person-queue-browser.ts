@@ -13,9 +13,9 @@ import {
 import { ownerQueueStore } from "@/lib/queue-owner-store";
 import {
   QUEUE_OWNER_HEADER,
-  queueRetirementSchema,
+  parseQueueRetirement,
   type QueueRetirement,
-} from "@/lib/queue-owner-contract";
+} from "@/lib/queue-owner-shape";
 import {
   captureQueueRetirements,
   retireOwnedQueueRecords,
@@ -36,7 +36,7 @@ export async function retirePersonQueueGeneration(
   receipt: unknown,
   userId: string,
 ): Promise<boolean> {
-  const parsed = queueRetirementSchema.safeParse(receipt);
+  const parsed = parseQueueRetirement(receipt);
   if (
     !parsed.success ||
     parsed.data.mode !== "generation" ||
@@ -55,7 +55,7 @@ export async function retireErasedAccountQueues(
 ): Promise<boolean> {
   const values = Array.isArray(receipt) ? receipt : [receipt];
   if (!values.length || values.length > 2) return false;
-  const parsed = values.map((value) => queueRetirementSchema.safeParse(value));
+  const parsed = values.map((value) => parseQueueRetirement(value));
   if (
     parsed.some(
       (row) =>

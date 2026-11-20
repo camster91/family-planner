@@ -7,7 +7,7 @@ import { Sparkles } from "lucide-react";
 import { REPORT_OPEN_EVENT } from "@/lib/report-launcher";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useFeatures } from "@/components/providers/features-provider";
-import { isFeatureEnabled } from "@/lib/features";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useCoreTranslation } from "@/i18n/core";
 import {
   assistantShellMessages,

@@ -23,16 +23,16 @@ import type {
 } from "@/lib/legacy-queue-contract";
 import type { QueueReviewEntry } from "@/lib/queue-review-contract";
 import {
-  ownedQueueEnvelope,
-  queueOwnerResponse,
-  queueOwnerSchema,
+  parseOwnedQueueEnvelope,
+  parseQueueOwner,
+  parseQueueOwnerResponse,
   RETIRED_QUEUE_ENVELOPE,
   sameQueueOwner,
   QUEUE_REVIEW_REQUIRED,
   ORIGINAL_DEVICE_REQUIRED,
   type QueueOwner,
   type QueueOwnerResponse,
-} from "@/lib/queue-owner-contract";
+} from "@/lib/queue-owner-shape";
 
 export class QueueOwnerStorageError extends QueueStorageError {
   constructor(
@@ -45,9 +45,9 @@ export class QueueOwnerStorageError extends QueueStorageError {
 }
 function envelope(text: string) {
   try {
-    return ownedQueueEnvelope.safeParse(JSON.parse(text));
+    return parseOwnedQueueEnvelope(JSON.parse(text));
   } catch {
-    return ownedQueueEnvelope.safeParse(null);
+    return parseOwnedQueueEnvelope(null);
   }
 }
 type Options = {
@@ -117,7 +117,7 @@ export function ownerQueueStore(options: Options) {
     if (!fresh && negotiated) return negotiated;
     if (!fresh && negotiating) return negotiating;
     const run = (async () => {
-      const parsed = queueOwnerResponse.safeParse(await options.resolveOwner());
+      const parsed = parseQueueOwnerResponse(await options.resolveOwner());
       if (!parsed.success) return fail("UNAVAILABLE");
       const result = parsed.data;
       if (
@@ -441,7 +441,7 @@ export function ownerQueueStore(options: Options) {
       reviewHeld.delete(id);
     },
     matchesOwner: (value) => {
-      const owner = queueOwnerSchema.safeParse(value);
+      const owner = parseQueueOwner(value);
       return Boolean(
         owner.success &&
         negotiated?.owner &&

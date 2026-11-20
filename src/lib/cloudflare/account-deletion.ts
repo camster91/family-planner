@@ -2937,6 +2937,7 @@ const HOUSEHOLD_DELETE_ORDER = [
   "AppFeedback",
   "AiUsageRequest",
   "AiUsagePolicy",
+  "HouseholdAiSetting",
   "ChoreTopUpCursor",
   "Handoff",
   "CalendarConnection",

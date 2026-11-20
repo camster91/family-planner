@@ -43,8 +43,4 @@ export const scheduleReviewScope = z
       "Comparison range is at most 45 days",
     ),
   );
-export type ScheduleReviewScope = {
-  targetId: string;
-  range: { start: string; end: string };
-  timeZone: string;
-};
+export type { ScheduleReviewScope } from "./review-scope-shape";

@@ -9,9 +9,9 @@ import {
   type TodayLayout,
 } from "@/lib/personal-layout";
 import {
-  displaySnapshotSchema,
+  parseDisplaySnapshot,
   type DisplaySnapshot,
-} from "@/lib/display-preferences-snapshot-schema";
+} from "@/lib/display-preferences-snapshot-shape";
 
 type SyncState = "loading" | "ready" | "error" | "unsupported" | "forbidden";
 type SyncError = "offline" | "conflict" | "failed" | null;
@@ -112,7 +112,7 @@ export function DisplayPreferencesProvider({
       });
       const raw: unknown = await response.json().catch(() => null);
       if (!mounted.current || sequence !== loadSequence.current) return;
-      const parsed = displaySnapshotSchema.safeParse(raw);
+      const parsed = parseDisplaySnapshot(raw);
       if (response.ok && parsed.success) {
         publish(parsed.data);
         state("ready");
@@ -146,9 +146,7 @@ export function DisplayPreferencesProvider({
     mounted.current = true;
     try {
       const cached = window.localStorage.getItem(cacheKey);
-      const parsed = displaySnapshotSchema.safeParse(
-        cached ? JSON.parse(cached) : null,
-      );
+      const parsed = parseDisplaySnapshot(cached ? JSON.parse(cached) : null);
       if (parsed.success) {
         current.current = parsed.data;
         setSnapshot(parsed.data);
@@ -201,7 +199,7 @@ export function DisplayPreferencesProvider({
         );
         const raw: unknown = await response.json().catch(() => null);
         if (!mounted.current) return null;
-        const parsed = displaySnapshotSchema.safeParse(raw);
+        const parsed = parseDisplaySnapshot(raw);
         if (!response.ok || !parsed.success) {
           setSyncError(response.status === 409 ? "conflict" : "failed");
           if (response.status === 401 || response.status === 403)
