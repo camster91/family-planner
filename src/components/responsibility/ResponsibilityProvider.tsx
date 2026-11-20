@@ -5,9 +5,9 @@ import * as React from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  responsibilityTarget,
+  parseResponsibilityTarget,
   type ResponsibilityTarget,
-} from "@/lib/responsibility-target";
+} from "@/lib/responsibility-target-shape";
 import { useResponsibilityShellText } from "@/i18n/responsibility-shell";
 const Preview = React.lazy(() => import("./ResponsibilityPreview"));
 const Sheet = React.lazy(() => import("./ResponsibilitySheet"));
@@ -42,7 +42,7 @@ export default function ResponsibilityProvider({
     ["parent", "teen", "child"].includes(role) &&
     params.get("mode") !== "fridge" &&
     !pathname.startsWith("/device");
-  const parsed = responsibilityTarget.safeParse({
+  const parsed = parseResponsibilityTarget({
     kind: params.get("responsibilityKind"),
     id: params.get("responsibilityId"),
   });

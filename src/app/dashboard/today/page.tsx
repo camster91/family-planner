@@ -15,12 +15,10 @@ import { loadGetStarted } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
-import loadable from "next/dynamic";
 // The existing server readiness/role gate decides whether this optional
-// workspace is rendered. A dormant launcher need not enter the cold board.
-const WeeklyResetLauncher = loadable(
-  () => import("@/components/dashboard/WeeklyResetLauncher"),
-);
+// workspace is rendered. A dormant launcher need not enter the cold board; the
+// client boundary owns the code split (a server-side next/dynamic cannot).
+import WeeklyResetLauncher from "@/components/dashboard/LazyWeeklyResetLauncher";
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 import { storageBackend } from "@/lib/storage-backend";
