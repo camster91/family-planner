@@ -19,6 +19,11 @@ let mockMode = "",
   mockPathname = "/dashboard/today",
   mockRecognition: any;
 const mockRefresh = jest.fn();
+// The smart Add box has its own tests (smart-add-box.test.tsx); here it would
+// add an availability request to the exact request lists these tests assert.
+jest.mock("@/components/assistant/SmartAddBox", () => ({
+  SmartAddBox: () => null,
+}));
 jest.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
   useSearchParams: () => new URLSearchParams(mockMode),
@@ -503,7 +508,9 @@ it("preserves text typed while voice was listening without submitting either dra
     onend: any;
     start = jest.fn();
     abort = jest.fn();
-    constructor() { mockRecognition = this; }
+    constructor() {
+      mockRecognition = this;
+    }
   }
   (window as any).SpeechRecognition = Recognition;
   const user = userEvent.setup();
@@ -513,9 +520,17 @@ it("preserves text typed while voice was listening without submitting either dra
   await user.click(screen.getByRole("button", { name: "Voice input" }));
   await user.type(screen.getByLabelText("Your message"), "Keep my typed plan");
   const { act } = require("@testing-library/react");
-  act(() => mockRecognition.onresult({ results: [[{ transcript: "Older voice plan" }]] }));
-  expect(screen.getByLabelText("Your message")).toHaveValue("Keep my typed plan");
-  expect(screen.getByRole("alert")).toHaveTextContent("Your draft changed while listening");
+  act(() =>
+    mockRecognition.onresult({
+      results: [[{ transcript: "Older voice plan" }]],
+    }),
+  );
+  expect(screen.getByLabelText("Your message")).toHaveValue(
+    "Keep my typed plan",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Your draft changed while listening",
+  );
   expect(global.fetch).not.toHaveBeenCalled();
 });
 

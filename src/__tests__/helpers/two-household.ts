@@ -948,7 +948,7 @@ export const fakePrisma: any = new Proxy(
           return subscription && subscription.family_id === values[1] ? [{ id: subscription.id }] : []
         }
         // Only the three additive metadata-table probes used by deletion.
-        if (/^SELECT to_regclass\('public\."(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
+        if (/^SELECT to_regclass\('public\."(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy|HouseholdAiSetting)"'\) IS NOT NULL AS present$/.test(sql)) return [{ present: true }]
         // Exact source query for private scheduled-root metadata. Locks are
         // intentionally no-ops in this fixture; concurrency needs real PG.
         if (sql.startsWith('SELECT "routine_series_config" FROM "Chore"')) {
@@ -999,7 +999,7 @@ export const fakePrisma: any = new Proxy(
       }
       if (prop === '$executeRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
         const sql = strings.join('?').replace(/\s+/g, ' ').trim()
-        const optionalMetadata = /^DELETE FROM "(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy)" WHERE "family_id" = \?$/.exec(sql)
+        const optionalMetadata = /^DELETE FROM "(ChoreTopUpCursor|HouseholdProfileLinkChallenge|AiUsageRequest|AiUsagePolicy|HouseholdAiSetting)" WHERE "family_id" = \?$/.exec(sql)
         if (optionalMetadata) {
           const model = optionalMetadata[1][0].toLowerCase() + optionalMetadata[1].slice(1)
           return fakePrisma[model].deleteMany({ where: { family_id: values[0] } }).then((result: { count: number }) => result.count)

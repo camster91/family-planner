@@ -17,8 +17,8 @@ import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
 // The existing server readiness/role gate decides whether this optional
-// workspace is rendered. A dormant launcher need not enter the cold board: the
-// client boundary splits it, so it loads only when rendered.
+// workspace is rendered. A dormant launcher need not enter the cold board; the
+// client boundary owns the code split (a server-side next/dynamic cannot).
 import WeeklyResetLauncher from "@/components/dashboard/LazyWeeklyResetLauncher";
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";

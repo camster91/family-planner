@@ -3,11 +3,11 @@
 import dynamic from "next/dynamic";
 
 /**
- * Client boundary for the optional Weekly reset launcher. A `dynamic()` import
- * written in the Today server page still lists the launcher among the page's
- * client references, so its code shipped with every cold Today board even
- * while the readiness gate keeps it off. Splitting here, behind a client
- * boundary, loads the launcher only when the page renders it.
+ * The server readiness/role gate in the Today page decides whether the weekly
+ * reset launcher renders. A `next/dynamic` call in that server page cannot
+ * split a client component, so the split lives on this client boundary: the
+ * launcher (and its date helpers) loads only when the gate renders it, and a
+ * dormant launcher stays out of Today's cold JavaScript.
  */
 const LazyWeeklyResetLauncher = dynamic(() => import("./WeeklyResetLauncher"));
 

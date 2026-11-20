@@ -618,6 +618,7 @@ export const HOUSEHOLD_DELETION_PLAN: ReadonlyArray<{ model: string; scope: Scop
   { model: 'householdProfileLinkChallenge', scope: { kind: 'family' }, why: 'expiring profile-link proofs before identities; compatibility-probed SQL' },
   { model: 'aiUsageRequest', scope: { kind: 'family' }, why: 'content-free AI reservations, outcomes and accounting; compatibility-probed SQL' },
   { model: 'aiUsagePolicy', scope: { kind: 'family' }, why: 'household AI quota/pricing policy; compatibility-probed SQL' },
+  { model: 'householdAiSetting', scope: { kind: 'family' }, why: 'household smart-helpers switch and monthly cap; compatibility-probed SQL' },
   { model: 'householdMemberAccountLink', scope: { kind: 'family' }, why: 'dormant verified account links (#480)' },
   { model: 'householdMemberLegacyMapping', scope: { kind: 'family' }, why: 'dormant legacy identity mappings (#480)' },
   // 2. Tokens and links that could still reach the household.

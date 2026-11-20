@@ -24,6 +24,20 @@ onboarding SSR-to-hydrated interaction regression pass. The final build and
 current release gates are recorded in #604 rather than inferred from older
 checkpoint text. No paid-plan activation is part of this migration.
 
+## App-held AI provider decision (#144) — 2026-11-19
+
+Cameron chose Anthropic Claude for app-held AI after the Gemini terms review;
+Gemini stays blocked in source. Branch `ai-foundation-smart-add` adds a
+server-only AI service (`src/lib/ai/`: Claude client via `@anthropic-ai/sdk`,
+provider interface, feature registry, name aliasing, budget meter), the smart
+Add box in "Add or ask" (`/api/ai/smart-add`), and a parent-only Settings switch
+(`/api/family/smart-helpers`, new `HouseholdAiSetting` table, D1 migration
+`0024`). Flags: `FAMILY_CLAUDE_AI_READY` is `"0"` in `wrangler.jsonc` (exactly
+`"1"` enables; unset is off); `FAMILY_AI_PROVIDER_DISABLED` remains the global
+kill switch. The Worker secret `FAMILY_AI_ANTHROPIC_API_KEY` is **not** set.
+No real provider call, migration apply or deployment was made. See
+`docs/plans/ai-claude-v1.md`.
+
 ## Historical migration execution notes
 
 # Cross-account hostname compatibility — 2026-10-29

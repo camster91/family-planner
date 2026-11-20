@@ -6,6 +6,7 @@ const cases = [
   ["householdProfileLinkChallenge", "HouseholdProfileLinkChallenge"],
   ["aiUsageRequest", "AiUsageRequest"],
   ["aiUsagePolicy", "AiUsagePolicy"],
+  ["householdAiSetting", "HouseholdAiSetting"],
 ] as const;
 function fixture(present: boolean) {
   const query = jest.fn(async () => [{ present }]);

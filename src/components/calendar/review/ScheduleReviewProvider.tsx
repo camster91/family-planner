@@ -5,9 +5,9 @@ import * as React from "react";
 import { useDraftAwareRouter as useRouter } from "@/components/layout/owned-draft-navigation";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
-  scheduleReviewScope,
+  parseScheduleReviewScope,
   type ScheduleReviewScope,
-} from "@/lib/calendar-planning/review-scope";
+} from "@/lib/calendar-planning/review-scope-shape";
 import { useScheduleReviewShellText } from "@/i18n/schedule-review-shell";
 const Sheet = React.lazy(() => import("./ScheduleReviewSheet"));
 const Context = React.createContext<{
@@ -40,7 +40,7 @@ export default function ScheduleReviewProvider({
     params.get("mode") !== "fridge" &&
     !pathname.startsWith("/device");
   const allowed = enabled && personal;
-  const parsed = scheduleReviewScope.safeParse({
+  const parsed = parseScheduleReviewScope({
     targetId: params.get("reviewEvent"),
     range: { start: params.get("reviewStart"), end: params.get("reviewEnd") },
     timeZone: params.get("reviewZone"),
@@ -77,7 +77,7 @@ export default function ScheduleReviewProvider({
     });
   }
   function open(input: ScheduleReviewScope) {
-    const nextScope = scheduleReviewScope.safeParse(input);
+    const nextScope = parseScheduleReviewScope(input);
     if (
       !personal ||
       !nextScope.success ||
@@ -179,7 +179,7 @@ export function ScheduleReviewButton({
 }) {
   const context = React.useContext(Context),
     copy = useScheduleReviewShellText();
-  if (!context?.allowed || !scheduleReviewScope.safeParse(scope).success)
+  if (!context?.allowed || !parseScheduleReviewScope(scope).success)
     return null;
   return (
     <button
