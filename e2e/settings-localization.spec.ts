@@ -159,11 +159,11 @@ test.describe("parentA", () => {
       expect(s.count("PATCH", "/api/users")).toBe(3);
       expect(s.count("GET", "/api/users")).toBe(1);
       // Theme remains the canonical device preference, independent of locale.
+      // By test id: works in both languages and in pseudolocalized QA.
       const themes = page
         .locator("#settings-account")
         .locator("..")
-        .getByRole("group")
-        .first()
+        .getByTestId("theme-picker")
         .getByRole("button");
       await expect(themes).toHaveCount(3);
       await themes.nth(1).click();

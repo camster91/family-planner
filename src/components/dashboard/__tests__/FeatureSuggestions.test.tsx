@@ -100,7 +100,7 @@ describe('FeatureSuggestions', () => {
       'feature-suggestion-messages',
     ])
     expect(items[0].textContent).toContain('Rewards')
-    expect(items[0].textContent).toContain('Kids spend their chore points')
+    expect(items[0].textContent).toContain('Kids trade chore points')
     expect(within(card).getByRole('button', { name: 'Turn on Budget' })).toBeTruthy()
     expect(within(card).getByRole('link', { name: /See all features/ }).getAttribute('href')).toBe(
       '/dashboard/features'
@@ -111,7 +111,7 @@ describe('FeatureSuggestions', () => {
     renderCard({}, { locale: 'es' })
     const card = screen.getByRole('region', { name: 'Activa más funciones' })
     expect(within(card).getByText('Recompensas', { exact: true })).toBeTruthy()
-    expect(within(card).getByText('Los niños gastan sus puntos', { exact: false })).toBeTruthy()
+    expect(within(card).getByText('Los niños cambian sus puntos', { exact: false })).toBeTruthy()
     expect(within(card).getByRole('button', { name: 'Activar Presupuesto' })).toBeTruthy()
     expect(within(card).getByRole('link', { name: /Ver todas las funciones/ })).toBeTruthy()
   })

@@ -85,8 +85,9 @@ for (const locale of ["en", "es"] as const)
           const themes = page
             .locator("#settings-account")
             .locator("..")
-            .getByRole("group")
-            .first()
+            // By test id: Settings › Your account now lists Notifications first,
+            // and the label is pseudolocalized in expanded QA.
+            .getByTestId("theme-picker")
             .getByRole("button");
           await themes.nth(1).click();
           await expect(themes.nth(1)).toHaveAttribute("aria-pressed", "true");

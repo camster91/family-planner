@@ -40,7 +40,7 @@ export const featureDisplaySpanish: FeatureDisplayCopyMap = {
   },
   calendar: {
     title: "Calendario",
-    description: "Calendario familiar compartido con eventos y tareas.",
+    description: "Un calendario familiar para eventos y tareas.",
   },
   lists: {
     title: "Listas",
@@ -50,7 +50,7 @@ export const featureDisplaySpanish: FeatureDisplayCopyMap = {
   family: {
     title: "Familia",
     description:
-      "Miembros, roles, códigos de invitación y configuración familiar.",
+      "Miembros de la familia y cómo invitar a más personas.",
   },
   meals: {
     title: "Plan de comidas",
@@ -59,7 +59,7 @@ export const featureDisplaySpanish: FeatureDisplayCopyMap = {
   notes: {
     title: "Notas fijadas",
     description:
-      "Notas adhesivas para planes, recogidas escolares y el fin de semana.",
+      "Notas cortas que todos pueden ver, como en el frigorífico.",
   },
   anniversaries: {
     title: "Cumpleaños y aniversarios",
@@ -68,63 +68,63 @@ export const featureDisplaySpanish: FeatureDisplayCopyMap = {
   locations: {
     title: "Ubicaciones",
     description:
-      "Guarda las direcciones de casa, escuela y trabajo de la familia.",
+      "Guarda las direcciones de casa, escuela y trabajo.",
   },
   pickups: {
     title: "Recogidas y entregas",
-    description: "Coordina quién recoge a los niños y cuándo.",
+    description: "Planifica quién recoge a los niños y cuándo.",
   },
   allowance: {
     title: "Mesada y deudas",
     description:
-      "Controla la mesada semanal y el dinero que se deben los miembros.",
+      "Controla la mesada y el dinero que se deben unos a otros.",
   },
   rewards: {
     title: "Recompensas",
     description:
-      "Los niños gastan sus puntos en las recompensas que configures.",
+      "Los niños cambian sus puntos por recompensas que eliges.",
   },
   budget: {
     title: "Presupuesto",
     description:
-      "Controla los gastos compartidos y los presupuestos por categoría.",
+      "Controla los gastos de la familia y pon presupuestos.",
   },
   projects: {
     title: "Proyectos",
-    description: "Planifica viajes, reformas y grandes objetivos familiares.",
+    description: "Planifica viajes, trabajos en casa y grandes metas familiares.",
   },
   messages: {
     title: "Chat familiar",
-    description: "Mensajería integrada para no necesitar otra aplicación.",
+    description: "Envía mensajes a tu familia dentro de la aplicación.",
   },
   analytics: {
     title: "Análisis",
-    description: "Rachas, clasificación y tendencias familiares semanales.",
+    description: "Mira las rachas y cómo fue la semana.",
   },
   wishlist: {
     title: "Lista de deseos",
     description:
-      "Lo que quiere la familia. Los niños añaden y los padres hacen seguimiento.",
+      "Los niños añaden lo que quieren. Los padres llevan la cuenta.",
   },
   travel: {
     title: "Modo viaje",
     description:
-      "Silencia tareas no urgentes y ajusta el calendario mientras estás fuera.",
+      "Silencia lo que no es urgente y mueve las tareas mientras estás fuera.",
   },
   emergency: {
     title: "Contactos de emergencia",
     description:
-      "Tarjeta médica y de emergencias imprimible para cada familiar.",
+      "Una tarjeta con datos médicos y de emergencia para cada persona.",
   },
   handoff: {
     title: "Entrega al cuidador",
     description:
-      "Resumen para el cuidador en una pantalla, imprimible y compartible.",
+      "Una página para el cuidador que puedes imprimir o compartir.",
   },
   "sick-days": {
     title: "Días de enfermedad y medicinas",
     description:
-      "Controla la enfermedad activa, la temperatura y el horario de medicación.",
+      "Controla quién está enfermo, su temperatura y cuándo tocan las medicinas.",
   },
   gamification: {
     title: "Puntos y rachas",
