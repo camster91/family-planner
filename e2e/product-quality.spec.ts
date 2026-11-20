@@ -822,11 +822,11 @@ for (const locale of ["en", "es"] as const) {
       await expect(board).toHaveAttribute("data-mode", "fridge");
       const groceries = board.getByTestId("region-groceries");
       await expect(groceries).toBeVisible();
-      await expect(groceries.getByTestId("grocery-item")).toHaveCount(5);
+      // Fridge cards show what fits and an honest "+N more" (2026-11-19):
+      // 4 of the 6 open items, then "+2 more".
+      await expect(groceries.getByTestId("grocery-item")).toHaveCount(4);
       await expect(
-        groceries.getByText(
-          locale === "es" ? /1 más por comprar/i : /1 more to buy/i,
-        ),
+        groceries.getByText(locale === "es" ? /^\+2 más$/ : /^\+2 more$/),
       ).toBeVisible();
       await expect(
         groceries.getByRole("link", {
@@ -840,7 +840,13 @@ for (const locale of ["en", "es"] as const) {
       ).toHaveAttribute("href", "/dashboard/lists/groceries");
       const useSoon = board.getByTestId("board-slot-use-soon");
       await expect(useSoon).toBeVisible();
-      await expect(useSoon.getByTestId("use-soon-item")).toHaveCount(5);
+      // Tablet and wider fridge layouts fit one screen: 3 rows plus an exact
+      // "more" count (2026-11-19); phones keep 5.
+      const fittedUseSoon = !info.project.name.startsWith("phone-");
+      const useSoonRows = fittedUseSoon ? 3 : 5;
+      await expect(useSoon.getByTestId("use-soon-item")).toHaveCount(
+        useSoonRows,
+      );
       await expect(useSoon).toContainText("QA spinach");
       await expect(useSoon.getByRole("heading")).toHaveText(
         locale === "es" ? "Usar pronto" : "Use soon",
@@ -918,7 +924,7 @@ for (const locale of ["en", "es"] as const) {
           const restoredUseSoon = board.getByTestId("board-slot-use-soon");
           await expect(
             restoredUseSoon.getByTestId("use-soon-item"),
-          ).toHaveCount(5);
+          ).toHaveCount(useSoonRows);
           await expect(restoredUseSoon).toContainText("QA spinach");
           await expect(restoredUseSoon.getByRole("heading")).toHaveText(
             locale === "es" ? "Usar pronto" : "Use soon",
@@ -1043,7 +1049,7 @@ for (const locale of ["en", "es"] as const) {
       ) {
         expect(groceryLayout.overflowY).toMatch(/auto|scroll/);
         const continuation = groceries.getByRole("link", {
-          name: locale === "es" ? /1 más por comprar/i : /1 more to buy/i,
+          name: locale === "es" ? /^\+2 más$/ : /^\+2 more$/,
         });
         const sharedLists = groceries.getByRole("link", {
           name: /shared lists|listas compartidas/i,

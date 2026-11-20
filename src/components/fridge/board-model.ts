@@ -244,11 +244,28 @@ export function shortWeekday(dayKey: string, locale: string = 'en-US'): string {
   })
 }
 
-/** First names, unless two members share one (then full names). */
-export function memberDisplayNames(members: BoardMember[]): Map<string, string> {
+/**
+ * Names for the shared board (owner decision 2026-11-19): first names only,
+ * never a surname. Two people with the same first name get their last
+ * initial ("Maya R."), which still tells them apart without the surname.
+ */
+export function sharedBoardNames(people: Array<{ id: string; name: string }>): Map<string, string> {
   const counts = new Map<string, number>()
-  for (const m of members) counts.set(firstName(m.name), (counts.get(firstName(m.name)) ?? 0) + 1)
-  return new Map(members.map((m) => [m.id, (counts.get(firstName(m.name)) ?? 0) > 1 ? m.name : firstName(m.name)]))
+  for (const p of people) counts.set(firstName(p.name), (counts.get(firstName(p.name)) ?? 0) + 1)
+  return new Map(
+    people.map((p) => {
+      const first = firstName(p.name)
+      if ((counts.get(first) ?? 0) < 2) return [p.id, first]
+      const words = p.name.trim().split(/\s+/)
+      const last = words.length > 1 ? words[words.length - 1] : ''
+      return [p.id, last ? `${first} ${last[0]!.toUpperCase()}.` : first]
+    })
+  )
+}
+
+/** First names on the board; see `sharedBoardNames`. */
+export function memberDisplayNames(members: BoardMember[]): Map<string, string> {
+  return sharedBoardNames(members)
 }
 
 export interface UseSoonEntry extends BoardUseSoonItem {

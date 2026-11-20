@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useDeviceText, englishDeviceText, type DeviceFeedback, type DeviceText } from '@/i18n/device-management'
 import { Loader2, Lock, UserRound } from 'lucide-react'
 import TodayBoard from '@/components/fridge/TodayBoard'
+import { firstName } from '@/components/fridge/board-model'
 import DeviceHouseholdHelper from './DeviceHouseholdHelper'
 import { DeviceGroceryAdd } from './DeviceGroceryAdd'
 import BoardSettings, { type BoardSettingsData, type BoardSettingsTransport, type Place } from '@/components/fridge/BoardSettings'
@@ -37,8 +38,10 @@ const PROACTIVE_CHECK_MS = 60 * 1000
  * hide, page hide, reload and "Done".
  *
  * #274: when the household turned tablet writes on, chore and grocery tiles
- * act directly after "Who's this?" (SHARED_DEVICE.md §9.2), and parent mode
- * offers the board settings on the tablet itself (no photos, O-15).
+ * act directly (SHARED_DEVICE.md §9.2): a one-person chore on the first tap,
+ * groceries and shared chores after "Who's this?". Parent mode offers the
+ * board settings on the tablet itself (no photos, O-15) and the household
+ * helper. The header holds only "+ Add to list" and "Parent" (2026-11-19).
  */
 export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 }: { hasAccessCookie: boolean; memberProtocol?: 1 | 2 }) {
   const [covered, setCovered] = React.useState(false)
@@ -185,6 +188,19 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
       <Lock className="h-5 w-5" aria-hidden="true" />{text("parentButton")}</button>
   ) : null
 
+  const addToList =
+    !cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
+      <DeviceGroceryAdd
+        client={client}
+        lists={data.groceryLists}
+        actorId={actor?.id ?? null}
+        prepare={actions.prepare}
+        afterChange={refreshBoard}
+        triggerLabel={text('addToList')}
+        triggerClassName={primaryButtonClass}
+      />
+    ) : null
+
   const banner = (
     <>
       {cacheUnavailable && data && (
@@ -211,6 +227,7 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           onRename={() => setRenameOpen(true)}
           onRemove={() => setRemoveOpen(true)}
           onSettings={() => setSettingsOpen(true)}
+          helper={<DeviceHouseholdHelper data={data} cached={cached || Boolean(loadError)} active={!covered && elevated} />}
         />
       )}
       {actor && (
@@ -219,9 +236,9 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           className="mb-5 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 py-2 text-[17px] text-label-primary"
         >
           <UserRound className="h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
-          <span className="min-w-0 flex-1">{text('tickingAs', { name: actor.name })}</span>
+          <span className="min-w-0 flex-1">{text('tickingAs', { name: firstName(actor.name) })}</span>
           <button type="button" onClick={forgetActor} className={neutralButtonClass}>
-            {text('notActor', { name: actor.name.trim().split(/\s+/)[0] ?? '' })}
+            {text('notActor', { name: firstName(actor.name) })}
           </button>
         </div>
       )}
@@ -238,12 +255,11 @@ export default function DeviceTodayScreen({ hasAccessCookie, memberProtocol = 1 
           onRefresh={() => void loadBoard()}
           checkVersion={checkVersion}
           onCoveredChange={setCovered}
-          actions={<><DeviceHouseholdHelper data={data} cached={cached || Boolean(loadError)} active={!covered && !elevated} />{parentButton}</>}
+          // Header (2026-11-19): only "+ Add to list" and "Parent". The
+          // household helper lives in parent mode (ElevatedBanner).
+          actions={<>{addToList}{parentButton}</>}
           banner={banner}
           tileActions={actions}
-          groceryAction={!cached && client && me?.deviceWrites && me.features.lists && data.groceryLists && actions?.prepare ? (
-            <DeviceGroceryAdd client={client} lists={data.groceryLists} actorId={actor?.id ?? null} prepare={actions.prepare} afterChange={refreshBoard} />
-          ) : undefined}
         />
       </main>
       {picker}

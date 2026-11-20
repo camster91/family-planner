@@ -10,10 +10,12 @@ function Language() {
 }
 
 it("translates a removed tablet status in place without another request or device action", async () => {
-  global.fetch = jest.fn(async () => ({
+  global.fetch = jest.fn(async (url: string) => ({
     ok: true,
     status: 200,
-    json: async () => ({
+    json: async () => url === "/api/family/board-settings"
+      ? { deviceWrites: { available: true, enabled: true } }
+      : ({
       devices: [
         {
           id: "fixture-removed-tablet",
@@ -43,8 +45,13 @@ it("translates a removed tablet status in place without another request or devic
   expect(
     screen.getByRole("heading", { name: "Fixture kitchen tablet" }),
   ).toBeVisible();
-  expect(fetch).toHaveBeenCalledTimes(1);
+  // One read of the tablets and one of the tapping switch (Settings ›
+  // Devices, 2026-11-19); the language change sends neither again.
+  expect(fetch).toHaveBeenCalledTimes(2);
   expect(fetch).toHaveBeenCalledWith("/api/family/devices", {
+    cache: "no-store",
+  });
+  expect(fetch).toHaveBeenCalledWith("/api/family/board-settings", {
     cache: "no-store",
   });
 });

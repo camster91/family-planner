@@ -226,6 +226,33 @@ export const deviceManagementEnglish = {
   waitMinutes: "about {count} minutes",
   waitHours: "about {count} hours",
   noHousehold: "Join or create a household to pair a family tablet.",
+  writesQuestion: "Let everyone tick chores and add groceries on this tablet?",
+  writesYes: "Yes (recommended)",
+  writesYesHint:
+    "Anyone at the tablet can tick off chores and groceries. Chores still wait for a parent's check.",
+  writesViewOnly: "View only",
+  writesViewOnlyHint: "The tablet only shows today's plan.",
+  writesOnDone:
+    "Tapping is on. Everyone can tick chores and add groceries on your family tablets.",
+  writesViewOnlyDone:
+    "This tablet is view only. You can turn tapping on in Settings › Devices.",
+  writesAlreadyOnDone:
+    "Tapping is already on for your family's tablets, so this one can tick too. You can turn it off in Settings › Devices.",
+  writesFailed:
+    "The tablet is connected, but tapping could not be turned on. Turn it on in Settings › Devices.",
+  tappingTitle: "Tapping on family tablets",
+  tappingLabel: "Let everyone tick chores and add groceries on family tablets",
+  tappingHelp:
+    "Chores ticked on a tablet still wait for a parent's check. A chore for one person is marked done for that person. For groceries and shared chores the tablet asks “Who's this?”, and anyone at the tablet can pick any name.",
+  tappingOn: "Tapping is on for your family tablets.",
+  tappingOff: "Family tablets are view only.",
+  tappingLoadFailed: "Could not load the tapping setting.",
+  tappingSaveFailed: "Could not save. Check your connection and try again.",
+  tappingUnavailable: "Tapping is not available right now.",
+  addToList: "Add to list",
+  householdHelper: "Household helper",
+  doneFor: "Done for {name}",
+  notPerson: "Not {name}?",
 } as const;
 export type DeviceMessage = keyof typeof deviceManagementEnglish;
 export const deviceManagementSpanish: Record<DeviceMessage, string> = {
@@ -456,6 +483,33 @@ export const deviceManagementSpanish: Record<DeviceMessage, string> = {
   waitHours: "aproximadamente {count} horas",
   noHousehold:
     "Únete a un hogar o crea uno para vincular una tableta familiar.",
+  writesQuestion: "¿Dejar que todos marquen tareas y añadan compras en esta tableta?",
+  writesYes: "Sí (recomendado)",
+  writesYesHint:
+    "Cualquiera que use la tableta puede marcar tareas y compras. Las tareas siguen pendientes de la revisión de un progenitor.",
+  writesViewOnly: "Solo ver",
+  writesViewOnlyHint: "La tableta solo muestra el plan de hoy.",
+  writesOnDone:
+    "Los toques están activados. Todos pueden marcar tareas y añadir compras en las tabletas familiares.",
+  writesViewOnlyDone:
+    "Esta tableta es solo para ver. Puedes activar los toques en Ajustes › Dispositivos.",
+  writesAlreadyOnDone:
+    "Los toques ya están activados en las tabletas familiares, así que esta también puede marcar. Puedes desactivarlos en Ajustes › Dispositivos.",
+  writesFailed:
+    "La tableta está conectada, pero no se pudieron activar los toques. Actívalos en Ajustes › Dispositivos.",
+  tappingTitle: "Toques en las tabletas familiares",
+  tappingLabel: "Dejar que todos marquen tareas y añadan compras en las tabletas familiares",
+  tappingHelp:
+    "Las tareas marcadas en una tableta siguen pendientes de la revisión de un progenitor. Una tarea de una sola persona se marca como hecha para esa persona. Para las compras y las tareas compartidas, la tableta pregunta «¿Quién eres?» y cualquiera puede elegir cualquier nombre.",
+  tappingOn: "Los toques están activados en las tabletas familiares.",
+  tappingOff: "Las tabletas familiares son solo para ver.",
+  tappingLoadFailed: "No se pudo cargar el ajuste de toques.",
+  tappingSaveFailed: "No se pudo guardar. Comprueba la conexión e inténtalo de nuevo.",
+  tappingUnavailable: "Los toques no están disponibles ahora.",
+  addToList: "Añadir a la lista",
+  householdHelper: "Ayuda del hogar",
+  doneFor: "Hecho para {name}",
+  notPerson: "¿No es {name}?",
 };
 export type DeviceText = (
   key: DeviceMessage,

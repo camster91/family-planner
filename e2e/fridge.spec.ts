@@ -366,7 +366,8 @@ async function assertGroceryPreviewFit(page: Page) {
     "Weather and dinner content must leave a touch-sized grocery preview",
   ).toBeGreaterThanOrEqual(44);
   for (const link of [
-    groceries.getByRole("link", { name: /more to buy/i }),
+    // Fridge cards end with an honest "+N more" (2026-11-19).
+    groceries.getByRole("link", { name: /^\+\d+ more$/ }),
     groceries.getByRole("link", { name: /all shared lists/i }),
   ]) {
     await expect(link).toHaveCount(1);
@@ -497,6 +498,9 @@ test.describe("Today board: Family A parent", () => {
   test("shows every region from real household data", async ({ page }) => {
     // The dedicated fridge surface retains its separate, per-person regions.
     await openBoard(page, "/dashboard/today?mode=fridge");
+    // A portrait tablet fits one screen with tighter rows (2026-11-19); every
+    // card says exactly how many rows it left out.
+    const portrait = test.info().project.name === "tablet-portrait-800x1280";
 
     await expect(board(page)).toHaveCount(1);
     await expect(board(page).getByTestId("board-date")).toHaveCount(1);
@@ -508,14 +512,16 @@ test.describe("Today board: Family A parent", () => {
     const today = region(page, "today");
     await expect(today.getByRole("heading", { name: "Today" })).toBeVisible();
     const events = today.getByTestId("today-event");
-    await expect(events).toHaveCount(4);
+    await expect(events).toHaveCount(portrait ? 3 : 4);
     await expect(events.nth(0)).toContainText("9:00 AM");
     await expect(events.nth(0)).toContainText("Dentist (Casey)");
     await expect(events.nth(1)).toContainText("10:00 AM");
     await expect(events.nth(1)).toContainText(IMPORTED_TITLE);
     await expect(events.nth(1)).toContainText(`From ${SUBSCRIPTION_NAME}`);
     await expect(events.nth(2)).toContainText("Soccer practice");
-    await expect(events.nth(3)).toContainText(FIXTURE_LONG_TEXT.eventTitle);
+    if (portrait) await expect(today).toContainText("1 more later today");
+    else
+      await expect(events.nth(3)).toContainText(FIXTURE_LONG_TEXT.eventTitle);
     // Already finished this morning.
     await expect(today).not.toContainText("School drop-off");
     await expect(today).not.toContainText("Work stand-up");
@@ -525,25 +531,28 @@ test.describe("Today board: Family A parent", () => {
     await expect(dinner.getByTestId("dinner-tonight")).toContainText(
       DINNER_TODAY,
     );
-    await expect(dinner).toContainText("Cooking: Avery Fixture-A");
+    // First names only on the shared board (2026-11-19).
+    await expect(dinner).toContainText("Cooking: Avery");
+    await expect(dinner).not.toContainText("Fixture-A");
     // #274: the tile heading opens the section (no "Open meals" button).
     await expect(
       dinner.getByRole("link", { name: /Dinner tonight\s*, open meals/ }),
     ).toHaveAttribute("href", "/dashboard/meals?start=2026-01-05");
     await expect(page.getByRole("link", { name: /^Open / })).toHaveCount(0);
 
-    // Groceries: oldest 5 open items, checked items excluded, overflow link.
+    // Groceries: the oldest open items that fit the fridge card (4 of the
+    // 6), checked items excluded, and an honest "+2 more" overflow link.
     const groceries = region(page, "groceries");
     await expect(groceries).toContainText("6 to buy");
     const items = groceries.getByTestId("grocery-item");
-    await expect(items).toHaveCount(5);
+    await expect(items).toHaveCount(4);
     await expect(items.nth(0)).toContainText("Milk");
     await expect(items.nth(0)).toContainText("× 2");
     await expect(items.nth(1)).toContainText(FIXTURE_LONG_TEXT.groceryItem);
     await expect(groceries).not.toContainText("Coffee beans");
     await expect(groceries).not.toContainText("Dish soap");
     await expect(
-      groceries.getByRole("link", { name: "1 more to buy" }),
+      groceries.getByRole("link", { name: "+2 more" }),
     ).toHaveAttribute("href", "/dashboard/lists/groceries");
     // #274: a grocery row ticks the item off in place; the heading opens groceries.
     await expect(
@@ -574,7 +583,8 @@ test.describe("Today board: Family A parent", () => {
     await expect(days.nth(0)).toContainText("Tomorrow Jan 6");
     await expect(days.nth(0)).toContainText("Library returns");
     await expect(days.nth(0)).toContainText("Swim lessons");
-    await expect(days.nth(0)).toContainText("Piano recital");
+    if (portrait) await expect(days.nth(0)).toContainText("1 more");
+    else await expect(days.nth(0)).toContainText("Piano recital");
     await expect(days.nth(0)).toContainText(`Dinner: ${DINNER_TOMORROW}`);
     await expect(days.nth(1)).toContainText("Wednesday Jan 7");
     await expect(days.nth(1)).toContainText("Late flight arrival");
@@ -771,6 +781,48 @@ test.describe("Today board: Family A parent", () => {
     }
   });
 
+  test("portrait tablet fits one screen with Use soon and Coming up visible", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "tablet-portrait-800x1280",
+      "The portrait fit is for 800x1280 tablets (2026-11-19).",
+    );
+    await withDb(addBoardInventory);
+    await withDb(setBoardInventoryFeature);
+    try {
+      await openBoard(page, "/dashboard/today?mode=fridge");
+      await expect(
+        page.getByRole("region", { name: "Use soon" }),
+      ).toBeVisible();
+      const viewport = page.viewportSize()!;
+      expect(
+        await page.evaluate(() => document.documentElement.scrollHeight),
+      ).toBeLessThanOrEqual(viewport.height);
+      for (const testId of [
+        "region-today",
+        "region-dinner",
+        "region-chores",
+        "region-groceries",
+        "region-coming",
+        "region-usesoon",
+      ]) {
+        const box = await page.getByTestId(testId).boundingBox();
+        expect(box, testId).not.toBeNull();
+        expect(box!.y + box!.height, testId).toBeLessThanOrEqual(
+          viewport.height,
+        );
+      }
+      // Two columns: schedule beside chores.
+      const today = (await region(page, "today").boundingBox())!;
+      const chores = (await region(page, "chores").boundingBox())!;
+      expect(chores.x).toBeGreaterThan(today.x);
+      await expectNoHorizontalOverflow(page);
+    } finally {
+      await withDb(removeBoardInventory);
+    }
+  });
+
   test("shows the household's opt-in weather with text, and no coordinates", async ({
     page,
   }, testInfo) => {
@@ -843,7 +895,14 @@ test.describe("Today board: Family A parent", () => {
       const tile = page.getByRole("region", { name: "Use soon" });
       await expect(tile).toBeVisible();
       const rows = tile.getByTestId("use-soon-item");
-      await expect(rows).toHaveCount(5);
+      // Tablet layouts fit one screen, so the tile shows 3 rows there and
+      // counts the rest exactly (2026-11-19); phones keep 5.
+      const fitted =
+        LANDSCAPE_HUBS.includes(testInfo.project.name) ||
+        ["tablet-portrait-800x1280", "desktop-1366x768"].includes(
+          testInfo.project.name,
+        );
+      await expect(rows).toHaveCount(fitted ? 3 : 5);
       await expect(rows.nth(0)).toHaveText(
         /Baby spinach\s*Best before was 2 days ago\s*·\s*Fridge/,
       );
@@ -853,7 +912,7 @@ test.describe("Today board: Family A parent", () => {
       );
       await expect(rows.nth(2)).toContainText("Best before tomorrow");
       await expect(tile.getByTestId("use-soon-more")).toHaveText(
-        "2 more to use soon",
+        fitted ? "4 more to use soon" : "2 more to use soon",
       );
       // Not due yet, past use-by, and another household's item, are never shown.
       await expect(tile).not.toContainText("Apricot jam");
@@ -1034,7 +1093,8 @@ test.describe("Today board: Family A child", () => {
     ).toHaveCount(2);
     await expect(
       region(page, "groceries").getByTestId("grocery-item"),
-    ).toHaveCount(5);
+    ).toHaveCount(4);
+    await expect(region(page, "groceries")).toContainText("+2 more");
 
     const hrefs = await board(page)
       .locator("a")

@@ -7,7 +7,8 @@
  *   each with Undo in the toast; the database follows both ways.
  * - Paired tablet with the household opt-in turned on for the test: tapping a
  *   grocery row asks "Who's this?", then ticks it as that member through the
- *   device queue; a chore tap completes it as that member and its Undo
+ *   device queue; a tap on a one-person chore completes it for its assignee
+ *   at once ("Done for Casey · Not Casey?", 2026-11-19) and "Not Casey?"
  *   reopens it; the audit rows name the member and the tablet. With the
  *   opt-in off the tiles are plain text.
  * - Elevated setup on the tablet: parent mode → "Board settings" changes the
@@ -37,6 +38,9 @@ const ITEM = "E2E tiles oat milk";
 const CHORE = "E2E tiles feed the fish";
 const PARENT_NAME = "Avery Fixture-A";
 const CHILD_NAME = "Casey Fixture-A";
+/** The shared tablet shows first names only (owner decision 2026-11-19). */
+const PARENT_FIRST = "Avery";
+const CHILD_FIRST = "Casey";
 const PIN = "246810";
 const PROJECTS = ["fridge-landscape-1280x800", "desktop-1366x768"];
 const TABLET_PROJECTS = ["fridge-landscape-1280x800"];
@@ -328,9 +332,12 @@ test.describe("paired tablet", () => {
       const who = tablet.getByTestId("who-is-this");
       await expect(who).toBeVisible();
       await expect(
-        who.getByRole("button", { name: PARENT_NAME }),
+        who.getByRole("button", { name: PARENT_FIRST, exact: true }),
       ).toBeVisible();
-      await who.getByRole("button", { name: CHILD_NAME }).click();
+      // First names only on the shared screen.
+      await expect(who).not.toContainText(PARENT_NAME);
+      await expect(who).not.toContainText(CHILD_NAME);
+      await who.getByRole("button", { name: CHILD_FIRST, exact: true }).click();
       const tickResponse = await ticked;
       expect(tickResponse.status()).toBe(200);
       expect(tickResponse.request().headers()["idempotency-key"]).toMatch(
@@ -347,13 +354,13 @@ test.describe("paired tablet", () => {
           .filter({ hasText: "ticked off by Casey" }),
       ).toBeVisible();
       await expect(tablet.getByTestId("device-actor")).toContainText(
-        `Ticking off as ${CHILD_NAME}`,
+        `Ticking off as ${CHILD_FIRST}`,
       );
       await expect
         .poll(async () => await itemRow())
         .toEqual({ checked: true, checked_by: A.child });
 
-      // Chore: no second "Who's this?" within two minutes.
+      // Chore for one person: done for the assignee on one tap, no picker.
       const chores = region(tablet, "chores");
       const completed = tablet.waitForResponse((r) =>
         r.url().endsWith(`/api/device/chores/${IDS.chore}/complete`),
@@ -366,7 +373,8 @@ test.describe("paired tablet", () => {
         .toBe("completed");
       const choreToast = tablet
         .getByTestId("undo-toast")
-        .filter({ hasText: `“${CHORE}” done by Casey` });
+        .filter({ hasText: "Done for Casey" });
+      await expect(choreToast).toContainText(`“${CHORE}”`);
       await expect(choreToast).toContainText("A parent will check it.");
       await expect(tablet.locator("body")).not.toContainText(/\bXP\b|points/);
 
@@ -399,13 +407,17 @@ test.describe("paired tablet", () => {
         },
       ]);
 
-      // The tablet's own Undo within its window reopens the chore.
+      // "Not Casey?" is the tablet's own Undo within its window: it reopens
+      // the chore, then asks who did it (closing the picker leaves it open).
       const reopened = tablet.waitForResponse((r) =>
         r.url().endsWith(`/api/device/chores/${IDS.chore}/uncomplete`),
       );
-      await choreToast.getByRole("button", { name: "Undo" }).click();
+      await choreToast.getByRole("button", { name: "Not Casey?" }).click();
       expect((await reopened).status()).toBe(200);
       await expect.poll(async () => (await choreRow())?.status).toBe("pending");
+      await expect(who).toBeVisible();
+      await who.getByRole("button", { name: "Close" }).click();
+      await expect(who).toBeHidden();
     } finally {
       await parent.context.close();
     }
@@ -443,9 +455,11 @@ test.describe("paired tablet", () => {
 
       await tablet.getByRole("button", { name: "Parent", exact: true }).click();
       const sheet = tablet.getByTestId("elevation-sheet");
-      await sheet.getByRole("button", { name: PARENT_NAME }).click();
+      await sheet
+        .getByRole("button", { name: PARENT_FIRST, exact: true })
+        .click();
       const pad = sheet.getByRole("group", {
-        name: `Tablet PIN pad for ${PARENT_NAME}`,
+        name: `Tablet PIN pad for ${PARENT_FIRST}`,
       });
       for (const digit of PIN) {
         await pad.getByRole("button", { name: digit, exact: true }).click();

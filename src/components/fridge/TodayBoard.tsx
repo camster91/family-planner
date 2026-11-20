@@ -157,10 +157,85 @@ const GRID_APP_WITH_SLOT_WITHOUT_CHORES = [
   'md:grid-cols-2 md:[grid-template-areas:"today_today"_"dinner_groceries"_"usesoon_usesoon"_"coming_coming"]',
   'lg:grid-cols-3 lg:[grid-template-areas:"today_dinner_groceries"_"coming_coming_coming"_"usesoon_usesoon_usesoon"]',
 ].join(" ");
+// Fridge hub (2026-11-19 fit fix): cards are sized to their content
+// (`self-start` + `max-h-full`) instead of stretching to fixed row fractions,
+// so Dinner no longer sits half empty while Groceries clips. Rows the card
+// cannot fit are counted in an honest "+N more" (see FRIDGE_LIMITS); a card
+// only scrolls inside itself as a last resort for very long text.
 const GRID_FRIDGE =
-  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto';
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:max-h-full lg:landscape:[&>*]:self-start lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto';
 const GRID_FRIDGE_WITH_SLOT =
-  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[minmax(0,4fr)_minmax(0,2fr)_minmax(0,4fr)] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_groceries_usesoon_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto';
+  'lg:landscape:min-h-0 lg:landscape:flex-1 lg:landscape:grid-cols-[5fr_4fr_4fr_4fr] 2xl:landscape:grid-cols-[6fr_5fr_5fr_4fr] lg:landscape:grid-rows-[auto_minmax(0,1fr)_auto] lg:landscape:[grid-template-areas:"today_dinner_chores_coming"_"today_groceries_chores_coming"_"today_groceries_usesoon_coming"] lg:landscape:[&>*]:min-h-0 lg:landscape:[&>*]:max-h-full lg:landscape:[&>*]:self-start lg:landscape:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto';
+// Portrait fridge tablet (800x1280 and up): two columns that fit one screen,
+// so "Use soon" and "Coming up" show without scrolling. `lg:portrait:` repeats
+// the `md:portrait:` rules so they also beat the `lg:` app grid on a wide
+// portrait tablet.
+const GRID_FRIDGE_PORTRAIT =
+  'md:portrait:min-h-0 md:portrait:flex-1 md:portrait:grid-cols-2 md:portrait:grid-rows-[minmax(0,1fr)_auto_auto] md:portrait:[grid-template-areas:"today_chores"_"dinner_groceries"_"coming_coming"] md:portrait:[&>*]:min-h-0 md:portrait:[&>*]:max-h-full md:portrait:[&>*]:self-start md:portrait:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto lg:portrait:grid-cols-2 lg:portrait:grid-rows-[minmax(0,1fr)_auto_auto] lg:portrait:[grid-template-areas:"today_chores"_"dinner_groceries"_"coming_coming"]';
+const GRID_FRIDGE_PORTRAIT_WITH_SLOT =
+  'md:portrait:min-h-0 md:portrait:flex-1 md:portrait:grid-cols-2 md:portrait:grid-rows-[minmax(0,1fr)_auto_auto_auto] md:portrait:[grid-template-areas:"today_chores"_"dinner_groceries"_"usesoon_groceries"_"coming_coming"] md:portrait:[&>*]:min-h-0 md:portrait:[&>*]:max-h-full md:portrait:[&>*]:self-start md:portrait:[&>*:not([data-testid=region-groceries]):not([data-testid=board-slot-use-soon])]:overflow-y-auto lg:portrait:grid-cols-2 lg:portrait:grid-rows-[minmax(0,1fr)_auto_auto_auto] lg:portrait:[grid-template-areas:"today_chores"_"dinner_groceries"_"usesoon_groceries"_"coming_coming"]';
+
+/**
+ * Fridge rows per card (2026-11-19). The fridge board fits one screen, so a
+ * card shows what fits and says exactly how many more there are; it never
+ * hides rows silently. `null` fit (a phone-sized fridge view) keeps the
+ * stacked defaults except Groceries.
+ */
+export type FridgeFit = "landscape" | "portrait" | null;
+export interface FridgeLimits {
+  today?: number | ((crowded: boolean) => number);
+  groceries: number;
+  /** `crowded`: the "Use soon" tile takes a row of the same screen. */
+  choreRows?: (people: number, crowded: boolean) => number;
+  perDay?: number;
+  useSoon?: number;
+}
+export const FRIDGE_LIMITS: Record<"landscape" | "portrait" | "stacked", FridgeLimits> = {
+  landscape: {
+    today: 6,
+    groceries: 4,
+    // Chores share their column with "Use soon" when it is there.
+    choreRows: (people, crowded) =>
+      Math.max(people, crowded ? 5 - people : 10 - 2 * people),
+    perDay: 3,
+    useSoon: 3,
+  },
+  portrait: {
+    today: (crowded) => (crowded ? 2 : 3),
+    groceries: 4,
+    choreRows: (people, crowded) =>
+      Math.max(people, (crowded ? 4 : 5) - people),
+    perDay: 2,
+    useSoon: 3,
+  },
+  stacked: { groceries: 4 },
+};
+
+const LANDSCAPE_FIT_QUERY = "(min-width: 1024px) and (orientation: landscape)";
+const PORTRAIT_FIT_QUERY = "(min-width: 768px) and (orientation: portrait)";
+
+/** Which fridge layout the CSS grid is using right now (matches its media queries). */
+export function useFridgeFit(enabled: boolean): FridgeFit {
+  const [fit, setFit] = React.useState<FridgeFit>(null);
+  React.useEffect(() => {
+    if (!enabled || typeof window.matchMedia !== "function") {
+      setFit(null);
+      return;
+    }
+    const landscape = window.matchMedia(LANDSCAPE_FIT_QUERY);
+    const portrait = window.matchMedia(PORTRAIT_FIT_QUERY);
+    const update = () =>
+      setFit(landscape.matches ? "landscape" : portrait.matches ? "portrait" : null);
+    update();
+    landscape.addEventListener?.("change", update);
+    portrait.addEventListener?.("change", update);
+    return () => {
+      landscape.removeEventListener?.("change", update);
+      portrait.removeEventListener?.("change", update);
+    };
+  }, [enabled]);
+  return fit;
+}
 
 /**
  * In the fridge hub the slot is a grid cell of fixed height; its tile fills it
@@ -184,6 +259,8 @@ export function boardGridClass(
         ? GRID_APP_WITH_SLOT_WITHOUT_CHORES
         : GRID_APP_WITHOUT_CHORES,
     fridgeMode && (hasUseSoon ? GRID_FRIDGE_WITH_SLOT : GRID_FRIDGE),
+    fridgeMode &&
+      (hasUseSoon ? GRID_FRIDGE_PORTRAIT_WITH_SLOT : GRID_FRIDGE_PORTRAIT),
   ]
     .filter(Boolean)
     .join(" ");
@@ -324,10 +401,12 @@ function LazyUseSoon({
   items,
   inventoryHref,
   onLoaded,
+  maxRows,
 }: {
   items: UseSoonEntry[];
   inventoryHref: string | null;
   onLoaded: () => void;
+  maxRows?: number;
 }) {
   const [attempt, setAttempt] = React.useState(0);
   const [UseSoonRegion, setUseSoonRegion] = React.useState(createUseSoonRegion);
@@ -352,7 +431,11 @@ function LazyUseSoon({
     >
       <React.Suspense fallback={<UseSoonRegionFallback status="loading" />}>
         <UseSoonRegionLoaded onLoaded={loaded}>
-          <UseSoonRegion items={items} inventoryHref={inventoryHref} />
+          <UseSoonRegion
+            items={items}
+            inventoryHref={inventoryHref}
+            {...(maxRows === undefined ? {} : { maxRows })}
+          />
         </UseSoonRegionLoaded>
       </React.Suspense>
     </LazyChunkBoundary>
@@ -740,6 +823,10 @@ export default function TodayBoard({
 
   const showChores =
     fridgeMode || !choresShownElsewhere?.length || Boolean(view?.chores.length);
+  const fridgeFit = useFridgeFit(fridgeMode);
+  const limits: FridgeLimits | null = fridgeMode
+    ? FRIDGE_LIMITS[fridgeFit ?? "stacked"]
+    : null;
   const useSoonSlotRef = React.useRef<HTMLDivElement>(null);
   const onUseSoonLoaded = React.useCallback(() => {
     useSoonSlotRef.current
@@ -755,6 +842,7 @@ export default function TodayBoard({
         items={view.useSoon}
         inventoryHref={data.links.inventory ?? null}
         onLoaded={onUseSoonLoaded}
+        maxRows={limits?.useSoon}
       />
     ) : null);
 
@@ -873,7 +961,8 @@ export default function TodayBoard({
             ? // On a landscape fridge tablet the board fits the viewport: the grid
               // takes the height left under the header and each region scrolls
               // inside itself instead of pushing content below the fold.
-              "min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden"
+              // A portrait tablet fits the screen the same way (2026-11-19).
+              "min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden md:portrait:flex md:portrait:h-dvh md:portrait:min-h-0 md:portrait:flex-col md:portrait:overflow-hidden"
             : "bg-[var(--surface-grouped)] [&_[data-testid=region-dinner]]:bg-accent-tint [&_[data-testid=region-dinner]]:border-transparent"
         }
       >
@@ -1017,6 +1106,14 @@ export default function TodayBoard({
                 events={view.today}
                 calendarHref={data.links.calendar}
                 people={view.people}
+                {...(limits?.today === undefined
+                  ? {}
+                  : {
+                      maxRows:
+                        typeof limits.today === "function"
+                          ? limits.today(Boolean(useSoonSlot))
+                          : limits.today,
+                    })}
               />
             ) : (
               <NextUpRegion
@@ -1055,6 +1152,10 @@ export default function TodayBoard({
                 choresHref={data.links.chores}
                 onTick={tiles.tickChore}
                 canTick={tiles.canTickChore}
+                rowBudget={limits?.choreRows?.(
+                  view.chores.length,
+                  Boolean(useSoonSlot),
+                )}
               />
             )}
             <GroceriesRegion
@@ -1063,11 +1164,13 @@ export default function TodayBoard({
               listsHref={data.links.lists}
               onTick={tiles.tickGrocery}
               action={groceryAction}
+              maxRows={limits?.groceries}
             />
             <ComingUpRegion
               days={view.comingUp}
               mealsEnabled={data.dinners !== null}
               stackInLandscape={fridgeMode}
+              {...(limits?.perDay === undefined ? {} : { maxPerDay: limits.perDay })}
             />
             {useSoonSlot && (
               <div
