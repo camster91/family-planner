@@ -4,7 +4,8 @@ import { useEffect, useId, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { useTranslation } from "@/i18n";
 import { listTasksMessages, type ListTasksMessage } from "@/i18n/list-tasks";
-import { MEMBER_COLOR_CSS, isMemberColorKey } from "@/lib/member-colors";
+import { PersonChip } from "@/components/ui/person-chip";
+import { firstName } from "@/lib/person-display";
 import { dueState, isDueDay, type ListItemTaskView } from "@/lib/list-tasks";
 import { useNow } from "@/components/fridge/sync-status";
 
@@ -109,11 +110,8 @@ export function ListItemTaskControl({ itemId, itemName, initial, canEdit, disabl
   return (
     <div data-testid="list-item-task" className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-2 text-footnote text-label-secondary">
       {task.owner && (
-        <span data-testid="list-item-task-owner" className="inline-flex items-center gap-1.5">
-          <span aria-hidden="true" className="h-2 w-2 flex-none rounded-full"
-            style={{ background: isMemberColorKey(task.owner.color) ? MEMBER_COLOR_CSS[task.owner.color] : "currentColor" }} />
-          <span style={{ overflowWrap: "anywhere" }}>{msg("forPerson", { name: task.owner.name })}</span>
-        </span>
+        <PersonChip testId="list-item-task-owner" name={task.owner.name} color={task.owner.color}
+          label={msg("forPerson", { name: firstName(task.owner.name) })} />
       )}
       {dueText && (
         <span data-testid="list-item-task-due" data-due-state={state ?? undefined} className={state === "overdue" ? "font-semibold text-danger-text" : state === "today" ? "font-semibold text-label-primary" : undefined}>

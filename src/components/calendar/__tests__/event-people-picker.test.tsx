@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import { EventPeoplePicker } from '../EventPeoplePicker'
 import { EventPeopleLine } from '../EventPeopleLine'
 import type { EventPersonRef } from '@/lib/event-participants'
@@ -65,11 +65,17 @@ describe('EventPeoplePicker', () => {
 })
 
 describe('EventPeopleLine', () => {
-  it('names the people in text, with colour as decoration only', () => {
-    render(<EventPeopleLine people={people} label="For" />)
+  it('names the people as first-name chips, with colour and initial as decoration only', () => {
+    render(<EventPeopleLine people={[...people, { kind: 'account', id: 'u9', name: 'Casey Long-Name', color: 'not-a-colour' }]} label="For" />)
     const line = screen.getByTestId('event-people-line')
-    expect(line.getAttribute('aria-label')).toBe('For Avery, Kid')
-    expect(line.textContent).toBe('AveryKid')
+    const chips = within(line).getAllByTestId('person-chip')
+    expect(chips.map((chip) => chip.querySelector('[data-person-name]')?.textContent)).toEqual(['Avery', 'Kid', 'Casey'])
+    // The spoken text is "For Avery Kid Casey": the initials are hidden.
+    expect(line.querySelector('.sr-only')?.textContent).toBe('For ')
+    for (const chip of chips) expect(chip.querySelector('[aria-hidden="true"]')).not.toBeNull()
+    // A colour this build does not know draws a neutral circle, never a guess.
+    expect(chips[2].querySelector('[data-member-color]')).toBeNull()
+    expect(chips[0].querySelector('[data-member-color]')).not.toBeNull()
   })
   it('renders nothing without people', () => {
     const { container } = render(<><EventPeopleLine people={[]} label="For" /><EventPeopleLine people={undefined} label="For" /></>)

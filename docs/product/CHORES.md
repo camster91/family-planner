@@ -27,6 +27,18 @@ The row changes at once, then takes the server's state from the response; on fai
 gives the server's reason. Before this fix both buttons sent `status` through `PATCH /api/chores`, which never
 accepted status fields, so they returned 200 and changed nothing.
 
+## Who a chore is for (UI review item 9)
+
+Each open chore on the chores page shows the person it is for as a face on the
+left (their initial on their Today-board colour; a picture routine keeps its
+picture) and their first name in the line below. Full names show only when two
+people in the household share a first name. Above the list an "Everyone · Mia ·
+Casey" row of toggle buttons (44px) shows only one person's chores, including
+chores waiting for a parent's check. The choice is remembered on that device
+only (`localStorage` `fp:person-filter:v1:chores`). The people and colours come
+from the household people reader shared with events and to-dos (accounts and
+standalone profiles of this household; name and colour only).
+
 ## Picture routines for young kids (#272)
 
 A chore can have:

@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Glyph } from '@/components/ui/glyph'
+import { PersonChip } from '@/components/ui/person-chip'
 import { cn } from '@/lib/utils'
 import { BoardRoutineIcon } from './BoardRoutineIcon'
 import { useDisplayLocale } from '@/components/ui/use-display-locale'
@@ -168,46 +169,31 @@ export function eventTimeLabel(
   return formatTime(e.start, locale)
 }
 
-/** Colour swatch that always sits next to a visible name (never colour-only). */
-function MemberSwatch({ color, className }: { color: MemberColorKey; className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      data-member-color={color}
-      className={cn('inline-block shrink-0 rounded-full', className)}
-      style={{ backgroundColor: MEMBER_COLOR_CSS[color] }}
-    />
-  )
-}
-
 /**
- * "Added by Avery" with the member's colour (#262). Events have no attendee
- * field, so the board says who added it rather than implying who attends.
+ * "Added by Avery" (#262), demoted to plain small text with no colour: who
+ * added an event is not who it is for, so it no longer looks like a person
+ * chip. Shown only for an event with no people chosen.
  */
 function AddedByLabel({ person }: { person: BoardPerson }) {
   const text = useTodayBoardText()
   return (
-    <span
-      data-testid="event-member"
-      className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-medium text-label-primary md:text-[16px] 2xl:text-[18px]"
-    >
-      <MemberSwatch color={person.color} className="h-3 w-3 2xl:h-3.5 2xl:w-3.5" />
-      <span className="min-w-0 break-words">{text('addedBy', { name: person.name })}</span>
+    <span data-testid="event-member" className={cn(metaTextClass, 'min-w-0 break-words')}>
+      {text('addedBy', { name: firstName(person.name) })}
     </span>
   )
 }
 
-/** "For Casey" with the member's colour: who the event is for (people on events). */
+/** "For Casey" as a person chip: initial on their colour, first name. */
 function ForPersonLabel({ person }: { person: BoardPerson }) {
   const text = useTodayBoardText()
   return (
-    <span
-      data-testid="event-for"
-      className="inline-flex max-w-full items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--surface-fill)] px-3 py-1 text-[15px] font-medium text-label-primary md:text-[17px]"
-    >
-      <MemberSwatch color={person.color} className="h-3 w-3 2xl:h-3.5 2xl:w-3.5" />
-      <span className="min-w-0 break-words">{text('eventFor', { name: firstName(person.name) })}</span>
-    </span>
+    <PersonChip
+      testId="event-for"
+      size="md"
+      name={person.name}
+      color={person.color}
+      label={text('eventFor', { name: firstName(person.name) })}
+    />
   )
 }
 
@@ -704,9 +690,12 @@ export function ComingUpRegion({
                       <p className={cn(itemTextClass, 'break-words')}>
                         <span className="font-semibold tabular-nums">{formatTime(e.start, locale)}</span> {e.title}
                       </p>
-                      {e.source && (
-                        <div className="mt-1">
-                          <SourceLabel source={e.source} />
+                      {(!!e.forPeople?.length || e.source) && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {e.forPeople?.map((who, index) => (
+                            <ForPersonLabel key={`${index}:${who.name}`} person={who} />
+                          ))}
+                          {e.source && <SourceLabel source={e.source} />}
                         </div>
                       )}
                     </li>

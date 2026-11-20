@@ -16,6 +16,8 @@ shopping lists are for buying, not doing, and take neither.
 - **Owner:** a household account or a standalone email-free profile, the same
   people an event can be for. Attribution only: it grants nothing. An owner who
   has left the household or been archived stops showing; the due day stays.
+  The item shows it as a person chip: the initial on their colour and
+  "For Casey" with the first name.
 - **Due day:** a calendar day (`YYYY-MM-DD`), not an instant, so it has no time
   zone. Each reader compares it with their own today: "Due today",
   "Overdue · Thu, Jan 8", "Due Mon, Jan 12".

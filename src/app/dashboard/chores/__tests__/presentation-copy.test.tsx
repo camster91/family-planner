@@ -65,7 +65,7 @@ const user = () => userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 const opener = () =>
   screen.getByRole("button", { name: "Más acciones para “Pack lunch 原”" });
 
-it("keeps localized dates and routine metadata beside verbatim household names", async () => {
+it("keeps localized dates and routine metadata beside verbatim household first names", async () => {
   const u = user();
   mount([
     {
@@ -86,7 +86,7 @@ it("keeps localized dates and routine metadata beside verbatim household names",
   ).toBeInTheDocument();
   expect(
     screen.getByText(
-      /Alex 原 · Mañana · Morning 原, paso 3 · Por turnos · siguiente: Casey 原/,
+      /^Alex · Mañana · Morning 原, paso 3 · Por turnos · siguiente: Casey$/,
     ),
   ).toBeInTheDocument();
 });

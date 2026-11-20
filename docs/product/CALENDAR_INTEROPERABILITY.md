@@ -291,6 +291,20 @@ represented by that account, as on the Today board.
   who are in the household now. Colour is the person's Today-board colour.
 - **Surfaces:** the new and edit event forms ("Who is it for?"), planner chips
   and detail, and Today rows ("For Casey" replaces "Added by" when set).
+- **Person chips and filter (UI review item 9):** an event shows a person chip
+  per person: the initial on their colour plus their first name. In the agenda
+  the chip carries the name; in the narrow week and day grid only the initials
+  show and the names stay in the button's spoken name and the details. The
+  planner has an "Everyone · Mia · Casey" row (pressed toggle buttons, 44px)
+  that shows only the events for one person; an event for nobody in
+  particular is hidden while a person is chosen, and the overlap list follows
+  the filter. The choice is remembered on that device only
+  (`localStorage` `fp:person-filter:v1:calendar`, a person key; a key not in
+  the household reads as "Everyone"). The household list comes from the same
+  reader as `GET /api/events/people`, on the server, only with the switch on.
+  On Today, "Coming up" rows show the same chips, and "Added by" (no people
+  chosen) is plain small text with no colour.
+- **All-day events:** not part of this; events still have no all-day field.
 - **Lifecycle:** deleting the event, the account or the profile cascades the
   row. Leaving the household or archiving a profile hides it on read. Household
   deletion clears the table before events. The database refuses a

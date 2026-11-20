@@ -178,12 +178,12 @@ test.describe("Family A parent", () => {
     // "Today" filter must not pull in tomorrow's chore (it used to, because the
     // date was parsed in local time and landed on the previous evening).
     await expect(
-      main.getByText("Taylor Fixture-A · Today").first(),
+      main.getByText("Taylor · Today").first(),
     ).toBeVisible();
     await expect(main.getByText("Pack school bag")).toHaveCount(0);
     await main.getByRole("button", { name: "Week", exact: true }).click();
     await expect(main.getByText("Pack school bag")).toBeVisible();
-    await expect(main.getByText("Casey Fixture-A · Tomorrow")).toBeVisible();
+    await expect(main.getByText("Casey · Tomorrow")).toBeVisible();
     await expect(main.getByText("Unload dishwasher")).toBeVisible();
   });
 

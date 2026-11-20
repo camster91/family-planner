@@ -126,12 +126,13 @@ describe('member colours (#262)', () => {
     expect([...names.values()]).toEqual(['Sam One', 'Sam Two', 'Riley'])
   })
 
-  it('labels who added an event by name, not colour alone, and never on imported events', async () => {
+  it('names who added an event as plain text without a person colour, and never on imported events', async () => {
     await renderBoard()
     const events = screen.getAllByTestId('today-event')
     const label = within(events[0]).getByTestId('event-member')
     expect(label.textContent).toBe('Added by Avery')
-    expect(label.querySelector('[data-member-color="purple"]')).not.toBeNull()
+    // Demoted: who added an event is not who it is for, so it carries no chip colour.
+    expect(label.querySelector('[data-member-color]')).toBeNull()
     expect(within(events[1]).queryByTestId('event-member')).toBeNull()
   })
 

@@ -40,6 +40,13 @@ import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import styles from "./calendar-planner.module.css";
 import { EventPeopleLine } from "@/components/calendar/EventPeopleLine";
 import { MEMBER_COLOR_CSS, isMemberColorKey } from "@/lib/member-colors";
+import { PersonFilter } from "@/components/ui/person-filter";
+import { usePersonFilter } from "@/lib/person-filter-preference";
+import {
+  firstName,
+  matchesPerson,
+  type PersonOption,
+} from "@/lib/person-display";
 import {
   SyncNotice,
   UpdatedLine,
@@ -48,6 +55,9 @@ import {
 import { useOnline } from "@/components/fridge/use-board-sync";
 
 type Subscription = { id: string; name: string; color: string | null };
+const NO_PEOPLE: ReadonlyArray<PersonOption> = [];
+const participantKeys = (e: PlanningEvent) =>
+  (e.participants ?? []).map((person) => `${person.kind}:${person.id}`);
 export function CalendarPlanner({
   readScope: suppliedReadScope,
   initialDate,
@@ -58,6 +68,7 @@ export function CalendarPlanner({
   refreshKey = 0,
   chooseLocalToday = false,
   headerAction,
+  people = NO_PEOPLE,
 }: {
   readScope?: CalendarReadScope;
   initialDate: string;
@@ -68,6 +79,11 @@ export function CalendarPlanner({
   refreshKey?: unknown;
   chooseLocalToday?: boolean;
   headerAction?: React.ReactNode;
+  /**
+   * Household people events can be for, for the "Everyone · Mia" filter.
+   * Empty when people on events is off; then no filter is shown.
+   */
+  people?: ReadonlyArray<PersonOption>;
 }) {
   const localReadScope = useCalendarReadScope();
   const readScope = suppliedReadScope ?? localReadScope;
@@ -85,6 +101,14 @@ export function CalendarPlanner({
   const [local, setLocal] = React.useState(false),
     [date, setDate] = React.useState(initialDate),
     [view, setView] = React.useState<PlanningView>(initialView || "week");
+  const peopleKeys = React.useMemo(
+    () => people.map((person) => person.key),
+    [people],
+  );
+  const [person, setPerson] = usePersonFilter("calendar", peopleKeys);
+  const personName = firstName(
+    people.find((candidate) => candidate.key === person)?.name ?? "",
+  );
   const [filter, setFilter] = React.useState("all"),
     [sources, setSources] = React.useState<Subscription[]>([]),
     [sourceState, setSourceState] = React.useState<
@@ -288,8 +312,12 @@ export function CalendarPlanner({
       });
   };
   const filtered = React.useMemo(
-    () => data.filter((e) => matchesSource(e, filter)),
-    [data, filter],
+    () =>
+      data.filter(
+        (e) =>
+          matchesSource(e, filter) && matchesPerson(participantKeys(e), person),
+      ),
+    [data, filter, person],
   );
   const overlaps = React.useMemo(
     () => overlappingEvents(filtered, { start, end }),
@@ -332,7 +360,7 @@ export function CalendarPlanner({
                   : `${time(segment.start)}${+segment.start !== +segment.end ? ` – ${time(segment.end)}` : ""}`}
           </span>
           <strong>{e.title}</strong>
-          <small><EventPeopleLine people={e.participants} label={msg("eventFor")} /></small>
+          <EventPeopleLine className={styles.eventPeople} people={e.participants} label={msg("eventFor")} />
           {e.series_id && <small data-testid="event-repeats">{msg("repeats")}</small>}
           {!isLocalEvent(e) && <small>{sourceLabel(e)}</small>}
           {segment.continuesBefore && (
@@ -510,6 +538,14 @@ export function CalendarPlanner({
               </button>
             </p>
           )}
+          <PersonFilter
+            className="mb-3"
+            people={people}
+            value={person}
+            onChange={setPerson}
+            label={msg("personFilter")}
+            everyoneLabel={msg("everyone")}
+          />
           <div className={styles.controls}>
             <nav aria-label={msg("changeDates")}>
               <button
@@ -694,12 +730,21 @@ export function CalendarPlanner({
                   }
                 >
                   <h2>
-                    {filter === "all" ? msg("empty") : msg("emptySource")}
+                    {person !== "all"
+                      ? msg("emptyPerson", { name: personName })
+                      : filter === "all"
+                        ? msg("empty")
+                        : msg("emptySource")}
                   </h2>
                   <p>
                     {msg("showing", { source: label })}
                     {truncated ? msg("partialSuffix") : ""}
                   </p>
+                  {person !== "all" && (
+                    <button onClick={() => setPerson("all")}>
+                      {msg("showEveryone")}
+                    </button>
+                  )}
                   {filter !== "all" && (
                     <button onClick={() => setFilter("all")}>
                       {msg("showAll")}
@@ -983,7 +1028,7 @@ export function CalendarPlanner({
           </p>
           {!!selected.participants?.length && (
             <p>
-              {msg("eventFor")} <EventPeopleLine people={selected.participants} label={msg("eventFor")} />
+              {msg("eventFor")} <EventPeopleLine people={selected.participants} label="" />
             </p>
           )}
           {!isLocalEvent(selected) && <p>{sourceLabel(selected)}</p>}

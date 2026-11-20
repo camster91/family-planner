@@ -37,7 +37,7 @@ describe('ListItemTaskControl', () => {
   ])('shows the owner and a due day of %s as %s', (due, state, label) => {
     global.fetch = server()
     render(<ListItemTaskControl itemId="i1" itemName="Rake leaves" canEdit={false} initial={{ owner: { kind: 'account', id: 'u1', name: 'Avery', color: 'green' }, due }} />)
-    expect(screen.getByTestId('list-item-task-owner').textContent).toBe('For Avery')
+    expect(screen.getByTestId('list-item-task-owner').querySelector('[data-person-name]')?.textContent).toBe('For Avery')
     const shown = screen.getByTestId('list-item-task-due')
     expect(shown.textContent).toBe(label)
     expect(shown.getAttribute('data-due-state')).toBe(state)
@@ -55,7 +55,7 @@ describe('ListItemTaskControl', () => {
     fireEvent.change(dialog.getByLabelText('Who is it for?'), { target: { value: 'profile:m1' } })
     fireEvent.change(dialog.getByLabelText('Due date (optional)'), { target: { value: '2026-01-12' } })
     fireEvent.click(dialog.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(screen.getByTestId('list-item-task-owner').textContent).toBe('For Kid'))
+    await waitFor(() => expect(screen.getByTestId('list-item-task-owner').querySelector('[data-person-name]')?.textContent).toBe('For Kid'))
     const [url, options] = (global.fetch as jest.Mock).mock.calls[1]
     expect(url).toBe('/api/lists/items/task')
     expect(JSON.parse(options.body)).toEqual({ itemId: 'i1', owner: { kind: 'profile', id: 'm1' }, due: '2026-01-12' })
@@ -112,7 +112,7 @@ describe('ListItemTaskControl', () => {
     fireEvent.click(dialog.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(screen.getByTestId('list-item-task-due').textContent).toBe('Due Mon, Jan 12'))
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ itemId: 'i1', due: '2026-01-12' })
-    expect(screen.getByTestId('list-item-task-owner').textContent).toBe('For Avery')
+    expect(screen.getByTestId('list-item-task-owner').querySelector('[data-person-name]')?.textContent).toBe('For Avery')
   })
   it('closes without asking the server when nothing changed', async () => {
     global.fetch = server()
@@ -129,7 +129,7 @@ describe('ListItemTaskControl', () => {
     const { rerender } = render(<ListItemTaskControl itemId="i1" itemName="Rake leaves" canEdit={false} initial={{ owner: null, due: '2026-01-12' }} />)
     expect(screen.getByTestId('list-item-task-due').textContent).toBe('Due Mon, Jan 12')
     rerender(<ListItemTaskControl itemId="i1" itemName="Rake leaves" canEdit={false} initial={{ owner: { kind: 'profile', id: 'm1', name: 'Kid', color: 'sky' }, due: '2026-01-09' }} />)
-    expect(screen.getByTestId('list-item-task-owner').textContent).toBe('For Kid')
+    expect(screen.getByTestId('list-item-task-owner').querySelector('[data-person-name]')?.textContent).toBe('For Kid')
     expect(screen.getByTestId('list-item-task-due').textContent).toBe('Due today')
   })
 })

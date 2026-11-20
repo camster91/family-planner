@@ -10,6 +10,8 @@ import { refreshStaleConnections } from "@/lib/calendar-sync/sync";
 import { canImportEvents, isEventImportConfigured } from "@/lib/event-import";
 import { parsePlanningDate, dayKey } from "@/lib/calendar-planning/view";
 import { isParentRole } from "@/lib/role-capabilities";
+import { eventPeopleReady } from "@/lib/event-participants";
+import { readHouseholdPeopleOptions } from "@/lib/household-people-options";
 import CalendarPageClient from "./CalendarPageClient";
 
 interface CalendarPageProps {
@@ -107,10 +109,17 @@ export default async function CalendarPage({
   if (!current || current.family_id !== owner.familyId || current.role !== owner.role ||
     current.token_version !== owner.generation) return null;
 
+  // "Everyone · Mia" filter: only with people on events on, and only this
+  // household's people (read after the owner check above).
+  const people = eventPeopleReady()
+    ? await readHouseholdPeopleOptions(owner.familyId, "/dashboard/calendar")
+    : [];
+
   return (
     <CalendarPageClient
       events={[]}
       initialOwner={owner}
+      people={people}
       captureRequested={params.capture === "1"}
       canCreateEvents={canImportEvents(user?.role)}
       notificationFocus={notificationFocus}

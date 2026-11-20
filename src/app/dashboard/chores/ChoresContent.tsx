@@ -63,6 +63,16 @@ import {
   compareChoreOrder,
 } from "@/lib/chore-paging";
 import type { Chore } from "@/types";
+import { PersonAvatar } from "@/components/ui/person-chip";
+import { PersonFilter } from "@/components/ui/person-filter";
+import { usePersonFilter } from "@/lib/person-filter-preference";
+import {
+  choreSubjectKey,
+  firstName,
+  matchesPerson,
+  shortNames,
+  type PersonOption,
+} from "@/lib/person-display";
 import type {
   ChoreSubjectDTO,
   ProfileChoreActionAvailability,
@@ -120,7 +130,11 @@ interface ChoresContentProps {
   routineSchedulesEnabled?: boolean;
   /** `GET /api/chores` cursor for older verified chores not loaded yet (O-19), or null when all are here. */
   historyCursor?: string | null;
+  /** Household people with their colours, for person avatars and the "Everyone · Mia" filter. */
+  people?: PersonOption[];
 }
+
+const NO_PEOPLE: PersonOption[] = [];
 
 type BoardChore = ChoresContentProps["chores"][number];
 
@@ -275,6 +289,7 @@ export default function ChoresContent({
   historyCursor = null,
   preparationBacklinks: initialPreparationBacklinks = {},
   preparationContextEnabled = false,
+  people = NO_PEOPLE,
 }: ChoresContentProps) {
   const checkOwner = userRole === "parent" && ownedCheck?.owner?.userId === currentUserId
     && ownedCheck.owner.familyId === familyId ? ownedCheck.owner : null;
@@ -359,6 +374,37 @@ export default function ChoresContent({
   // due_date values and the snooze payload stay YYYY-MM-DD.
   const displayLocale = useDisplayLocale();
   const verificationText = useChoreVerificationText();
+  // Who each chore is for: first names (full names only when two people share
+  // one) and the colour each person has everywhere else.
+  const peopleByKey = React.useMemo(
+    () => new Map(people.map((person) => [person.key, person])),
+    [people],
+  );
+  const peopleShortNames = React.useMemo(() => shortNames(people), [people]);
+  const peopleKeys = React.useMemo(
+    () => people.map((person) => person.key),
+    [people],
+  );
+  const [personFilter, setPersonFilter] = usePersonFilter(
+    "chores",
+    peopleKeys,
+  );
+  const choreKey = (chore: BoardChore) => choreSubjectKey(chore);
+  const chorePerson = (chore: BoardChore) => {
+    const key = choreKey(chore);
+    return key ? (peopleByKey.get(key) ?? null) : null;
+  };
+  const choreOwnerName = (chore: BoardChore) => {
+    const key = choreKey(chore);
+    const short = key ? peopleShortNames.get(key) : undefined;
+    if (short) return short;
+    const name = subjectName(chore);
+    return name ? firstName(name) : null;
+  };
+  const forChosenPerson = (chore: BoardChore) => {
+    const key = choreKey(chore);
+    return matchesPerson(key ? [key] : [], personFilter);
+  };
   const verificationBusyRef = React.useRef(new Set<string>());
   const verificationDialogRef = React.useRef<string | null>(null);
   const verificationCancelRef = React.useRef<HTMLButtonElement>(null);
@@ -1009,6 +1055,7 @@ export default function ChoresContent({
   const now = useLocalNow();
   const filtered = now
     ? localChores.filter((c) => {
+        if (!forChosenPerson(c)) return false;
         if (filter === "today") return isDueToday(c.due_date, now);
         if (filter === "week") return isDueWithinDays(c.due_date, 7, now);
         return !seriesMode || isActiveRepeatingChore(c);
@@ -1057,7 +1104,8 @@ export default function ChoresContent({
     const profileUnavailable = profileOnly && chore.subject?.kind !== "profile";
     const ownerLabel = profileUnavailable
       ? profileText("profileTargetRefresh")
-      : subjectName(chore);
+      : choreOwnerName(chore);
+    const person = profileUnavailable ? null : chorePerson(chore);
     const actions = [
       chore.recurrence_id
         ? {
@@ -1128,19 +1176,32 @@ export default function ChoresContent({
               : null,
             routineLabel(chore, overviewText),
             chore.rotation_next_name
-              ? overviewText("rotationNext", { name: chore.rotation_next_name })
+              ? overviewText("rotationNext", {
+                  name: firstName(chore.rotation_next_name),
+                })
               : null,
           ]
             .filter(Boolean)
             .join(" · ")}
           glyph={
-            <Glyph color="chore" size="sm">
-              {chore.icon ? (
-                <RoutineIcon icon={chore.icon} className="w-4 h-4 text-white" />
-              ) : (
-                <CheckSquare className="w-4 h-4 text-white" />
-              )}
-            </Glyph>
+            // Who it is for, as a face on the left: the person's initial on
+            // their colour (their first name is printed in the line below).
+            // A picture routine keeps its picture.
+            !chore.icon && person ? (
+              <PersonAvatar
+                name={ownerLabel ?? person.name}
+                color={person.color}
+                size="md"
+              />
+            ) : (
+              <Glyph color="chore" size="sm">
+                {chore.icon ? (
+                  <RoutineIcon icon={chore.icon} className="w-4 h-4 text-white" />
+                ) : (
+                  <CheckSquare className="w-4 h-4 text-white" />
+                )}
+              </Glyph>
+            )
           }
           meta={
             gamification && (chore.points > 0 || (chore.streak ?? 0) >= 3) ? (
@@ -1248,6 +1309,14 @@ export default function ChoresContent({
             deleteFallbackRef.current = node;
           }}
         />
+        <PersonFilter
+          className="mt-3"
+          people={people}
+          value={personFilter}
+          onChange={setPersonFilter}
+          label={overviewText("personFilter")}
+          everyoneLabel={overviewText("everyone")}
+        />
       </div>
 
       <div className="space-y-6 px-4">
@@ -1258,7 +1327,7 @@ export default function ChoresContent({
             // Every chore marked done and not yet checked (the same count the
             // home's "N chores to check" link uses), photo or not.
             const pendingVerification = localChores.filter(
-              (c) => c.status === "completed",
+              (c) => c.status === "completed" && forChosenPerson(c),
             );
             if (pendingVerification.length === 0) return null;
             return (
@@ -1272,9 +1341,9 @@ export default function ChoresContent({
                     const profilePaused = isPausedProfileChore(chore);
                     const ownerLabel = profileUnavailable
                       ? profileText("profileTargetRefresh")
-                      : subjectName(chore)
+                      : choreOwnerName(chore)
                         ? overviewText("assignedTo", {
-                            name: subjectName(chore) ?? "",
+                            name: choreOwnerName(chore) ?? "",
                           })
                         : null;
                     return (
