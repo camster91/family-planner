@@ -179,9 +179,7 @@ test.describe("Family A parent", () => {
     // Due dates are UTC-midnight date-only values. In America/Toronto the
     // "Today" filter must not pull in tomorrow's chore (it used to, because the
     // date was parsed in local time and landed on the previous evening).
-    await expect(
-      main.getByText("Taylor · Today").first(),
-    ).toBeVisible();
+    await expect(main.getByText("Taylor · Today").first()).toBeVisible();
     await expect(main.getByText("Pack school bag")).toHaveCount(0);
     await main.getByRole("button", { name: "Week", exact: true }).click();
     await expect(main.getByText("Pack school bag")).toBeVisible();
