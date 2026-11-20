@@ -104,14 +104,16 @@ for (const locale of ["en", "es"] as const) {
         locale === "es"
           ? [
               "Hoy , abrir calendario",
-              "Cena de esta noche , abrir comidas",
+              // Nothing planned: the one-line empty card (heading + "Plan dinner").
+              "Cena de esta noche",
               "Tareas de hoy , abrir tareas",
               "Compras , abrir listas de compras",
               "Próximamente",
             ]
           : [
               "Today , open calendar",
-              "Dinner tonight , open meals",
+              // Nothing planned: the one-line empty card (heading + "Plan dinner").
+              "Dinner tonight",
               "Chores today , open chores",
               "Groceries , open grocery lists",
               "Coming up",
@@ -144,6 +146,12 @@ for (const locale of ["en", "es"] as const) {
             : "No dinner planned yet.",
           { exact: true },
         ),
+      ).toBeVisible();
+      await expect(
+        board.getByTestId("region-dinner").getByRole("link", {
+          name: locale === "es" ? "Planificar cena" : "Plan dinner",
+          exact: true,
+        }),
       ).toBeVisible();
       const actions = board.locator("button:visible, a:visible");
       const geometry = [];

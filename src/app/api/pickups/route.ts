@@ -56,6 +56,9 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({
+    // Presentation hint for the page (owner decision 2026-11-19); the write
+    // routes enforce it. Absent from older servers, where every member wrote.
+    can_write: user.role !== "child",
     pickups: pickups.map((p) => ({
       id: p.id,
       title: p.title,
@@ -78,6 +81,13 @@ export async function POST(request: Request) {
         request as NextRequest,
       );
       if (error) return error;
+      // Owner decision 2026-11-19: children read pickups only. Checked here,
+      // before any write, so a direct API call cannot bypass the page.
+      if (auth.user.role === "child")
+        return NextResponse.json(
+          { error: "Children can view pickups only" },
+          { status: 403, headers: { "Cache-Control": "private, no-store" } },
+        );
       let json: unknown;
       try {
         json = await request.json();
@@ -116,6 +126,12 @@ export async function POST(request: Request) {
     if (gate) return gate;
     if (!user.family_id)
       return NextResponse.json({ error: "No family" }, { status: 400 });
+    // Owner decision 2026-11-19: children read pickups only.
+    if (user.role === "child")
+      return NextResponse.json(
+        { error: "Children can view pickups only" },
+        { status: 403 },
+      );
 
     let json: unknown;
     try {

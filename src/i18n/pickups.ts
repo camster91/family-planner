@@ -27,6 +27,8 @@ export const pickupsEnglish = {
   emptyTitle: "No pickups yet",
   emptyDescription:
     "Add a pickup and assign a family member to keep your plans together.",
+  emptyDescriptionReader: "When a parent or teen adds a pickup, it shows here.",
+  readOnlyNote: "A parent or teen keeps pickups up to date.",
   loadErrorTitle: "Couldn't load pickups",
   loadErrorDescription: "We couldn't load your family's pickups.",
   retry: "Try again",
@@ -77,6 +79,10 @@ export const pickupsSpanish: PickupMessages = {
   emptyTitle: "Aún no hay recogidas",
   emptyDescription:
     "Añade una recogida y asigna a un familiar para mantener los planes juntos.",
+  emptyDescriptionReader:
+    "Cuando un padre, una madre o un adolescente añada una recogida, aparecerá aquí.",
+  readOnlyNote:
+    "Un padre, una madre o un adolescente mantiene las recogidas al día.",
   loadErrorTitle: "No se pudieron cargar las recogidas",
   loadErrorDescription: "No se pudieron cargar las recogidas de tu familia.",
   retry: "Intentar de nuevo",

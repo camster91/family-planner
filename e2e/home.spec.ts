@@ -152,10 +152,11 @@ test.describe("Family A parent", () => {
     const visibleBoard = page.locator('[data-testid="today-board"]:visible');
     await expect(visibleBoard).toHaveCount(1);
     await expect(visibleBoard).toBeVisible();
-    // Household chores due today: Taylor 2 (recycling, vacuum), and one each
-    // for the parent (spec-owned) and Casey (tidy bedroom, in progress).
+    // Household chores for today: Taylor 3 (recycling, vacuum, and the
+    // still-open overdue "Mow the lawn", owner decision 2026-11-19), and one
+    // each for the parent (spec-owned) and Casey (tidy bedroom, in progress).
     await expect(summary(page)).toHaveText(
-      "4 chores left today · Taylor 2, Avery 1, Casey 1",
+      "5 chores left today · Taylor 3, Avery 1, Casey 1",
     );
     // No contradicting empty state and no progress ring.
     await expect(page.getByText("All done for today!")).toHaveCount(0);
@@ -206,7 +207,7 @@ test.describe("Family A parent", () => {
     await expect(box).toHaveAttribute("aria-checked", "true");
     expect((await completed).status()).toBe(200);
     await expect(summary(page)).toHaveText(
-      "3 chores left today · Taylor 2, Casey 1",
+      "4 chores left today · Taylor 3, Casey 1",
     );
     expect(await choreStatus()).toBe("completed");
 
@@ -221,7 +222,7 @@ test.describe("Family A parent", () => {
       page.getByRole("checkbox", { name: new RegExp(CHORE_TITLE) }),
     ).toHaveAttribute("aria-checked", "false");
     await expect(summary(page)).toHaveText(
-      "4 chores left today · Taylor 2, Avery 1, Casey 1",
+      "5 chores left today · Taylor 3, Avery 1, Casey 1",
     );
     expect(await choreStatus()).toBe("pending");
   });

@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
     const gate = await featureGate(user.family_id, 'sick-days')
     if (gate) return gate
     if (!user.family_id) return NextResponse.json({ error: 'No family' }, { status: 400 })
+    // Owner decision 2026-11-19: a child views their own sick days but does
+    // not start one; a parent does. Checked before the body is read.
+    if ((serverActor?.role ?? user.role) === 'child') {
+      return NextResponse.json({ error: 'Ask a parent to start a sick day' }, { status: 403 })
+    }
 
     let json: unknown
     try {

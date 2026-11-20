@@ -24,6 +24,13 @@ import OnboardingFlow from "@/components/onboarding/OnboardingFlow";
 const MAX_WINDOW_CHORES = 60;
 /** Bounded own catch-up work; KidHome initially shows three with Show more. */
 const MAX_OLDER_CHORES = 60;
+/**
+ * Own chores done before the window and still waiting for a parent's check
+ * (owner review 2026-11-19). In-window ones arrive with the window read.
+ */
+const MAX_WAITING_CHORES = 10;
+/** Own reward claims still waiting for a parent, shown as "Claimed". */
+const MAX_CLAIMED_REWARDS = 5;
 
 type KidDashboardEvent = {
   id: string;
@@ -109,7 +116,7 @@ export default async function DashboardPage() {
   if (storageBackend() === "d1" && isFeatureEnabled(features, "chores"))
     await topUpHouseholdSeries(familyId, now);
     await topUpHouseholdEventSeries(familyId, now);
-  const [windowChores, olderOpenChores, events, rewards] =
+  const [windowChores, olderOpenChores, events, rewards, waitingChores] =
     storageBackend() === "d1"
       ? await (
           await import("@/lib/cloudflare/kid-dashboard")
@@ -151,16 +158,39 @@ export default async function DashboardPage() {
           // With Rewards off (or Points & streaks off, which it needs) the claim
           // endpoint 403s, so no card is offered.
           rewardsOn
-            ? prisma!.reward.findMany({
-                where: {
-                  family_id: familyId,
-                  status: "available",
-                  is_active: true,
-                },
-                orderBy: { created_at: "desc" },
-                take: 5,
-              })
+            ? Promise.all([
+                prisma!.reward.findMany({
+                  where: {
+                    family_id: familyId,
+                    status: "available",
+                    is_active: true,
+                  },
+                  orderBy: { created_at: "desc" },
+                  take: 5,
+                }),
+                // Only the viewer's own claims, in this household.
+                prisma!.reward.findMany({
+                  where: {
+                    family_id: familyId,
+                    status: "claimed",
+                    claimed_by: sessionUser.id,
+                  },
+                  orderBy: [{ claimed_at: "desc" }, { id: "desc" }],
+                  take: MAX_CLAIMED_REWARDS,
+                }),
+              ]).then(([available, claimed]) => [...available, ...claimed])
             : Promise.resolve([]),
+          // Own chores done before the window, waiting for a parent's check.
+          prisma!.chore.findMany({
+            where: {
+              family_id: familyId,
+              assigned_to: sessionUser.id,
+              due_date: { lt: windowStart },
+              status: "completed",
+            },
+            orderBy: [{ due_date: "desc" }, { id: "desc" }],
+            take: MAX_WAITING_CHORES,
+          }),
         ]);
 
   // Only what KidHome draws; the household's feature blob stays on the server.
@@ -178,6 +208,7 @@ export default async function DashboardPage() {
     olderOpenChores.length > MAX_OLDER_CHORES ||
     windowChores.length > MAX_WINDOW_CHORES;
   const chores = [
+    ...(waitingChores ?? []).slice(0, MAX_WAITING_CHORES).reverse(),
     ...olderOpenChores.slice(0, MAX_OLDER_CHORES).reverse(),
     ...windowChores.slice(0, MAX_WINDOW_CHORES),
   ];

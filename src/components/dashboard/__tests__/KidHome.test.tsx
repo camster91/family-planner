@@ -363,7 +363,12 @@ describe("KidHome missions by due day", () => {
     expect(
       within(rows[1]).getByText(/^Was due [A-Z][a-z]{2} \d{1,2}$/),
     ).toBeTruthy();
-    expect(screen.queryByText("Old done")).toBeNull();
+    // Done and waiting for a parent: not an earlier mission, but no longer
+    // lost either (owner review 2026-11-19).
+    expect(within(earlier).queryByText("Old done")).toBeNull();
+    expect(
+      within(screen.getByTestId("kid-waiting")).getByText("Old done"),
+    ).toBeTruthy();
 
     await userEvent.click(rows[0]);
     expect(calls).toContain("/api/chores/complete");
@@ -417,8 +422,17 @@ describe("KidHome reward claim", () => {
     await act(async () => {
       jest.advanceTimersByTime(2000);
     });
-    // The claimed reward is not offered again; the next one is.
-    expect(screen.queryByText("Movie night")).toBeNull();
+    // The claimed reward is not offered again; the next one is. It stays
+    // visible as claimed until a parent approves it (owner review 2026-11-19).
+    const shelf = screen
+      .getByText("Choose a reward")
+      .closest("section") as HTMLElement;
+    expect(within(shelf).queryByText("Movie night")).toBeNull();
+    expect(
+      within(screen.getByTestId("kid-claimed-rewards")).getByText(
+        "Movie night",
+      ),
+    ).toBeTruthy();
     expect(screen.getByText("Ice cream")).toBeTruthy();
     expect(screen.getByText("30")).toBeTruthy();
     expect(refresh).toHaveBeenCalledTimes(1);

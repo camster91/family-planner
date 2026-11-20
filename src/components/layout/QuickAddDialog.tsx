@@ -15,7 +15,7 @@ import { useDraftAwareRouter } from "@/components/layout/owned-draft-navigation"
 import { Dialog } from "@/components/ui/dialog";
 import { canCreateList } from "@/lib/role-capabilities";
 import { canRoleAccessPath } from "@/lib/kid-access";
-import { useTodayBoardText } from "@/i18n/today-board";
+import { useQuickAddText } from "@/i18n/quick-add";
 // Smart Add (#144) loads only when a parent or teen opens Quick add, so the
 // shell every page starts with does not carry it.
 const SmartAddBox = React.lazy(() =>
@@ -53,7 +53,7 @@ export function QuickAddDialog({
   onAsk,
   captureHref,
 }: QuickAddDialogProps) {
-  const text = useTodayBoardText();
+  const text = useQuickAddText();
   const router = useDraftAwareRouter();
   const canCreateEvent =
     (role === "parent" || role === "teen") &&

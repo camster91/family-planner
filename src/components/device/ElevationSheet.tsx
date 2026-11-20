@@ -6,6 +6,7 @@ import { Delete, KeyRound, Loader2, UserRound } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { DeviceApiError, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import { genericDeviceFeedback, renderDeviceFeedback, type DeviceMe } from './use-device-client'
+import { firstName, sharedBoardNames } from '@/components/fridge/board-model'
 import {
   errorTextClass,
   focusRing,
@@ -47,6 +48,9 @@ export default function ElevationSheet({
   onElevated: (session: ElevationSession) => void
 }) {
   const text = useDeviceText()
+  // First names only on the shared tablet, never a surname (2026-11-19).
+  const parentNames = sharedBoardNames(parents)
+  const shownName = (parent: Parent) => parentNames.get(parent.id) ?? firstName(parent.name)
   const [step, setStep] = React.useState<Step>({ kind: 'pick' })
   const [pin, setPin] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -81,7 +85,7 @@ export default function ElevationSheet({
       setNotice(null)
       setStep({ kind: 'pin', parent })
     } else {
-      setNotice({ key: 'noTabletPin', params: { name: parent.name } })
+      setNotice({ key: 'noTabletPin', params: { name: shownName(parent) } })
       setStep({ kind: 'password', parent })
     }
   }
@@ -143,8 +147,8 @@ export default function ElevationSheet({
     step.kind === 'pick'
       ? text('pickParent')
       : step.kind === 'pin'
-        ? text('enterParentPin', { name: step.parent.name })
-        : text('enterParentPassword', { name: step.parent.name })
+        ? text('enterParentPin', { name: shownName(step.parent) })
+        : text('enterParentPassword', { name: shownName(step.parent) })
 
   return (
     <Dialog
@@ -170,7 +174,7 @@ export default function ElevationSheet({
                   className={`${neutralButtonClass} w-full justify-start rounded-[var(--radius-lg)] py-3 text-[19px]`}
                 >
                   <UserRound className="h-6 w-6 text-label-secondary" aria-hidden="true" />
-                  {parent.name}
+                  {shownName(parent)}
                 </button>
               </li>
             ))}
@@ -183,7 +187,7 @@ export default function ElevationSheet({
           <div
             ref={padRef}
             role="group"
-            aria-label={text('tabletPinPad', { name: step.parent.name })}
+            aria-label={text('tabletPinPad', { name: shownName(step.parent) })}
             onKeyDown={onPadKey}
             className="space-y-5"
           >
@@ -257,7 +261,7 @@ export default function ElevationSheet({
           {notice && <p className={noticeTextClass}>{renderDeviceFeedback(notice, text)}</p>}
           <div>
             <label htmlFor="elevation-password" className={labelClass}>
-              {text('passwordFor', { name: step.parent.name })}
+              {text('passwordFor', { name: shownName(step.parent) })}
             </label>
             {/* Shared tablet: never offer to save a parent's password here. */}
             <input

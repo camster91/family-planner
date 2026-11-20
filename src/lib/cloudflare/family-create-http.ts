@@ -6,6 +6,7 @@ import { defaultFeatures } from '@/lib/features'
 import { createFamilyInviteCode, INVITE_CODE_ATTEMPTS } from '@/lib/family-invite'
 import { getD1Database } from './database'
 import { createD1Family } from './family-create'
+import { DEFAULT_GROCERY_LIST_NAME } from '@/lib/grocery-from-recipe-contract'
 
 export async function createD1FamilyHttp(payload: TokenPayload, name: string): Promise<NextResponse> {
   const db = await getD1Database()
@@ -15,6 +16,7 @@ export async function createD1FamilyHttp(payload: TokenPayload, name: string): P
         userId: payload.userId, tokenVersion: payload.tv ?? 0,
         familyId: randomUUID(), name, inviteCode: createFamilyInviteCode(),
         features: JSON.stringify(defaultFeatures()), now: Date.now(),
+        groceryListId: randomUUID(), groceryListName: DEFAULT_GROCERY_LIST_NAME,
       })
       if (family === 'gone') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       if (family === 'already') {

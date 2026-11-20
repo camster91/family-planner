@@ -822,6 +822,23 @@ The fridge program may proceed in design, architecture, and non-production imple
 - **Evidence:** `src/lib/__tests__/relative-time.test.ts`, `ambient.test.ts`, `board-sync.test.ts`, `src/components/fridge/__tests__/ambient-sync.test.tsx`, `next-event.test.ts`, `src/app/api/family/board-version/__tests__/board-version.test.ts`, `src/app/api/family/board-settings/__tests__/display.test.ts`, the route allowlist, `src/app/dashboard/today/__tests__/board-snapshot.integration.test.ts` (real Postgres, release workflow), `e2e/ambient.spec.ts`.
 
 
+### Tablet quick fixes (owner decision 2026-11-19)
+
+- **Tapping on by choice:** confirming a pairing on the parent's phone asks "Let everyone tick chores and add
+  groceries on this tablet?" (Yes, recommended and preselected / View only). Yes turns on the existing household
+  switch (`Family.device_writes_enabled`); the switch is also on Settings › Devices and first in Board settings.
+- **One-tap chores (O-5):** a chore for one person is done for that person on the first tap, with the Undo toast
+  "Done for Maya · Not Maya?". "Who's this?" stays for groceries and unassigned/shared chores; audit attribution is
+  unchanged (actor the tablet, subject the assignee). SHARED_DEVICE.md §9.2 and §16.
+- **Shared screen:** big first-name tiles in "Who's this?", first names only on the board (cook, chores, PIN title,
+  parent mode); a shared first name gets the last initial. Header holds only "+ Add to list" and "Parent"; the
+  household helper is in parent mode.
+- **Fit:** fridge cards are sized to their content and show an honest "+N more" ("6 to buy" shows 4 and "+2 more");
+  a portrait tablet (800×1280) fits one screen in two columns with "Use soon" and "Coming up" visible.
+- **Evidence:** `src/components/device/__tests__/pair-writes-choice.test.tsx`, `tablet-quick-fixes.test.tsx`,
+  `device-header.test.tsx`, `src/components/fridge/__tests__/fridge-fit.test.tsx`, `tiles.test.tsx`. Device and
+  fridge visual baselines need re-baselining.
+
 ### Shared-tablet grocery capture follow-up (2026-10-07 candidate)
 
 The existing device add route is connected to a board control. An additive,

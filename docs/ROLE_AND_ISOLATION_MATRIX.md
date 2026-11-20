@@ -29,9 +29,11 @@ capability. The route-by-route evidence is `docs/security/API_ISOLATION_AUDIT.md
     change this unless the cell says `elevated only`.
   - `elevated only`: allowed only while a parent is elevated on the tablet (5 min idle / 15 min max).
   - a field description (for example `open grocery items only`): read through the device Today board DTO only.
-  - `device writes (opt-in)`: allowed only when the household's `Family.device_writes_enabled` is on (default
-    off), with an `Idempotency-Key` and a "Who's this?" member of the device's household (unverified
-    attribution, O-5; it grants nothing). Every changed row is audited as `device.member_action`.
+  - `device writes (opt-in)`: allowed only when the household's `Family.device_writes_enabled` is on (stored
+    default off; since 2026-11-19 confirming a pairing asks with Yes preselected, SHARED_DEVICE.md §9.2), with an
+    `Idempotency-Key` and a member of the device's household: a one-person chore's assignee on one tap, otherwise
+    the "Who's this?" pick (unverified attribution, O-5 as decided 2026-11-19; it grants nothing). Every changed
+    row is audited as `device.member_action` with the device id as the actor.
 - **Cell values.**
   - `yes`: allowed for any record of the household.
   - `own`: allowed only for records about or belonging to the caller (the column used is named in the notes).
@@ -61,14 +63,14 @@ Columns: R = read/list, C = create, U = update, D = delete.
 | Medications | U: prescription fields | yes | no | no | no | A kid request without `markDoseTaken` is 403; prescription fields sent with a dose log are ignored. |
 | Medications | D | yes | no | no | no | |
 | Sick days | R | yes | own | own | no | `person_id = self`. Nested medications are also own-only. |
-| Sick days | C | yes | own | own | no | A kid may report only themselves (`person_id = self`, else 403). |
+| Sick days | C | yes | own | no | no | A teen may report only themselves (`person_id = self`, else 403). A child is 403 "Ask a parent to start a sick day" before the body is read, on both backends (owner decision 2026-11-19); "Start a sick day" is hidden for a child, who still sees their own sick days. |
 | Sick days | U (temperature, symptoms, end) | yes | no | no | no | Own record 403, sibling's record 404. |
 | Sick days | D | yes | no | no | no | Same as update. |
 | Emergency contacts | R | yes | yes | yes | no (O-10) | Deliberately kid-readable: a child home alone must find them. |
 | Emergency contacts | C / U / D | yes | no | no | no | |
 
 Pages: `/dashboard/emergency` and `/dashboard/sick-days` are on the kid allowlist, read-only apart from
-"report myself sick" and "mark dose taken" on the kid's own medication.
+"report myself sick" (teens only since the owner's 2026-11-19 decision) and "mark dose taken" on the kid's own medication.
 
 ### Handoff (D2)
 
@@ -116,7 +118,8 @@ Page: `/dashboard/allowance` is on the kid allowlist; for kids it hides Add / Ma
 | Anniversaries | R / C | yes | yes | yes | no (O-11) | |
 | Anniversaries | U | yes | own | own | no | `created_by = self`, else 403. `created_by` is set on create and is not writable by PATCH. Rows created before the column existed have `created_by` NULL and are parent-edit-only. |
 | Anniversaries | D | yes | no | no | no | |
-| Pickups | R / C / U (complete) | yes | yes | yes | no (O-11) | |
+| Pickups | R | yes | yes | yes | no (O-11) | `GET /api/pickups` adds `can_write` (false for a child) so the page hides Add and the ticks. |
+| Pickups | C / U (complete) | yes | yes | no | no (O-11) | Owner decision 2026-11-19: children read pickups only. A child's `POST /api/pickups` and `PATCH /api/pickups/[id]` are 403 "Children can view pickups only" on both backends (D1 also re-checks the role inside the write batch); another household's pickup stays 404 first. |
 | Pickups | D | yes | no | no | no | |
 
 Page: `/dashboard/anniversaries` follows D9 for person sessions: all members may read/create, teens and children edit only their own rows, and deletion remains parent-only. Shared devices are refused before person authentication. The shared route allowlist, metadata-driven controls and direct API checks enforce the same policy.
@@ -156,7 +159,7 @@ authentication and answers 403 when the household has lists off, matching the UI
 | Fridge photo scan (`POST /api/inventory/scan`, #265) | Suggest (no write) | yes | no (403 `INVENTORY_SCAN_FORBIDDEN`) | no (403) | no (403 `DEVICE_WRITE_NOT_ALLOWED`, before person auth) | Off (404 `INVENTORY_SCAN_DISABLED`) until the deployment sets a provider key; then `featureGate('inventory')`. Parent only by decision: the scan spends the deployment's paid provider quota under one household daily cap, while teens keep adding items by hand. Returns suggestions only; adding them is the item create row above, so its rules apply. Rate limits per user and household; the photo is sent to the provider and never stored. |
 
 Page: `/dashboard/inventory` is on the kid allowlist (teens edit, use up, throw away and undo; children read, with
-the add/edit/used/throw-away/undo controls hidden) and, when the feature is on, in the user menu (touch) and the command palette. Its "View recipe" link is shown only to roles that
+the add/edit/used/throw-away/undo controls hidden; the owner's 2026-11-19 review confirmed this read-only rule, already enforced by `canWriteInventory` in every write route) and, when the feature is on, in the user menu (touch) and the command palette. Its "View recipe" link is shown only to roles that
 may open `/dashboard/meals/recipes/[id]` (parents and teens, O-37). "Scan fridge" is shown only to parents when the scan is configured.
 
 ### Other domains (unchanged by this round; recorded for completeness)
@@ -349,16 +352,25 @@ routes.
 | Family → More (`/dashboard/family/more`) | Chores plus every enabled feature that is not a tab | not reachable (`/dashboard/family` is parent-only) | not reachable |
 | Today board | Today tab | user menu → Today board | user menu → Today board |
 | Help (`/dashboard/help`, #146) | user menu → Help (static text and links, no household data) | user menu → Help (O-37); pages a teen cannot open are named, not linked | not reachable |
-| Settings (`/dashboard/settings`) | user menu → Settings | user menu → Settings, personal sections only (O-37) | not reachable; notification switches and "Delete my account" in the user menu |
+| Settings (`/dashboard/settings`) | user menu → Settings | user menu → Settings, personal sections only (O-37) | not reachable; notification switches, Quiet view (owner review 2026-11-19) and "Delete my account" in the user menu |
 | Notifications list (`/dashboard/notifications`) | bell in the top bar | bell in the top bar (O-37); own rows only | not reachable |
 
 The kid home (#272) shows the child's own chores due today grouped into picture routines; it reads nothing new
-beyond the child's own chore rows it already read (`docs/product/CHORES.md`).
+beyond the child's own chore rows it already read (`docs/product/CHORES.md`). Owner review 2026-11-19 adds two
+bounded own-only reads, on both backends (`src/app/dashboard/page.tsx`, `src/lib/cloudflare/kid-dashboard.ts`):
+the viewer's own chores due before the window that are `completed` and waiting for a parent's check (≤ 10,
+`assigned_to = self`, the caller's `family_id`), and the viewer's own `claimed` rewards (≤ 5, `claimed_by = self`,
+the caller's `family_id`), shown as "Waiting for a parent's check" and "Claimed — waiting for a parent". Another
+member's or another household's chores and claims are never read (tested). The mission row also shows the
+chore's own `description` and, on an open chore, its `photo_url` (the parent's reference photo), both already in
+the row the kid home read. A child's home no longer shows "Report / Suggest" or Quiet view.
 
 The summary above the board on `/dashboard/today` (not in fridge mode) reads only chore title, due day, status,
 assignee and member names for the caller's household (`src/app/dashboard/today/home-summary-data.ts`), the same
 fields the board shows; parents also get the count of chores waiting for a check. A teen or child sees their own
-chores there and no link to `/dashboard/chores`.
+chores there and no link to `/dashboard/chores`. Since the owner's 2026-11-19 decision the summary, the board and
+Chores › Today also list still-open chores whose due day has passed, labelled "Overdue" (one bounded extra read,
+≤ 40 rows, the same household and fields; `src/lib/chore-today.ts`).
 
 ### Teen pages and personal Settings (O-37)
 

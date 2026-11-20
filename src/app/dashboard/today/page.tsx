@@ -6,23 +6,30 @@ import { prisma } from "@/lib/prisma";
 import { refreshStaleSubscriptions } from "@/lib/calendar-import/sync";
 import TodayBoard from "@/components/fridge/TodayBoard";
 import HomeSummary from "@/components/dashboard/HomeSummary";
-import TodaySetup from "@/components/dashboard/TodaySetup";
+import { GetStartedArt } from "@/components/dashboard/GetStartedArt";
 import { loadTodayBoard } from "./board-snapshot";
 import { topUpHouseholdSeries } from "@/lib/recurringChores";
 import { topUpHouseholdEventSeries } from "@/lib/event-series-top-up";
 import { loadHomeSummary } from "./home-summary-data";
-import { loadGetStarted } from "./get-started-data";
+import { loadGetStarted, loadTodayStarts } from "./get-started-data";
 import { isDoneStatus, isOpenStatus } from "@/lib/home-summary";
 import { isProfileChoreEnabled } from "@/lib/chore-profile";
 import { Suspense } from "react";
 // The existing server readiness/role gate decides whether this optional
-// workspace is rendered. A dormant launcher need not enter the cold board; the
-// client boundary owns the code split (a server-side next/dynamic cannot).
-import WeeklyResetLauncher from "@/components/dashboard/LazyWeeklyResetLauncher";
+// workspace (and the setup card) is rendered. Dormant ones need not enter the
+// cold board, so they are split in a client wrapper.
+import {
+  TodaySetup,
+  WeeklyResetLauncher,
+} from "@/components/dashboard/TodayDeferred";
 import { weeklyResetReady } from "@/lib/weekly-reset";
 import { readPreparationBacklinks } from "@/lib/event-preparation/discovery";
 import { storageBackend } from "@/lib/storage-backend";
-import { readD1GetStarted, readD1HomeSummary } from "@/lib/cloudflare/today-home";
+import {
+  readD1GetStarted,
+  readD1HomeSummary,
+  readD1TodayStarts,
+} from "@/lib/cloudflare/today-home";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -42,9 +49,12 @@ export const dynamic = "force-dynamic";
  * sentence and their own tickable chores above the board (#268,
  * ./home-summary-data.ts). Fridge mode is the shared surface, so it shows the
  * board alone. A parent of a household that is not set up yet also gets a
- * compact "Get started" steps below the plans (./get-started-data.ts); once that is done or
- * hidden, a "Turn on more" card suggests a few sections that are still off
- * (O-38, components/dashboard/FeatureSuggestions.tsx).
+ * compact "Get started" steps first, above the (still empty) plans
+ * (./get-started-data.ts); once that is done or hidden, a "Turn on more" card
+ * at the end suggests a few sections that are still off (O-38,
+ * components/dashboard/FeatureSuggestions.tsx). Empty cards say what to do
+ * first from two household facts (`loadTodayStarts`): whether a chore was
+ * ever added and whether a grocery list exists.
  */
 export default async function TodayBoardPage({
   searchParams,
@@ -81,7 +91,7 @@ export default async function TodayBoardPage({
   // hides the tile. The board carries its display settings and change
   // version (#271).
   const memberProtocol = isProfileChoreEnabled() ? 2 : 1;
-  const [data, home, getStarted] = await Promise.all([
+  const [data, home, getStarted, starts] = await Promise.all([
     loadTodayBoard(prisma!, {
       familyId,
       role: user.role,
@@ -99,6 +109,11 @@ export default async function TodayBoardPage({
       : storageBackend() === "d1"
         ? readD1GetStarted(familyId, user.role ?? "", now)
         : loadGetStarted(prisma!, { familyId, role: user.role ?? "", now }),
+    fridgeMode
+      ? Promise.resolve(null)
+      : storageBackend() === "d1"
+        ? readD1TodayStarts(familyId)
+        : loadTodayStarts(prisma!, { familyId }),
   ]);
 
   // Tiles act directly for the signed-in person (#274): their chores (any for
@@ -146,6 +161,15 @@ export default async function TodayBoardPage({
 
   return (
     <>
+      {getStarted && (
+        <TodaySetup
+          viewer={viewer}
+          familyId={familyId}
+          steps={getStarted}
+          part="getStarted"
+          art={<GetStartedArt />}
+        />
+      )}
       <HomeSummary
         viewer={viewer}
         {...home}
@@ -168,9 +192,15 @@ export default async function TodayBoardPage({
         viewer={viewer}
         choresShownElsewhere={choresShownElsewhere}
         preparationBacklinks={preparationBacklinks}
+        starts={starts ?? undefined}
       />
       {getStarted && (
-        <TodaySetup viewer={viewer} familyId={familyId} steps={getStarted} />
+        <TodaySetup
+          viewer={viewer}
+          familyId={familyId}
+          steps={getStarted}
+          part="suggestions"
+        />
       )}
     </>
   );

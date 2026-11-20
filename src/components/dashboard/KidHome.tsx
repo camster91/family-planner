@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Star, Gift, Calendar, Sparkles, X } from "lucide-react";
+import { Star, Gift, Calendar, Sparkles, X, Hourglass } from "lucide-react";
 
 import { BrandMotion } from "@/components/ui/brand-motion";
 import { MOTION } from "@/lib/brand-illustrations";
@@ -27,7 +27,13 @@ import {
   toDateOnlyLocal,
   toDateOnlyUTC,
 } from "@/lib/dates";
-import { groupByRoutine, normalizeRoutineName } from "@/lib/routine-icons";
+import {
+  groupByRoutine,
+  normalizeRoutineName,
+  suggestRoutineIconForTitle,
+} from "@/lib/routine-icons";
+import { RoutineIcon } from "@/components/chores/RoutineIcon";
+import { ReadAloudButton } from "@/components/ui/read-aloud-button";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import KidRoutines from "./KidRoutines";
 import { OwnPreparationNote } from "@/components/calendar/preparation/OwnPreparationNote";
@@ -40,10 +46,18 @@ import { IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/lib/idempotency-key";
 import Link from "next/link";
 import ExplorePanel from "@/components/layout/ExplorePanel";
 import { QuietDisplayControl } from "@/components/account/QuietDisplayControl";
+import type { KidHomeMessage } from "@/i18n/kid-home";
 
 interface Chore {
   id: string;
   title: string;
+  /** The parent's instructions, shown under the title (owner review 2026-11-19). */
+  description?: string | null;
+  /**
+   * The chore's photo. On an open chore this is the parent's reference
+   * picture; it is not shown once the chore is done (it may then be proof).
+   */
+  photo_url?: string | null;
   due_date: string;
   status: string;
   points?: number;
@@ -184,8 +198,20 @@ export default function KidHome({
   const displayLocale = useDisplayLocale();
   const kidHomeText = useKidHomeText();
   const rewardsText = useRewardsText();
+  // Teens get plain wording ("To do", "340 pts", no sparkles or "superstar");
+  // children keep the playful tone (owner review 2026-11-19).
+  const teen = user.role === "teen";
+  const tone = (
+    childKey: KidHomeMessage,
+    teenKey: KidHomeMessage,
+    params?: Record<string, string | number>,
+  ) => kidHomeText(teen ? teenKey : childKey, params);
   const pointsUnit = (count: number) =>
     rewardsText(count === 1 ? "point" : "points");
+  const pointsLabel = (count: number) =>
+    teen
+      ? kidHomeText("teenPoints", { count })
+      : `${count} ${pointsUnit(count)}`;
   const [celebratingReward, setCelebratingReward] = useState<string | null>(
     null,
   );
@@ -343,6 +369,23 @@ export default function KidHome({
   const tomorrowChores = openChores
     .filter((c) => toDateOnlyUTC(c.due_date) === tomorrowKey)
     .slice(0, 3);
+  // Done by the child and waiting for a parent's check (status `completed`).
+  // They used to vanish from this page, so a finished chore looked undone or
+  // lost (owner review 2026-11-19). Today's routine steps show this on their
+  // own picture card instead. The server reads only the viewer's own rows.
+  const waitingChores = now
+    ? (chores ?? [])
+        .filter(
+          (c) =>
+            c.status === "completed" &&
+            !(inRoutine(c) && isDueToday(c.due_date, now)),
+        )
+        .sort(
+          (a, b) =>
+            toDateOnlyUTC(a.due_date).localeCompare(toDateOnlyUTC(b.due_date)) ||
+            a.id.localeCompare(b.id),
+        )
+    : [];
 
   // Everything the child can still tick here: open chores due today or
   // earlier (all of them, not just the few shown) and today's routine steps.
@@ -421,6 +464,14 @@ export default function KidHome({
   // from this bounded preview after the server refresh.
   const availableRewards = (rewards ?? []).filter(
     (r) => r.status === "available" && !claimedRewards.has(r.id),
+  );
+  // The viewer's own claims stay visible until a parent approves them
+  // (owner review 2026-11-19). The server sends only rewards this viewer
+  // claimed; one claimed on this screen shows here until the refresh lands.
+  const claimedRewardRows = (rewards ?? []).filter(
+    (r) =>
+      r.status === "claimed" ||
+      (r.status === "available" && claimedRewards.has(r.id)),
   );
 
   const rewardClaimKey = (rewardId: string) => {
@@ -619,84 +670,151 @@ export default function KidHome({
     const baseDone =
       chore.status === "completed" || chore.status === "verified";
     const isDone = baseDone || completedChores.has(chore.id);
+    const description = chore.description?.trim() || null;
+    // Display only: a chore with no picture gets one guessed from its title.
+    const picture = chore.icon ?? suggestRoutineIconForTitle(chore.title);
+    const titleId = `mission-title-${chore.id}`;
     return (
-      <button
-        type="button"
-        onClick={() => handleChoreToggle(chore.id, isDone)}
-        disabled={isDone}
-        className={cn(
-          "w-full flex flex-wrap items-center gap-3 px-4 py-3 min-h-[64px] text-left",
-          "transition-colors duration-200 motion-reduce:transition-none",
-          !isDone && "active:bg-[var(--surface-fill-secondary)]",
-        )}
-      >
-        {/* Big check circle. Only the check and title fade when done, so
-            "You did it!" keeps its full sage contrast. */}
-        <div
+      <div className="flex w-full items-center">
+        <button
+          type="button"
+          onClick={() => handleChoreToggle(chore.id, isDone)}
+          disabled={isDone}
           className={cn(
-            "w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300",
-            isDone && "opacity-60",
-            isDone
-              ? "bg-success border-success animate-check-pop"
-              : "border-label-tertiary",
+            "flex-1 min-w-0 flex flex-wrap items-center gap-3 px-4 py-3 min-h-[64px] text-left",
+            "transition-colors duration-200 motion-reduce:transition-none",
+            !isDone && "active:bg-[var(--surface-fill-secondary)]",
           )}
         >
-          {isDone && (
-            <svg className="w-4 h-4 text-white" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M2 6l3 3 5-5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </div>
-        <div className={cn("flex-1 min-w-0", isDone && "opacity-60")}>
+          {/* Big check circle. Only the check and title fade when done, so
+              "You did it!" keeps its full sage contrast. */}
           <div
             className={cn(
-              "text-[17px] font-medium leading-snug [overflow-wrap:anywhere]",
+              "w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-300",
+              isDone && "opacity-60",
               isDone
-                ? "text-label-tertiary line-through"
-                : "text-label-primary",
+                ? "bg-success border-success animate-check-pop"
+                : "border-label-tertiary",
             )}
           >
-            {chore.title}
+            {isDone && (
+              <svg className="w-4 h-4 text-white" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M2 6l3 3 5-5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
           </div>
-          {preparationContext[chore.id] && (
-            <OwnPreparationNote
-              title={preparationContext[chore.id].eventTitle}
-            />
+          {picture && (
+            <span
+              aria-hidden="true"
+              data-testid="mission-picture"
+              data-icon={picture}
+              className={cn("shrink-0", isDone && "opacity-60")}
+            >
+              <RoutineIcon
+                icon={picture}
+                className="h-10 w-10 text-label-primary"
+              />
+            </span>
           )}
-          {note && (
-            <div className="text-footnote text-label-secondary mt-1">
-              {note}
+          <div className={cn("flex-1 min-w-0", isDone && "opacity-60")}>
+            <div
+              id={titleId}
+              className={cn(
+                "text-[17px] font-medium leading-snug [overflow-wrap:anywhere]",
+                isDone
+                  ? "text-label-tertiary line-through"
+                  : "text-label-primary",
+              )}
+            >
+              {chore.title}
             </div>
+            {description && (
+              <div
+                className="text-footnote text-label-secondary mt-0.5 whitespace-pre-line [overflow-wrap:anywhere]"
+                data-testid="mission-description"
+              >
+                {description}
+              </div>
+            )}
+            {!isDone && chore.photo_url && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={chore.photo_url}
+                alt={kidHomeText("referencePhoto")}
+                data-testid="mission-photo"
+                className="mt-2 h-20 w-20 rounded-[var(--radius-md)] object-cover bg-[var(--surface-fill)]"
+              />
+            )}
+            {preparationContext[chore.id] && (
+              <OwnPreparationNote
+                title={preparationContext[chore.id].eventTitle}
+              />
+            )}
+            {note && (
+              <div className="text-footnote text-label-secondary mt-1">
+                {note}
+              </div>
+            )}
+            {!isDone && chore.verified_notes?.trim() && (
+              <div className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">
+                <span className="block font-semibold">
+                  {kidHomeText("haveAnotherGo")}
+                </span>
+                <span className="block">{chore.verified_notes.trim()}</span>
+              </div>
+            )}
+            {gamification && chore.points && (
+              <div className="flex items-center gap-1 mt-1">
+                <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
+                <span className="text-footnote text-label-secondary">
+                  {pointsLabel(chore.points)}
+                </span>
+              </div>
+            )}
+          </div>
+          {isDone && (
+            <span className="text-body text-success-text font-medium shrink-0">
+              {tone("didIt", "teenDone")}
+            </span>
           )}
-          {!isDone && chore.verified_notes?.trim() && (
-            <div className="text-footnote text-label-secondary mt-1 [overflow-wrap:anywhere]">
-              <span className="block font-semibold">
-                {kidHomeText("haveAnotherGo")}
-              </span>
-              <span className="block">{chore.verified_notes.trim()}</span>
-            </div>
-          )}
-          {gamification && chore.points && (
-            <div className="flex items-center gap-1 mt-1">
-              <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
-              <span className="text-footnote text-label-secondary">
-                {chore.points} {pointsUnit(chore.points)}
-              </span>
-            </div>
-          )}
+        </button>
+        <ReadAloudButton
+          text={[chore.title, description].filter(Boolean).join(". ")}
+          label={kidHomeText("readAloud")}
+          describedBy={titleId}
+          className="mr-2"
+        />
+      </div>
+    );
+  }
+
+  function renderWaiting(chore: Chore) {
+    return (
+      <div className="flex items-start gap-3 px-4 py-3 min-h-[56px]">
+        <Hourglass
+          className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary"
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-body text-label-primary [overflow-wrap:anywhere]">
+            {chore.title}
+          </p>
+          <p className="text-footnote text-label-secondary">
+            {kidHomeText("waitingRow")}
+            {gamification && chore.points
+              ? ` · ${tone("waitingPoints", "teenWaitingPoints", {
+                  count: chore.points,
+                })}`
+              : null}
+          </p>
         </div>
-        {isDone && (
-          <span className="text-body text-success-text font-medium shrink-0">
-            {kidHomeText("didIt")}
-          </span>
-        )}
-      </button>
+      </div>
     );
   }
 
@@ -715,7 +833,10 @@ export default function KidHome({
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <ExplorePanel role={user.role ?? "child"} />
-        {gamificationEnabled && <QuietDisplayControl compact />}
+        {/* A child's home keeps the one main job first (owner review
+            2026-11-19): Quiet view moved to their user menu. Teens keep it
+            here and in their own Settings. */}
+        {gamificationEnabled && teen && <QuietDisplayControl compact />}
       </div>
 
       <div ref={contentRef} className="space-y-5 md:space-y-6">
@@ -745,7 +866,9 @@ export default function KidHome({
         {/* Today's Chores */}
         {todayChores.length > 0 && (
           <section>
-            <p className="section-header">{kidHomeText("todayMissions")}</p>
+            <p className="section-header">
+              {tone("todayMissions", "teenTodo")}
+            </p>
             <div className="list-inset" id="today-missions">
               {todayChores.map((chore, i) => (
                 <div
@@ -775,7 +898,9 @@ export default function KidHome({
         {/* Earlier open chores: their own small group, most recent first, tickable */}
         {earlierChores.length > 0 && (
           <section>
-            <p className="section-header">{kidHomeText("stillToDo")}</p>
+            <p className="section-header">
+              {tone("stillToDo", "teenOverdue")}
+            </p>
             <div className="list-inset" id="earlier-missions">
               {earlierChores.map((chore, i) => (
                 <div
@@ -890,10 +1015,10 @@ export default function KidHome({
               className="mx-auto mb-3 h-auto w-[192px] rounded-[var(--radius-lg)] md:w-[224px]"
             />
             <p className="text-title-2 font-semibold text-label-primary">
-              {kidHomeText("didIt")}
+              {tone("didIt", "teenDone")}
             </p>
             <p className="text-body text-label-secondary mt-1">
-              {kidHomeText("allDoneToday")}
+              {tone("allDoneToday", "teenAllDoneToday")}
             </p>
           </div>
         )}
@@ -910,10 +1035,10 @@ export default function KidHome({
               />
             )}
             <p className="text-title-3 text-label-primary">
-              {kidHomeText("allDoneForToday")}
+              {tone("allDoneForToday", "teenAllDoneForToday")}
             </p>
             <p className="text-subhead text-label-secondary mt-1">
-              {kidHomeText("enjoyDay")}
+              {tone("enjoyDay", "teenEnjoyDay")}
             </p>
           </div>
         )}
@@ -935,7 +1060,7 @@ export default function KidHome({
                 // Not "all done" while older chores are still waiting above.
                 <>
                   <p className="text-title-3 text-label-primary">
-                    {kidHomeText("nothingNewToday")}
+                    {tone("nothingNewToday", "teenNothingNewToday")}
                   </p>
                   <p className="text-subhead text-label-secondary mt-1">
                     {kidHomeText("finishAbove")}
@@ -944,10 +1069,10 @@ export default function KidHome({
               ) : (
                 <>
                   <p className="text-title-3 text-label-primary">
-                    {kidHomeText("allDoneForToday")}
+                    {tone("allDoneForToday", "teenAllDoneForToday")}
                   </p>
                   <p className="text-subhead text-label-secondary mt-1">
-                    {kidHomeText("enjoyDay")}
+                    {tone("enjoyDay", "teenEnjoyDay")}
                   </p>
                 </>
               )}
@@ -972,11 +1097,19 @@ export default function KidHome({
             </ProgressRing>
             <div className="flex-1 min-w-0">
               <p className="text-title-3 text-label-primary leading-tight font-semibold">
-                {kidHomeText("level", { level: userLevel })}
+                {teen
+                  ? kidHomeText("teenLevel", {
+                      level: userLevel,
+                      points: userXp,
+                    })
+                  : kidHomeText("level", { level: userLevel })}
               </p>
               <p className="text-subhead text-label-secondary mt-1">
-                {kidHomeText("pointsToGo", { count: xpNextLevel - userXp })}
+                {tone("pointsToGo", "teenPointsToGo", {
+                  count: xpNextLevel - userXp,
+                })}
               </p>
+              {!teen && (
               <div className="mt-3 flex items-center gap-1.5">
                 {[...Array(Math.min(userLevel, 5))].map((_, i) => (
                   <Sparkles
@@ -990,8 +1123,23 @@ export default function KidHome({
                   </span>
                 )}
               </div>
+              )}
             </div>
           </div>
+        )}
+
+        {/* Done and waiting for a parent's check: visible, never "undone". */}
+        {waitingChores.length > 0 && (
+          <section aria-labelledby="kid-waiting-heading" data-testid="kid-waiting">
+            <h2 id="kid-waiting-heading" className="section-header">
+              {kidHomeText("waitingHeading")}
+            </h2>
+            <ul className="list-inset">
+              {waitingChores.map((chore) => (
+                <li key={chore.id}>{renderWaiting(chore)}</li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {/* Tomorrow: a read-only peek, so "All done for today!" can be true */}
@@ -1101,7 +1249,7 @@ export default function KidHome({
                         <div className="flex items-center gap-1 mt-1">
                           <Star className="w-3.5 h-3.5 text-brand-mustard fill-brand-mustard" />
                           <span className="text-footnote text-label-secondary">
-                            {reward.cost} {pointsUnit(reward.cost)}
+                            {pointsLabel(reward.cost)}
                           </span>
                         </div>
                       </div>
@@ -1134,17 +1282,50 @@ export default function KidHome({
                     </button>
                     {celebratingThis && !quiet && (
                       <div className="mt-3 flex items-center justify-center gap-1 animate-spring-up">
-                        <span className="text-xl">🎉</span>
+                        {!teen && <span className="text-xl">🎉</span>}
                         <span className="text-title-3 text-success-text font-semibold">
                           {rewardsText("gotIt")}
                         </span>
-                        <span className="text-xl">🎉</span>
+                        {!teen && <span className="text-xl">🎉</span>}
                       </div>
                     )}
                   </article>
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {/* The viewer's own claims, until a parent approves them. */}
+        {rewardsEnabled && claimedRewardRows.length > 0 && (
+          <section
+            aria-labelledby="kid-claimed-heading"
+            data-testid="kid-claimed-rewards"
+          >
+            <h2 id="kid-claimed-heading" className="section-header">
+              {kidHomeText("claimedHeading")}
+            </h2>
+            <ul className="list-inset">
+              {claimedRewardRows.map((reward) => (
+                <li
+                  key={reward.id}
+                  className="flex items-start gap-3 px-4 py-3 min-h-[56px]"
+                >
+                  <Hourglass
+                    className="mt-0.5 h-5 w-5 shrink-0 text-label-secondary"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-body text-label-primary [overflow-wrap:anywhere]">
+                      {reward.name}
+                    </p>
+                    <p className="text-footnote text-label-secondary">
+                      {kidHomeText("claimedWaiting")}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
       </div>

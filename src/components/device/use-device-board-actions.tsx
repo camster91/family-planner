@@ -19,6 +19,7 @@ import { useTodayBoardText } from "@/i18n/today-board";
 import { getDeviceQueue } from "@/lib/device-queue-browser";
 import { QueueError, isCheckedOperation } from "@/lib/offline-queue";
 import { MEMBER_COLOR_CSS, type MemberColorKey } from "@/lib/member-colors";
+import { firstName, sharedBoardNames } from "@/components/fridge/board-model";
 import { focusRing } from "./styles";
 import { PRODUCT_BRAND } from "@/lib/brand";
 
@@ -63,6 +64,12 @@ function profileIdForChore(chore: BoardChore | null): string | null {
   return null;
 }
 
+function subjectKey(subject: DeviceSubjectChoice): string {
+  return subject.kind === "profile"
+    ? `profile:${subject.memberId}`
+    : `account:${subject.id}`;
+}
+
 function writeErrorText(error: unknown, text: DeviceText): string {
   if (error instanceof DeviceApiError) {
     if (error.code === "NETWORK_ERROR")
@@ -78,10 +85,17 @@ function writeErrorText(error: unknown, text: DeviceText): string {
 /**
  * Tile actions for a paired tablet (#274, SHARED_DEVICE.md §9.2):
  *
- * - before the first tap it asks "Who's this?" (names and colours from the
- *   board, §9.1) and remembers the answer in memory for two minutes after the
- *   last tap; the choice is unverified attribution (O-5) and never grants
- *   anything;
+ * - a chore assigned to exactly one person (an account assignee, or a
+ *   protocol-2 profile subject) is completed for that person on the first tap,
+ *   with no picker (owner decision 2026-11-19, O-5). The toast says
+ *   "Done for Maya" and offers "Not Maya?", which undoes the completion and,
+ *   for an account chore, opens "Who's this?" to complete it for whoever
+ *   really did it. The device is still the audited actor (`DeviceAuditEvent`
+ *   carries the device id; the activity row names the assignee as subject);
+ * - groceries, and any chore without a single known assignee, ask
+ *   "Who's this?" (first names and colours from the board, §9.1) and remember
+ *   the answer in memory for two minutes after the last tap; the choice is
+ *   unverified attribution (O-5) and never grants anything;
  * - a chore tap posts POST /api/device/chores/:id/complete with a fresh
  *   Idempotency-Key; Undo posts the tablet's own short-window
  *   POST /api/device/chores/:id/uncomplete;
@@ -179,17 +193,36 @@ export function useDeviceBoardActions({
     const accountMembers = members.filter(
       (member) => !profileIdForMember(member),
     );
+    const accountsById = new Map(accountMembers.map((m) => [m.id, m]));
+    // "Not Maya?" picks a different account for one chore's next completion.
+    const overrides = new Map<string, DeviceSubjectChoice>();
+    // Who each completion on this board was sent for, so Undo matches it.
+    const completedAs = new Map<string, DeviceSubjectChoice>();
 
     const accountId = () =>
       subjectRef.current?.kind === "account" ? subjectRef.current.id : "";
-    const subjectForChore = (chore: BoardChore): DeviceSubjectChoice | null => {
+    /** The one person a chore belongs to, when the board knows them. */
+    const assigneeOf = (chore: BoardChore): DeviceSubjectChoice | null => {
       const profileId = profileIdForChore(chore);
       if (profileId) {
         const profile = membersByProfileId.get(profileId);
-        return profile
+        return profile && memberProtocol === 2
           ? { kind: "profile", memberId: profileId, name: profile.name }
           : null;
       }
+      const account = chore.assigneeId
+        ? accountsById.get(chore.assigneeId)
+        : undefined;
+      return account
+        ? { kind: "account", id: account.id, name: account.name }
+        : null;
+    };
+    const subjectForChore = (chore: BoardChore): DeviceSubjectChoice | null => {
+      const override = overrides.get(chore.id);
+      if (override) return override;
+      if (profileIdForChore(chore)) return assigneeOf(chore);
+      const assignee = assigneeOf(chore);
+      if (assignee) return assignee;
       const selected = subjectRef.current;
       return selected?.kind === "account" ? selected : null;
     };
@@ -197,8 +230,9 @@ export function useDeviceBoardActions({
     const post = async (
       path: string,
       chore: BoardChore,
+      who: DeviceSubjectChoice | null = subjectForChore(chore),
     ): Promise<ActionResult> => {
-      const selected = subjectForChore(chore);
+      const selected = who;
       if (!selected) {
         return {
           ok: false,
@@ -220,6 +254,18 @@ export function useDeviceBoardActions({
       }
     };
 
+    const openPicker = (targetProfileId: string | null) =>
+      new Promise<boolean>((resolve) => {
+        resolver.current?.(false);
+        resolver.current = (ok) => {
+          if (ok) lastTapRef.current = Date.now();
+          resolve(ok);
+        };
+        setPickerMode(targetProfileId ? "profile" : "account");
+        setRequiredProfileId(targetProfileId);
+        setPickerOpen(true);
+      });
+
     const prepareSubject = (targetProfileId: string | null) => {
       const selected = subjectRef.current;
       const selectionMatches = targetProfileId
@@ -231,16 +277,7 @@ export function useDeviceBoardActions({
         lastTapRef.current = Date.now();
         return Promise.resolve(true);
       }
-      return new Promise<boolean>((resolve) => {
-        resolver.current?.(false);
-        resolver.current = (ok) => {
-          if (ok) lastTapRef.current = Date.now();
-          resolve(ok);
-        };
-        setPickerMode(targetProfileId ? "profile" : "account");
-        setRequiredProfileId(targetProfileId);
-        setPickerOpen(true);
-      });
+      return openPicker(targetProfileId);
     };
 
     return {
@@ -248,7 +285,11 @@ export function useDeviceBoardActions({
       // Grocery capture and ticks always need an account subject. Keep this
       // independent from chore rendering, which may inspect profile chores.
       prepare: () => prepareSubject(null),
-      prepareChore: (chore) => prepareSubject(profileIdForChore(chore)),
+      // One tap for a one-person chore: no picker (owner decision 2026-11-19).
+      prepareChore: (chore) =>
+        overrides.has(chore.id) || assigneeOf(chore)
+          ? Promise.resolve(true)
+          : prepareSubject(profileIdForChore(chore)),
       canCompleteChore: (chore) => {
         if (chore.actionAvailability?.state === "paused") return false;
         const profileId = profileIdForChore(chore);
@@ -267,9 +308,13 @@ export function useDeviceBoardActions({
             message: copyRef.current.todayText("profileChorePaused"),
           });
         }
+        const who = subjectForChore(chore);
+        overrides.delete(chore.id);
+        if (who) completedAs.set(chore.id, who);
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/complete`,
           chore,
+          who,
         );
       },
       undoChore: (chore) => {
@@ -279,15 +324,40 @@ export function useDeviceBoardActions({
             message: copyRef.current.todayText("profileChorePaused"),
           });
         }
+        const who = completedAs.get(chore.id) ?? subjectForChore(chore);
+        completedAs.delete(chore.id);
         return post(
           `/api/device/chores/${encodeURIComponent(chore.id)}/uncomplete`,
           chore,
+          who,
         );
+      },
+      choreAttribution: (chore) => {
+        const who = completedAs.get(chore.id);
+        const assignee = assigneeOf(chore);
+        // Only a completion the tablet attributed without asking.
+        if (!who || !assignee || subjectKey(who) !== subjectKey(assignee))
+          return null;
+        const name = firstName(assignee.name);
+        return {
+          title: copyRef.current.deviceText("doneFor", { name }),
+          notLabel: copyRef.current.deviceText("notPerson", { name }),
+        };
+      },
+      pickChoreDoer: async (chore) => {
+        // A profile chore can only be credited to its own profile (the
+        // protocol-2 route refuses any other), so "Not Maya?" only undoes.
+        if (profileIdForChore(chore)) return false;
+        if (!(await openPicker(null))) return false;
+        const picked = subjectRef.current;
+        if (picked?.kind !== "account") return false;
+        overrides.set(chore.id, picked);
+        return true;
       },
       choreDoneNote: () => copyRef.current.deviceText("parentWillCheck"),
       actorLabel: () =>
         subjectRef.current?.kind === "account"
-          ? subjectRef.current.name.trim().split(/\s+/)[0]
+          ? firstName(subjectRef.current.name)
           : null,
       async setGroceryChecked(item, checked) {
         const selected = subjectRef.current;
@@ -385,7 +455,10 @@ export function useDeviceBoardActions({
   };
 }
 
-/** "Who's this?" (O-5): names and board colours only (§9.1). */
+/**
+ * "Who's this?" (O-5): big monogram tiles with first names and board colours
+ * only (§9.1). Two people with one first name get their last initial.
+ */
 function WhoIsThisDialog({
   open,
   members,
@@ -409,6 +482,8 @@ function WhoIsThisDialog({
       ? profileId === requiredProfileId
       : profileId === null;
   });
+  // First names only on the shared screen; never a surname (2026-11-19).
+  const names = sharedBoardNames(members);
   return (
     <Dialog
       open={open}
@@ -421,34 +496,47 @@ function WhoIsThisDialog({
           : deviceText("accountPickerDescription")
       }
     >
-      <ul className="grid gap-3 sm:grid-cols-2" aria-label={deviceText("pickerMembers")}>
-        {choices.map((m) => (
-          <li key={m.id}>
-            <button
-              type="button"
-              onClick={() => {
-                const profileId = profileIdForMember(m);
-                onPick(
-                  profileId
-                    ? { kind: "profile", memberId: profileId, name: m.name }
-                    : { kind: "account", id: m.id, name: m.name },
-                );
-              }}
-              className={`flex min-h-[56px] w-full items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-4 text-left text-[19px] font-semibold text-label-primary active:bg-[var(--surface-fill)] ${focusRing}`}
-            >
-              <span
-                aria-hidden="true"
-                className="h-5 w-5 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: m.color
-                    ? MEMBER_COLOR_CSS[m.color as MemberColorKey]
-                    : "var(--surface-fill)",
+      <ul
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4"
+        aria-label={deviceText("pickerMembers")}
+      >
+        {choices.map((m) => {
+          const name = names.get(m.id) ?? firstName(m.name);
+          const color = m.color as MemberColorKey | undefined;
+          return (
+            <li key={m.id}>
+              <button
+                type="button"
+                data-testid="who-is-this-member"
+                onClick={() => {
+                  const profileId = profileIdForMember(m);
+                  onPick(
+                    profileId
+                      ? { kind: "profile", memberId: profileId, name: m.name }
+                      : { kind: "account", id: m.id, name: m.name },
+                  );
                 }}
-              />
-              <span className="min-w-0 break-words">{m.name}</span>
-            </button>
-          </li>
-        ))}
+                className={`flex min-h-[128px] w-full flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] px-3 py-4 text-center text-[22px] font-semibold leading-tight text-label-primary active:bg-[var(--surface-fill)] ${focusRing}`}
+              >
+                {/* Initial on the member's colour; the name below carries the meaning. */}
+                <span
+                  aria-hidden="true"
+                  data-member-color={color}
+                  className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-[30px] font-bold ${color ? "text-white" : "bg-[var(--surface-fill)] text-label-primary"}`}
+                  style={
+                    color ? { backgroundColor: MEMBER_COLOR_CSS[color] } : undefined
+                  }
+                >
+                  {(name.trim()[0] ?? "?").toUpperCase()}
+                </span>
+                {/* Wraps between words; a single long name may still break. */}
+                <span className="w-full min-w-0 hyphens-none [overflow-wrap:break-word] [word-break:normal]">
+                  {name}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </Dialog>
   );

@@ -1,5 +1,12 @@
 // One true summary sentence for the home screen (#268).
-import { homeSummary, memberSummary, parentSummary, type HomeChore } from '../home-summary'
+import {
+  choresDueOn,
+  homeSummary,
+  isOverdueHomeChore,
+  memberSummary,
+  parentSummary,
+  type HomeChore,
+} from '../home-summary'
 
 const TODAY = '2026-01-05'
 const members = [
@@ -22,7 +29,7 @@ describe('parentSummary', () => {
       chore('c', 'in_progress'),
       chore('c', 'completed'),
       chore('p', 'verified'),
-      chore('c', 'pending', '2026-01-04'), // yesterday: not today's count
+      chore('c', 'verified', '2026-01-04'), // done yesterday: not today's count
       chore('t', 'pending', '2026-01-06'), // tomorrow
     ]
     expect(parentSummary(chores, members, TODAY)).toBe('3 chores left today · Casey 2, Taylor 1')
@@ -45,6 +52,24 @@ describe('parentSummary', () => {
 
   it('counts a chore for someone no longer listed without inventing a name', () => {
     expect(parentSummary([chore('gone', 'pending')], members, TODAY)).toBe('1 chore left today · someone 1')
+  })
+})
+
+describe('overdue chores (owner decision 2026-11-19)', () => {
+  it('counts a still-open chore from an earlier day, like the kid home and the board', () => {
+    const mow = chore('t', 'overdue', '2026-01-02') // "Mow the lawn", due 3 days ago
+    const chores = [chore('t', 'pending'), chore('t', 'pending'), mow]
+    expect(memberSummary(chores, 't', TODAY)).toBe('You have 3 chores left')
+    expect(parentSummary(chores, members, TODAY)).toBe('3 chores left today · Taylor 3')
+    expect(choresDueOn(chores, TODAY).map((c) => c.id)).toContain(mow.id)
+    expect(isOverdueHomeChore(mow, TODAY)).toBe(true)
+    expect(isOverdueHomeChore(chores[0], TODAY)).toBe(false)
+  })
+
+  it('never brings back a chore from an earlier day that is already done', () => {
+    const chores = [chore('t', 'completed', '2026-01-02'), chore('t', 'verified', '2026-01-04')]
+    expect(choresDueOn(chores, TODAY)).toEqual([])
+    expect(memberSummary(chores, 't', TODAY)).toBe('Nothing on your list today')
   })
 })
 

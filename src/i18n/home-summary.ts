@@ -12,6 +12,7 @@ export const homeSummarySpanish: HomeSummaryPresentationMessages = {
   doneWaiting: 'Hecha · esperando que un padre la revise',
   checkedByParent: 'Revisada por un padre',
   dueToday: 'Para hoy',
+  overdue: 'Atrasada',
   toCheck: (count) => `${count} ${count === 1 ? 'tarea por revisar' : 'tareas por revisar'}`,
   allChores: 'Todas las tareas',
   everyChoreDoneToday: 'Todas las tareas están hechas hoy',

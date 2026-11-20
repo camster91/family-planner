@@ -536,7 +536,12 @@ export default function DashboardNav({ user }: DashboardNavProps) {
             closeLabel={msg("close")}
             testId="notification-preferences-dialog"
           >
-            <NotificationPreferences />
+            {/* Quiet view left the child's home (owner review 2026-11-19);
+                children, who cannot open Settings, find it here. It loads
+                with the switches, outside the initial JavaScript. */}
+            <NotificationPreferences
+              withQuietView={isFeatureEnabled(features, "gamification")}
+            />
           </Dialog>
         </>
       )}

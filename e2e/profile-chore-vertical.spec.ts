@@ -291,9 +291,7 @@ async function createFamilyAndProfiles(
 ): Promise<Record<string, string>> {
   await loginViaUi(page, x.parent.email, PASSWORD);
   await page.waitForURL(/\/dashboard$/);
-  await page
-    .getByRole("button", { name: onboardingEnglish.getStarted, exact: true })
-    .click();
+  // Naming the family is the first onboarding screen (no welcome step).
   await page
     .getByLabel(onboardingEnglish.familyNameLabel, { exact: true })
     .fill(x.family);
@@ -312,7 +310,7 @@ async function createFamilyAndProfiles(
   ).toBeVisible();
   const profileIds = await saveProfiles(page, x.profiles);
   await page
-    .getByRole("link", { name: onboardingEnglish.finishLater, exact: true })
+    .getByRole("link", { name: onboardingEnglish.done, exact: true })
     .click();
   await page.waitForURL(/\/dashboard\/today/);
   return profileIds;
@@ -871,16 +869,19 @@ test.describe.serial("email-free profile chore vertical", () => {
           response.request().method() === "POST",
       );
       await choreButton.click();
-      const chooser = tablet.page.getByTestId("who-is-this");
-      await expect(chooser).toBeVisible();
-      await chooser
-        .getByRole("button", { name: x.profiles[0].name, exact: true })
-        .click();
+      // One tap: a one-person chore is done for its profile without asking
+      // "Who's this?" (owner decision 2026-11-19).
       expect((await complete).status()).toBe(200);
+      await expect(tablet.page.getByTestId("who-is-this")).toHaveCount(0);
       await expect(tablet.page.getByTestId("undo-toast")).toBeVisible();
+      await expect(tablet.page.getByTestId("undo-toast")).toContainText(
+        `Done for ${x.profiles[0].name.trim().split(/\s+/)[0]}`,
+      );
+      // "Not …?" is the Undo; a profile chore can only be credited to its
+      // own profile, so it reopens the chore and asks nothing.
       const undo = tablet.page
         .getByTestId("undo-toast")
-        .getByRole("button", { name: "Undo", exact: true });
+        .getByRole("button", { name: /^Not .+\?$/ });
       const uncomplete = tablet.page.waitForResponse(
         (response) =>
           response.url().endsWith(`/api/device/chores/${choreId}/uncomplete`) &&
@@ -1133,12 +1134,9 @@ test.describe.serial("email-free profile chore vertical", () => {
           response.request().method() === "POST",
       );
       await choreButton.click();
-      const chooser = tablet.page.getByTestId("who-is-this");
-      await expect(chooser).toBeVisible();
-      await chooser
-        .getByRole("button", { name: recurring.profileName, exact: true })
-        .click();
+      // One tap for the chore's own profile (owner decision 2026-11-19).
       expect((await complete).status()).toBe(200);
+      await expect(tablet.page.getByTestId("who-is-this")).toHaveCount(0);
       await expect(
         tablet.page
           .getByTestId("board-chore")
@@ -1479,12 +1477,13 @@ test.describe.serial("email-free profile chore vertical", () => {
             response.request().method() === "POST",
         );
         await choreButton.click();
-        const chooser = tablet.page.getByTestId("who-is-this");
-        await expect(chooser).toBeVisible();
-        await chooser
-          .getByRole("button", { name: chore.profileName, exact: true })
-          .click();
+        // One tap: a one-person chore is done for its profile without asking
+        // "Who's this?" (owner decision 2026-11-19).
         expect((await completion).status()).toBe(200);
+        await expect(tablet.page.getByTestId("who-is-this")).toHaveCount(0);
+        await expect(tablet.page.getByTestId("undo-toast")).toContainText(
+          `Done for ${chore.profileName.trim().split(/\s+/)[0]}`,
+        );
         await expect(
           tablet.page
             .getByTestId("board-chore")

@@ -16,6 +16,7 @@ export const choreOverviewEnglish = {
   focusCompleted: "Waiting for review",
   focusVerified: "Done",
   focusOverdue: "Overdue",
+  overdueSince: "Overdue · was due {date}",
   cadenceWeekly: "Weekly",
   cadenceDaily: "Daily",
   cadenceMonthly: "Monthly",
@@ -81,6 +82,9 @@ export const choreOverviewEnglish = {
   empty: "All clear!",
   emptyToday: "No chores due today.",
   emptyRange: "No chores in this range.",
+  noChoresYet: "No chores yet",
+  noChoresYetHint: "Add the first chore and choose who does it.",
+  addFirstChore: "Add a chore",
 } as const;
 export const choreOverviewSpanish: Record<
   keyof typeof choreOverviewEnglish,
@@ -99,6 +103,7 @@ export const choreOverviewSpanish: Record<
   focusCompleted: "Pendiente de revisión",
   focusVerified: "Hecha",
   focusOverdue: "Atrasada",
+  overdueSince: "Atrasada · era para {date}",
   cadenceWeekly: "Semanal",
   cadenceDaily: "Diaria",
   cadenceMonthly: "Mensual",
@@ -164,6 +169,9 @@ export const choreOverviewSpanish: Record<
   empty: "¡Todo listo!",
   emptyToday: "No hay tareas para hoy.",
   emptyRange: "No hay tareas en estas fechas.",
+  noChoresYet: "Todavía no hay tareas",
+  noChoresYetHint: "Añade la primera tarea y elige quién la hace.",
+  addFirstChore: "Añadir una tarea",
 };
 export const choreOverviewMessages = {
   en: choreOverviewEnglish,
