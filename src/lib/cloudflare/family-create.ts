@@ -12,13 +12,20 @@ export interface CreatedD1Family {
 }
 
 /**
- * The conditional INSERT and membership update share one D1 batch transaction.
+ * The conditional INSERT, membership update and first "Groceries" list share
+ * one D1 batch transaction.
  * A deleted/revoked/already-attached account inserts nothing. Concurrent create
  * batches serialize, so only one can see family_id IS NULL for this account.
  */
 export async function createD1Family(db: D1Store, input: {
   userId: string; tokenVersion: number; familyId: string; name: string
   inviteCode: string; features: string; now: number
+  /**
+   * The household's first grocery list ("Groceries"), created in the same
+   * batch. The caller passes the name so this module keeps no runtime imports
+   * (scripts/cloudflare/identity-smoke.mjs executes it directly).
+   */
+  groceryListId: string; groceryListName: string
 }): Promise<CreatedD1Family | 'gone' | 'already'> {
   const session = db.withSession('first-primary')
   const result = await session.batch<Record<string, unknown>>([
@@ -30,13 +37,21 @@ export async function createD1Family(db: D1Store, input: {
       WHERE id = ?2 AND token_version = ?3 AND family_id IS NULL
       AND EXISTS (SELECT 1 FROM "Family" WHERE id = ?1)`)
       .bind(input.familyId, input.userId, input.tokenVersion),
+    // The household's first grocery list, only when this batch attached the
+    // account to the new family and the family has no grocery list yet, so a
+    // replayed or refused batch never adds a second one.
+    session.prepare(`INSERT INTO "List" (id, family_id, name, type, created_by, created_at, updated_at)
+      SELECT ?1, ?2, ?3, 'grocery', ?4, ?5, ?5
+      WHERE EXISTS (SELECT 1 FROM "User" WHERE id = ?4 AND family_id = ?2 AND token_version = ?6)
+      AND NOT EXISTS (SELECT 1 FROM "List" WHERE family_id = ?2 AND type IN ('grocery', 'shopping'))`)
+      .bind(input.groceryListId, input.familyId, input.groceryListName, input.userId, input.now, input.tokenVersion),
     session.prepare(`SELECT * FROM "Family" WHERE id = ?1 AND EXISTS
       (SELECT 1 FROM "User" WHERE id = ?2 AND family_id = ?1 AND token_version = ?3)`)
       .bind(input.familyId, input.userId, input.tokenVersion),
     session.prepare('SELECT family_id, token_version FROM "User" WHERE id = ?1').bind(input.userId),
   ])
-  const family = result[2].results[0]
+  const family = result[3].results[0]
   if (family) return family as unknown as CreatedD1Family
-  const user = result[3].results[0]
+  const user = result[4].results[0]
   return !user || user.token_version !== input.tokenVersion ? 'gone' : 'already'
 }

@@ -47,16 +47,16 @@ afterEach(() => {
   jest.useRealTimers()
 })
 
-it('keeps Join Family disabled after a successful join until the redirect', async () => {
+it('keeps the join button disabled after a successful join until the redirect', async () => {
   jest.useFakeTimers()
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
   renderJoin()
 
   await user.type(screen.getByLabelText('Family Code'), 'ABC123')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await screen.findByText('Ready to join as a child or teen.')
 
-  const join = screen.getByRole('button', { name: /Join Family/ })
+  const join = screen.getByRole('button', { name: 'Join The Smiths' })
   await user.click(join)
   await screen.findByText('Successfully joined The Smiths!')
 
@@ -123,9 +123,9 @@ it('retries paused dashboard navigation without joining the household a second t
   const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
   renderJoin()
   await user.type(screen.getByLabelText('Family Code'), 'ABC123')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await screen.findByText('Ready to join as a child or teen.')
-  await user.click(screen.getByRole('button', { name: 'Join Family' }))
+  await user.click(screen.getByRole('button', { name: 'Join The Smiths' }))
   await screen.findByText('Successfully joined The Smiths!')
   await act(async () => { jest.advanceTimersByTime(2500); await Promise.resolve() })
   expect(push).not.toHaveBeenCalled()

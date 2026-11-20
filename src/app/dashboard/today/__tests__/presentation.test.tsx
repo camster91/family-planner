@@ -17,17 +17,35 @@ jest.mock('../home-summary-data', () => ({ loadHomeSummary: async () => ({ chore
   { id: 'other', assigneeId: 'c', status: 'pending' },
   { id: 'unknown', assigneeId: 'p', status: 'unknown' },
 ] }) }))
-jest.mock('../get-started-data', () => ({ allStepsDone: () => false, loadGetStarted: async () => ({}) }))
-jest.mock('@/components/fridge/TodayBoard', () => ({ __esModule: true, default: ({ choresShownElsewhere }: { choresShownElsewhere?: string[] }) => <div data-testid="board" data-excluded={JSON.stringify(choresShownElsewhere ?? [])} /> }))
+jest.mock('../get-started-data', () => ({
+  allStepsDone: () => false,
+  loadGetStarted: async () => ({}),
+  loadTodayStarts: async () => ({ hasChore: false, hasGroceryList: true }),
+}))
+jest.mock('@/components/fridge/TodayBoard', () => ({ __esModule: true, default: ({ choresShownElsewhere, starts }: { choresShownElsewhere?: string[]; starts?: unknown }) => <div data-testid="board" data-excluded={JSON.stringify(choresShownElsewhere ?? [])} data-starts={JSON.stringify(starts ?? null)} /> }))
 jest.mock('@/components/dashboard/HomeSummary', () => ({ __esModule: true, default: () => <div data-testid="summary" /> }))
-jest.mock('@/components/dashboard/TodaySetup', () => ({ __esModule: true, default: () => <div data-testid="setup" /> }))
+jest.mock('@/components/dashboard/TodaySetup', () => ({ __esModule: true, default: ({ part }: { part?: string }) => <div data-testid={`setup-${part ?? 'all'}`} /> }))
 
-it('puts household plans before optional setup so Today is content-first', async () => {
+const follows = (a: HTMLElement, b: HTMLElement) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+it('puts an unfinished Get started first, above the plans, and the optional suggestions last', async () => {
   render(await TodayBoardPage({ searchParams: Promise.resolve({}) }))
-  // The setup card is code-split (TodayDeferred), so it appears a moment later.
-  const setup = await screen.findByTestId('setup')
-  expect(screen.getByTestId('board').compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  expect(screen.getByTestId('summary').compareDocumentPosition(screen.getByTestId('board')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  // TodaySetup itself shows Get started only while it is incomplete and not hidden.
+  // It is code-split (TodayDeferred), so it appears a moment later.
+  await screen.findByTestId('setup-getStarted')
+  await screen.findByTestId('setup-suggestions')
+  expect(follows(screen.getByTestId('setup-getStarted'), screen.getByTestId('summary'))).toBe(true)
+  expect(follows(screen.getByTestId('summary'), screen.getByTestId('board'))).toBe(true)
+  expect(follows(screen.getByTestId('board'), screen.getByTestId('setup-suggestions'))).toBe(true)
+  expect(screen.queryByTestId('setup-all')).toBeNull()
+})
+
+it('passes the honest empty-state facts to the personal board, never to fridge mode', async () => {
+  const view = render(await TodayBoardPage({ searchParams: Promise.resolve({}) }))
+  expect(JSON.parse(screen.getByTestId('board').getAttribute('data-starts')!)).toEqual({ hasChore: false, hasGroceryList: true })
+  view.unmount()
+  render(await TodayBoardPage({ searchParams: Promise.resolve({ mode: 'fridge' }) }))
+  expect(JSON.parse(screen.getByTestId('board').getAttribute('data-starts')!)).toBeNull()
 })
 
  it('excludes only exact own rows the personal summary can render, and never excludes fridge rows', async () => {

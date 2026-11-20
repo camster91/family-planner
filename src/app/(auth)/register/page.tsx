@@ -11,11 +11,21 @@ import {
   type AuthEntryFeedback,
 } from "@/i18n/auth-entry";
 import { replaceWithFreshDocument } from "@/lib/auth-navigation";
+import { FamilyCodeEntry } from "@/components/auth/FamilyCodeEntry";
+import { useFamilyCodeEntryText } from "@/i18n/family-code-entry";
+import {
+  pendingJoinPath,
+  rememberPendingJoin,
+  withJoinRedirect,
+} from "@/lib/pending-join";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
   const copy = (key: AuthEntryMessage, params?: Record<string, string>) =>
     t(key, params, authEntryMessages);
+  const codeText = useFamilyCodeEntryText();
+  // A family code from /join, kept through verify email and the first sign-in.
+  const [joinPath, setJoinPath] = useState<string | null>(null);
   const [showVerificationNotice, setShowVerificationNotice] = useState(false);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
     "idle",
@@ -38,7 +48,13 @@ export default function RegisterPage() {
     // Do not allow a native pre-hydration submit to serialize passwords into
     // a GET URL before React owns this form.
     setHydrated(true);
-    const token = new URLSearchParams(window.location.search).get("token");
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const pendingJoin = token ? null : pendingJoinPath(params.get("redirect"));
+    if (pendingJoin) {
+      setJoinPath(pendingJoin);
+      rememberPendingJoin(pendingJoin);
+    }
     if (!token) return;
     setInviteToken(token);
     fetch(`/api/family/invites/preview?token=${encodeURIComponent(token)}`)
@@ -150,7 +166,10 @@ export default function RegisterPage() {
             <p className="text-[15px] text-[var(--label-secondary)] mb-6">
               {copy("verificationGuidance")}
             </p>
-            <Link href="/login" className="btn-filled w-full py-3">
+            <Link
+              href={withJoinRedirect("/login", joinPath)}
+              className="btn-filled w-full py-3"
+            >
               {copy("signIn")}
             </Link>
             <button
@@ -187,6 +206,14 @@ export default function RegisterPage() {
                   })
                 : t("auth.createAccountSubtitle")}
             </p>
+            {joinPath && (
+              <p
+                data-testid="register-join-note"
+                className="text-[15px] text-[var(--label-secondary)] mt-2"
+              >
+                {codeText("joinAfterSignUp")}
+              </p>
+            )}
           </div>
 
           <form method="post" onSubmit={handleRegister} className="space-y-4">
@@ -329,12 +356,18 @@ export default function RegisterPage() {
             <p className="text-[15px] text-[var(--label-secondary)]">
               {t("auth.alreadyHaveAccount")}{" "}
               <Link
-                href="/login"
+                href={withJoinRedirect("/login", joinPath)}
                 className="btn-plain inline-flex min-h-11 items-center py-1 px-2 -my-1"
               >
                 {t("auth.signInLink")}
               </Link>
             </p>
+            {!joinPath && !inviteToken && (
+              <FamilyCodeEntry
+                className="text-[15px] text-[var(--label-secondary)]"
+                linkClassName="btn-plain py-1 px-2 -my-1"
+              />
+            )}
           </div>
         </div>
 

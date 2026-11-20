@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { useTranslation } from '@/i18n'
 import { useJoinFamilyText } from '@/i18n/join-family'
 import { usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
+import { useFamilyCodeEntryText } from '@/i18n/family-code-entry'
+import { clearPendingJoin, joinReturnPath } from '@/lib/pending-join'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +29,7 @@ function refusalKey(status: number): JoinError {
 export default function JoinFamilyPage() {
   const { t } = useTranslation()
   const text = useJoinFamilyText()
+  const codeText = useFamilyCodeEntryText()
   const [code, setCode] = useState('')
   const [token, setToken] = useState<string | null>(null)
   const [emailInvite, setEmailInvite] = useState<EmailInvite | null>(null)
@@ -173,6 +176,7 @@ export default function JoinFamilyPage() {
         setError(refusalKey(joinRes.status))
         return
       }
+      clearPendingJoin()
       setSuccess({ kind: 'email', family: typeof joinData.familyName === 'string' ? joinData.familyName : emailInvite?.familyName || null })
       redirectTimer.current = setTimeout(() => {
         void navigateAfterRelease('/dashboard', true)
@@ -191,6 +195,12 @@ export default function JoinFamilyPage() {
     e.preventDefault()
     if (token) {
       await acceptEmailInvite()
+      return
+    }
+    // One button (Continue): until this exact code is checked, pressing it
+    // checks the code; once the family is shown, pressing it joins.
+    if (!familyInfo || familyInfo.code !== code.trim()) {
+      if (code.trim() && !checking) await checkFamilyCode(code)
       return
     }
     if (submittingRef.current) return
@@ -226,6 +236,7 @@ export default function JoinFamilyPage() {
         setError(refusalKey(joinRes.status))
         return
       }
+      clearPendingJoin()
       setSuccess({ kind: 'code', family: typeof joinData.familyName === 'string' ? joinData.familyName : familyInfo.name })
       redirectTimer.current = setTimeout(() => {
         void navigateAfterRelease('/dashboard', true)
@@ -356,7 +367,7 @@ export default function JoinFamilyPage() {
               <label htmlFor="code" className="block text-sm font-medium text-foreground mb-2">
                 {text('code')}
               </label>
-              <div className="flex space-x-4">
+              <div>
                 <input
                   id="code"
                   type="text"
@@ -372,7 +383,7 @@ export default function JoinFamilyPage() {
                     setFamilyInfo(null)
                     setSignedOutCode(false)
                   }}
-                  className="input-field flex-1 font-mono tabular-nums tracking-wider"
+                  className="input-field w-full font-mono tabular-nums tracking-wider"
                   placeholder={text('codeExample')}
                   aria-describedby="code-hint"
                   inputMode="text"
@@ -383,14 +394,6 @@ export default function JoinFamilyPage() {
                   maxLength={64}
                   disabled={busy}
                 />
-                <button
-                  type="button"
-                  onClick={() => checkFamilyCode(code)}
-                  disabled={busy || checking || !code.trim()}
-                  className="btn-secondary min-h-[44px] whitespace-nowrap"
-                >
-                  {text(checking ? 'checking' : 'check')}
-                </button>
               </div>
               <p id="code-hint" className="mt-2 text-sm text-muted-foreground">
                 {text('hint')}
@@ -407,10 +410,17 @@ export default function JoinFamilyPage() {
                 <p className="text-sm text-primary">{t('join.signInToContinue')}</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Link
-                    href={`/login?redirect=${encodeURIComponent(`/join?code=${encodeURIComponent(code.trim())}`)}`}
+                    href={`/login?redirect=${encodeURIComponent(joinReturnPath(code))}`}
                     className="btn-tinted flex-1 justify-center"
                   >
                     {t('join.signInToJoin')}
+                  </Link>
+                  {/* New here: sign up, confirm the email, sign in, then come back to this code. */}
+                  <Link
+                    href={`/register?redirect=${encodeURIComponent(joinReturnPath(code))}`}
+                    className="btn-secondary flex-1 justify-center"
+                  >
+                    {codeText('createAccountToJoin')}
                   </Link>
                 </div>
               </div>
@@ -418,11 +428,17 @@ export default function JoinFamilyPage() {
             {!signedOutCode && (
               <button
                 type="submit"
-                disabled={busy || checking || !code.trim() || !familyInfo || familyInfo.code !== code.trim()}
-                className="btn-primary w-full py-3 inline-flex items-center justify-center"
+                disabled={busy || checking || !code.trim()}
+                className="btn-primary min-h-[44px] w-full py-3 inline-flex items-center justify-center"
               >
-                {text(busy ? 'joining' : 'joinCode')}
-                <ArrowRight className="w-5 h-5 ml-2" />
+                {busy
+                  ? text('joining')
+                  : checking
+                    ? text('checking')
+                    : familyInfo && familyInfo.code === code.trim()
+                      ? text('joinNamed', { family: familyInfo.name })
+                      : text('continue')}
+                <ArrowRight className="w-5 h-5 ml-2" aria-hidden="true" />
               </button>
             )}
           </form>

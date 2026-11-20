@@ -4,9 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { Check, ChevronRight } from 'lucide-react'
 import { useUndoToast } from '@/components/ui/toast'
-import { BrandIllustration } from '@/components/ui/brand-illustration'
-import { ILLUSTRATIONS } from '@/lib/brand-illustrations'
-import { useOnboardingText } from '@/i18n/onboarding'
+import { useGetStartedText } from '@/i18n/get-started'
 import { cn } from '@/lib/utils'
 import { allStepsDone, type GetStartedSteps } from '@/app/dashboard/today/get-started-data'
 import { getStartedStorageKey, useGetStartedHidden, writeVisibilityHidden } from './get-started-visibility'
@@ -17,20 +15,26 @@ export interface GetStartedProps {
   viewer: { role: string }
   familyId: string
   steps: GetStartedSteps
+  /**
+   * The card's decorative art, rendered on the server (GetStartedArt) so the
+   * illustration registry stays out of this lazy chunk.
+   */
+  art?: React.ReactNode
 }
 
 /**
  * The parent's first steps on a new household's Today board: invite the
- * family, add a chore, add an event. Each step is ticked from real household
- * data (./get-started-data.ts). The card goes away once all three are done,
+ * family, add a chore, add an event, connect a calendar. Each step is ticked
+ * from real household data (./get-started-data.ts). The card goes away once
+ * all four are done,
  * or when a parent presses Hide (with Undo).
  *
  * Hydration: the server cannot read localStorage, so the server render and
  * the first client render treat the card as not hidden; the stored choice
  * applies right after (useSyncExternalStore's server snapshot).
  */
-export default function GetStarted({ viewer, familyId, steps }: GetStartedProps) {
-  const text = useOnboardingText()
+export default function GetStarted({ viewer, familyId, steps, art }: GetStartedProps) {
+  const text = useGetStartedText()
   const showUndo = useUndoToast()
   const stored = useGetStartedHidden(familyId)
   // Hidden for this visit even if storage refused the write.
@@ -61,6 +65,14 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
       href: '/dashboard/calendar/create',
       done: steps.hasEvent,
     },
+    {
+      key: 'calendar',
+      title: text('setupCalendarTitle'),
+      hint: text('setupCalendarHint'),
+      // The existing subscriptions section; two-way sync sits right below it.
+      href: '/dashboard/settings#calendar-subscriptions',
+      done: steps.hasCalendar,
+    },
   ]
   const doneCount = rows.filter((r) => r.done).length
 
@@ -79,10 +91,7 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
   return (
     <section aria-labelledby={headingId} data-testid="get-started" className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-4 md:p-5">
       <div className="flex items-center gap-3">
-        <BrandIllustration
-          source={ILLUSTRATIONS.wovenGrove}
-          className="woven-grove-art hidden h-auto w-16 shrink-0 rounded-[var(--radius-md)] sm:block"
-        />
+        {art}
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-title-3 text-label-primary">
             {text('getStarted')}
@@ -101,7 +110,7 @@ export default function GetStarted({ viewer, familyId, steps }: GetStartedProps)
         </button>
       </div>
 
-      <ol className="mt-3 grid gap-1 md:grid-cols-3 md:gap-3" aria-label={text('setupSteps')}>
+      <ol className="mt-3 grid gap-1 md:grid-cols-2 md:gap-3 xl:grid-cols-4" aria-label={text('setupSteps')}>
         {rows.map((row) => (
           <li key={row.key} data-testid={`get-started-${row.key}`}>
             <Link

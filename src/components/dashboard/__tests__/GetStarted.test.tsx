@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-// Get started card: three first steps for a parent of a new household, each
+// Get started card: four first steps for a parent of a new household, each
 // ticked from real data, gone when all are done or after Hide (with Undo).
 import * as React from 'react'
 import { render, screen, within } from '@testing-library/react'
@@ -9,14 +9,15 @@ import userEvent from '@testing-library/user-event'
 import GetStarted, { getStartedStorageKey, type GetStartedProps } from '../GetStarted'
 import { ToastProvider } from '@/components/ui/toast'
 import { serverRenderThenHydrate } from '@/components/ui/__tests__/ssr-hydration'
+import { GetStartedArt } from '../GetStartedArt'
 
 const FAMILY = 'fam_new'
-const none = { invited: false, hasChore: false, hasEvent: false }
+const none = { invited: false, hasChore: false, hasEvent: false, hasCalendar: false }
 
 function renderCard(props: Partial<GetStartedProps> = {}) {
   return render(
     <ToastProvider>
-      <GetStarted viewer={{ role: 'parent' }} familyId={FAMILY} steps={none} {...props} />
+      <GetStarted viewer={{ role: 'parent' }} familyId={FAMILY} steps={none} art={<GetStartedArt />} {...props} />
     </ToastProvider>
   )
 }
@@ -30,14 +31,16 @@ describe('GetStarted', () => {
     renderCard()
     const card = screen.getByTestId('get-started')
     expect(card.querySelector('video, img')?.className).toContain('w-16')
-    expect(within(card).getByRole('list', { name: 'Setup steps' }).className).toContain('md:grid-cols-3')
+    const steps = within(card).getByRole('list', { name: 'Setup steps' })
+    expect(steps.className).toContain('md:grid-cols-2')
+    expect(steps.className).toContain('xl:grid-cols-4')
   })
-  it('lists the three steps with links and their status in words', () => {
+  it('lists the four steps with links and their status in words', () => {
     renderCard()
     const card = screen.getByRole('region', { name: 'Get started' })
-    expect(within(card).getByTestId('get-started-progress').textContent).toContain('0 of 3 done')
+    expect(within(card).getByTestId('get-started-progress').textContent).toContain('0 of 4 done')
     const items = within(within(card).getByRole('list', { name: 'Setup steps' })).getAllByRole('listitem')
-    expect(items).toHaveLength(3)
+    expect(items).toHaveLength(4)
 
     const invite = within(items[0]).getByRole('link')
     expect(invite.getAttribute('href')).toBe('/dashboard/family/invite')
@@ -46,11 +49,23 @@ describe('GetStarted', () => {
     expect(items[1].textContent).toContain('Add your first chore')
     expect(within(items[2]).getByRole('link').getAttribute('href')).toBe('/dashboard/calendar/create')
     expect(items[2].textContent).toContain('Add an event')
+    // The existing calendar subscriptions/connections section in Settings.
+    expect(within(items[3]).getByRole('link').getAttribute('href')).toBe('/dashboard/settings#calendar-subscriptions')
+    expect(items[3].textContent).toContain('To do: Connect your calendar')
+  })
+
+  it('ticks Connect your calendar from the household data', () => {
+    renderCard({ steps: { ...none, hasCalendar: true } })
+    expect(screen.getByTestId('get-started-progress').textContent).toContain('1 of 4 done')
+    const calendar = screen.getByTestId('get-started-calendar')
+    expect(calendar.textContent).toContain('Connect your calendar')
+    expect(calendar.textContent).toContain('Done')
+    expect(calendar.textContent).not.toContain('To do')
   })
 
   it('marks finished steps done in text, not colour alone', () => {
-    renderCard({ steps: { invited: true, hasChore: false, hasEvent: true } })
-    expect(screen.getByTestId('get-started-progress').textContent).toContain('2 of 3 done')
+    renderCard({ steps: { invited: true, hasChore: false, hasEvent: true, hasCalendar: false } })
+    expect(screen.getByTestId('get-started-progress').textContent).toContain('2 of 4 done')
     const invite = screen.getByTestId('get-started-invite')
     expect(invite.textContent).toContain('Done')
     expect(invite.textContent).not.toContain('To do')
@@ -60,9 +75,14 @@ describe('GetStarted', () => {
     expect(screen.getByTestId('get-started-event').textContent).toContain('Done')
   })
 
-  it('is gone once all three steps are done', () => {
-    renderCard({ steps: { invited: true, hasChore: true, hasEvent: true } })
+  it('is gone once all four steps are done', () => {
+    renderCard({ steps: { invited: true, hasChore: true, hasEvent: true, hasCalendar: true } })
     expect(screen.queryByTestId('get-started')).toBeNull()
+  })
+
+  it('stays while only the calendar step is left', () => {
+    renderCard({ steps: { invited: true, hasChore: true, hasEvent: true, hasCalendar: false } })
+    expect(screen.getByTestId('get-started-progress').textContent).toContain('3 of 4 done')
   })
 
   it.each(['teen', 'child'])('is never shown to a %s', (role) => {

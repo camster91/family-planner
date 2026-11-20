@@ -156,6 +156,56 @@ export function Region({
   )
 }
 
+/**
+ * An empty card on the personal Today page, shrunk to one line: what is
+ * missing and the one thing to do first. Person app only; the fridge and the
+ * paired tablet keep full-size regions. Keeps the region's test id and
+ * labelled section so the layout editor and screen readers still find it.
+ */
+export function EmptyRegionLine({
+  id,
+  area,
+  title,
+  icon: Icon,
+  glyph,
+  message,
+  action,
+}: {
+  id: string
+  area: BoardArea
+  title: string
+  icon: LucideIcon
+  glyph: GlyphColor
+  message: string
+  /** One inline action (a link or button, at least 44px), or none. */
+  action?: React.ReactNode
+}) {
+  return (
+    <section
+      aria-labelledby={`${id}-title`}
+      data-testid={`region-${area}`}
+      data-empty-line=""
+      className={cn(regionClass, areaClass[area], 'py-2 md:py-2 lg:py-2 2xl:py-3')}
+    >
+      <div className="flex min-h-[48px] flex-wrap items-center gap-x-3 gap-y-1">
+        <Glyph color={glyph} size="sm">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </Glyph>
+        <h2 id={`${id}-title`} className="text-[17px] font-semibold leading-tight text-label-primary md:text-[18px]">
+          {title}
+        </h2>
+        <p data-testid={`region-empty-${area}`} className={cn(metaTextClass, 'min-w-0 flex-1 basis-40 break-words')}>
+          {message}
+        </p>
+        {action}
+      </div>
+    </section>
+  )
+}
+
+/** Compact pill for an EmptyRegionLine action (44px target, pressed state). */
+export const emptyLineActionClass = cn(actionLinkClass, 'min-h-[44px] px-4 md:text-[15px]')
+
 /** Imported-calendar label (#232). Text carries the meaning; the dot is decoration. */
 function SourceLabel({ source }: { source: NonNullable<BoardEvent['source']> }) {
   const text = useTodayBoardText()
@@ -421,9 +471,12 @@ export function GroceriesRegion({
   listsHref,
   onTick,
   action,
+  noList = false,
   maxRows,
 }: {
   compactLandscape?: boolean
+  /** The household has no grocery list at all: say so instead of "clear". */
+  noList?: boolean
   shopping: ShoppingSnapshot | null
   listsHref: string | null
   action?: React.ReactNode
@@ -454,7 +507,7 @@ export function GroceriesRegion({
       action={action}
     >
       {shopping.total === 0 ? (
-        <p className={emptyTextClass}>{text('groceryEmpty')}</p>
+        <p className={emptyTextClass}>{text(noList ? 'groceryNoList' : 'groceryEmpty')}</p>
       ) : (
         <>
           <p className={cn(metaTextClass, 'mb-2')}>{text('toBuy', { count: shopping.total })}</p>

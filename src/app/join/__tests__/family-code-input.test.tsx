@@ -58,11 +58,11 @@ it('looks up and joins with the code as typed (XXXX-XXXX-XXXX)', async () => {
   const user = userEvent.setup()
   renderJoin()
   await user.type(screen.getByLabelText('Family Code'), 'K7QM-4XPD-2HNA')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await screen.findByText('Ready to join as a child or teen.')
   expect(calls.some((c) => c.url === '/api/family/lookup?code=K7QM-4XPD-2HNA')).toBe(true)
 
-  await user.click(screen.getByRole('button', { name: /Join Family/ }))
+  await user.click(screen.getByRole('button', { name: 'Join The Smiths' }))
   await screen.findByText('Successfully joined The Smiths!')
   const joinCall = calls.find((c) => c.url === '/api/family/join')
   expect(JSON.parse(joinCall!.body!)).toEqual({ inviteCode: 'K7QM-4XPD-2HNA' })
@@ -88,6 +88,55 @@ it('says nothing scary when a signed-out person opens a code link', async () => 
   expect(screen.queryByRole('button', { name: 'Sign in to join' })).toBeNull()
 })
 
+it('offers a signed-out person a new account that keeps the code, as well as sign-in', async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    calls.push({ url })
+    if (url.startsWith('/api/family/lookup')) return reply({ error: 'Unauthorized' }, 401)
+    if (url === '/api/auth/me') return reply({ error: 'Unauthorized' }, 401)
+    return reply({})
+  }) as unknown as typeof fetch
+  const user = userEvent.setup()
+  renderJoin()
+  await user.type(screen.getByLabelText('Family Code'), 'K7QM-4XPD-2HNA')
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+  // Same-origin path only: the code goes to our own sign-up page, nowhere else.
+  const create = await screen.findByRole('link', { name: 'Create an account' })
+  expect(create.getAttribute('href')).toBe('/register?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA')
+  expect(screen.getByRole('link', { name: 'Sign in to join' }).getAttribute('href')).toBe(
+    '/login?redirect=%2Fjoin%3Fcode%3DK7QM-4XPD-2HNA',
+  )
+  expect(calls.some((c) => c.url === '/api/family/join')).toBe(false)
+})
+
+it('uses one Continue button: the first press checks the code, the next confirms the join', async () => {
+  const user = userEvent.setup()
+  renderJoin()
+  expect(screen.queryByRole('button', { name: /Check/ })).toBeNull()
+  expect((screen.getByRole('button', { name: 'Continue' }) as HTMLButtonElement).disabled).toBe(true)
+  await user.type(screen.getByLabelText('Family Code'), 'K7QM-4XPD-2HNA')
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+  await screen.findByText('Ready to join as a child or teen.')
+  expect(calls.some((c) => c.url === '/api/family/join')).toBe(false)
+  // Still one button, now naming the family it joins.
+  expect(screen.getAllByRole('button')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'Join The Smiths' }))
+  await screen.findByText('Successfully joined The Smiths!')
+  expect(calls.filter((c) => c.url === '/api/family/join')).toHaveLength(1)
+})
+
+it('editing the code after a check goes back to Continue (check again)', async () => {
+  const user = userEvent.setup()
+  renderJoin()
+  const input = screen.getByLabelText('Family Code')
+  await user.type(input, 'K7QM-4XPD-2HNA')
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+  await screen.findByRole('button', { name: 'Join The Smiths' })
+  await user.type(input, 'X')
+  expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Join The Smiths' })).toBeNull()
+})
+
 it('releases the pending guard before a signed-out code redirect', async () => {
   let authReads = 0
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -107,9 +156,9 @@ it('releases the pending guard before a signed-out code redirect', async () => {
   const user = userEvent.setup()
   renderJoin()
   await user.type(screen.getByLabelText('Family Code'), 'K7QM-4XPD-2HNA')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await screen.findByText('Ready to join as a child or teen.')
-  await user.click(screen.getByRole('button', { name: /Join Family/ }))
+  await user.click(screen.getByRole('button', { name: 'Join The Smiths' }))
 
   expect(releaseBeforeNavigation).toHaveBeenCalledTimes(1)
   expect(releaseBeforeNavigation.mock.invocationCallOrder[0]).toBeLessThan(
@@ -133,10 +182,10 @@ it('discards a previous-code lookup after the typed code changes', async () => {
   renderJoin()
   const input = screen.getByLabelText('Family Code')
   await user.type(input, 'FIRST-CODE-123')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await user.clear(input)
   await user.type(input, 'SECOND-CODE-123')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await screen.findByText('Current fixture family')
   await act(async () => { finishFirst(reply({ family: { name: 'Stale fixture family' } })) })
   expect(screen.queryByText('Stale fixture family')).toBeNull()
@@ -154,13 +203,13 @@ it('changes mounted join labels without re-reading auth or looking up the code a
   </I18nProvider>)
   const input = screen.getByLabelText('Family Code')
   await user.type(input, 'K7QM-4XPD-2HNA')
-  await user.click(screen.getByRole('button', { name: 'Check Code' }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
   await screen.findByText('The Smiths')
   const before = calls.length
   fireEvent.click(screen.getByRole('button', { name: 'Fixture language' }))
   expect(screen.getByLabelText('Código de familia')).toBe(input)
   expect((input as HTMLInputElement).value).toBe('K7QM-4XPD-2HNA')
   expect(screen.getByText('The Smiths')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Unirse a la familia' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Unirse a The Smiths' })).toBeTruthy()
   expect(calls).toHaveLength(before)
 })

@@ -9,6 +9,7 @@ import { usePendingFormNavigationController } from "@/components/layout/pending-
 import { FAMILY_CODE_LENGTH, formatFamilyCode } from "@/lib/family-code";
 import { useFamilyInviteText } from "@/i18n/family-invite";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
+import { InviteRoleChoice } from "@/components/family/InviteRoleChoice";
 
 type InviteRole = "child" | "teen" | "parent";
 type PendingInvite = {
@@ -47,7 +48,8 @@ export default function InviteMemberPage() {
   >("loading");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<InviteRole>("child");
+  // No default: the inviter picks Parent, Teen or Child before sending.
+  const [role, setRole] = useState<InviteRole | null>(null);
   const [busy, setBusy] = useState<"send" | "rotate" | string | null>(null);
   const busyRef = useRef(false);
   const loadSequence = useRef(0);
@@ -126,7 +128,7 @@ export default function InviteMemberPage() {
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault();
     const targetEmail = email.trim();
-    if (!targetEmail || !start("send")) return;
+    if (!targetEmail || !role || !start("send")) return;
     try {
       const res = await fetch("/api/family/invites", {
         method: "POST",
@@ -147,6 +149,8 @@ export default function InviteMemberPage() {
       )
         throw new Error();
       setEmail("");
+      // The next invite is for someone else: pick their role again.
+      setRole(null);
       setInviteOpen(false);
       setMessage(text("sent", { email: body.invite.email }));
       // Send receipts intentionally omit database IDs. Re-read the canonical list.
@@ -397,7 +401,9 @@ export default function InviteMemberPage() {
           <button
             type="submit"
             form="family-invite-form"
-            disabled={busy !== null || state !== "ready" || !email.trim()}
+            disabled={
+              busy !== null || state !== "ready" || !email.trim() || !role
+            }
             className="btn-filled min-h-[44px] w-full"
           >
             {text(busy === "send" ? "sending" : "send")}
@@ -430,25 +436,17 @@ export default function InviteMemberPage() {
                 autoComplete="email"
               />
             </div>
-            <div>
-              <label htmlFor="invite-role" className="label-apple">
-                {text("role")}
-              </label>
-              <select
-                id="invite-role"
-                value={role}
-                onChange={(event) => {
-                  if (isRole(event.target.value)) setRole(event.target.value);
-                }}
-                className="input-apple"
-              >
-                {(["child", "teen", "parent"] as const).map((option) => (
-                  <option key={option} value={option}>
-                    {text(option)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <InviteRoleChoice
+              name="invite-role"
+              legend={text("role")}
+              labels={{
+                parent: text("parent"),
+                teen: text("teen"),
+                child: text("child"),
+              }}
+              value={role}
+              onChange={setRole}
+            />
           </fieldset>
         </form>
       </Dialog>
