@@ -181,8 +181,10 @@ function CardHeader({
 
 /**
  * Settings, in three groups (one primary action per card):
- * 1. Your account: profile, password, language, theme, notifications.
- * 2. Family (parents only): household links, family tablet, calendar feed,
+ * 1. Your account, most-changed first: profile, family members (parents),
+ *    notifications, language, theme, then password.
+ * 2. Family (parents only): people and features, history and imports, family
+ *    tablet, calendar feed,
  *    subscriptions and sync, AI capture. Long, rarely used parts start closed.
  * 3. Privacy & data: data export, beta usage counts (parents), delete account.
  *
@@ -781,21 +783,37 @@ export default function SettingsClient({
           </form>
         </div>
 
+        {/* Parents change who is in the family often: one tap from the landing. */}
+        {isParent && (
+          <div className="card">
+            <div className="-mx-3">
+              <Link href="/dashboard/family" className={rowClass}>
+                <Users
+                  className="w-4 h-4 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
+                <div>
+                  <div className="font-medium">{copy("familyMembersShortcut")}</div>
+                  <div className="text-xs text-label-tertiary">
+                    {copy("familyMembersShortcutDescription")}
+                  </div>
+                </div>
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <CardHeader
-            icon={KeyRound}
-            tone="red"
-            title={copy("password")}
-            description={copy("passwordDescription")}
+            icon={Bell}
+            tone="yellow"
+            title={copy("notifications")}
+            description={copy("notificationsDescription")}
           />
-          <button
-            type="button"
-            onClick={() => setShowPasswordModal(true)}
-            className="btn-secondary min-h-[44px]"
-          >
-            {copy("changePassword")}
-          </button>
+          {/* Saved on your account (#286), so it follows you to every device. */}
+          <NotificationPreferences />
         </div>
+        <QuietDisplayControl />
 
         <div className="card">
           <CardHeader
@@ -872,15 +890,19 @@ export default function SettingsClient({
 
         <div className="card">
           <CardHeader
-            icon={Bell}
-            tone="yellow"
-            title={copy("notifications")}
-            description={copy("notificationsDescription")}
+            icon={KeyRound}
+            tone="red"
+            title={copy("password")}
+            description={copy("passwordDescription")}
           />
-          {/* Saved on your account (#286), so it follows you to every device. */}
-          <NotificationPreferences />
+          <button
+            type="button"
+            onClick={() => setShowPasswordModal(true)}
+            className="btn-secondary min-h-[44px]"
+          >
+            {copy("changePassword")}
+          </button>
         </div>
-        <QuietDisplayControl />
       </SettingsGroup>
 
       {/* 2. Family: household-level, parents only. Not rendered for a teen and
@@ -892,6 +914,11 @@ export default function SettingsClient({
           active={activeSection === "settings-family"}
         >
           <div className="card">
+            <CardHeader
+              icon={Users}
+              tone="blue"
+              title={copy("peopleAndFeatures")}
+            />
             <div className="-mx-3 space-y-1">
               <Link href="/dashboard/family/settings" className={rowClass}>
                 <Home
@@ -941,18 +968,16 @@ export default function SettingsClient({
                   </div>
                 </div>
               </Link>
-              <Link href="/dashboard/settings/imports" className={rowClass}>
-                <Database
-                  className="w-4 h-4 shrink-0 text-primary"
-                  aria-hidden="true"
-                />
-                <div>
-                  <div className="font-medium">{copy("imports")}</div>
-                  <div className="text-xs text-label-tertiary">
-                    {copy("importsDescription")}
-                  </div>
-                </div>
-              </Link>
+            </div>
+          </div>
+
+          <div className="card">
+            <CardHeader
+              icon={History}
+              tone="purple"
+              title={copy("historyAndImports")}
+            />
+            <div className="-mx-3 space-y-1">
               {/* Household audit history, #285. The page and API are parent-only too. */}
               <Link href="/dashboard/settings/activity" className={rowClass}>
                 <History
@@ -963,6 +988,18 @@ export default function SettingsClient({
                   <div className="font-medium">{copy("recentChanges")}</div>
                   <div className="text-xs text-label-tertiary">
                     {copy("recentDescription")}
+                  </div>
+                </div>
+              </Link>
+              <Link href="/dashboard/settings/imports" className={rowClass}>
+                <Database
+                  className="w-4 h-4 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
+                <div>
+                  <div className="font-medium">{copy("imports")}</div>
+                  <div className="text-xs text-label-tertiary">
+                    {copy("importsDescription")}
                   </div>
                 </div>
               </Link>

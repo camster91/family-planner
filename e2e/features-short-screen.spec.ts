@@ -1,10 +1,9 @@
-/** #499: feature settings remain scannable, keyboard-reachable and bounded at every release viewport. */
+/** #499 / UI review 11: feature setups and the plain switch list stay scannable, keyboard-reachable and bounded at every release viewport. */
 import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Page } from "@playwright/test";
 import { LOCALE_STORAGE_KEY } from "../src/i18n";
-import { getFeatureDisplayCopy } from "../src/i18n/feature-display";
 import { FEATURES } from "../src/lib/features";
 import { FIXTURE_IDS } from "../src/lib/fixtures/dataset";
 import { assertFixtureTargetAllowed } from "../src/lib/fixtures/guard";
@@ -12,30 +11,39 @@ import { THEME_STORAGE_KEY } from "../src/lib/theme";
 import { authFile } from "./support/env";
 import { browserFetch, expect, test } from "./support/test";
 
-const GROUPS = {
+const COPY = {
   en: {
-    core: "Core",
-    planning: "Planning",
-    family: "Family life",
-    navigation: "Feature groups",
-    openAll: "Open all groups",
-    closeAll: "Close all groups",
-    search: "Search features",
-    clearSearch: "Clear feature search",
-    noMatches: "No features match your search.",
+    presets: "Pick a setup",
+    presetNames: ["Essentials", "Busy school year", "Everything", "Custom"],
+    groups: {
+      home: "Home and planning",
+      school: "School days and care",
+      kids: "Kids, points and money",
+      core: "Always on",
+    },
+    previewEverything: "Use Everything?",
+    cancel: "Cancel",
   },
   es: {
-    core: "Esenciales",
-    planning: "Planificación",
-    family: "Vida familiar",
-    navigation: "Grupos de funciones",
-    openAll: "Abrir todos los grupos",
-    closeAll: "Cerrar todos los grupos",
-    search: "Buscar funciones",
-    clearSearch: "Borrar búsqueda de funciones",
-    noMatches: "Ninguna función coincide con tu búsqueda.",
+    presets: "Elige una configuración",
+    presetNames: [
+      "Lo esencial",
+      "Año escolar ocupado",
+      "Todo",
+      "Personalizada",
+    ],
+    groups: {
+      home: "Casa y planificación",
+      school: "Días de escuela y cuidados",
+      kids: "Niños, puntos y dinero",
+      core: "Siempre activadas",
+    },
+    previewEverything: "¿Usar «Todo»?",
+    cancel: "Cancelar",
   },
 } as const;
+
+const SWITCHABLE = FEATURES.filter((feature) => feature.group !== "core");
 
 test.use({ storageState: authFile("parentA") });
 
@@ -109,7 +117,7 @@ async function assertNoOverflow(page: Page, label: string) {
 
 async function assertSwitchGeometry(page: Page, label: string) {
   const switches = page.getByRole("switch");
-  await expect(switches).toHaveCount(FEATURES.length);
+  await expect(switches).toHaveCount(SWITCHABLE.length);
   const viewport = page.viewportSize()!;
   const geometry: Array<{
     name: string;
@@ -185,16 +193,18 @@ for (const locale of ["en", "es"] as const) {
       expect(profile.id).toBe(FIXTURE_IDS.familyA.parent);
       expect(profile.family_id).toBe(FIXTURE_IDS.familyA.family);
       expect(profile.role).toBe("parent");
-      const copy = GROUPS[locale];
-      const groups = page.getByRole("navigation", {
-        name: copy.navigation,
-        exact: true,
-      });
-      const groupButtons = groups.getByRole("button");
-      await expect(groupButtons).toHaveCount(3);
-      for (let index = 0; index < 3; index += 1) {
-        const groupButton = groupButtons.nth(index);
-        const box = await groupButton.boundingBox();
+      const copy = COPY[locale];
+      const main = page.locator("#main-content");
+      await expect(
+        main.getByRole("heading", { name: copy.presets, exact: true }),
+      ).toBeVisible();
+      // Four setups, each a full-size target that stays on screen.
+      for (const name of copy.presetNames) {
+        const preset = main.getByRole("button", {
+          name: new RegExp(`^${name}`),
+        });
+        await expect(preset).toHaveCount(1);
+        const box = await preset.boundingBox();
         expect(box).not.toBeNull();
         expect(box!.height).toBeGreaterThanOrEqual(44);
         expect(box!.width).toBeGreaterThanOrEqual(44);
@@ -203,91 +213,40 @@ for (const locale of ["en", "es"] as const) {
           page.viewportSize()!.width,
         );
       }
-      const groupWidth = await groups.evaluate((element) => ({
-        client: element.clientWidth,
-        scroll: element.scrollWidth,
-      }));
-      expect(groupWidth.scroll).toBeLessThanOrEqual(groupWidth.client + 1);
-      const planning = page.locator("#feature-group-planning");
-      const core = page.locator("#feature-group-core");
-      const family = page.locator("#feature-group-family");
-
-      // The initial interactive layout is compact for every viewport. Planning is the
-      // first useful group; the explicit control opens the complete catalog.
-      await expect(planning.getByRole("switch")).toHaveCount(11);
-      await expect(core.getByRole("switch")).toHaveCount(0);
-      await expect(family.getByRole("switch")).toHaveCount(0);
-      await expect(
-        page.getByRole("button", { name: copy.openAll }),
-      ).toBeVisible();
-
-      await page.getByRole("button", { name: copy.openAll }).click();
-      await expect(
-        page.getByRole("button", { name: copy.closeAll }),
-      ).toBeVisible();
-      await expect(page.getByRole("switch")).toHaveCount(FEATURES.length);
-      await page.getByRole("button", { name: copy.closeAll }).click();
-      await expect(page.getByRole("switch")).toHaveCount(0);
-
-      const search = page.getByRole("searchbox", { name: copy.search });
-      const searchBox = await search.boundingBox();
-      expect(searchBox).not.toBeNull();
-      expect(searchBox!.height).toBeGreaterThanOrEqual(44);
-      expect(searchBox!.width).toBeGreaterThanOrEqual(44);
-      await search.fill("budget");
-      await expect(
-        page.getByText(getFeatureDisplayCopy(locale, "budget").title, {
-          exact: true,
-        }),
-      ).toBeVisible();
-      if (locale === "es") {
-        await search.fill("points & streaks");
-        await expect(
-          page.getByText(getFeatureDisplayCopy(locale, "gamification").title, {
-            exact: true,
-          }),
-        ).toBeVisible();
+      // One open list in plain groups: no search, counts or disclosure.
+      for (const [key, title] of Object.entries(copy.groups)) {
+        await expect(page.locator(`#feature-group-heading-${key}`)).toHaveText(
+          title,
+        );
       }
+      await expect(main.getByRole("searchbox")).toHaveCount(0);
       await expect(
-        page.getByRole("button", { name: copy.openAll }),
+        page.locator("#feature-group-core").getByRole("switch"),
       ).toHaveCount(0);
-      await expect(
-        page.getByRole("button", { name: copy.closeAll }),
-      ).toHaveCount(0);
-      await search.fill("feature-search-no-match");
-      await expect(
-        page.getByText(copy.noMatches, { exact: true }),
-      ).toBeVisible();
-      const clear = page.getByRole("button", { name: copy.clearSearch });
-      const clearBox = await clear.boundingBox();
-      expect(clearBox).not.toBeNull();
-      expect(clearBox!.height).toBeGreaterThanOrEqual(44);
-      expect(clearBox!.width).toBeGreaterThanOrEqual(44);
-      expect(
-        await clear.evaluate((element) => {
-          const box = element.getBoundingClientRect();
-          return element.contains(
-            document.elementFromPoint(
-              box.x + box.width / 2,
-              box.y + box.height / 2,
-            ),
-          );
-        }),
-      ).toBe(true);
-      await clear.click();
-      await expect(search).toBeFocused();
-      await expect(
-        page.getByRole("button", { name: copy.openAll }),
-      ).toBeVisible();
-      await expect(planning.getByRole("switch")).toHaveCount(0);
+      await expect(page.getByRole("switch")).toHaveCount(SWITCHABLE.length);
 
-      const familyJump = groups.getByRole("button", {
-        name: new RegExp(`^${copy.family}\\s·`),
+      // A setup previews first and writes nothing until confirmed; this spec
+      // aborts every write, so Cancel is the only exit taken here.
+      await main
+        .getByRole("button", { name: new RegExp(`^${copy.presetNames[2]}`) })
+        .click();
+      const previewHeading = main.getByRole("heading", {
+        name: copy.previewEverything,
+        exact: true,
       });
-      await familyJump.click();
-      const familyHeading = page.locator("#feature-group-heading-family");
-      await expect(familyHeading).toBeFocused();
-      const focusStyle = await familyHeading.evaluate((element) => {
+      await expect(previewHeading).toBeFocused();
+      await main
+        .getByRole("button", { name: copy.cancel, exact: true })
+        .click();
+      await expect(previewHeading).toHaveCount(0);
+
+      // Custom moves focus to the list with a visible focus ring.
+      await main
+        .getByRole("button", { name: new RegExp(`^${copy.presetNames[3]}`) })
+        .click();
+      const firstHeading = page.locator("#feature-group-heading-home");
+      await expect(firstHeading).toBeFocused();
+      const focusStyle = await firstHeading.evaluate((element) => {
         const style = getComputedStyle(element);
         return {
           outlineStyle: style.outlineStyle,
@@ -297,7 +256,6 @@ for (const locale of ["en", "es"] as const) {
       expect(focusStyle.outlineStyle).not.toBe("none");
       expect(focusStyle.outlineWidth).not.toBe("0px");
 
-      await page.getByRole("button", { name: copy.openAll }).click();
       const geometry = await assertSwitchGeometry(
         page,
         `${locale}/${info.project.name}`,

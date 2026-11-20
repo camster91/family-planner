@@ -92,9 +92,9 @@ export interface FeatureMeta {
 export const FEATURES: FeatureMeta[] = [
   // Core — on by default (Emergency contacts, below, is core too)
   { key: 'chores', title: 'Chores', description: 'Assign chores and see what is done.', group: 'core', icon: CheckSquare, glyphColor: 'chore', href: '/dashboard/chores', defaultEnabled: true },
-  { key: 'calendar', title: 'Calendar', description: 'Shared family calendar with events and tasks.', group: 'core', icon: Calendar, glyphColor: 'calendar', href: '/dashboard/calendar', defaultEnabled: true },
+  { key: 'calendar', title: 'Calendar', description: 'One family calendar for events and tasks.', group: 'core', icon: Calendar, glyphColor: 'calendar', href: '/dashboard/calendar', defaultEnabled: true },
   { key: 'lists', title: 'Lists', description: 'Shopping lists, to-dos, and packing lists everyone can edit.', group: 'core', icon: ListChecks, glyphColor: 'lists', href: '/dashboard/lists', defaultEnabled: true },
-  { key: 'family', title: 'Family', description: 'Members, roles, invite codes, and family settings.', group: 'core', icon: Users, glyphColor: 'family', href: '/dashboard/family', defaultEnabled: true },
+  { key: 'family', title: 'Family', description: 'Family members, and how to invite more people.', group: 'core', icon: Users, glyphColor: 'family', href: '/dashboard/family', defaultEnabled: true },
 
   // Planning — Meal planning is on for a new household; the rest are opt-in
   // since O-38 but stay on for existing households (`legacyDefault`).
@@ -105,28 +105,28 @@ export const FEATURES: FeatureMeta[] = [
   // so a stored blob without the key reads as off and scripts/migrate.js
   // stamps nothing. "What can I cook" also needs Meal planning (recipes).
   { key: 'inventory', title: 'Food inventory', description: 'Track what is in the fridge, freezer and pantry, and what to use soon.', group: 'planning', icon: Refrigerator, glyphColor: 'meals', href: '/dashboard/inventory', defaultEnabled: false },
-  { key: 'notes', title: 'Pinned notes', description: 'Sticky notes for the fridge, school pickup, weekend plans.', group: 'planning', icon: StickyNote, glyphColor: 'lists', href: '/dashboard/notes', defaultEnabled: false, legacyDefault: true },
+  { key: 'notes', title: 'Pinned notes', description: 'Short notes everyone can see, like a fridge note.', group: 'planning', icon: StickyNote, glyphColor: 'lists', href: '/dashboard/notes', defaultEnabled: false, legacyDefault: true },
   { key: 'anniversaries', title: 'Birthdays & anniversaries', description: 'Reminders for upcoming family dates.', group: 'planning', icon: Cake, glyphColor: 'family', href: '/dashboard/anniversaries', defaultEnabled: false, legacyDefault: true },
   // Points, XP, levels, streaks and the leaderboard (#248). Calm by default:
   // new households start with it off; households that existed before the flag
   // keep it on. XP keeps accruing in the background either way, so switching
   // it back on shows up-to-date totals.
   { key: 'gamification', title: 'Points & streaks', description: 'Points for chores, levels, streaks and a family leaderboard.', group: 'planning', icon: Sparkles, glyphColor: 'rewards', href: '/dashboard/analytics', defaultEnabled: false, legacyDefault: true },
-  { key: 'rewards', title: 'Rewards', description: 'Kids spend their chore points on rewards you set.', group: 'planning', icon: Gift, glyphColor: 'rewards', href: '/dashboard/rewards', defaultEnabled: false, legacyDefault: true, requires: 'gamification' },
-  { key: 'budget', title: 'Budget', description: 'Track shared expenses and category budgets.', group: 'planning', icon: Wallet, glyphColor: 'budget', href: '/dashboard/budget', defaultEnabled: false, legacyDefault: true },
-  { key: 'projects', title: 'Projects', description: 'Plan trips, renovations, and big family goals.', group: 'planning', icon: FolderKanban, glyphColor: 'projects', href: '/dashboard/projects', defaultEnabled: false, legacyDefault: true },
-  { key: 'messages', title: 'Family chat', description: 'Built-in messaging so you do not need a separate app.', group: 'planning', icon: MessageSquare, glyphColor: 'messages', href: '/dashboard/messages', defaultEnabled: false, legacyDefault: true },
-  { key: 'analytics', title: 'Analytics', description: 'Streaks, leaderboard, and weekly family trends.', group: 'planning', icon: TrendingUp, glyphColor: 'chore', href: '/dashboard/analytics', defaultEnabled: false, legacyDefault: true, requires: 'gamification' },
-  { key: 'wishlist', title: 'Wishlist', description: 'What the family wants. Kids add, parents track.', group: 'planning', icon: Heart, glyphColor: 'rewards', href: '/dashboard/wishlist', defaultEnabled: false },
-  { key: 'emergency', title: 'Emergency contacts', description: 'Printable medical + emergency info card for each family member.', group: 'core', icon: Heart, glyphColor: 'family', href: '/dashboard/emergency', defaultEnabled: true },
+  { key: 'rewards', title: 'Rewards', description: 'Kids trade chore points for rewards you pick.', group: 'planning', icon: Gift, glyphColor: 'rewards', href: '/dashboard/rewards', defaultEnabled: false, legacyDefault: true, requires: 'gamification' },
+  { key: 'budget', title: 'Budget', description: 'Track family spending and set budgets.', group: 'planning', icon: Wallet, glyphColor: 'budget', href: '/dashboard/budget', defaultEnabled: false, legacyDefault: true },
+  { key: 'projects', title: 'Projects', description: 'Plan trips, home jobs and big family goals.', group: 'planning', icon: FolderKanban, glyphColor: 'projects', href: '/dashboard/projects', defaultEnabled: false, legacyDefault: true },
+  { key: 'messages', title: 'Family chat', description: 'Send messages to your family in the app.', group: 'planning', icon: MessageSquare, glyphColor: 'messages', href: '/dashboard/messages', defaultEnabled: false, legacyDefault: true },
+  { key: 'analytics', title: 'Analytics', description: 'See streaks and how the week went.', group: 'planning', icon: TrendingUp, glyphColor: 'chore', href: '/dashboard/analytics', defaultEnabled: false, legacyDefault: true, requires: 'gamification' },
+  { key: 'wishlist', title: 'Wishlist', description: 'Kids add things they want. Parents keep track.', group: 'planning', icon: Heart, glyphColor: 'rewards', href: '/dashboard/wishlist', defaultEnabled: false },
+  { key: 'emergency', title: 'Emergency contacts', description: 'A card with medical and emergency info for each person.', group: 'core', icon: Heart, glyphColor: 'family', href: '/dashboard/emergency', defaultEnabled: true },
 
   // Family — opt-in, parents turn these on deliberately
-  { key: 'locations', title: 'Locations', description: 'Save home, school, and work addresses for the family.', group: 'family', icon: MapPin, glyphColor: 'calendar', href: '/dashboard/locations', defaultEnabled: false },
-  { key: 'pickups', title: 'Pickups & dropoffs', description: 'Coordinate who is picking up the kids and when.', group: 'family', icon: Car, glyphColor: 'lists', href: '/dashboard/pickups', defaultEnabled: false },
-  { key: 'allowance', title: 'Allowance & IOUs', description: 'Track weekly allowance and money owed between members.', group: 'family', icon: Wallet, glyphColor: 'budget', href: '/dashboard/allowance', defaultEnabled: false },
-  { key: 'travel', title: 'Travel mode', description: 'Mute non-urgent tasks and shift chore schedule while away.', group: 'family', icon: Plane, glyphColor: 'calendar', href: '/dashboard/travel', defaultEnabled: false },
-  { key: 'handoff', title: 'Babysitter handoff', description: 'One-screen sitter brief with printable + shareable link.', group: 'family', icon: UserPlus, glyphColor: 'family', href: '/dashboard/handoff', defaultEnabled: false },
-  { key: 'sick-days', title: 'Sick days & meds', description: 'Track active illness, temperature, and medication schedule.', group: 'family', icon: Thermometer, glyphColor: 'family', href: '/dashboard/sick-days', defaultEnabled: false },
+  { key: 'locations', title: 'Locations', description: 'Save home, school and work addresses.', group: 'family', icon: MapPin, glyphColor: 'calendar', href: '/dashboard/locations', defaultEnabled: false },
+  { key: 'pickups', title: 'Pickups & dropoffs', description: 'Plan who picks up the kids, and when.', group: 'family', icon: Car, glyphColor: 'lists', href: '/dashboard/pickups', defaultEnabled: false },
+  { key: 'allowance', title: 'Allowance & IOUs', description: 'Track allowance and money people owe each other.', group: 'family', icon: Wallet, glyphColor: 'budget', href: '/dashboard/allowance', defaultEnabled: false },
+  { key: 'travel', title: 'Travel mode', description: 'Quiet non-urgent tasks and move chores while you are away.', group: 'family', icon: Plane, glyphColor: 'calendar', href: '/dashboard/travel', defaultEnabled: false },
+  { key: 'handoff', title: 'Babysitter handoff', description: 'One page for a sitter that you can print or share.', group: 'family', icon: UserPlus, glyphColor: 'family', href: '/dashboard/handoff', defaultEnabled: false },
+  { key: 'sick-days', title: 'Sick days & meds', description: 'Track who is sick, their temperature and when meds are due.', group: 'family', icon: Thermometer, glyphColor: 'family', href: '/dashboard/sick-days', defaultEnabled: false },
 ]
 
 /** The shape stored on Family.features as a JSON column. */

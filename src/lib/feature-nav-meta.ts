@@ -30,7 +30,7 @@ export type FeatureNavMeta = {
 export const FEATURE_NAV_META: Record<MoreFeatureKey, FeatureNavMeta> = {
   family: {
     title: 'Family',
-    description: 'Members, roles, invite codes, and family settings.',
+    description: 'Family members, and how to invite more people.',
     href: '/dashboard/family',
   },
   chores: {
@@ -40,7 +40,7 @@ export const FEATURE_NAV_META: Record<MoreFeatureKey, FeatureNavMeta> = {
   },
   emergency: {
     title: 'Emergency contacts',
-    description: 'Printable medical + emergency info card for each family member.',
+    description: 'A card with medical and emergency info for each person.',
     href: '/dashboard/emergency',
   },
   inventory: {
@@ -50,7 +50,7 @@ export const FEATURE_NAV_META: Record<MoreFeatureKey, FeatureNavMeta> = {
   },
   notes: {
     title: 'Pinned notes',
-    description: 'Sticky notes for the fridge, school pickup, weekend plans.',
+    description: 'Short notes everyone can see, like a fridge note.',
     href: '/dashboard/notes',
   },
   anniversaries: {
@@ -60,62 +60,62 @@ export const FEATURE_NAV_META: Record<MoreFeatureKey, FeatureNavMeta> = {
   },
   messages: {
     title: 'Family chat',
-    description: 'Built-in messaging so you do not need a separate app.',
+    description: 'Send messages to your family in the app.',
     href: '/dashboard/messages',
   },
   projects: {
     title: 'Projects',
-    description: 'Plan trips, renovations, and big family goals.',
+    description: 'Plan trips, home jobs and big family goals.',
     href: '/dashboard/projects',
   },
   budget: {
     title: 'Budget',
-    description: 'Track shared expenses and category budgets.',
+    description: 'Track family spending and set budgets.',
     href: '/dashboard/budget',
   },
   rewards: {
     title: 'Rewards',
-    description: 'Kids spend their chore points on rewards you set.',
+    description: 'Kids trade chore points for rewards you pick.',
     href: '/dashboard/rewards',
   },
   analytics: {
     title: 'Analytics',
-    description: 'Streaks, leaderboard, and weekly family trends.',
+    description: 'See streaks and how the week went.',
     href: '/dashboard/analytics',
   },
   wishlist: {
     title: 'Wishlist',
-    description: 'What the family wants. Kids add, parents track.',
+    description: 'Kids add things they want. Parents keep track.',
     href: '/dashboard/wishlist',
   },
   pickups: {
     title: 'Pickups & dropoffs',
-    description: 'Coordinate who is picking up the kids and when.',
+    description: 'Plan who picks up the kids, and when.',
     href: '/dashboard/pickups',
   },
   allowance: {
     title: 'Allowance & IOUs',
-    description: 'Track weekly allowance and money owed between members.',
+    description: 'Track allowance and money people owe each other.',
     href: '/dashboard/allowance',
   },
   handoff: {
     title: 'Babysitter handoff',
-    description: 'One-screen sitter brief with printable + shareable link.',
+    description: 'One page for a sitter that you can print or share.',
     href: '/dashboard/handoff',
   },
   'sick-days': {
     title: 'Sick days & meds',
-    description: 'Track active illness, temperature, and medication schedule.',
+    description: 'Track who is sick, their temperature and when meds are due.',
     href: '/dashboard/sick-days',
   },
   locations: {
     title: 'Locations',
-    description: 'Save home, school, and work addresses for the family.',
+    description: 'Save home, school and work addresses.',
     href: '/dashboard/locations',
   },
   travel: {
     title: 'Travel mode',
-    description: 'Mute non-urgent tasks and shift chore schedule while away.',
+    description: 'Quiet non-urgent tasks and move chores while you are away.',
     href: '/dashboard/travel',
   },
 }

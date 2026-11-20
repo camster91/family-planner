@@ -8,11 +8,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
-import {
-  FEATURES,
-  type FamilyFeatures,
-  type FeatureMeta,
-} from "../src/lib/features";
+import { FEATURES, type FamilyFeatures } from "../src/lib/features";
+import { FEATURE_PAGE_GROUPS } from "../src/lib/feature-presets";
 import { moreItemsFor } from "../src/lib/nav-items";
 import {
   getFeatureDisplayCopy,
@@ -43,15 +40,13 @@ const FEATURES_SURFACE_COPY = {
     title: "Features",
     enable: "Enable",
     disable: "Disable",
-    openAll: "Open all groups",
-    closeAll: "Close all groups",
+    presets: "Pick a setup",
   },
   es: {
     title: "Funciones",
     enable: "Activar",
     disable: "Desactivar",
-    openAll: "Abrir todos los grupos",
-    closeAll: "Cerrar todos los grupos",
+    presets: "Elige una configuración",
   },
 } as const;
 
@@ -393,70 +388,64 @@ async function assertFeaturesSurface(
   await expect(
     main.getByRole("heading", { name: copy.title, exact: true }),
   ).toBeVisible();
+  await expect(
+    main.getByRole("heading", { name: copy.presets, exact: true }),
+  ).toBeVisible();
   const switches = main.getByRole("switch");
-  expect(await switches.count()).toBe(FEATURES.length);
-  const enabledToggles: Array<{
-    toggle: Locator;
-    group: FeatureMeta["group"];
-  }> = [];
-  for (const feature of FEATURES) {
-    const display: FeatureDisplayCopy = getFeatureDisplayCopy(
-      locale,
-      feature.key,
-    );
-    const checked =
-      features[feature.key] === true &&
-      (!feature.requires || features[feature.requires] === true);
-    const toggle = main.getByRole("switch", {
-      name: `${checked ? copy.disable : copy.enable} ${display.title}`,
-      exact: true,
-    });
-    await expect(toggle).toHaveCount(1);
-    await expect(toggle).toHaveAttribute("aria-checked", String(checked));
-    if (
-      feature.group === "core" ||
-      (feature.requires && !features[feature.requires])
-    ) {
-      await expect(toggle).toBeDisabled();
-    } else {
-      await expect(toggle).toBeEnabled();
-    }
-    const box = await toggle.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-    await expect(main.getByText(display.title, { exact: true })).toHaveCount(1);
-    await expect(
-      main.getByText(display.description, { exact: true }),
-    ).toHaveCount(1);
-    if (
-      feature.group !== "core" &&
-      !(feature.requires && !features[feature.requires])
-    ) {
-      enabledToggles.push({ toggle, group: feature.group });
+  expect(await switches.count()).toBe(
+    FEATURES.filter((feature) => feature.group !== "core").length,
+  );
+  // Core features are listed as always on, without a switch.
+  await expect(
+    main.locator("#feature-group-core").getByRole("switch"),
+  ).toHaveCount(0);
+  const enabledToggles: Locator[] = [];
+  // Page (DOM) order, so the Tab walk below follows what is on screen.
+  for (const group of FEATURE_PAGE_GROUPS) {
+    for (const key of group.features) {
+      const feature = FEATURES.find((candidate) => candidate.key === key)!;
+      const display: FeatureDisplayCopy = getFeatureDisplayCopy(
+        locale,
+        feature.key,
+      );
+      await expect(main.getByText(display.title, { exact: true })).toHaveCount(
+        1,
+      );
+      await expect(
+        main.getByText(display.description, { exact: true }),
+      ).toHaveCount(1);
+      if (feature.group === "core") continue;
+      const checked =
+        features[feature.key] === true &&
+        (!feature.requires || features[feature.requires] === true);
+      const toggle = main.getByRole("switch", {
+        name: `${checked ? copy.disable : copy.enable} ${display.title}`,
+        exact: true,
+      });
+      await expect(toggle).toHaveCount(1);
+      await expect(toggle).toHaveAttribute("aria-checked", String(checked));
+      const blocked = Boolean(feature.requires && !features[feature.requires]);
+      if (blocked) await expect(toggle).toBeDisabled();
+      else await expect(toggle).toBeEnabled();
+      const box = await toggle.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      if (!blocked) enabledToggles.push(toggle);
     }
   }
 
   // Disabled HTML buttons are excluded from keyboard focus. Start at the
-  // first enabled switch and traverse only enabled controls; if a disabled
-  // core/dependent switch entered the tab sequence, the next expectation
-  // would fail at that exact position.
+  // first enabled switch and traverse only enabled controls; nothing else is
+  // focusable between them (groups are plain headings), so if a disabled
+  // dependent switch entered the tab sequence the next expectation would
+  // fail at that exact position.
   if (enabledToggles.length > 0) {
-    await enabledToggles[0]!.toggle.focus();
-    await expect(enabledToggles[0]!.toggle).toBeFocused();
+    await enabledToggles[0]!.focus();
+    await expect(enabledToggles[0]!).toBeFocused();
     for (let index = 1; index < enabledToggles.length; index += 1) {
-      const previous = enabledToggles[index - 1]!;
-      const current = enabledToggles[index]!;
-      if (previous.group !== current.group) {
-        const groupDisclosure = main
-          .locator(`#feature-group-${current.group}`)
-          .getByRole("button");
-        await expect(groupDisclosure).toHaveAttribute("aria-expanded", "true");
-        await page.keyboard.press("Tab");
-        await expect(groupDisclosure).toBeFocused();
-      }
       await page.keyboard.press("Tab");
-      await expect(current.toggle).toBeFocused();
+      await expect(enabledToggles[index]!).toBeFocused();
     }
   }
   await assertNoHorizontalOverflow(page);
@@ -545,28 +534,6 @@ for (const locale of ["en", "es"] as const) {
       expect(featuresResponse?.status()).toBe(200);
       const featuresCopy = FEATURES_SURFACE_COPY[locale];
       const featuresMain = page.locator("#main-content");
-      const planningGroup = featuresMain.locator("#feature-group-planning");
-      const coreGroup = featuresMain.locator("#feature-group-core");
-      const familyGroup = featuresMain.locator("#feature-group-family");
-      await expect(planningGroup.getByRole("switch")).toHaveCount(
-        FEATURES.filter((feature) => feature.group === "planning").length,
-      );
-      await expect(coreGroup.getByRole("switch")).toHaveCount(0);
-      await expect(familyGroup.getByRole("switch")).toHaveCount(0);
-      const openAll = featuresMain.getByRole("button", {
-        name: featuresCopy.openAll,
-        exact: true,
-      });
-      await expect(openAll).toBeVisible();
-      await openAll.click();
-      const closeAll = featuresMain.getByRole("button", {
-        name: featuresCopy.closeAll,
-        exact: true,
-      });
-      await expect(closeAll).toBeVisible();
-      await expect(featuresMain.getByRole("switch")).toHaveCount(
-        FEATURES.length,
-      );
       await assertFeaturesSurface(page, ALL_ON, featuresCopy, locale);
       const gamificationTitle = getFeatureDisplayCopy(
         locale,

@@ -28,8 +28,11 @@ export const settingsEnglish = {
   invite: "Invite and family code",
   inviteDescription: "Add a parent, teen or child",
   features: "Features",
-  featuresDescription:
-    "Turn modules on or off (meals, notes, pickups, allowance…)",
+  featuresDescription: "Pick a setup, or turn features on or off",
+  familyMembersShortcut: "Family members",
+  familyMembersShortcutDescription: "See, add or change who is in your family",
+  peopleAndFeatures: "People and features",
+  historyAndImports: "History and imports",
   imports: "Import family apps",
   importsDescription:
     "Bring in ChoreChamps, Meal Planner or Budget App exports",
@@ -351,8 +354,11 @@ export const settingsSpanish: Record<SettingsMessage, string> = {
   invite: "Invitaciones y código familiar",
   inviteDescription: "Añade a un adulto, adolescente o niño",
   features: "Funciones",
-  featuresDescription:
-    "Activa o desactiva módulos (comidas, notas, recogidas, mesada…)",
+  featuresDescription: "Elige una configuración o activa y desactiva funciones",
+  familyMembersShortcut: "Miembros de la familia",
+  familyMembersShortcutDescription: "Mira, añade o cambia quién está en tu familia",
+  peopleAndFeatures: "Personas y funciones",
+  historyAndImports: "Historial e importaciones",
   imports: "Importar aplicaciones familiares",
   importsDescription:
     "Importa archivos de ChoreChamps, Meal Planner o Budget App",

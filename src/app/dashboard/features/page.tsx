@@ -1,40 +1,63 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown, Lock } from 'lucide-react'
 import { LargeHeader } from '@/components/ui/large-header'
-import { SearchField } from '@/components/ui/search-field'
 import { useFeatures } from '@/components/providers/features-provider'
 import {
   FEATURES,
-  groupFeatures,
   isFeatureEnabled,
+  type FamilyFeatures,
   type FeatureKey,
   type FeatureMeta,
 } from '@/lib/features'
+import {
+  FEATURE_PAGE_GROUPS,
+  FEATURE_PRESET_ORDER,
+  matchingPreset,
+  planPreset,
+  type FeaturePageGroup,
+  type FeaturePresetKey,
+} from '@/lib/feature-presets'
 import { useFeaturesText, type FeaturesMessage } from '@/i18n/features'
 import { useFeatureDisplayCopy, type FeatureDisplayCopy } from '@/i18n/feature-display'
 
-const GROUP_ORDER = ['core', 'planning', 'family'] as const
-type GroupKey = (typeof GROUP_ORDER)[number]
+type FeaturesCopy = ReturnType<typeof useFeaturesText>
 
-const GROUP_COPY: Record<
-  GroupKey,
-  { title: FeaturesMessage; subtitle: FeaturesMessage }
+const GROUP_TITLE: Record<FeaturePageGroup, FeaturesMessage> = {
+  home: 'homeTitle',
+  school: 'schoolTitle',
+  kids: 'kidsTitle',
+  core: 'alwaysOnTitle',
+}
+
+const PRESET_COPY: Record<
+  FeaturePresetKey | 'custom',
+  { title: FeaturesMessage; description: FeaturesMessage }
 > = {
-  core: { title: 'coreTitle', subtitle: 'coreSubtitle' },
-  planning: { title: 'planningTitle', subtitle: 'planningSubtitle' },
-  family: { title: 'familyTitle', subtitle: 'familySubtitle' },
+  essentials: { title: 'presetEssentials', description: 'presetEssentialsDescription' },
+  school: { title: 'presetSchool', description: 'presetSchoolDescription' },
+  everything: { title: 'presetEverything', description: 'presetEverythingDescription' },
+  custom: { title: 'presetCustom', description: 'presetCustomDescription' },
 }
 
-const INITIAL_EXPANDED: Record<GroupKey, boolean> = {
-  core: false,
-  planning: true,
-  family: false,
-}
+const META_BY_KEY = new Map<FeatureKey, FeatureMeta>(
+  FEATURES.map((feature) => [feature.key, feature]),
+)
 
+type PresetStatus =
+  | { kind: 'applied'; preset: FeaturePresetKey; undo: Partial<FamilyFeatures> }
+  | { kind: 'undone' }
+  | { kind: 'failed' }
+  | { kind: 'undoFailed'; preset: FeaturePresetKey; undo: Partial<FamilyFeatures> }
+
+/**
+ * Features (parent-only route, src/lib/kid-access.ts; the PATCH API refuses
+ * anyone else). A "Pick a setup" row sits on top: choosing one shows exactly
+ * what turns on and off, applies it in one PATCH, and offers Undo. The full
+ * switch list follows in plain groups; core features are listed as always on.
+ */
 export default function FeaturesPage() {
-  const { features, setFeature } = useFeatures()
+  const { features, setFeature, updateFeatures, canManage } = useFeatures()
   const copy = useFeaturesText()
   const featureDisplay = useFeatureDisplayCopy()
   const [pendingKeys, setPendingKeys] = React.useState<Set<FeatureKey>>(
@@ -42,66 +65,24 @@ export default function FeaturesPage() {
   )
   const pendingKeysRef = React.useRef<Set<FeatureKey>>(new Set())
   const [toast, setToast] = React.useState<string | null>(null)
-  const [query, setQuery] = React.useState('')
-  const [expanded, setExpanded] =
-    React.useState<Record<GroupKey, boolean>>(INITIAL_EXPANDED)
-  const [activeGroup, setActiveGroup] = React.useState<GroupKey>('planning')
+  const [preview, setPreview] = React.useState<FeaturePresetKey | null>(null)
+  const [presetBusy, setPresetBusy] = React.useState(false)
+  const [presetStatus, setPresetStatus] = React.useState<PresetStatus | null>(
+    null,
+  )
+  const previewHeadingRef = React.useRef<HTMLHeadingElement>(null)
   const flags = features
-  const groups = groupFeatures(FEATURES)
-  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const manage = canManage !== false
+  const inUse = matchingPreset(flags)
+  const plan = preview ? planPreset(flags, preview) : null
+  const selected: FeaturePresetKey | 'custom' = preview ?? inUse ?? 'custom'
 
-  const groupRows = GROUP_ORDER.map((key) => {
-    const title = copy(GROUP_COPY[key].title)
-    const subtitle = copy(GROUP_COPY[key].subtitle)
-    const source = groups[key]
-    const matching = normalizedQuery
-      ? source.filter((feature) => {
-          const needsTitle = feature.requires
-            ? featureDisplay(feature.requires).title
-            : undefined
-          const needsDescription = feature.requires
-            ? featureDisplay(feature.requires).description
-            : undefined
-          const display = featureDisplay(feature.key)
-          // Search accepts the canonical English metadata as an alias while
-          // the row itself remains localized. This keeps a familiar query
-          // such as "budget" useful on a Spanish device without replacing
-          // the rendered title "Presupuesto".
-          return [
-            display.title,
-            display.description,
-            feature.title,
-            feature.description,
-            needsDescription,
-            title,
-            subtitle,
-            needsTitle,
-          ]
-            .filter(Boolean)
-            .some((value) =>
-              value!.toLocaleLowerCase().includes(normalizedQuery),
-            )
-        })
-      : source
-    return { key, title, subtitle, source, features: matching }
-  })
-  const visibleGroups = normalizedQuery
-    ? groupRows.filter((group) => group.features.length > 0)
-    : groupRows
-  const enabledCount = FEATURES.filter((feature) =>
-    isFeatureEnabled(flags, feature.key),
-  ).length
-  const blockedCount = FEATURES.filter(
-    (feature) => feature.requires && !isFeatureEnabled(flags, feature.requires),
-  ).length
-  const availableCount = FEATURES.filter(
-    (feature) =>
-      feature.group !== 'core' &&
-      (!feature.requires || isFeatureEnabled(flags, feature.requires)),
-  ).length
-  const hasMatches = visibleGroups.length > 0
+  React.useEffect(() => {
+    if (preview) previewHeadingRef.current?.focus()
+  }, [preview])
 
   async function toggle(feature: FeatureMeta) {
+    if (!manage || presetBusy) return
     if (feature.group === 'core') return
     // A feature whose requirement is off (Rewards/Analytics without Points &
     // streaks, #248) cannot be toggled until that is on.
@@ -110,12 +91,11 @@ export default function FeaturesPage() {
     const next = !flags[feature.key]
     pendingKeysRef.current.add(feature.key)
     setPendingKeys(new Set(pendingKeysRef.current))
+    setPresetStatus(null)
     try {
       await setFeature(feature.key, next)
       const title = featureDisplay(feature.key).title
-      setToast(
-        copy(next ? 'enabledToast' : 'disabledToast', { title }),
-      )
+      setToast(copy(next ? 'enabledToast' : 'disabledToast', { title }))
       setTimeout(() => setToast(null), 2200)
     } catch {
       setToast(copy('updateFailed', { title: featureDisplay(feature.key).title }))
@@ -126,27 +106,60 @@ export default function FeaturesPage() {
     }
   }
 
-  function toggleGroup(key: GroupKey) {
-    setExpanded((current) => ({ ...current, [key]: !current[key] }))
-    setActiveGroup(key)
+  function choosePreset(key: FeaturePresetKey | 'custom') {
+    if (presetBusy) return
+    setPresetStatus(null)
+    if (key === 'custom') {
+      setPreview(null)
+      const firstGroup = document.getElementById(
+        `feature-group-heading-${FEATURE_PAGE_GROUPS[0]!.key}`,
+      )
+      firstGroup?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+      firstGroup?.focus({ preventScroll: true })
+      return
+    }
+    setPreview(key)
   }
 
-  function jumpToGroup(key: GroupKey) {
-    setActiveGroup(key)
-    setExpanded((current) => ({ ...current, [key]: true }))
-    const section = document.getElementById(`feature-group-${key}`)
-    section?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-    document
-      .getElementById(`feature-group-heading-${key}`)
-      ?.focus({ preventScroll: true })
+  async function applyPreset() {
+    if (!plan || presetBusy || !manage) return
+    if (Object.keys(plan.changes).length === 0) return
+    setPresetBusy(true)
+    try {
+      await updateFeatures(plan.changes)
+      setPresetStatus({ kind: 'applied', preset: plan.preset, undo: plan.undo })
+      setPreview(null)
+    } catch {
+      setPresetStatus({ kind: 'failed' })
+    } finally {
+      setPresetBusy(false)
+    }
   }
 
-  function setAllGroups(open: boolean) {
-    setExpanded({ core: open, planning: open, family: open })
+  async function undoPreset() {
+    if (
+      !presetStatus ||
+      (presetStatus.kind !== 'applied' && presetStatus.kind !== 'undoFailed') ||
+      presetBusy
+    )
+      return
+    const status = presetStatus
+    setPresetBusy(true)
+    try {
+      await updateFeatures(status.undo)
+      setPresetStatus({ kind: 'undone' })
+    } catch {
+      setPresetStatus({ kind: 'undoFailed', preset: status.preset, undo: status.undo })
+    } finally {
+      setPresetBusy(false)
+    }
   }
+
+  const titles = (keys: FeatureKey[]) =>
+    keys.map((key) => featureDisplay(key).title)
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-6 max-w-3xl mx-auto">
       <LargeHeader
         greeting={copy('greeting')}
         title={copy('title')}
@@ -154,98 +167,181 @@ export default function FeaturesPage() {
         className="px-1"
       />
 
-      <div className="space-y-3" aria-label={copy('searchLabel')}>
-        <div className="rounded-[var(--radius-lg)] bg-surface-fill-secondary px-3 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-footnote text-label-secondary">
-            <span>
-              {copy('enabledSummary', {
-                enabled: enabledCount,
-                total: FEATURES.length,
-              })}
-            </span>
-            <span>
-              {copy('availableSummary', { count: availableCount })} ·{' '}
-              {copy('blockedSummary', { count: blockedCount })}
-            </span>
+      {manage && (
+        <section aria-labelledby="feature-presets-heading" className="space-y-3">
+          <div className="px-1">
+            <h2 id="feature-presets-heading" className="text-title-3">
+              {copy('presetsTitle')}
+            </h2>
+            <p className="mt-0.5 text-footnote text-label-secondary">
+              {copy('presetsHint')}
+            </p>
           </div>
-        </div>
-        <label className="block">
-          <span className="sr-only">{copy('searchLabel')}</span>
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            placeholder={copy('searchPlaceholder')}
-            clearLabel={copy('clearSearch')}
-          />
-        </label>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <nav
-            className="flex min-w-0 basis-full flex-wrap gap-1 pb-1 sm:basis-auto sm:flex-1"
-            aria-label={copy('groupNavigation')}
-          >
-            {groupRows.map((group) => {
-              const matchCount = group.features.length
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {([...FEATURE_PRESET_ORDER, 'custom'] as const).map((key) => {
+              const isSelected = selected === key
+              const isInUse = key === 'custom' ? inUse === null : inUse === key
               return (
                 <button
-                  key={group.key}
+                  key={key}
                   type="button"
-                  className="min-h-11 shrink-0 rounded-full px-3 text-subhead text-label-primary bg-surface-fill hover:bg-surface-fill-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)] disabled:cursor-not-allowed disabled:opacity-45"
-                  aria-current={activeGroup === group.key ? 'true' : undefined}
-                  aria-label={`${group.title} · ${copy('featuresCount', { count: matchCount })}`}
-                  disabled={normalizedQuery.length > 0 && matchCount === 0}
-                  onClick={() => jumpToGroup(group.key)}
+                  aria-pressed={isSelected}
+                  disabled={presetBusy}
+                  onClick={() => choosePreset(key)}
+                  className={`min-h-11 min-w-0 rounded-[var(--radius-lg)] border-2 px-4 py-3 text-left focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)] disabled:cursor-not-allowed ${isSelected ? 'border-[var(--accent-fill)] bg-[var(--accent-tint)]' : 'border-transparent bg-surface-fill'}`}
                 >
-                  {group.title}
+                  <span className="block text-body font-semibold text-label-primary break-words">
+                    {copy(PRESET_COPY[key].title)}
+                  </span>
+                  <span className="mt-0.5 block text-footnote text-label-secondary break-words">
+                    {copy(PRESET_COPY[key].description)}
+                  </span>
+                  {isInUse && (
+                    <span className="mt-1 block text-footnote font-semibold text-success-text">
+                      {copy('presetInUse')}
+                    </span>
+                  )}
                 </button>
               )
             })}
-          </nav>
-          {!normalizedQuery && (
-            <button
-              type="button"
-              className="min-h-11 shrink-0 rounded-full px-3 text-subhead text-label-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
-              onClick={() =>
-                setAllGroups(!Object.values(expanded).every(Boolean))
-              }
-            >
-              {Object.values(expanded).every(Boolean)
-                ? copy('closeAll')
-                : copy('openAll')}
-            </button>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {hasMatches ? (
-        visibleGroups.map((group) => (
-          <FeatureGroup
-            key={group.key}
-            groupKey={group.key}
-            title={group.title}
-            subtitle={group.subtitle}
-            features={group.features}
-            totalCount={group.source.length}
-            flags={flags}
-            onToggle={toggle}
-            pending={pendingKeys}
-            featureDisplay={featureDisplay}
-            expanded={normalizedQuery.length > 0 || expanded[group.key]}
-            onToggleExpanded={() => toggleGroup(group.key)}
-            copy={copy}
-          />
-        ))
-      ) : (
-        <div className="rounded-[var(--radius-lg)] bg-surface-fill px-4 py-6 text-center">
-          <p className="text-body text-label-primary">{copy('noMatches')}</p>
-          <button
-            type="button"
-            className="mt-3 min-h-11 rounded-full px-4 text-subhead text-label-primary bg-surface-fill-secondary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
-            onClick={() => setQuery('')}
-          >
-            {copy('clearFilters')}
-          </button>
-        </div>
+          {plan && (
+            <div
+              role="region"
+              aria-labelledby="feature-preset-preview-heading"
+              className="rounded-[var(--radius-lg)] bg-surface-fill-secondary px-4 py-4 space-y-3"
+            >
+              <h3
+                id="feature-preset-preview-heading"
+                ref={previewHeadingRef}
+                tabIndex={-1}
+                className="text-headline text-label-primary focus:outline focus:outline-[3px] focus:outline-offset-2 focus:outline-[var(--accent-text)]"
+              >
+                {copy('presetPreviewTitle', {
+                  preset: copy(PRESET_COPY[plan.preset].title),
+                })}
+              </h3>
+              {plan.turnOn.length === 0 && plan.turnOff.length === 0 ? (
+                <p className="text-subhead text-label-secondary">
+                  {copy('presetNoChanges')}
+                </p>
+              ) : (
+                <>
+                  {plan.turnOn.length > 0 && (
+                    <PresetChangeList
+                      label={copy('presetTurnsOn')}
+                      items={titles(plan.turnOn)}
+                    />
+                  )}
+                  {plan.turnOff.length > 0 && (
+                    <PresetChangeList
+                      label={copy('presetTurnsOff')}
+                      items={titles(plan.turnOff)}
+                    />
+                  )}
+                </>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-primary min-h-11"
+                  disabled={
+                    presetBusy || Object.keys(plan.changes).length === 0
+                  }
+                  onClick={() => void applyPreset()}
+                >
+                  {presetBusy ? copy('presetApplying') : copy('presetApply')}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary min-h-11"
+                  disabled={presetBusy}
+                  onClick={() => setPreview(null)}
+                >
+                  {copy('presetCancel')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div role="status" className="empty:hidden">
+            {presetStatus && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] bg-surface-fill px-4 py-2">
+                <span className="min-w-0 text-subhead text-label-primary break-words">
+                  {presetStatus.kind === 'applied'
+                    ? copy('presetApplied', {
+                        preset: copy(PRESET_COPY[presetStatus.preset].title),
+                      })
+                    : presetStatus.kind === 'undone'
+                      ? copy('presetUndone')
+                      : presetStatus.kind === 'failed'
+                        ? copy('presetFailed')
+                        : copy('presetUndoFailed')}
+                </span>
+                {(presetStatus.kind === 'applied' ||
+                  presetStatus.kind === 'undoFailed') && (
+                  <button
+                    type="button"
+                    className="btn-secondary min-h-11"
+                    disabled={presetBusy}
+                    onClick={() => void undoPreset()}
+                  >
+                    {copy('presetUndo')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
       )}
+
+      {FEATURE_PAGE_GROUPS.map((group) => (
+        <section
+          key={group.key}
+          id={`feature-group-${group.key}`}
+          aria-labelledby={`feature-group-heading-${group.key}`}
+        >
+          <div className="px-1 pb-2">
+            <h2
+              id={`feature-group-heading-${group.key}`}
+              tabIndex={-1}
+              className="text-title-3 focus:outline focus:outline-[3px] focus:outline-offset-2 focus:outline-[var(--accent-text)]"
+            >
+              {copy(GROUP_TITLE[group.key])}
+            </h2>
+            {group.key === 'core' && (
+              <p className="mt-0.5 text-footnote text-label-secondary">
+                {copy('alwaysOnSubtitle')}
+              </p>
+            )}
+          </div>
+          <div className="list-inset">
+            {group.features.map((key, index) => {
+              const feature = META_BY_KEY.get(key)!
+              const needs =
+                feature.requires && !isFeatureEnabled(flags, feature.requires)
+                  ? feature.requires
+                  : undefined
+              return (
+                <FeatureRow
+                  key={feature.key}
+                  feature={feature}
+                  enabled={isFeatureEnabled(flags, feature.key)}
+                  onToggle={() => void toggle(feature)}
+                  disabled={!manage || needs !== undefined}
+                  busy={presetBusy}
+                  display={featureDisplay(feature.key)}
+                  needsTitle={needs ? featureDisplay(needs).title : undefined}
+                  pending={pendingKeys.has(feature.key)}
+                  last={index === group.features.length - 1}
+                  copy={copy}
+                />
+              )
+            })}
+          </div>
+        </section>
+      ))}
 
       {toast && (
         <div
@@ -259,105 +355,31 @@ export default function FeaturesPage() {
   )
 }
 
-function FeatureGroup({
-  groupKey,
-  title,
-  subtitle,
-  features,
-  totalCount,
-  flags,
-  onToggle,
-  pending,
-  featureDisplay,
-  expanded,
-  onToggleExpanded,
-  copy,
-}: {
-  groupKey: GroupKey
-  title: string
-  subtitle: string
-  features: FeatureMeta[]
-  totalCount: number
-  flags: Record<FeatureKey, boolean>
-  onToggle: (feature: FeatureMeta) => void
-  pending: ReadonlySet<FeatureKey>
-  featureDisplay: (key: FeatureKey) => FeatureDisplayCopy
-  expanded: boolean
-  onToggleExpanded: () => void
-  copy: ReturnType<typeof useFeaturesText>
-}) {
-  const headingId = `feature-group-heading-${groupKey}`
-  const panelId = `feature-group-panel-${groupKey}`
-
+function PresetChangeList({ label, items }: { label: string; items: string[] }) {
   return (
-    <section id={`feature-group-${groupKey}`} aria-labelledby={headingId}>
-      <div className="flex min-h-11 w-full items-center justify-between gap-3 px-1 pb-2">
-        <span className="min-w-0">
-          <h2
-            id={headingId}
-            tabIndex={-1}
-            className="text-title-3 focus:outline focus:outline-[3px] focus:outline-offset-2 focus:outline-[var(--accent-text)]"
-          >
-            {title}
-          </h2>
-          <p className="mt-0.5 text-footnote text-label-secondary">
-            {subtitle}
-          </p>
-        </span>
-        <button
-          type="button"
-          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full px-2 text-footnote text-label-tertiary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]"
-          aria-expanded={expanded}
-          aria-controls={panelId}
-          onClick={onToggleExpanded}
-        >
-          {/* Named by its content so the visible count stays in the spoken name (WCAG 2.5.3). */}
-          <span className="sr-only">
-            {expanded
-              ? copy('hideGroup', { group: title })
-              : copy('showGroup', { group: title })}
-            ,{' '}
-          </span>
-          <span>{copy('featuresCount', { count: totalCount })}</span>
-          <ChevronDown
-            className={`h-5 w-5 transition-transform ${expanded ? '' : '-rotate-90'}`}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-      {expanded && (
-        <div
-          id={panelId}
-          role="region"
-          aria-labelledby={headingId}
-          className="list-inset"
-        >
-          {features.map((feature, index) => {
-            const needs =
-              feature.requires && !isFeatureEnabled(flags, feature.requires)
-                ? FEATURES.find(
-                    (candidate) => candidate.key === feature.requires,
-                  )
-                : undefined
-            return (
-              <FeatureRow
-                key={feature.key}
-                feature={feature}
-                enabled={isFeatureEnabled(flags, feature.key)}
-                onToggle={() => onToggle(feature)}
-                disabled={feature.group === 'core' || needs !== undefined}
-                display={featureDisplay(feature.key)}
-                needsTitle={needs ? featureDisplay(needs.key).title : undefined}
-                pending={pending.has(feature.key)}
-                last={index === features.length - 1}
-                copy={copy}
-              />
-            )
-          })}
-        </div>
-      )}
-    </section>
+    <div>
+      <p className="text-subhead font-semibold text-label-primary">{label}</p>
+      <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-subhead text-label-secondary">
+        {items.map((item) => (
+          <li key={item} className="break-words">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
+}
+
+const GLYPH_BG: Record<FeatureMeta['glyphColor'], string> = {
+  meals: 'bg-tint-meals',
+  lists: 'bg-tint-lists',
+  family: 'bg-tint-family',
+  budget: 'bg-tint-budget',
+  rewards: 'bg-tint-rewards',
+  projects: 'bg-tint-projects',
+  messages: 'bg-tint-messages',
+  calendar: 'bg-tint-calendar',
+  chore: 'bg-chore',
 }
 
 function FeatureRow({
@@ -365,6 +387,7 @@ function FeatureRow({
   enabled,
   onToggle,
   disabled,
+  busy,
   needsTitle,
   display,
   pending,
@@ -375,64 +398,31 @@ function FeatureRow({
   enabled: boolean
   onToggle: () => void
   disabled: boolean
+  busy: boolean
   needsTitle?: string
   display: FeatureDisplayCopy
   pending: boolean
   last: boolean
-  copy: ReturnType<typeof useFeaturesText>
+  copy: FeaturesCopy
 }) {
   const Icon = feature.icon
   const descriptionId = React.useId()
   const reasonId = React.useId()
-  const stateId = React.useId()
-  const bgClass = {
-    meals: 'bg-tint-meals',
-    lists: 'bg-tint-lists',
-    family: 'bg-tint-family',
-    budget: 'bg-tint-budget',
-    rewards: 'bg-tint-rewards',
-    projects: 'bg-tint-projects',
-    messages: 'bg-tint-messages',
-    calendar: 'bg-tint-calendar',
-    chore: 'bg-chore',
-  }[feature.glyphColor]
-  const state = pending
-    ? copy('updating')
-    : feature.group === 'core'
-      ? copy('locked')
-      : needsTitle
-        ? copy('blocked')
-        : enabled
-          ? copy('on')
-          : copy('off')
+  const core = feature.group === 'core'
   return (
     <div
       className={`row-apple ${last ? '' : 'border-b border-[var(--surface-separator)]'}`}
     >
-      <div className={`glyph ${bgClass}`}>
+      <div className={`glyph ${GLYPH_BG[feature.glyphColor]}`}>
         <Icon className="w-5 h-5 text-white" aria-hidden="true" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-1.5 text-body text-label-primary">
-          <span className="min-w-0 flex-1 break-words leading-tight">
-            {display.title}
-          </span>
-          {disabled && (
-            <Lock
-              className="h-3.5 w-3.5 shrink-0 text-label-tertiary"
-              aria-hidden="true"
-            />
-          )}
-          <span
-            id={stateId}
-            className="shrink-0 rounded-full bg-surface-fill-secondary px-2 py-0.5 text-caption-1 text-label-secondary"
-          >
-            {state}
-          </span>
+        <div className="text-body text-label-primary break-words leading-tight">
+          {display.title}
         </div>
         <div
           id={descriptionId}
-          className="text-footnote text-label-secondary break-words line-clamp-2"
+          className="text-footnote text-label-secondary break-words"
         >
           {display.description}
         </div>
@@ -441,18 +431,27 @@ function FeatureRow({
             {copy('needs', { dependency: needsTitle })}
           </div>
         )}
+        {pending && (
+          <div className="text-footnote text-label-tertiary">
+            {copy('updating')}
+          </div>
+        )}
       </div>
-      <ToggleSwitch
-        checked={enabled}
-        onChange={onToggle}
-        disabled={disabled}
-        pending={pending}
-        featureTitle={display.title}
-        descriptionId={[descriptionId, stateId, needsTitle && reasonId]
-          .filter(Boolean)
-          .join(' ')}
-        copy={copy}
-      />
+      {/* Core rows have no switch: the "Always on" heading says why. */}
+      {!core && (
+        <ToggleSwitch
+          checked={enabled}
+          onChange={onToggle}
+          disabled={disabled}
+          pending={pending}
+          busy={busy}
+          featureTitle={display.title}
+          descriptionId={[descriptionId, needsTitle && reasonId]
+            .filter(Boolean)
+            .join(' ')}
+          copy={copy}
+        />
+      )}
     </div>
   )
 }
@@ -462,6 +461,7 @@ function ToggleSwitch({
   onChange,
   disabled,
   pending,
+  busy,
   featureTitle,
   descriptionId,
   copy,
@@ -470,9 +470,11 @@ function ToggleSwitch({
   onChange: () => void
   disabled: boolean
   pending: boolean
-  featureTitle?: string
+  /** A setup is being applied: hold every switch without a spinner. */
+  busy: boolean
+  featureTitle: string
   descriptionId: string
-  copy: ReturnType<typeof useFeaturesText>
+  copy: FeaturesCopy
 }) {
   return (
     <button
@@ -480,21 +482,17 @@ function ToggleSwitch({
       role="switch"
       aria-checked={checked}
       aria-describedby={descriptionId}
-      aria-label={
-        featureTitle
-          ? copy(checked ? 'disable' : 'enable', { title: featureTitle })
-          : undefined
-      }
-      aria-disabled={pending || undefined}
+      aria-label={copy(checked ? 'disable' : 'enable', { title: featureTitle })}
+      aria-disabled={pending || busy || undefined}
       onClick={(event) => {
-        if (disabled || pending) {
+        if (disabled || pending || busy) {
           event.preventDefault()
           return
         }
         onChange()
       }}
       disabled={disabled}
-      className={`group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center ${disabled || pending ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
+      className={`group inline-flex h-11 min-w-[51px] shrink-0 items-center justify-center ${disabled || pending || busy ? 'cursor-not-allowed' : 'cursor-pointer'} focus-visible:outline-none`}
     >
       <span
         aria-hidden="true"
