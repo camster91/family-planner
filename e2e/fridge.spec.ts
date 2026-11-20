@@ -577,10 +577,18 @@ test.describe("Today board: Family A parent", () => {
     );
     await expect(people.nth(1)).toContainText("Taylor");
     await expect(people.nth(1)).toContainText("Take out recycling");
-    await expect(people.nth(1)).toContainText("Vacuum living room");
     // Overdue from earlier and still open: shown first, with a plain label.
     const taylorChores = people.nth(1).getByTestId("board-chore");
-    await expect(taylorChores).toHaveCount(3);
+    if (portrait) {
+      // The portrait fridge fits 3 chore rows for 2 people (FRIDGE_LIMITS)
+      // and counts the rest exactly.
+      await expect(taylorChores).toHaveCount(2);
+      await expect(people.nth(1)).toContainText("+1 more");
+      await expect(people.nth(1)).not.toContainText("Vacuum living room");
+    } else {
+      await expect(people.nth(1)).toContainText("Vacuum living room");
+      await expect(taylorChores).toHaveCount(3);
+    }
     await expect(taylorChores.nth(0)).toContainText("Mow the lawn");
     await expect(
       taylorChores.nth(0).getByTestId("board-chore-overdue"),
