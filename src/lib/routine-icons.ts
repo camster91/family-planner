@@ -98,6 +98,32 @@ export function searchRoutineIcons(query: string): RoutineIconMeta[] {
   })
 }
 
+/** Short words that say nothing about a picture ("the", "and"...). */
+const TITLE_STOP_WORDS = new Set([
+  'the', 'and', 'for', 'your', 'you', 'with', 'from', 'then', 'all', 'get', 'put', 'out',
+  // Too general to pick one picture ("Clean the car" is not "Wash hands").
+  'clean', 'make', 'take', 'help', 'room', 'time', 'day',
+])
+
+/**
+ * A picture for a chore that has none, guessed from its title for display
+ * only (nothing is saved): the whole title first, then each meaningful word
+ * (3+ letters, not a filler word) in title order, via `searchRoutineIcons`.
+ * Null when nothing matches, so the caller can show no picture at all.
+ */
+export function suggestRoutineIconForTitle(title: string | null | undefined): RoutineIconKey | null {
+  const clean = (title ?? '').toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').trim()
+  if (!clean) return null
+  const whole = searchRoutineIcons(clean)
+  if (whole.length > 0 && whole.length < ROUTINE_ICONS.length) return whole[0].key as RoutineIconKey
+  for (const word of clean.split(/\s+/)) {
+    if (word.length < 3 || TITLE_STOP_WORDS.has(word)) continue
+    const hit = searchRoutineIcons(word)[0]
+    if (hit) return hit.key as RoutineIconKey
+  }
+  return null
+}
+
 // ---------------------------------------------------------------------------
 // Routines: a short label (`Chore.routine`) and a step number (`Chore.routine_order`).
 

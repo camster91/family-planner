@@ -101,3 +101,65 @@ it("loads a bounded own catch-up preview with explicit truncation rather than si
     jest.useRealTimers();
   }
 });
+
+it("reads only the viewer's own waiting chores and own claimed rewards, in their household (owner review 2026-11-19)", async () => {
+  findMany.mockReset();
+  rewardFindMany.mockReset();
+  mockGamification = true;
+  jest.useFakeTimers().setSystemTime(new Date("2026-10-06T12:00:00Z"));
+  try {
+    findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "waiting1",
+          title: "Rake leaves",
+          due_date: new Date("2026-10-01"),
+          status: "completed",
+          points: 20,
+        },
+      ]);
+    rewardFindMany
+      .mockResolvedValueOnce([
+        { id: "r-free", name: "Movie", cost: 10, status: "available" },
+      ] as never)
+      .mockResolvedValueOnce([
+        { id: "r-mine", name: "Pizza", cost: 40, status: "claimed" },
+      ] as never);
+    const result = (await DashboardPage()) as React.ReactElement;
+
+    expect(findMany.mock.calls[2][0]).toMatchObject({
+      where: {
+        family_id: "home",
+        assigned_to: "kid",
+        status: "completed",
+        due_date: { lt: new Date("2026-10-05T00:00:00.000Z") },
+      },
+      take: 10,
+    });
+    expect(rewardFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { family_id: "home", status: "claimed", claimed_by: "kid" },
+        take: 5,
+      }),
+    );
+    // Never another member's claim or another household's rewards.
+    for (const [args] of rewardFindMany.mock.calls as unknown as [
+      { where: Record<string, unknown> },
+    ][]) {
+      expect(args.where.family_id).toBe("home");
+      if (args.where.status === "claimed")
+        expect(args.where.claimed_by).toBe("kid");
+    }
+    expect(result.props.chores.map((c: { id: string }) => c.id)).toEqual([
+      "waiting1",
+    ]);
+    expect(result.props.rewards.map((r: { id: string; status: string }) => [r.id, r.status])).toEqual([
+      ["r-free", "available"],
+      ["r-mine", "claimed"],
+    ]);
+  } finally {
+    jest.useRealTimers();
+  }
+});

@@ -5,6 +5,7 @@ import { useDeviceText } from '@/i18n/device-management'
 import { Pencil, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
 import { elevationDeadline, type DeviceClient, type ElevationSession } from '@/lib/device-client'
 import { formatCountdown } from './use-device-client'
+import { firstName } from '@/components/fridge/board-model'
 import { dangerButtonClass, neutralButtonClass, primaryButtonClass } from './styles'
 
 /** The countdown appears in the last minute (SHARED_DEVICE.md §6.3). */
@@ -24,6 +25,7 @@ export default function ElevatedBanner({
   onRename,
   onRemove,
   onSettings,
+  helper,
 }: {
   client: DeviceClient
   session: ElevationSession
@@ -33,6 +35,8 @@ export default function ElevatedBanner({
   onRemove: () => void
   /** Board setup on the tablet (#274): weather, colours, calm display, tablet writes. */
   onSettings?: () => void
+  /** The household helper's button (moved here from the board header, 2026-11-19). */
+  helper?: React.ReactNode
 }) {
   const text = useDeviceText()
   const [remaining, setRemaining] = React.useState(() => elevationDeadline(session) - Date.now())
@@ -65,7 +69,7 @@ export default function ElevatedBanner({
         <ShieldCheck className="h-7 w-7 shrink-0 text-accent" aria-hidden="true" />
         <div className="min-w-0">
           <p className="text-[19px] font-bold leading-tight text-label-primary md:text-[21px]">
-            {text('parentModeName', { name: session.member.name })}
+            {text('parentModeName', { name: firstName(session.member.name) })}
           </p>
           {endingSoon ? (
             <p data-testid="elevation-countdown" className="text-[17px] font-semibold text-[var(--warning-text)]">{text("endsIn")}<span className="tabular-nums">{formatCountdown(remaining)}</span>
@@ -80,6 +84,7 @@ export default function ElevatedBanner({
         </div>
       </div>
       <div className="flex flex-wrap gap-3">
+        {helper}
         {onSettings && (
           <button type="button" onClick={onSettings} className={neutralButtonClass}>
             <Settings2 className="h-5 w-5" aria-hidden="true" />{text("boardSettings")}</button>

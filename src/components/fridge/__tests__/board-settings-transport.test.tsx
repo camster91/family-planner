@@ -61,3 +61,17 @@ it('ignores a retired custom save after the transport audience changes', async (
   expect(screen.getByLabelText('New parent')).toBeTruthy();
   expect(nextTransport.save).not.toHaveBeenCalled();
 });
+
+it('puts the Family tablet section first, above member colours and weather (2026-11-19)', async () => {
+  const withTablet = {
+    ...data,
+    members: [{ id: 'm1', name: 'Avery', color: 'indigo' as const, custom: false }],
+    deviceWrites: { available: true, enabled: true },
+  };
+  const transport = { load: jest.fn(async () => withTablet), save: jest.fn(), searchPlaces: jest.fn() };
+  render(<I18nProvider><BoardSettings transport={transport} /></I18nProvider>);
+  const tablet = await screen.findByTestId('device-writes-settings');
+  expect(screen.getAllByRole('group')[0]).toBe(tablet);
+  expect(screen.getByRole('checkbox', { name: boardSettingsEnglish.allowTablet })).toBeChecked();
+  expect(tablet.textContent).toContain('You choose when you pair a tablet');
+});

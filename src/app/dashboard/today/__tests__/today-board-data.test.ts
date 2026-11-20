@@ -126,7 +126,12 @@ function mockDb(overrides: Partial<Record<string, unknown>> = {}) {
       : await readChores(args)
     const rows = (Array.isArray(values) ? values : values ? [values] : []).map((row: any) => ({
       ...row, due_date: row.due_date ?? NOW, created_at: row.created_at ?? NOW,
-    }))
+    })).filter((row: any) =>
+      // The overdue read (owner decision 2026-11-19) asks only for rows due
+      // before the window; honour the date bounds so fixtures stay in place.
+      (!where.due_date?.lt || row.due_date < where.due_date.lt) &&
+      (!where.due_date?.gte || row.due_date >= where.due_date.gte) &&
+      (!where.status?.in || where.status.in.includes(row.status)))
     rows.sort((a: any, b: any) => a.due_date.getTime() - b.due_date.getTime() ||
       a.created_at.getTime() - b.created_at.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     const after = args.where.AND?.[1]?.OR?.[2]
@@ -1202,6 +1207,39 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
       })
       expect(data.useSoon).toHaveLength(2)
       expect(data.links.inventory).toBeNull()
+    })
+  })
+})
+
+describe('buildTodayBoard overdue chores (owner decision 2026-11-19)', () => {
+  it('adds still-open chores due before the window, oldest first, from the household only', async () => {
+    const db = mockDb({
+      chore: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'today', title: 'Tidy room', due_date: new Date('2026-01-05T00:00:00Z'), status: 'pending', assigned_to: 'u_child', icon: null },
+          { id: 'mow', title: 'Mow the lawn', due_date: new Date('2026-01-02T00:00:00Z'), status: 'overdue', assigned_to: 'u_child', icon: null },
+          { id: 'old-done', title: 'Old', due_date: new Date('2026-01-01T00:00:00Z'), status: 'verified', assigned_to: 'u_child', icon: null },
+        ]),
+        profileProbe: jest.fn().mockResolvedValue(null),
+      },
+    })
+    const data = await buildTodayBoard(db as any, {
+      familyId: FAMILY,
+      role: 'teen',
+      features: defaultFeatures(),
+      now: NOW,
+    })
+    expect(data.chores.map((c) => [c.id, c.dueDay])).toEqual([
+      ['mow', '2026-01-02'],
+      ['today', '2026-01-05'],
+    ])
+    // The server never marks rows; the client view model does.
+    expect(data.chores.some((c) => 'overdue' in c)).toBe(false)
+    const reads = (db.chore.findMany as jest.Mock).mock.calls.map(([args]) => args.where.AND?.[0] ?? args.where)
+    for (const where of reads) expect(where.family_id).toBe(FAMILY)
+    expect(reads.find((where) => where.status)).toMatchObject({
+      status: { in: ['pending', 'in_progress', 'overdue'] },
+      due_date: { lt: new Date('2026-01-04T00:00:00.000Z') },
     })
   })
 })

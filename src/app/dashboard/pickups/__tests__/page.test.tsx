@@ -601,3 +601,55 @@ it("handles both pickup and member loading failures without losing the draft on 
     within(dialog).getByRole("option", { name: "Sam" }),
   ).toBeInTheDocument();
 });
+
+it("shows a child the pickups read-only: no Add, no tick, no delete (owner decision 2026-11-19)", async () => {
+  mockCanManage = false;
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups")
+      return response({ can_write: false, pickups: [futurePickup] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  const user = userEvent.setup();
+  renderPage();
+
+  expect(await screen.findByText("School pickup")).toBeInTheDocument();
+  expect(screen.getByTestId("pickups-read-only")).toHaveTextContent(
+    "A parent or teen keeps pickups up to date.",
+  );
+  expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /Delete pickup/ }),
+  ).not.toBeInTheDocument();
+  const tick = screen.getByRole("checkbox");
+  expect(tick).toHaveAttribute("aria-checked", "false");
+  await user.click(tick);
+  expect(
+    (global.fetch as jest.Mock).mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === "PATCH",
+    ),
+  ).toEqual([]);
+});
+
+it("tells a child who sees no pickups that a parent or teen adds them", async () => {
+  global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/api/pickups")
+      return response({ can_write: false, pickups: [] });
+    if (url === "/api/family/members") return response({ members: [] });
+    return response({});
+  }) as unknown as typeof fetch;
+
+  renderPage("es");
+
+  expect(
+    await screen.findByText(
+      "Cuando un padre, una madre o un adolescente añada una recogida, aparecerá aquí.",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Añadir" }),
+  ).not.toBeInTheDocument();
+});

@@ -56,6 +56,26 @@ export async function readD1KidDashboardData(
           hidden: (ids) =>
             hiddenD1RoutineOccurrenceIds(familyId, { ids }, store),
         }),
+        // Own chores done before the window and waiting for a parent's
+        // check (owner review 2026-11-19); bounded, newest due first.
+        readVisibleChoreRows({
+          take: 10,
+          order: "desc",
+          read: (after, take) =>
+            db.chore.findMany({
+              where: {
+                family_id: familyId,
+                assigned_to: userId,
+                due_date: { lt: from },
+                status: "completed",
+                ...(after ? afterChoreCursor(after, "desc") : {}),
+              },
+              orderBy: choreOrderBy("desc"),
+              take,
+            }),
+          hidden: (ids) =>
+            hiddenD1RoutineOccurrenceIds(familyId, { ids }, store),
+        }),
       ]),
     native,
   );
@@ -69,18 +89,30 @@ export async function readD1KidDashboardData(
           select: { id: true, title: true, start_time: true, location: true },
         }),
         rewardsOn
-          ? db.reward.findMany({
-              where: {
-                family_id: familyId,
-                status: "available",
-                is_active: true,
-              },
-              orderBy: { created_at: "desc" },
-              take: 5,
-            })
+          ? Promise.all([
+              db.reward.findMany({
+                where: {
+                  family_id: familyId,
+                  status: "available",
+                  is_active: true,
+                },
+                orderBy: { created_at: "desc" },
+                take: 5,
+              }),
+              // Only the viewer's own claims, in this household.
+              db.reward.findMany({
+                where: {
+                  family_id: familyId,
+                  status: "claimed",
+                  claimed_by: userId,
+                },
+                orderBy: [{ claimed_at: "desc" }, { id: "desc" }],
+                take: 5,
+              }),
+            ]).then(([available, claimed]) => [...available, ...claimed])
           : Promise.resolve([]),
       ]),
     native,
   );
-  return [work[0], work[1], events, rewards] as const;
+  return [work[0], work[1], events, rewards, work[2]] as const;
 }

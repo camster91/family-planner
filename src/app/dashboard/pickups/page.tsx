@@ -105,6 +105,9 @@ function PickupsPageInner() {
   // The layout derives this presentation capability from the current role.
   // DELETE still verifies parent authority on the server.
   const { canManage: isParent } = useFeatures();
+  // Children read pickups only (owner decision 2026-11-19). The list
+  // response says so; the write routes refuse a child either way.
+  const [canWrite, setCanWrite] = React.useState(true);
   const [deletingPickup, setDeletingPickup] = React.useState<Pickup | null>(
     null,
   );
@@ -400,6 +403,7 @@ function PickupsPageInner() {
       if (!Array.isArray(pickupData?.pickups))
         throw new Error("Invalid pickups response");
       setPickups(pickupData.pickups);
+      setCanWrite(pickupData.can_write !== false);
       return true;
     } catch {
       // Keep existing rows visible during a refresh; an empty list is only
@@ -455,7 +459,7 @@ function PickupsPageInner() {
   }
 
   async function toggle(id: string, completed: boolean) {
-    if (pendingToggleRef.current.has(id)) return;
+    if (!canWrite || pendingToggleRef.current.has(id)) return;
     const previous = pickups.find((pickup) => pickup.id === id)?.completed;
     if (previous === undefined) return;
     pendingToggleRef.current.add(id);
@@ -558,6 +562,7 @@ function PickupsPageInner() {
           title={text("title")}
           subtitle={text("subtitle")}
           trailing={
+            canWrite ? (
             <button
               ref={addButtonRef}
               type="button"
@@ -572,8 +577,17 @@ function PickupsPageInner() {
               <Plus className="w-4 h-4" aria-hidden="true" />
               <span>{text("add")}</span>
             </button>
+            ) : undefined
           }
         />
+        {!canWrite && (
+          <p
+            className="text-footnote text-label-secondary"
+            data-testid="pickups-read-only"
+          >
+            {text("readOnlyNote")}
+          </p>
+        )}
 
         {loadError && (
           <div
@@ -623,7 +637,9 @@ function PickupsPageInner() {
             icon={Car}
             glyphColor="lists"
             title={text("emptyTitle")}
-            description={text("emptyDescription")}
+            description={text(
+              canWrite ? "emptyDescription" : "emptyDescriptionReader",
+            )}
           />
         ) : pickups.length > 0 ? (
           <div aria-busy={loading}>
@@ -636,6 +652,7 @@ function PickupsPageInner() {
                       key={pickup.id}
                       pickup={pickup}
                       onToggle={toggle}
+                      readOnly={!canWrite}
                       disabled={!!pendingToggles[pickup.id]}
                       last={index === upcoming.length - 1}
                       formatTime={formatTime}
@@ -655,6 +672,7 @@ function PickupsPageInner() {
                       key={pickup.id}
                       pickup={pickup}
                       onToggle={toggle}
+                      readOnly={!canWrite}
                       disabled={!!pendingToggles[pickup.id]}
                       last={index === past.length - 1}
                       formatTime={formatTime}
@@ -882,9 +900,12 @@ function PickupRow({
   formatTime,
   onDelete,
   deleteLabel,
+  readOnly = false,
 }: {
   pickup: Pickup;
   onToggle: (id: string, completed: boolean) => void;
+  /** A child sees the pickup and whether it is done, but cannot tick it. */
+  readOnly?: boolean;
   disabled: boolean;
   last: boolean;
   formatTime: (iso: string) => string;
@@ -900,7 +921,7 @@ function PickupRow({
         className="min-w-0 flex-1"
         checked={pickup.completed}
         onChange={(completed) => onToggle(pickup.id, completed)}
-        disabled={disabled}
+        disabled={disabled || readOnly}
         wrap
         title={pickup.title}
         subtitle={`${formatTime(pickup.pickup_time)}${pickup.location ? ` · ${pickup.location}` : ""}`}

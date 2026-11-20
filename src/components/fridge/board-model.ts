@@ -23,6 +23,7 @@ import type {
 } from '@/app/dashboard/today/today-board-data'
 import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus, isUseSoonStatus } from '@/lib/inventory-display'
 import type { BoardWeather } from '@/lib/weather/board-weather'
+import { belongsToToday, isOverdueChore } from '@/lib/chore-today'
 import { MEMBER_COLOR_KEYS, type MemberColorKey } from '@/lib/member-colors'
 
 export const DONE_CHORE_STATUSES = ['completed', 'verified'] as const
@@ -106,13 +107,18 @@ function choreSubject(chore: BoardChore): BoardSubject | null {
 }
 
 /**
- * Chores due on the viewer's local today, grouped by person in household
- * order. People with nothing due today are omitted. No points, XP or streaks:
- * the board is a calm shared surface (BRAND.md).
+ * Chores due on the viewer's local today, plus still-open overdue chores
+ * (marked `overdue`, owner decision 2026-11-19, src/lib/chore-today.ts),
+ * grouped by person in household order. Overdue rows come first. People with
+ * nothing for today are omitted. No points, XP or streaks: the board is a calm
+ * shared surface (BRAND.md).
  */
 export function choresDueTodayByPerson(chores: BoardChore[], members: BoardMember[], now: Date): PersonChores[] {
   const today = localDayKey(now)
-  const due = chores.filter((c) => c.dueDay === today)
+  const due = chores
+    .filter((c) => belongsToToday(c.dueDay, c.status, today))
+    .map((c) => (isOverdueChore(c.dueDay, c.status, today) ? { ...c, overdue: true } : c))
+    .sort((a, b) => Number(Boolean(b.overdue)) - Number(Boolean(a.overdue)))
   return members
     .map((member) => {
       const mine = due.filter((c) => {
@@ -244,11 +250,28 @@ export function shortWeekday(dayKey: string, locale: string = 'en-US'): string {
   })
 }
 
-/** First names, unless two members share one (then full names). */
-export function memberDisplayNames(members: BoardMember[]): Map<string, string> {
+/**
+ * Names for the shared board (owner decision 2026-11-19): first names only,
+ * never a surname. Two people with the same first name get their last
+ * initial ("Maya R."), which still tells them apart without the surname.
+ */
+export function sharedBoardNames(people: Array<{ id: string; name: string }>): Map<string, string> {
   const counts = new Map<string, number>()
-  for (const m of members) counts.set(firstName(m.name), (counts.get(firstName(m.name)) ?? 0) + 1)
-  return new Map(members.map((m) => [m.id, (counts.get(firstName(m.name)) ?? 0) > 1 ? m.name : firstName(m.name)]))
+  for (const p of people) counts.set(firstName(p.name), (counts.get(firstName(p.name)) ?? 0) + 1)
+  return new Map(
+    people.map((p) => {
+      const first = firstName(p.name)
+      if ((counts.get(first) ?? 0) < 2) return [p.id, first]
+      const words = p.name.trim().split(/\s+/)
+      const last = words.length > 1 ? words[words.length - 1] : ''
+      return [p.id, last ? `${first} ${last[0]!.toUpperCase()}.` : first]
+    })
+  )
+}
+
+/** First names on the board; see `sharedBoardNames`. */
+export function memberDisplayNames(members: BoardMember[]): Map<string, string> {
+  return sharedBoardNames(members)
 }
 
 export interface UseSoonEntry extends BoardUseSoonItem {

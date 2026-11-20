@@ -17,6 +17,7 @@ import type { HomeChore, HomeMember } from '@/lib/home-summary'
 import type { MemberProtocol } from '@/lib/member-subject-contract'
 import { isProfileAgeAllowed, profileRoleSchema } from '@/lib/member-subject-contract'
 import { profileChoreProtocolRefusal } from '@/lib/chore-profile'
+import { MAX_OVERDUE_CHORES, OPEN_CHORE_STATUSES } from '@/lib/chore-today'
 
 const MAX_CHORES = 120
 
@@ -121,7 +122,18 @@ export async function loadHomeSummary(
   const start = startOfTodayUTC(opts.now ?? new Date())
   const isParent = opts.role === 'parent'
 
-  const [chores, profileCompatibilityProbe, members, toCheckCount] = await Promise.all([
+  const choreSummarySelect = {
+    id: true,
+    created_at: true,
+    title: true,
+    due_date: true,
+    status: true,
+    assigned_to: true,
+    assigned_member_id: true,
+    member_subject_erased: true,
+    assigneeMember: { select: profileCompatibilitySubjectSelect },
+  } as const
+  const [windowChores, overdueChores, profileCompatibilityProbe, members, toCheckCount] = await Promise.all([
     // Due dates are UTC-midnight date-only values: yesterday..tomorrow covers
     // "today" in any zone; the client picks the viewer's local day.
     readVisibleChoreRows({
@@ -136,18 +148,27 @@ export async function loadHomeSummary(
         }
         return db.chore.findMany({
           where: after ? { AND: [where, afterCreatedChoreCursor(after)] } : where,
-          select: {
-            id: true,
-            created_at: true,
-            title: true,
-            due_date: true,
-            status: true,
-            assigned_to: true,
-            assigned_member_id: true,
-            member_subject_erased: true,
-            assigneeMember: { select: profileCompatibilitySubjectSelect },
-          },
+          select: choreSummarySelect,
           orderBy: [{ due_date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }], take: batchSize,
+        })
+      },
+      hidden: (ids) => hiddenRoutineOccurrenceIds(db, opts.familyId, { ids }),
+    }),
+    // Still-open chores due before the window (owner decision 2026-11-19,
+    // src/lib/chore-today.ts): bounded, most recently due first, same household.
+    readVisibleChoreRows({
+      take: MAX_OVERDUE_CHORES, order: 'desc', tieBreakCreatedAt: true,
+      read: (after, batchSize) => {
+        const where = {
+          family_id: opts.familyId,
+          OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
+          due_date: { lt: addUTCDays(start, -1) },
+          status: { in: [...OPEN_CHORE_STATUSES] },
+        }
+        return db.chore.findMany({
+          where: after ? { AND: [where, afterCreatedChoreCursor(after, 'desc')] } : where,
+          select: choreSummarySelect,
+          orderBy: [{ due_date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }], take: batchSize,
         })
       },
       hidden: (ids) => hiddenRoutineOccurrenceIds(db, opts.familyId, { ids }),
@@ -177,6 +198,7 @@ export async function loadHomeSummary(
         })
       : Promise.resolve(0),
   ])
+  const chores = [...[...overdueChores].reverse(), ...windowChores]
 
   return {
     chores: chores.flatMap((c) =>

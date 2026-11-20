@@ -143,11 +143,13 @@ test.describe("signed out", () => {
     await expect(main.getByTestId("board-date")).toHaveText(
       "Monday, January 5",
     );
-    // One true sentence for the parent: the household's chores due today by
-    // person (#268). The parent has none of their own, so no "My chores" list
-    // and no contradicting "All done" empty state.
+    // One true sentence for the parent: the household's chores due today,
+    // plus Taylor's still-open overdue "Mow the lawn" (owner decision
+    // 2026-11-19, src/lib/chore-today.ts), by person (#268). The parent has
+    // none of their own, so no "My chores" list and no contradicting "All
+    // done" empty state.
     await expect(main.getByTestId("home-summary-sentence")).toHaveText(
-      "3 chores left today · Taylor 2, Casey 1",
+      "4 chores left today · Taylor 3, Casey 1",
     );
     await expect(main.getByText("All done for today!")).toHaveCount(0);
     await expect(main.getByTestId("my-chores")).toHaveCount(0);

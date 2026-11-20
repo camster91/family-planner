@@ -53,10 +53,16 @@ import { useTranslation } from "@/i18n";
 import {
   formatDateOnly,
   formatRelativeDueDate,
-  isDueToday,
   isDueWithinDays,
   snoozedDueDate,
+  toDateOnlyLocal,
+  toDateOnlyUTC,
 } from "@/lib/dates";
+import {
+  belongsToToday,
+  isOpenChoreStatus,
+  isOverdueChore,
+} from "@/lib/chore-today";
 import {
   CHORE_HISTORY_ORDER,
   CHORE_HISTORY_PAGE_SIZE,
@@ -1056,7 +1062,14 @@ export default function ChoresContent({
   const filtered = now
     ? localChores.filter((c) => {
         if (!forChosenPerson(c)) return false;
-        if (filter === "today") return isDueToday(c.due_date, now);
+        // Today also lists still-open overdue chores, labelled (owner
+        // decision 2026-11-19, src/lib/chore-today.ts), like the board.
+        if (filter === "today")
+          return belongsToToday(
+            toDateOnlyUTC(c.due_date),
+            c.status,
+            toDateOnlyLocal(now),
+          );
         if (filter === "week") return isDueWithinDays(c.due_date, 7, now);
         return !seriesMode || isActiveRepeatingChore(c);
       })
@@ -1084,9 +1097,7 @@ export default function ChoresContent({
     showInlineRoutines ? routineRows.map((c) => c.id) : [],
   );
   const choreById = new Map(localChores.map((c) => [c.id, c]));
-  const todayChores = filtered.filter(
-    (c) => c.status === "pending" || c.status === "in_progress",
-  );
+  const todayChores = filtered.filter((c) => isOpenChoreStatus(c.status));
   const listChores = todayChores.filter((c) => !routineIds.has(c.id));
   // Done by a child and waiting for a parent's check (any date).
   const toCheckCount = localChores.filter(
@@ -1167,10 +1178,21 @@ export default function ChoresContent({
           title={chore.title}
           subtitle={[
             ownerLabel,
-            formatRelativeDueDate(chore.due_date, now, displayLocale, {
-              today: overviewText("today"),
-              tomorrow: overviewText("tomorrow"),
-            }),
+            isOverdueChore(
+              toDateOnlyUTC(chore.due_date),
+              chore.status,
+              toDateOnlyLocal(now),
+            )
+              ? overviewText("overdueSince", {
+                  date: formatRelativeDueDate(chore.due_date, now, displayLocale, {
+                    today: overviewText("today"),
+                    tomorrow: overviewText("tomorrow"),
+                  }),
+                })
+              : formatRelativeDueDate(chore.due_date, now, displayLocale, {
+                  today: overviewText("today"),
+                  tomorrow: overviewText("tomorrow"),
+                }),
             profilePaused
               ? profileText(profileChorePauseMessage(chore.actionAvailability))
               : null,

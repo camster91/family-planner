@@ -632,44 +632,59 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     expect(within(groceries()).queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("asks who it is (names and colours only), then completes as that member with a fresh key", async () => {
+  it("completes a one-person chore for its assignee on the first tap, with “Done for Casey · Not Casey?”", async () => {
     const { request } = await renderDevice();
     fireEvent.click(
       within(chores()).getByRole("button", { name: /Mark done: Feed the cat/ }),
     );
     await settle();
-    const dialog = screen.getByTestId("who-is-this");
-    expect(
-      within(dialog).getAllByRole("button", {
-        name: /Avery Parent|Casey Child/,
-      }),
-    ).toHaveLength(2);
-    expect(request).not.toHaveBeenCalled();
-
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Casey Child" }),
-    );
-    await settle();
+    // No "Who's this?": the chore belongs to Casey alone (owner decision 2026-11-19).
+    expect(screen.queryByTestId("who-is-this")).toBeNull();
+    // Truthful attribution: the device route with the assignee as the member
+    // (the server audits the device id as the actor).
+    expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith("/api/device/chores/c1/complete", {
       method: "POST",
       body: { actingMemberId: "c" },
       headers: { "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/) },
     });
-    expect(screen.getByTestId("device-actor").textContent).toBe(
-      "Ticking off as Casey Child",
-    );
+    // The assignee is not remembered as the person at the tablet.
+    expect(screen.queryByTestId("device-actor")).toBeNull();
     const toast = screen.getByTestId("undo-toast");
-    expect(toast.textContent).toContain("“Feed the cat” done by Casey");
+    expect(toast.textContent).toContain("Done for Casey");
+    expect(toast.textContent).toContain("“Feed the cat”. A parent will check it.");
+    expect(toast.textContent).not.toContain("Child");
+    expect(within(chores()).queryByText("Feed the cat")).toBeNull();
 
-    // Undo uses the tablet's own short-window route.
-    fireEvent.click(within(toast).getByRole("button", { name: "Undo" }));
+    // "Not Casey?" undoes with the tablet's own short-window route, then asks.
+    fireEvent.click(within(toast).getByRole("button", { name: "Not Casey?" }));
     await settle();
-    expect(request).toHaveBeenLastCalledWith(
+    await settle();
+    expect(request).toHaveBeenNthCalledWith(
+      2,
       "/api/device/chores/c1/uncomplete",
-      expect.objectContaining({ method: "POST" }),
+      {
+        method: "POST",
+        body: { actingMemberId: "c" },
+        headers: { "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/) },
+      },
     );
-
-    // The member is remembered: the next tap does not ask again, and ticks go to the device queue.
+    const dialog = screen.getByTestId("who-is-this");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Avery" }));
+    await settle();
+    await settle();
+    expect(request).toHaveBeenNthCalledWith(
+      3,
+      "/api/device/chores/c1/complete",
+      expect.objectContaining({ body: { actingMemberId: "p" } }),
+    );
+    // A picked person gets the ordinary toast with Undo, and is remembered.
+    expect(screen.getAllByTestId("undo-toast").at(-1)!.textContent).toContain(
+      "“Feed the cat” done by Avery",
+    );
+    expect(screen.getByTestId("device-actor").textContent).toBe(
+      "Ticking off as Avery Parent",
+    );
     fireEvent.click(
       within(groceries()).getByRole("button", { name: "Tick off Bread" }),
     );
@@ -677,12 +692,80 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     expect(screen.queryByTestId("who-is-this")).toBeNull();
     expect(deviceQueue.enqueue).toHaveBeenCalledWith(
       "device.list-item.set-checked",
-      {
-        itemId: "i2",
-        checked: true,
-        actingMemberId: "c",
-      },
+      { itemId: "i2", checked: true, actingMemberId: "p" },
     );
+  });
+
+  it("“Not Casey?” then closing the picker leaves the chore undone and open", async () => {
+    const { request } = await renderDevice();
+    fireEvent.click(
+      within(chores()).getByRole("button", { name: /Mark done: Feed the cat/ }),
+    );
+    await settle();
+    fireEvent.click(
+      within(screen.getByTestId("undo-toast")).getByRole("button", {
+        name: "Not Casey?",
+      }),
+    );
+    await settle();
+    await settle();
+    fireEvent.click(
+      within(screen.getByTestId("who-is-this")).getByRole("button", {
+        name: "Close",
+      }),
+    );
+    await settle();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenLastCalledWith(
+      "/api/device/chores/c1/uncomplete",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(
+      within(chores()).getByRole("button", { name: /Mark done: Feed the cat/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks “Who's this?” for groceries with big first-name tiles and remembers the pick for 2 minutes", async () => {
+    const { request } = await renderDevice();
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: "Tick off Bread" }),
+    );
+    await settle();
+    const dialog = screen.getByTestId("who-is-this");
+    const tiles = within(dialog).getAllByTestId("who-is-this-member");
+    // First names only on the shared screen; never a surname.
+    expect(tiles.map((tile) => tile.textContent)).toEqual(["AAvery", "CCasey"]);
+    expect(dialog.textContent).not.toMatch(/Parent|Child/);
+    // A monogram on the member's colour, beside the name (never colour only).
+    expect(tiles[0].querySelector('[data-member-color="purple"]')?.textContent).toBe("A");
+    expect(tiles[0].className).toContain("min-h-[128px]");
+    expect(request).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Casey" }));
+    await settle();
+    expect(deviceQueue.enqueue).toHaveBeenLastCalledWith(
+      "device.list-item.set-checked",
+      { itemId: "i2", checked: true, actingMemberId: "c" },
+    );
+    expect(screen.getByTestId("undo-toast").textContent).toContain(
+      "“Bread” ticked off by Casey",
+    );
+
+    // Still remembered within 2 minutes of the last tap…
+    act(() => {
+      jest.advanceTimersByTime(60_000);
+    });
+    fireEvent.click(
+      within(groceries()).getByRole("button", { name: "Tick off Milk × 2" }),
+    );
+    await settle();
+    expect(screen.queryByTestId("who-is-this")).toBeNull();
+    expect(deviceQueue.enqueue).toHaveBeenCalledTimes(2);
+
+    // …and forgotten after 2 idle minutes, so the next person is asked.
+    act(() => {
+      jest.advanceTimersByTime(2 * 60_000 + 5_000);
+    });
+    expect(screen.queryByTestId("device-actor")).toBeNull();
   });
 
   it("keeps a grocery tick visible when tablet queue storage cannot be read", async () => {
@@ -696,7 +779,7 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
     await settle();
     fireEvent.click(
       within(screen.getByTestId("who-is-this")).getByRole("button", {
-        name: "Casey Child",
+        name: "Casey",
       }),
     );
     await settle();
@@ -738,12 +821,11 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
       within(chores()).getByRole("button", { name: /Mark done: Water plants/ }),
     );
     await settle();
-    fireEvent.click(
-      within(screen.getByTestId("who-is-this")).getByRole("button", {
-        name: "Avery Parent",
-      }),
+    expect(screen.queryByTestId("who-is-this")).toBeNull();
+    expect(request).toHaveBeenCalledWith(
+      "/api/device/chores/c2/complete",
+      expect.objectContaining({ body: { actingMemberId: "p" } }),
     );
-    await settle();
     expect(within(chores()).getByText("Water plants")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("turned off");
   });
@@ -790,22 +872,8 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
       }),
     );
     await settle();
-    const dialog = screen.getByTestId("who-is-this");
-    expect(
-      within(dialog).getByRole("heading", { name: "Who is this chore for?" }),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText(
-        "Choose the family profile completing this chore.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole("button", { name: "Casey Child" }),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Casey Child" }),
-    );
-    await settle();
+    // One tap: the chore's own profile, no picker (owner decision 2026-11-19).
+    expect(screen.queryByTestId("who-is-this")).toBeNull();
     expect(fc.request).toHaveBeenCalledWith(
       "/api/device/chores/profile-chore/complete",
       {
@@ -816,6 +884,20 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
         },
       },
     );
+    const toast = screen.getByTestId("undo-toast");
+    expect(toast.textContent).toContain("Done for Casey");
+    // Only Casey's profile may be credited, so "Not Casey?" just undoes.
+    fireEvent.click(within(toast).getByRole("button", { name: "Not Casey?" }));
+    await settle();
+    await settle();
+    expect(fc.request).toHaveBeenLastCalledWith(
+      "/api/device/chores/profile-chore/uncomplete",
+      expect.objectContaining({
+        body: { protocol: 2, selection: { memberId: "profile-casey" } },
+      }),
+    );
+    expect(screen.queryByTestId("who-is-this")).toBeNull();
+    expect(fc.request).toHaveBeenCalledTimes(2);
   });
 
   it("keeps a grocery tap on the account picker when a profile chore is visible", async () => {
@@ -865,14 +947,14 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
       within(dialog).getByRole("heading", { name: "Who's this?" }),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByRole("button", { name: "Avery Parent" }),
+      within(dialog).getByRole("button", { name: "Avery" }),
     ).toBeInTheDocument();
     expect(
-      within(dialog).queryByRole("button", { name: "Casey Child" }),
+      within(dialog).queryByRole("button", { name: "Casey" }),
     ).toBeNull();
   });
 
-  it("localizes the profile chooser without changing the account picker copy", async () => {
+  it("localizes the one-tap toast for a profile chore and the account picker", async () => {
     const profile = {
       id: "profile:casey",
       name: "Casey Child",
@@ -913,17 +995,11 @@ describe('paired tablet (#274): "Who\'s this?" and the device routes', () => {
       within(chores()).getByRole("button", { name: /Marcar como hecha: Put away blocks/ }),
     );
     await settle();
-    const dialog = screen.getByTestId("who-is-this");
+    expect(screen.queryByTestId("who-is-this")).toBeNull();
+    const toast = screen.getByTestId("undo-toast");
+    expect(toast.textContent).toContain("Hecho para Casey");
     expect(
-      within(dialog).getByRole("heading", {
-        name: "¿Para quién es esta tarea?",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText("Elige el perfil familiar que hará esta tarea."),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole("button", { name: "Casey Child" }),
+      within(toast).getByRole("button", { name: "¿No es Casey?" }),
     ).toBeInTheDocument();
   });
 
@@ -1056,7 +1132,7 @@ it("keeps tablet action ownership and the picker across a locale change", async 
   expect(current).toBe(original);
   expect(screen.getByRole("heading", { name: "¿Quién eres?" })).toBeInTheDocument();
   expect(screen.getByRole("list", { name: "Miembros de la familia" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Avery Parent" }));
+  fireEvent.click(screen.getByRole("button", { name: "Avery" }));
   await act(async () => { expect(await prepared).toBe(true); });
   expect(original.choreDoneNote!(board.chores[0])).toBe("Un padre o una madre lo revisará.");
   const failed = jest.fn();

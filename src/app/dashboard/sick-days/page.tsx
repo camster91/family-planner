@@ -404,6 +404,9 @@ function SickDaysPageInner() {
 
   const authorityReady = !authLoading && !authLoadFailed && userRole !== null && userId !== null
   const isParent = authorityReady && userRole === 'parent'
+  // Owner decision 2026-11-19: a child views their own sick days but does
+  // not start one (the API refuses a child too).
+  const canStart = authorityReady && userRole !== 'child'
   const reportableMembers = authorityReady
     ? isParent
       ? members
@@ -426,7 +429,7 @@ function SickDaysPageInner() {
 
   async function startSickDay(e: React.FormEvent) {
     e.preventDefault()
-    if (!authorityReady || !startForm.person_id || !startForm.severity) return
+    if (!canStart || !startForm.person_id || !startForm.severity) return
     if (!beginMutation()) return
     try {
       const res = await fetch('/api/sick-days', {
@@ -620,7 +623,7 @@ function SickDaysPageInner() {
           <h1 className="text-large-title font-display">{t('sickDays.title')}</h1>
           <p className="text-subhead text-label-secondary mt-0.5">{t('sickDays.subtitle')}</p>
         </div>
-        {authorityReady && (
+        {canStart && (
           <button
             type="button"
             onClick={() => setShowStartModal(true)}
@@ -702,7 +705,7 @@ function SickDaysPageInner() {
 
       {/* Start sick day */}
       <Dialog
-        open={showStartModal && authorityReady}
+        open={showStartModal && canStart}
         onClose={saving || !authorityReady ? undefined : () => setShowStartModal(false)}
         closeLabel={t('sickDays.closeForm')}
         title={t('sickDays.startSickDay')}

@@ -68,7 +68,7 @@ describe("POST /api/sick-days — cross-family references", () => {
     mockCreate.mockImplementation(async ({ data }: any) => ({ id: "sick-new", ...data }));
   });
 
-  it.each([["parent-a"], ["child-a"]])(
+  it.each([["parent-a"]])(
     "rejects a family-B person_id from family-A caller %s with 400",
     async (callerId) => {
       mockGetServerUser.mockResolvedValue(user(callerId));
@@ -81,6 +81,21 @@ describe("POST /api/sick-days — cross-family references", () => {
       );
       expect(mockCreate).not.toHaveBeenCalled();
     }
+  );
+
+  it.each([
+    ["child-a", "child-a"],
+    ["child-a", "child-b"],
+    ["child-b", "child-b"],
+  ])(
+    "refuses a child (%s) starting a sick day for %s with 403 before any lookup (owner decision 2026-11-19)",
+    async (callerId, personId) => {
+      mockGetServerUser.mockResolvedValue(user(callerId));
+      const res = await POST(makeRequest({ person_id: personId, severity: "mild" }));
+      expect(res.status).toBe(403);
+      expect(mockUserFindFirst).not.toHaveBeenCalled();
+      expect(mockCreate).not.toHaveBeenCalled();
+    },
   );
 
   it("rejects an unknown severity with 400", async () => {

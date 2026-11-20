@@ -120,7 +120,21 @@ describe('sick days page errors', () => {
     expect(unhandled).toEqual([])
   })
 
+  it('a child sees their own sick day but is not offered "Start a sick day" (owner decision 2026-11-19)', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    // Their own sick day still opens, and their own dose log is still offered
+    // once the role has loaded...
+    await user.click(await screen.findByText('Sam'))
+    expect(await screen.findByRole('button', { name: /sickDays.markDoseTaken/ })).toBeTruthy()
+    // ...but there is no way to start a sick day.
+    expect(screen.queryByRole('button', { name: 'sickDays.startSickDay' })).toBeNull()
+    expect(calls.filter((c) => c.method === 'POST')).toEqual([])
+  })
+
   it('a refused start shows the server reason in a toast', async () => {
+    // A teen reports themselves sick; a child no longer starts one (owner decision 2026-11-19).
+    routes['/api/auth/me'] = () => ok({ user: { id: 'kid1', role: 'teen' } })
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
@@ -137,6 +151,8 @@ describe('sick days page errors', () => {
   })
 
   it('an offline start shows a connection toast and no unhandled rejection', async () => {
+    // A teen reports themselves sick; a child no longer starts one (owner decision 2026-11-19).
+    routes['/api/auth/me'] = () => ok({ user: { id: 'kid1', role: 'teen' } })
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
@@ -254,6 +270,8 @@ describe('sick days page errors', () => {
   })
 
   it('retains an unsaved draft after the sheet is dismissed', async () => {
+    // A teen reports themselves sick; a child no longer starts one (owner decision 2026-11-19).
+    routes['/api/auth/me'] = () => ok({ user: { id: 'kid1', role: 'teen' } })
     const user = userEvent.setup()
     renderPage()
     await screen.findByText('Sam')
