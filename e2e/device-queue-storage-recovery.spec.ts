@@ -14,7 +14,8 @@ import {
 const A = FIXTURE_IDS.familyA;
 const DEVICE_QUEUE_KEY = "fp-device:v1:queue";
 const DEVICE_QUEUE_DB = "fp-device";
-const PARENT_NAME = "Avery Fixture-A";
+/** The shared tablet shows first names only (owner decision 2026-11-19). */
+const PARENT_FIRST = "Avery";
 
 // Projects share one disposable fixture database and run serially. Pairing
 // quotas must not carry over from another viewport or an earlier device suite.
@@ -309,12 +310,16 @@ for (const locale of ["en", "es"] as const) {
         tablet.getByRole("button", { name: text("storageRetry"), exact: true }),
       ).toBeVisible();
 
+      // Header trigger "+ Add to list" and first-name tiles (2026-11-19).
       await tablet
-        .getByRole("button", { name: text("deviceTitle"), exact: true })
+        .getByRole("button", {
+          name: locale === "es" ? "Añadir a la lista" : "Add to list",
+          exact: true,
+        })
         .click();
       await tablet
         .getByTestId("who-is-this")
-        .getByRole("button", { name: PARENT_NAME, exact: true })
+        .getByRole("button", { name: PARENT_FIRST, exact: true })
         .click();
       const dialog = tablet.getByTestId("device-grocery-add");
       await dialog

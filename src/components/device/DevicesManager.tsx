@@ -16,6 +16,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { useDisplayLocale } from "@/components/ui/use-display-locale";
 import PairTabletDialog from "./PairTabletDialog";
+import TabletTappingSwitch from "./TabletTappingSwitch";
 import {
   dangerButtonClass,
   errorTextClass,
@@ -430,6 +431,8 @@ export default function DevicesManager() {
     null,
   );
   const [message, setMessage] = React.useState<DeviceFeedback | null>(null);
+  // A pairing may turn tapping on, so the switch re-reads after one.
+  const [tappingKey, setTappingKey] = React.useState(0);
 
   const load = React.useCallback(async () => {
     try {
@@ -494,6 +497,8 @@ export default function DevicesManager() {
           {text(message.key, message.params)}
         </p>
       )}
+
+      <TabletTappingSwitch reloadKey={tappingKey} />
 
       {loadError && (
         <div role="alert" className={errorTextClass}>
@@ -563,7 +568,10 @@ export default function DevicesManager() {
         open={pairOpen}
         replace={replace}
         onClose={() => setPairOpen(false)}
-        onPaired={() => void load()}
+        onPaired={() => {
+          void load();
+          setTappingKey((key) => key + 1);
+        }}
       />
 
       <RenameDeviceDialog

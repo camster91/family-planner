@@ -24,7 +24,7 @@ import { mealDayHref } from '@/lib/meal-navigation'
 import type { ShoppingSnapshot, ShoppingSnapshotItem } from '@/lib/shopping-snapshot'
 import type { BoardChore, BoardDinner, BoardEvent } from '@/app/dashboard/today/today-board-data'
 import { MEMBER_COLOR_CSS, type MemberColorKey } from '@/lib/member-colors'
-import { firstName, formatTime, type ComingUpDay, type PersonChores, type TodayEvent } from './board-model'
+import { firstName, formatTime, sharedBoardNames, type ComingUpDay, type PersonChores, type TodayEvent } from './board-model'
 import {
   defaultTodayBoardText,
   useTodayBoardText,
@@ -45,6 +45,29 @@ import {
 const MAX_TODAY_EVENTS = 6
 const MAX_CHORES_PER_PERSON = 4
 const MAX_COMING_UP_EVENTS = 3
+
+/**
+ * Splits a fridge card's row budget between people (owner decision
+ * 2026-11-19: never hide rows silently). Everyone with open chores gets a row
+ * first, then rows go round-robin until the budget or the chores run out.
+ * The caller prints "+N more" from what is left, so the count is exact.
+ */
+export function allotRows(counts: number[], budget: number): number[] {
+  const out = counts.map(() => 0)
+  let left = Math.max(budget, counts.filter((c) => c > 0).length)
+  for (let pass = 0; left > 0; pass++) {
+    let gave = false
+    for (let i = 0; i < counts.length && left > 0; i++) {
+      if (counts[i] > pass) {
+        out[i]++
+        left--
+        gave = true
+      }
+    }
+    if (!gave) break
+  }
+  return out
+}
 
 type GlyphColor = React.ComponentProps<typeof Glyph>['color']
 
@@ -315,14 +338,17 @@ export function ScheduleRegion({
   events,
   calendarHref,
   people,
+  maxRows = MAX_TODAY_EVENTS,
 }: {
   events: TodayEvent[]
   calendarHref: string | null
   /** Member display name and colour by id (#262). */
   people?: Map<string, BoardPerson>
+  /** Rows before "N more later today" (the fridge fits fewer in portrait). */
+  maxRows?: number
 }) {
   const text = useTodayBoardText()
-  const shown = events.slice(0, MAX_TODAY_EVENTS)
+  const shown = events.slice(0, maxRows)
   const more = events.length - shown.length
   return (
     <Region
@@ -339,7 +365,7 @@ export function ScheduleRegion({
       ) : (
         <ScheduleEventRows events={shown} people={people} />
       )}
-      {more > 0 && <p className={cn(metaTextClass, 'mt-3')}>{text('moreLaterToday', { count: more })}</p>}
+      {more > 0 && <p data-testid="today-more" className={cn(metaTextClass, 'mt-3')}>{text('moreLaterToday', { count: more })}</p>}
     </Region>
   )
 }
@@ -432,7 +458,7 @@ export function DinnerRegion({
             {missingLine}
           </p>
         )}
-        {dinner.cookName && <p data-testid="dinner-cook" className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: dinner.cookName })}</p>}
+        {dinner.cookName && <p data-testid="dinner-cook" className={cn(metaTextClass, 'mt-2')}>{text('cooking', { name: firstName(dinner.cookName) })}</p>}
         {dinner.hasMoreDinners && <p className={cn(metaTextClass, 'mt-2')} data-testid="dinner-more">{text(mealsHref ? 'moreDinners' : 'moreDinnersShared')}</p>}
       </div>
     )
@@ -460,6 +486,7 @@ export function GroceriesRegion({
   onTick,
   action,
   noList = false,
+  maxRows,
 }: {
   compactLandscape?: boolean
   /** The household has no grocery list at all: say so instead of "clear". */
@@ -469,11 +496,18 @@ export function GroceriesRegion({
   action?: React.ReactNode
   /** #274: tapping an item ticks it off (with Undo). Null: rows are plain text. */
   onTick?: ((item: ShoppingSnapshotItem) => void) | null
+  /**
+   * Fridge boards: rows that fit the card. The rest is an honest "+N more"
+   * counted against the list's total ("6 to buy" shows 4 and "+2 more").
+   */
+  maxRows?: number
 }) {
   const text = useTodayBoardText()
   if (!shopping) return null
   const groceriesHref = listsHref === '/dashboard/lists' ? '/dashboard/lists/groceries' : listsHref
-  const more = shopping.total - shopping.items.length
+  const items = maxRows === undefined ? shopping.items : shopping.items.slice(0, maxRows)
+  const more = Math.max(0, shopping.total - items.length)
+  const moreText = maxRows === undefined ? text('moreToBuy', { count: more }) : text('plusMore', { count: more })
   return (
     <Region
       id="board-groceries"
@@ -491,12 +525,12 @@ export function GroceriesRegion({
       ) : (
         <>
           <p className={cn(metaTextClass, 'mb-2')}>{text('toBuy', { count: shopping.total })}</p>
-          {shopping.items.length > 0 && <ul
+          {items.length > 0 && <ul
             className="divide-y divide-[var(--surface-separator)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]"
             tabIndex={0}
             aria-label={text('groceries')}
           >
-            {shopping.items.map((item) => {
+            {items.map((item) => {
               const content = (
                 <>
                   <span className={cn(itemTextClass, 'min-w-0 flex-1 break-words md:line-clamp-2')}>{item.content}</span>{' '}
@@ -532,31 +566,21 @@ export function GroceriesRegion({
       {more > 0 &&
         (listsHref ? (
           <div className="mt-3">
-            <Link href={groceriesHref!} className={actionLinkClass}>
-              {text('moreToBuy', { count: more })}
+            <Link href={groceriesHref!} className={actionLinkClass} data-testid="grocery-more">
+              {moreText}
             </Link>
           </div>
         ) : (
-          <p className={cn(metaTextClass, 'mt-3')}>{text('moreToBuy', { count: more })}</p>
+          <p data-testid="grocery-more" className={cn(metaTextClass, 'mt-3')}>{moreText}</p>
         ))}
       {listsHref && <div className="mt-3 border-t border-[var(--surface-separator)] pt-2"><Link href="/dashboard/lists" className="inline-flex min-h-[44px] items-center text-subhead text-[var(--accent-text)] 2xl:min-h-[56px]">{text('allSharedLists')} <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" /></Link><p className={`text-footnote text-label-secondary${compactLandscape ? ' lg:landscape:sr-only 2xl:landscape:not-sr-only' : ''}`} >{text('sharedListsDescription')}</p></div>}
     </Region>
   )
 }
 
-/** First names, unless two people share one (then full names). */
+/** First names only, never a surname ("Maya R." when two share one). */
 function displayNames(people: PersonChores[]): Map<string, string> {
-  const counts = new Map<string, number>()
-  for (const p of people) {
-    const f = firstName(p.member.name)
-    counts.set(f, (counts.get(f) ?? 0) + 1)
-  }
-  return new Map(
-    people.map((p) => {
-      const f = firstName(p.member.name)
-      return [p.member.id, (counts.get(f) ?? 0) > 1 ? p.member.name : f]
-    })
-  )
+  return sharedBoardNames(people.map((p) => p.member))
 }
 
 /**
@@ -660,6 +684,7 @@ export function ChoresRegion({
   choresHref,
   onTick,
   canTick,
+  rowBudget,
 }: {
   preparationContext?: SharedPreparationContext
   people: PersonChores[]
@@ -668,9 +693,18 @@ export function ChoresRegion({
   onTick?: ((chore: BoardChore) => void) | null
   /** Which chores this viewer may tick (own chores, or any for a parent). */
   canTick?: (chore: BoardChore) => boolean
+  /**
+   * Fridge boards: chore rows the card fits, shared between people
+   * (`allotRows`); each person's "+N more" is exact. Omitted: 4 per person.
+   */
+  rowBudget?: number
 }) {
   const text = useTodayBoardText()
   const names = displayNames(people)
+  const allotted =
+    rowBudget === undefined
+      ? people.map((p) => Math.min(p.open.length, MAX_CHORES_PER_PERSON))
+      : allotRows(people.map((p) => p.open.length), rowBudget)
   return (
     <Region
       id="board-chores"
@@ -685,9 +719,9 @@ export function ChoresRegion({
         <p className={emptyTextClass}>{text('choresEmpty')}</p>
       ) : (
         <ul className="space-y-4">
-          {people.map((p) => {
-            const name = names.get(p.member.id) ?? p.member.name
-            const shown = p.open.slice(0, MAX_CHORES_PER_PERSON)
+          {people.map((p, index) => {
+            const name = names.get(p.member.id) ?? firstName(p.member.name)
+            const shown = p.open.slice(0, allotted[index])
             const more = p.open.length - shown.length
             const done = doneLine(p, text)
             return (
@@ -704,7 +738,11 @@ export function ChoresRegion({
                   ) : (
                     <ul className="mt-1 space-y-1">
                       {shown.map((c) => <ChoreRow key={c.id} chore={c} name={name} onTick={onTick} canTick={canTick} preparation={preparationContext[c.id]} />)}
-                      {more > 0 && <li className={metaTextClass}>{text('more', { count: more })}</li>}
+                      {more > 0 && (
+                        <li data-testid="chore-more" className={metaTextClass}>
+                          {text(rowBudget === undefined ? 'more' : 'plusMore', { count: more })}
+                        </li>
+                      )}
                     </ul>
                   )}
                   {done && (
@@ -729,11 +767,14 @@ export function ComingUpRegion({
   days,
   mealsEnabled,
   stackInLandscape = false,
+  maxPerDay = MAX_COMING_UP_EVENTS,
 }: {
   days: ComingUpDay[]
   mealsEnabled: boolean
   /** Fridge landscape gives this region a narrow column, so days stack. */
   stackInLandscape?: boolean
+  /** Events per day before "N more" (the fridge fits fewer in portrait). */
+  maxPerDay?: number
 }) {
   const locale = useDisplayLocale()
   const text = useTodayBoardText()
@@ -741,7 +782,7 @@ export function ComingUpRegion({
     <Region id="board-coming" area="coming" title={text('comingUp')} icon={CalendarRange} glyph="family">
       <ul className={cn('grid gap-5 sm:grid-cols-3', stackInLandscape && 'lg:landscape:grid-cols-1')}>
         {days.map((day, dayIndex) => {
-          const shown = day.events.slice(0, MAX_COMING_UP_EVENTS)
+          const shown = day.events.slice(0, maxPerDay)
           const more = day.events.length - shown.length
           return (
             <li key={day.dayKey} data-testid="coming-up-day" className="min-w-0">

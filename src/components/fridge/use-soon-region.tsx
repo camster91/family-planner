@@ -26,13 +26,22 @@ export const MAX_USE_SOON_ROWS = 5
  * expired rows add an icon, never colour alone. Renders nothing when there is
  * nothing to use, so the board keeps its four-column layout.
  */
-export function UseSoonRegion({ items, inventoryHref }: { items: UseSoonEntry[]; inventoryHref: string | null }) {
+export function UseSoonRegion({
+  items,
+  inventoryHref,
+  maxRows = MAX_USE_SOON_ROWS,
+}: {
+  items: UseSoonEntry[]
+  inventoryHref: string | null
+  /** Rows before "N more" (the fridge fits fewer in portrait). */
+  maxRows?: number
+}) {
   const { t } = useCoreTranslation()
   const inventory = (key: InventoryDisplayMessage, params?: Record<string, string | number>) =>
     t(key, params, inventoryDisplayMessages)
   const boardText = useTodayBoardText()
   if (items.length === 0) return null
-  const shown = items.slice(0, MAX_USE_SOON_ROWS)
+  const shown = items.slice(0, maxRows)
   const more = items.length - shown.length
   return (
     <Region

@@ -301,6 +301,31 @@ export default function BoardSettings({
               </p>
             )}
 
+            {/* Family tablet first (owner decision 2026-11-19): it decides whether the tablet can be tapped at all. */}
+            {data.deviceWrites?.available && (
+              <fieldset className="space-y-3" data-testid="device-writes-settings">
+                <legend className="text-headline font-semibold text-label-primary">{text("familyTablet")}</legend>
+                <p className="text-subhead text-label-secondary">{text("tabletPrivacy")}</p>
+                <label className="flex min-h-[44px] items-center gap-3 text-body text-label-primary">
+                  <input
+                    type="checkbox"
+                    className="h-6 w-6"
+                    checked={data.deviceWrites.enabled}
+                    disabled={busy}
+                    onChange={(e) =>
+                      void save(
+                        { deviceWrites: { enabled: e.target.checked } },
+                        e.target.checked
+                          ? notice('tabletOn')
+                          : notice('tabletOff')
+                      )
+                    }
+                  />
+                  {text("allowTablet")}
+                </label>
+              </fieldset>
+            )}
+
             <fieldset className="space-y-3">
               <legend className="text-headline font-semibold text-label-primary">{text("memberColours")}</legend>
               <p className="text-subhead text-label-secondary">{text("colourHint")}</p>
@@ -590,29 +615,6 @@ export default function BoardSettings({
               </>
             )}
 
-            {data.deviceWrites?.available && (
-              <fieldset className="space-y-3" data-testid="device-writes-settings">
-                <legend className="text-headline font-semibold text-label-primary">{text("familyTablet")}</legend>
-                <p className="text-subhead text-label-secondary">{text("tabletPrivacy")}</p>
-                <label className="flex min-h-[44px] items-center gap-3 text-body text-label-primary">
-                  <input
-                    type="checkbox"
-                    className="h-6 w-6"
-                    checked={data.deviceWrites.enabled}
-                    disabled={busy}
-                    onChange={(e) =>
-                      void save(
-                        { deviceWrites: { enabled: e.target.checked } },
-                        e.target.checked
-                          ? notice('tabletOn')
-                          : notice('tabletOff')
-                      )
-                    }
-                  />
-                  {text("allowTablet")}
-                </label>
-              </fieldset>
-            )}
           </>
         )}
       </div>

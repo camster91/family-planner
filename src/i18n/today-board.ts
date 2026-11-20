@@ -65,6 +65,7 @@ export const todayBoardEnglish = {
   profileChorePaused:
     "This recurring profile chore is paused while compatibility is refreshed. Your pending chore and history are still here; refresh to try again.",
   more: "{count} more",
+  plusMore: "+{count} more",
   markDone: "Mark done:",
   tickOff: "Tick off",
   done: "{count} done",
@@ -180,6 +181,7 @@ export const todayBoardSpanish: TodayBoardMessages = {
   profileChorePaused:
     "Esta tarea recurrente del perfil está en pausa mientras se actualiza la compatibilidad. Tu tarea pendiente y tu historial siguen aquí; actualiza para intentarlo de nuevo.",
   more: "{count} más",
+  plusMore: "+{count} más",
   markDone: "Marcar como hecha:",
   tickOff: "Marcar",
   done: "{count} hechas",
