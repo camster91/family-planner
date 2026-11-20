@@ -591,6 +591,9 @@ export function ChoreRow({
       ) : (
         tickable && <span className="sr-only">{name}</span>
       )}
+      {c.overdue && (
+        <span className={cn(metaTextClass, 'block')} data-testid="board-chore-overdue">{text('overdue')}</span>
+      )}
       {c.status === 'in_progress' && (
         <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
       )}

@@ -86,7 +86,6 @@ describe("sick days — two households", () => {
     });
 
     it.each<[UserKey, string, string]>([
-      ["childA", "child-a", "teen-a"],
       ["teenA", "teen-a", "child-a"],
     ])("%s may report themselves sick but not a sibling", async (who, self, sibling) => {
       expect((await POST(req({ as: who, body: { person_id: sibling, severity: "mild" } }))).status).toBe(403);
@@ -94,6 +93,15 @@ describe("sick days — two households", () => {
       expect(res.status).toBe(201);
       expect(db.writes.filter((w) => w.model === "sickDay")).toHaveLength(1);
       expect(db.writes[0].args.data).toMatchObject({ family_id: "family-A", person_id: self });
+    });
+
+    it.each<[UserKey, string]>([
+      ["childA", "child-a"],
+      ["childA", "teen-a"],
+      ["childB", "child-a"],
+    ])("owner decision 2026-11-19: %s cannot start a sick day (for %s), and nothing is written", async (who, person) => {
+      expect((await POST(req({ as: who, body: { person_id: person, severity: "mild" } }))).status).toBe(403);
+      expect(db.writes).toHaveLength(0);
     });
 
     it("a family-B child cannot touch family A's sick day", async () => {

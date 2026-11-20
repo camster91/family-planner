@@ -18,6 +18,7 @@ import {
   homeSummary,
   isDoneStatus,
   isOpenStatus,
+  isOverdueHomeChore,
   type HomeChore,
   type HomeMember,
 } from '@/lib/home-summary'
@@ -154,7 +155,7 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
                   wrap
                   onChange={(next) => void (next ? complete(chore) : reopen(chore))}
                   title={chore.title}
-                  subtitle={checked ? copy.checkedByParent : done ? doneLabel : copy.dueToday}
+                  subtitle={checked ? copy.checkedByParent : done ? doneLabel : isOverdueHomeChore(chore, todayKey) ? copy.overdue : copy.dueToday}
                   className={cn(i < rows.length - 1 && 'border-b border-[var(--surface-separator)]')}
                 />
                 {!done && <ResponsibilityButton target={{ kind: 'chore', id: chore.id }} />}

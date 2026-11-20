@@ -1,7 +1,8 @@
 /** Native D1 pickup reads and household-scoped effects.
  *
  * Pickups are intentionally a shared family surface: any current family
- * member may read, create, and mark one complete; only a parent may delete.
+ * member may read; parents and teens may create and mark one complete
+ * (children read only, owner decision 2026-11-19); only a parent may delete.
  * Every response and effect is scoped by the authenticated family and token
  * generation so a stale or cross-household actor cannot retain access.
  */
@@ -114,6 +115,9 @@ async function authority(
     return failure(403, "Only family members can use pickups");
   if (mutation === "delete" && actor.role !== "parent")
     return failure(403, "Parents only");
+  // Owner decision 2026-11-19: children read pickups only.
+  if (mutation !== "read" && actor.role === "child")
+    return failure(403, "Children can view pickups only");
   return null;
 }
 
@@ -150,6 +154,7 @@ export async function readD1Pickups(
   return {
     status: 200,
     body: {
+      can_write: actor.role !== "child",
       pickups: rows.results.map((row) => ({
         ...pickupDto(row),
         assignee_name: row.assignee_name,
@@ -176,6 +181,12 @@ function writeChecks(
       session,
       `EXISTS (SELECT 1 FROM "Family" WHERE id=?1 AND json_extract(features,'$.pickups')=1)`,
       [actor.familyId],
+    ),
+    // Children read pickups only (owner decision 2026-11-19).
+    d1WriteCheck(
+      session,
+      `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND family_id=?2 AND role IN ('parent','teen'))`,
+      [actor.userId, actor.familyId],
     ),
   ];
   if (mutation === "delete")

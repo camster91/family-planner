@@ -42,8 +42,10 @@ export const KID_ALLOWED_PREFIXES = [
   // Sitter handoff, read-only (D2, #102). Teens see the full handoff; children
   // see only the sitter's name and arrival/departure times.
   '/dashboard/handoff',
-  // Their own sick days and medications (D1, #102): report themselves sick and
-  // log a dose of their own medication. Everything else stays with parents.
+  // Their own sick days and medications (D1, #102): log a dose of their own
+  // medication; teens may also report themselves sick. Children only view
+  // their own sick days (owner decision 2026-11-19). Everything else stays
+  // with parents.
   '/dashboard/sick-days',
   // Today board (#119 / #159): the shared household view for the fridge
   // tablet. It reads only shared-surface fields every member may already read
@@ -55,8 +57,9 @@ export const KID_ALLOWED_PREFIXES = [
   // enforces the roles and the page hides the controls a child cannot use.
   // Gated by the `inventory` feature like every other gated page.
   '/dashboard/inventory',
-  // Pickups are a D9 shared household coordination surface: every member may
-  // read, create and mark a pickup complete; only deletion is parent-only.
+  // Pickups are a D9 shared household coordination surface: parents and teens
+  // may create and mark a pickup complete, children read only (owner decision
+  // 2026-11-19); only deletion is parent-only.
   '/dashboard/pickups',
 ] as const
 

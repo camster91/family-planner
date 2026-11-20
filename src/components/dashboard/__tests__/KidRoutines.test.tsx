@@ -503,7 +503,12 @@ describe("KidHome picture routines", () => {
     });
     expect(screen.getAllByText("Next")).toHaveLength(1);
     expect(screen.queryByText("Earlier checked")).toBeNull();
-    expect(screen.queryByText("Earlier waiting")).toBeNull();
+    // A step done earlier and waiting for a parent is neither catch-up nor
+    // today's routine; it is listed as waiting (owner review 2026-11-19).
+    expect(within(catchup).queryByText("Earlier waiting")).toBeNull();
+    expect(
+      within(screen.getByTestId("kid-waiting")).getByText("Earlier waiting"),
+    ).toBeTruthy();
     expect(screen.queryByText("Future routine")).toBeNull();
   });
 
@@ -760,13 +765,24 @@ describe("KidHome picture routines", () => {
     expect(screen.queryByText("All done for today!")).toBeNull();
   });
 
-  it("a step with no picture gets the neutral picture and still its name", () => {
+  it("a step with no picture and no matching title gets the neutral picture and still its name", () => {
+    renderHome([
+      { id: "x", title: "Practise juggling", routine: "Morning", routine_order: 1 },
+    ]);
+    const step = steps(routineByName("Morning"))[0];
+    expect(step.querySelector('svg[data-icon="none"]')).toBeTruthy();
+    expect(within(step).getByText("Practise juggling")).toBeTruthy();
+  });
+
+  it("a step with no picture shows one chosen from its title (display only)", () => {
     renderHome([
       { id: "x", title: "Feed fish", routine: "Morning", routine_order: 1 },
     ]);
     const step = steps(routineByName("Morning"))[0];
-    expect(step.querySelector('svg[data-icon="none"]')).toBeTruthy();
+    expect(step.querySelector('svg[data-icon="feed-pet"]')).toBeTruthy();
     expect(within(step).getByText("Feed fish")).toBeTruthy();
+    // Nothing is saved: no request was made.
+    expect(calls).toEqual([]);
   });
 
   it("routine steps are not repeated in Today’s Missions; other chores still are", () => {

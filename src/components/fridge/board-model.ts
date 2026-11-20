@@ -23,6 +23,7 @@ import type {
 } from '@/app/dashboard/today/today-board-data'
 import { DEFAULT_USE_SOON_DAYS, expiryLabel, expiryStatus, isUseSoonStatus } from '@/lib/inventory-display'
 import type { BoardWeather } from '@/lib/weather/board-weather'
+import { belongsToToday, isOverdueChore } from '@/lib/chore-today'
 import { MEMBER_COLOR_KEYS, type MemberColorKey } from '@/lib/member-colors'
 
 export const DONE_CHORE_STATUSES = ['completed', 'verified'] as const
@@ -106,13 +107,18 @@ function choreSubject(chore: BoardChore): BoardSubject | null {
 }
 
 /**
- * Chores due on the viewer's local today, grouped by person in household
- * order. People with nothing due today are omitted. No points, XP or streaks:
- * the board is a calm shared surface (BRAND.md).
+ * Chores due on the viewer's local today, plus still-open overdue chores
+ * (marked `overdue`, owner decision 2026-11-19, src/lib/chore-today.ts),
+ * grouped by person in household order. Overdue rows come first. People with
+ * nothing for today are omitted. No points, XP or streaks: the board is a calm
+ * shared surface (BRAND.md).
  */
 export function choresDueTodayByPerson(chores: BoardChore[], members: BoardMember[], now: Date): PersonChores[] {
   const today = localDayKey(now)
-  const due = chores.filter((c) => c.dueDay === today)
+  const due = chores
+    .filter((c) => belongsToToday(c.dueDay, c.status, today))
+    .map((c) => (isOverdueChore(c.dueDay, c.status, today) ? { ...c, overdue: true } : c))
+    .sort((a, b) => Number(Boolean(b.overdue)) - Number(Boolean(a.overdue)))
   return members
     .map((member) => {
       const mine = due.filter((c) => {

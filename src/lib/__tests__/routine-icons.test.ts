@@ -8,6 +8,7 @@ import {
   normalizeRoutineName,
   routineIconLabel,
   searchRoutineIcons,
+  suggestRoutineIconForTitle,
 } from '@/lib/routine-icons'
 import { createChoreSchema, updateChoreSchema } from '@/lib/validations'
 
@@ -120,5 +121,30 @@ describe('chore schemas: icon, routine, routine_order', () => {
     expect(cleared.success && cleared.data).toMatchObject({ icon: null, routine: null, routine_order: null })
     const empty = updateChoreSchema.safeParse({ choreId: 'c1', routine: '  ' })
     expect(empty.success && empty.data.routine).toBeNull()
+  })
+})
+
+describe('suggestRoutineIconForTitle (display only, owner review 2026-11-19)', () => {
+  it.each([
+    ['Make the bed', 'make-bed'],
+    ['Feed the dog', 'feed-pet'],
+    ['Take out the trash!', 'trash'],
+    ['Empty the dishwasher', 'dishes'],
+    ['Brush teeth', 'brush-teeth'],
+    ['Homework: maths', 'homework'],
+  ])('%s → %s', (title, key) => {
+    expect(suggestRoutineIconForTitle(title)).toBe(key)
+  })
+
+  it.each([['Mow the lawn'], ['Clean your room'], [''], [null], ['   ']])(
+    'shows no picture when nothing fits (%s)',
+    (title) => {
+      expect(suggestRoutineIconForTitle(title)).toBeNull()
+    }
+  )
+
+  it('only ever suggests a catalogue key', () => {
+    for (const title of ['Walk the dog', 'Water the plants', 'Pack backpack', 'Laundry'])
+      expect(isRoutineIconKey(suggestRoutineIconForTitle(title))).toBe(true)
   })
 })

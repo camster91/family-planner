@@ -292,6 +292,8 @@ export async function readD1SickDays(actor: D1HealthActor, database?: D1Store): 
 export async function createD1SickDay(actor: D1HealthActor, input: any, database?: D1Store): Promise<NativeResult> {
   const { store, denied } = await readAuthority(actor, "sick-days", false, database);
   if (denied) return denied;
+  // Owner decision 2026-11-19: children view their own sick days only.
+  if (actor.role === "child") return failure(403, "Ask a parent to start a sick day");
   const db = store.withSession("first-primary");
   const parsed = input && typeof input === "object" ? input : {};
   if (!parsed.person_id || !parsed.severity) return failure(400, "person_id and severity required");
@@ -304,7 +306,7 @@ export async function createD1SickDay(actor: D1HealthActor, input: any, database
   let result: Awaited<ReturnType<typeof db.batch>>;
   try {
     result = await db.batch([
-      d1WriteCheck(db, `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND family_id=?2 AND token_version=?3)`, [actor.userId, actor.familyId, actor.generation]),
+      d1WriteCheck(db, `EXISTS (SELECT 1 FROM "User" WHERE id=?1 AND family_id=?2 AND token_version=?3 AND role IN ('parent','teen'))`, [actor.userId, actor.familyId, actor.generation]),
       db.prepare(`INSERT INTO "SickDay" (id,family_id,person_id,severity,symptoms,created_by,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?7) RETURNING *`).bind(id, actor.familyId, parsed.person_id, parsed.severity, parsed.symptoms?.trim() || null, actor.userId, now.getTime()),
     ]);
   } catch (error) {

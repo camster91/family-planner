@@ -28,6 +28,13 @@ export async function PATCH(
         request as NextRequest,
       );
       if (error) return error;
+      // Owner decision 2026-11-19: children read pickups only. Checked here,
+      // before any write, so a direct API call cannot bypass the page.
+      if (auth.user.role === "child")
+        return NextResponse.json(
+          { error: "Children can view pickups only" },
+          { status: 403, headers: { "Cache-Control": "private, no-store" } },
+        );
       const { id } = await params;
       let raw: unknown;
       try {
@@ -79,6 +86,12 @@ export async function PATCH(
     if (!existing || existing.family_id !== user.family_id) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    // Owner decision 2026-11-19: children read pickups only.
+    if (user.role === "child")
+      return NextResponse.json(
+        { error: "Children can view pickups only" },
+        { status: 403 },
+      );
 
     let body: { completed?: unknown } | null;
     try {

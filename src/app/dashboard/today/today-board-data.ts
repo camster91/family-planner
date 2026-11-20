@@ -40,6 +40,7 @@ import {
 } from '@/lib/inventory'
 import type { BoardWeather } from '@/lib/weather/board-weather'
 import { isRoutineIconKey } from '@/lib/routine-icons'
+import { MAX_OVERDUE_CHORES, OPEN_CHORE_STATUSES } from '@/lib/chore-today'
 import type { BoardDisplay } from '@/lib/ambient'
 import { COMING_UP_DAYS } from '@/lib/board-constants'
 import { loadBoardDinners, BOARD_DINNER_INGREDIENT_MAX, type DinnerRow } from './today-dinners'
@@ -115,6 +116,11 @@ export interface BoardChore {
    * `buildTodayBoard`; optional in the type for older callers and fixtures.
    */
   icon?: string | null
+  /**
+   * Set only by the client view model (`choresDueTodayByPerson`): open and
+   * due before the viewer's local today. Never sent by the server.
+   */
+  overdue?: boolean
 }
 
 export interface BoardDinner {
@@ -460,7 +466,16 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       }
 
   const needsProfileCompatibilityProbe = memberProtocol === 1 || !profileGate
-  const [members, profileMembers, events, chores, profileCompatibilityProbe, dinners, shopping, useSoon] = await Promise.all([
+  // Still-open chores due before the window (owner decision 2026-11-19,
+  // src/lib/chore-today.ts): the board lists them under today, labelled
+  // overdue. Same household and fields; bounded, most recently due first.
+  const overdueWhere = {
+    family_id: familyId,
+    due_date: { lt: windowStart },
+    status: { in: [...OPEN_CHORE_STATUSES] },
+    OR: [{ assigned_to: { not: null } }, { assigned_member_id: { not: null } }],
+  }
+  const [members, profileMembers, events, chores, profileCompatibilityProbe, dinners, shopping, useSoon, overdueChores] = await Promise.all([
     db.user.findMany({
       where: { family_id: familyId },
       select: { id: true, name: true, board_color: true },
@@ -542,6 +557,15 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
           useBySkewFrom: addUTCDays(startOfTodayUTC(now), -1),
         })
       : Promise.resolve(null),
+    readVisibleChoreRows({
+      take: MAX_OVERDUE_CHORES, order: 'desc', tieBreakCreatedAt: true,
+      read: (after, batchSize) => db.chore.findMany({
+        where: after ? { AND: [overdueWhere, afterCreatedChoreCursor(after, 'desc')] } : overdueWhere,
+        select: choreSelect,
+        orderBy: [{ due_date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }], take: batchSize,
+      }),
+      hidden: (ids) => hiddenRoutineOccurrenceIds(db, familyId, { ids }),
+    }),
   ])
 
   // Subscription names for imported events, looked up in this family only so a
@@ -623,7 +647,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
       account_link: { user_id: string } | null
     } | null
   }
-  const choreRows = chores as BoardChoreRow[]
+  const choreRows = [...(overdueChores as BoardChoreRow[]).reverse(), ...(chores as BoardChoreRow[])]
   const scheduledOnceIds = await scheduledOnceRoutineOccurrenceIds(
     db, familyId,
     choreRows.filter((row) => row.assigned_to === null && row.assigned_member_id != null).map((row) => row.id),
