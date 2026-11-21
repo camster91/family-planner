@@ -196,7 +196,8 @@ export interface ComingUpSummary {
 }
 
 export function comingUpSummary(days: ComingUpDay[], mealsEnabled: boolean): ComingUpSummary | null {
-  const total = days.reduce((sum, day) => sum + day.events.length, 0)
+  // An all-day event that runs over several days is on each of them: count it once.
+  const total = new Set(days.flatMap((day) => day.events.map((event) => event.id))).size
   const eventDay = days.findIndex((day) => day.events.length > 0)
   if (eventDay >= 0) {
     return {

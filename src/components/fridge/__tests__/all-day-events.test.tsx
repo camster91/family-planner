@@ -6,7 +6,7 @@ import "@testing-library/jest-dom";
 import * as React from "react";
 import { render, screen, within } from "@testing-library/react";
 import { I18nProvider } from "@/i18n";
-import { comingUp, eventsLeftToday, eventsStartingOn, nextEvent } from "../board-model";
+import { comingUp, comingUpSummary, eventsLeftToday, eventsStartingOn, nextEvent } from "../board-model";
 import { ComingUpRegion, ScheduleRegion, eventTimeLabel } from "../regions";
 import type { BoardEvent } from "@/app/dashboard/today/today-board-data";
 
@@ -87,5 +87,13 @@ describe("board regions", () => {
     const lines = [...day.querySelectorAll("li > p")].map((p) => p.textContent);
     expect(lines).toEqual(["Grandma visits", "PD day", "3:00 PM Library"]);
     expect(day.textContent).not.toMatch(/12:00 AM/);
+  });
+});
+
+describe("one-line Coming up (Calm Today)", () => {
+  it("counts an all-day event that covers several coming days once", () => {
+    const trip = allDay("Camping", 6, 8);
+    const summary = comingUpSummary(comingUp([trip, ev("Library", local(7, 15), local(7, 16))], null, NOW, 3), false);
+    expect(summary).toMatchObject({ kind: "event", title: "Camping", tomorrow: true, more: 1 });
   });
 });
