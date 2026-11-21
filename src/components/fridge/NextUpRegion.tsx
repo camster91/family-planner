@@ -163,6 +163,7 @@ export function NextUpRegion({
                 chore={chore}
                 name={people.get(member.id)?.name ?? member.name}
                 showOwner
+                inlineMeta={calm}
                 onTick={onTick}
                 canTick={canTick}
                 action={

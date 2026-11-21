@@ -187,17 +187,21 @@ export function EmptyRegionLine({
       data-empty-line=""
       className={cn(regionClass, areaClass[area], 'py-2 md:py-2 lg:py-2 2xl:py-3')}
     >
-      <div className="flex min-h-[48px] flex-wrap items-center gap-x-3 gap-y-1">
+      {/* One row: the words wrap inside their own block, so the action stays
+          beside them instead of dropping to a second row. */}
+      <div className="flex min-h-[48px] items-center gap-3">
         <Glyph color={glyph} size="sm">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </Glyph>
-        <h2 id={`${id}-title`} className="text-[17px] font-semibold leading-tight text-label-primary md:text-[18px]">
-          {title}
-        </h2>
-        <p data-testid={`region-empty-${area}`} className={cn(metaTextClass, 'min-w-0 flex-1 basis-40 break-words')}>
-          {message}
-        </p>
-        {action}
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+          <h2 id={`${id}-title`} className="text-[17px] font-semibold leading-tight text-label-primary md:text-[18px]">
+            {title}
+          </h2>
+          <p data-testid={`region-empty-${area}`} className={cn(metaTextClass, 'min-w-0 break-words')}>
+            {message}
+          </p>
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
       </div>
     </section>
   )
@@ -693,6 +697,7 @@ export function ChoreRow({
   onTick,
   canTick,
   showOwner = false,
+  inlineMeta = false,
   preparation,
   action,
 }: {
@@ -703,9 +708,21 @@ export function ChoreRow({
   onTick?: ((chore: BoardChore) => void) | null
   canTick?: (chore: BoardChore) => boolean
   showOwner?: boolean
+  /**
+   * Personal Today (Calm Today): the person and status follow the title on
+   * the same line ("Tidy bedroom · Casey · In progress") and wrap only when
+   * they must. The fridge and tablet boards keep one fact per line.
+   */
+  inlineMeta?: boolean
 }) {
   const text = useTodayBoardText()
   const tickable = Boolean(onTick && (canTick?.(c) ?? true))
+  const metaClass = cn(
+    metaTextClass,
+    inlineMeta
+      ? "inline-block before:mx-2 before:content-['·']"
+      : 'block',
+  )
   const label = (
     <span className="min-w-0 flex-1">
       {/* Picture routines (#272): the chore's picture, when it has one. */}
@@ -715,18 +732,18 @@ export function ChoreRow({
       {c.title}{' '}
       {preparation && <OwnPreparationNote title={preparation.eventTitle} />}
       {showOwner ? (
-        <span className={cn(metaTextClass, 'block')}>{name}</span>
+        <span className={metaClass}>{name}</span>
       ) : (
         tickable && <span className="sr-only">{name}</span>
       )}
       {c.overdue && (
-        <span className={cn(metaTextClass, 'block')} data-testid="board-chore-overdue">{text('overdue')}</span>
+        <span className={metaClass} data-testid="board-chore-overdue">{text('overdue')}</span>
       )}
       {c.status === 'in_progress' && (
-        <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
+        <span className={metaClass}>{text('inProgress')}</span>
       )}
       {c.actionAvailability?.state === 'paused' && (
-        <span className={cn(metaTextClass, 'block')} role="status">
+        <span className={metaClass} role="status">
           {text(c.actionAvailability.reason === 'PROFILE_ARCHIVED' ? 'profileChoreArchived' : 'profileChorePaused')}
         </span>
       )}
