@@ -29,6 +29,7 @@ import { DEFAULT_BOARD_DISPLAY, type AmbientState } from "@/lib/ambient";
 import {
   choresDueTodayByPerson,
   comingUp,
+  comingUpSummary,
   dinnerOn,
   dinnerTitle,
   eventsLeftToday,
@@ -53,13 +54,14 @@ import {
   DinnerRegion,
   EmptyRegionLine,
   GroceriesRegion,
+  RegionLine,
   ScheduleRegion,
   areaClass,
   emptyLineActionClass,
   type BoardPerson,
 } from "./regions";
 import { actionLinkClass, regionClass } from "./styles";
-import TodayControls from "./TodayControls";
+import TodayControls, { todayMenuItemClass } from "./TodayControls";
 import { useDisplayPreferences } from "@/components/providers/display-preferences-provider";
 import type { TodaySection } from "@/lib/personal-layout";
 import { usePersonalLayoutShellText } from "@/i18n/personal-layout-shell";
@@ -118,7 +120,7 @@ function DeferredTodayLayoutEditor({
     <>
       <button
         type="button"
-        className="btn-tinted min-h-[44px]"
+        className={`${todayMenuItemClass} disabled:opacity-50`}
         disabled={saving || syncState !== "ready"}
         onClick={() => {
           setStarted(true);
@@ -956,6 +958,7 @@ export default function TodayBoard({
             }
             preparationBacklinks={preparationBacklinks}
             compactEmpty
+            calm
             addEventHref={addEventHref}
             addChoreHref={addChoreHref}
             noChoresYet={starts ? !starts.hasChore : false}
@@ -991,13 +994,23 @@ export default function TodayBoard({
               }
             />
           );
+        // Calm Today: tonight's dinner is one line that opens the meal day.
+        if (!view.dinner) return null;
         return (
-          <DinnerRegion
-            day={view.day}
-            dinner={view.dinner}
-            mealsEnabled={data.dinners !== null}
-            mealsHref={data.links.meals}
-            featuresHref={data.links.features}
+          <RegionLine
+            id="board-dinner"
+            area="dinner"
+            title={text("dinnerTonight")}
+            icon={UtensilsCrossed}
+            glyph="meals"
+            href={mealDayHref(data.links.meals, view.day)}
+            hrefLabel={text("openMeals")}
+            value={
+              view.dinner.recipeName ??
+              view.dinner.recipeTitle ??
+              text("dinnerPlanned")
+            }
+            valueTestId="dinner-tonight"
           />
         );
       case "groceries":
@@ -1032,22 +1045,24 @@ export default function TodayBoard({
               }
             />
           );
+        // Calm Today: a count that opens the list. Ticking items off stays
+        // on the list itself, not on the home line.
+        if (!tiles.shopping) return null;
         return (
-          <GroceriesRegion
-            shopping={tiles.shopping}
-            listsHref={data.links.lists}
-            onTick={tiles.tickGrocery}
-            action={groceryAction}
+          <RegionLine
+            id="board-groceries"
+            area="groceries"
+            title={text("groceries")}
+            icon={ShoppingCart}
+            glyph="lists"
+            href={groceriesHref}
+            hrefLabel={text("openGroceryLists")}
+            value={text("toBuy", { count: tiles.shopping.total })}
           />
         );
-      case "coming":
-        if (
-          view.comingUp.every(
-            (day) =>
-              day.events.length === 0 &&
-              !(data.dinners !== null && day.dinner),
-          )
-        )
+      case "coming": {
+        const next = comingUpSummary(view.comingUp, data.dinners !== null);
+        if (!next)
           return (
             <EmptyRegionLine
               id="board-coming"
@@ -1068,12 +1083,34 @@ export default function TodayBoard({
               }
             />
           );
+        // Calm Today: the next thing in the coming days, and how many more.
+        const day = next.tomorrow ? text("tomorrow") : next.day.label;
+        const title =
+          next.kind === "dinner"
+            ? text("dinnerLabel", { name: next.title ?? text("planned") })
+            : (next.title ?? "");
         return (
-          <ComingUpRegion
-            days={view.comingUp}
-            mealsEnabled={data.dinners !== null}
+          <RegionLine
+            id="board-coming"
+            area="coming"
+            title={text("comingUp")}
+            icon={CalendarRange}
+            glyph="family"
+            href={
+              next.kind === "dinner"
+                ? mealDayHref(data.links.meals, next.day.dayKey)
+                : calendarHref
+            }
+            hrefLabel={text(
+              next.kind === "dinner" ? "openMeals" : "openCalendar",
+            )}
+            value={text("comingLine", { title, day })}
+            more={
+              next.more > 0 ? text("plusMore", { count: next.more }) : null
+            }
           />
         );
+      }
       case "usesoon":
         return (
           <div ref={useSoonSlotRef} data-testid="board-slot-use-soon">
@@ -1097,7 +1134,9 @@ export default function TodayBoard({
               // inside itself instead of pushing content below the fold.
               // A portrait tablet fits the screen the same way (2026-11-19).
               "min-h-screen bg-[var(--surface-grouped)] px-4 py-5 sm:px-6 lg:px-8 lg:py-6 2xl:px-10 2xl:py-8 lg:landscape:flex lg:landscape:h-dvh lg:landscape:min-h-0 lg:landscape:flex-col lg:landscape:overflow-hidden md:portrait:flex md:portrait:h-dvh md:portrait:min-h-0 md:portrait:flex-col md:portrait:overflow-hidden"
-            : "bg-[var(--surface-grouped)] [&_[data-testid=region-dinner]]:bg-accent-tint [&_[data-testid=region-dinner]]:border-transparent"
+            : personal
+              ? "bg-[var(--surface-grouped)]"
+              : "bg-[var(--surface-grouped)] [&_[data-testid=region-dinner]]:bg-accent-tint [&_[data-testid=region-dinner]]:border-transparent"
         }
       >
         {fridgeMode && <style>{FRIDGE_CHROME_CSS}</style>}
@@ -1155,7 +1194,7 @@ export default function TodayBoard({
                   <Minimize2 className="h-5 w-5" aria-hidden="true" />
                   {text("exitFridgeMode")}
                 </Link>
-              ) : (
+              ) : personal ? null : (
                 <span className={personalStyles.fridgeEntry}>
                   <Link
                     href="/dashboard/today?mode=fridge"
@@ -1180,6 +1219,16 @@ export default function TodayBoard({
               online={online}
             >
               <DeferredTodayLayoutEditor available={availableSections} />
+              {/* Fridge mode stays reachable on large screens, but quiet. */}
+              <span className={personalStyles.fridgeEntry}>
+                <Link
+                  href="/dashboard/today?mode=fridge"
+                  className={todayMenuItemClass}
+                >
+                  <Maximize2 size={18} aria-hidden="true" />
+                  {text("fridgeMode")}
+                </Link>
+              </span>
               {now && (
                 <UpdatedLine
                   lastSyncAt={shownSyncAt}

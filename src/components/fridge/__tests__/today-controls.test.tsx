@@ -29,9 +29,10 @@ function mount(role = "parent", online = true, choices = links) {
 function openQuickAdd(label = "Add or ask") {
   fireEvent.click(screen.getByRole("button", { name: label }));
 }
-function disclosure(label = "Customize") {
+function disclosure(label = "More options") {
+  // The overflow is icon-only: its words sit in a screen-reader span.
   return screen
-    .getByText(label, { selector: "summary" })
+    .getByText(label, { selector: "summary .sr-only" })
     .closest("details") as HTMLDetailsElement;
 }
 function openDisclosure(label: string) {
@@ -51,11 +52,27 @@ it.each(["parent", "teen"] as const)(
       expect.objectContaining({ type: "herewoven:quick-add" }),
     );
     dispatch.mockRestore();
-    openDisclosure("Customize");
+    openDisclosure("More options");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh now" })).toBeInTheDocument();
   },
 );
+it("keeps one primary button and a quiet icon-only overflow (Calm Today)", () => {
+  mount();
+  const nav = screen.getByRole("navigation", { name: "Today quick actions" });
+  // The only labelled button on the row is the primary one.
+  expect(
+    Array.from(nav.querySelectorAll(":scope > button")).map(
+      (button) => button.textContent,
+    ),
+  ).toEqual(["Add or ask"]);
+  const summary = disclosure().querySelector("summary")!;
+  // Icon only: the words are for screen readers, the target is 44px.
+  expect(summary.querySelector(".sr-only")).toHaveTextContent("More options");
+  expect(summary.className).toContain("h-11");
+  expect(summary.className).toContain("w-11");
+  expect(screen.queryByText("Customize")).not.toBeInTheDocument();
+});
 it("does not offer event creation or parent-only actions to a child", () => {
   mount("child");
   expect(screen.queryByRole("button", { name: "Add or ask" })).toBeNull();
@@ -105,7 +122,7 @@ it("uses the typed Today dictionary for Spanish controls", () => {
   expect(
     screen.getByRole("button", { name: "Añadir o preguntar" }),
   ).toBeInTheDocument();
-  openDisclosure("Personalizar");
+  openDisclosure("Más opciones");
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Actualizar ahora" }),
@@ -122,7 +139,7 @@ it("refreshes, closes the disclosure and returns focus", () => {
 });
 it("disables refresh offline", () => {
   mount("parent", false);
-  openDisclosure("Customize");
+  openDisclosure("More options");
   expect(screen.getByRole("button", { name: "Refresh now" })).toBeDisabled();
   expect(screen.getByText("Reconnect to refresh.")).toBeInTheDocument();
 });
@@ -148,7 +165,7 @@ it("leaves an open child dialog in charge of Escape", () => {
       </div>
     </TodayControls>,
   );
-  const details = openDisclosure("Customize");
+  const details = openDisclosure("More options");
   const child = screen.getByRole("button", { name: "Child action" });
   child.focus();
   fireEvent.keyDown(child, { key: "Escape" });

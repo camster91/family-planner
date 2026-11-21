@@ -16,8 +16,19 @@ tabs, everything else one level down, undo instead of "are you sure", colour onl
   chores due today, tickable in place (#268): a parent reads the household ("3 chores left today · Casey 2,
   Taylor 1"); anyone else reads their own list ("You have 2 chores left", "You're done for today"). The board
   follows. Fridge mode (`?mode=fridge`) is the shared surface and shows the board alone.
-- A parent of a household that is not set up yet sees a "Get started" card first (invite, first chore, first
-  event; Hide with Undo). Once it is done or hidden, a "Turn on more" card (O-38) offers up to three popular
+- Calm Today (owner decision 2026-11-21): the personal page is one short "what's next" view. Today's events
+  (in time order) and then chores (one-tap done with Undo, "Overdue" label) are one main card. Dinner,
+  Groceries and Coming up are single tappable lines ("Dinner tonight · Lemon herb chicken ›", "Groceries · 6 to
+  buy ›", "Coming up · Library returns · Tomorrow +4 more ›") that open Meals, the grocery list and the
+  calendar; an empty one stays one line with its first action. Grocery quick ticks live on the list (and on the
+  fridge board), not on the home line. Event rows do not say "Added by"; "For Casey" chips stay. There is one
+  primary button, "Add or ask"; a quiet "More options" (⋯) menu beside it holds Customize Today, Fridge mode
+  (large screens only) and Refresh now. From 1024px the lines sit beside the main card when "what's next" is
+  first in the person's saved order. Saved order, hidden sections and feature switches still apply. Fridge
+  mode and the paired tablet keep their full boards.
+- A parent of a household that is not set up yet sees a one-line "Get started · 3 of 4 done" first; it opens
+  the steps in place (invite, first chore, first event, connect a calendar; Hide with Undo). Once it is done or
+  hidden, a "Turn on more" card (O-38) offers up to three popular
   sections that are still off (Rewards & points, Budget, Family chat, Pinned notes, in that order), each with
   one plain line and a "Turn on" button that calls `PATCH /api/family/features` with Undo, plus "See all
   features" and "Not now" (remembered per household in this browser). Parents only; never in fridge mode.
@@ -59,7 +70,8 @@ Phone tab bar (below `md`) and top bar (from `md`, so an 800px portrait tablet h
 - Teens (O-37) also get Settings (their personal sections only), Help and the notifications bell. Children get
   their notification switches and "Delete my account" in the user menu instead, because they cannot open
   Settings.
-- Chores live on Today (the summary's "All chores" link, and "N chores to check" for parents). The Today tab
+- Chores live on Today (the "Chores today" heading, and "N chores to check" beside the summary for parents;
+  "All chores" shows only when neither is on the page). The Today tab
   stays current on `/dashboard/chores`; the Explore tab stays current on Emergency, Features, More and every
   page listed under More.
 

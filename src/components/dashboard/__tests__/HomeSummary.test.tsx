@@ -65,10 +65,12 @@ describe('HomeSummary sentence', () => {
     renderSummary({ viewer: { id: 'p', role: 'parent' }, toCheckCount: 1, choresHref: '/dashboard/chores' })
     const summary = screen.getByTestId('home-summary')
     expect(summary.className).not.toContain('card-apple')
-    expect(summary.className).toContain('md:flex')
+    // One wrapping row: the sentence, with its one link beside it.
+    expect(summary.className).toContain('flex-wrap')
+    expect(within(summary).getAllByRole('link')).toHaveLength(1)
     expect(screen.getByTestId('home-summary-sentence').className).toContain('text-[16px]')
   })
-  it('parent: one household sentence, no progress ring, and a way to all chores', () => {
+  it('parent: one household sentence, no progress ring, and one link to check chores', () => {
     renderSummary({
       viewer: { id: 'p', role: 'parent' },
       chores: [
@@ -84,8 +86,36 @@ describe('HomeSummary sentence', () => {
     expect(screen.queryByTestId('my-chores')).toBeNull()
     expect(screen.queryByText(/All done/)).toBeNull()
     expect(screen.queryByRole('progressbar')).toBeNull()
-    expect(screen.getByRole('link', { name: /2 chores to check/ }).getAttribute('href')).toBe('/dashboard/chores')
-    expect(screen.getByRole('link', { name: /All chores/ }).getAttribute('href')).toBe('/dashboard/chores')
+    // Calm Today: "N chores to check" is the one link. It opens the chores
+    // page, and so does the board's "Chores today" heading, so there is no
+    // separate "All chores" link.
+    const link = screen.getByRole('link', { name: /2 chores to check/ })
+    expect(link.getAttribute('href')).toBe('/dashboard/chores')
+    expect(link.className).toContain('min-h-[44px]')
+    expect(screen.queryByRole('link', { name: /All chores/ })).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('parent: drops "All chores" when the Chores today heading already links there', () => {
+    renderSummary({
+      viewer: { id: 'p', role: 'parent' },
+      chores: [{ id: '1', title: 'Feed cat', dueDay: TODAY, status: 'pending', assigneeId: 'c' }],
+      choresHref: '/dashboard/chores',
+    })
+    expect(sentence()).toBe('1 chore left today · Casey 1')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps "All chores" when only the viewer\'s own list is on the page', () => {
+    renderSummary({
+      viewer: { id: 't', role: 'teen' },
+      chores: [{ id: '3', title: 'Bins', dueDay: TODAY, status: 'pending', assigneeId: 't' }],
+      choresHref: '/dashboard/chores',
+    })
+    expect(sentence()).toBe('You have 1 chore left')
+    const link = screen.getByRole('link', { name: /All chores/ })
+    expect(link.getAttribute('href')).toBe('/dashboard/chores')
+    expect(screen.getAllByRole('link')).toHaveLength(1)
   })
 
   it("member: their own count, or done for today", () => {
@@ -148,6 +178,18 @@ describe('HomeSummary localization', () => {
     expect(sentence()).toBe('1 tarea pendiente hoy · Casey 1')
     expect(screen.getByRole('link', { name: '2 tareas por revisar' }).getAttribute('href')).toBe(
       '/dashboard/chores',
+    )
+    expect(screen.queryByRole('link', { name: 'Todas las tareas' })).toBeNull()
+  })
+
+  it('keeps the Spanish "All chores" link for a member who sees only their own list', () => {
+    renderSummary(
+      {
+        viewer: { id: 't', role: 'teen' },
+        chores: [{ id: '3', title: 'Bins', dueDay: TODAY, status: 'pending', assigneeId: 't' }],
+        choresHref: '/dashboard/chores',
+      },
+      'es',
     )
     expect(screen.getByRole('link', { name: 'Todas las tareas' }).getAttribute('href')).toBe(
       '/dashboard/chores',

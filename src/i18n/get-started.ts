@@ -19,8 +19,7 @@ export const getStartedEnglish = {
   setupCalendarTitle: "Connect your calendar",
   setupCalendarHint: "Bring in a Google, Outlook or school calendar",
   setupHidden: "Get started hidden",
-  setupProgress:
-    "{done} of {total} done. A few steps to set up your household.",
+  setupProgress: "{done} of {total} done",
   setupHideLabel: "Hide get started",
   setupHide: "Hide",
   setupSteps: "Setup steps",
@@ -41,8 +40,7 @@ export const getStartedSpanish: Record<GetStartedMessage, string> = {
   setupCalendarTitle: "Conecta tu calendario",
   setupCalendarHint: "Trae un calendario de Google, Outlook o de la escuela",
   setupHidden: "Primeros pasos ocultos",
-  setupProgress:
-    "{done} de {total} completados. Unos pasos para configurar tu hogar.",
+  setupProgress: "{done} de {total} completados",
   setupHideLabel: "Ocultar primeros pasos",
   setupHide: "Ocultar",
   setupSteps: "Pasos de configuración",

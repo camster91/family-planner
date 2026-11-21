@@ -172,6 +172,47 @@ export function comingUp(
   return out
 }
 
+/**
+ * The personal Today page's one-line "Coming up" (Calm Today): the next thing
+ * in the coming days and how many more events follow it. Events come first;
+ * a planned dinner is named only when no event is coming. Null: nothing at all.
+ */
+export interface ComingUpSummary {
+  kind: 'event' | 'dinner'
+  /** Event title, or the dinner's name (null: planned, but not named). */
+  title: string | null
+  day: ComingUpDay
+  /** True when `day` is the first coming day (tomorrow). */
+  tomorrow: boolean
+  /** Other events in the coming days, after the one named. */
+  more: number
+}
+
+export function comingUpSummary(days: ComingUpDay[], mealsEnabled: boolean): ComingUpSummary | null {
+  const total = days.reduce((sum, day) => sum + day.events.length, 0)
+  const eventDay = days.findIndex((day) => day.events.length > 0)
+  if (eventDay >= 0) {
+    return {
+      kind: 'event',
+      title: days[eventDay].events[0].title,
+      day: days[eventDay],
+      tomorrow: eventDay === 0,
+      more: total - 1,
+    }
+  }
+  if (!mealsEnabled) return null
+  const dinnerDay = days.findIndex((day) => day.dinner)
+  if (dinnerDay < 0) return null
+  const dinner = days[dinnerDay].dinner!
+  return {
+    kind: 'dinner',
+    title: dinner.recipeName ?? dinner.recipeTitle ?? null,
+    day: days[dinnerDay],
+    tomorrow: dinnerDay === 0,
+    more: 0,
+  }
+}
+
 /** "9:00 AM" (en-US) / "09:00" (en-GB) in the viewer's zone. */
 export function formatTime(value: Date | string, locale: string = 'en-US'): string {
   return new Date(value).toLocaleTimeString(locale, {

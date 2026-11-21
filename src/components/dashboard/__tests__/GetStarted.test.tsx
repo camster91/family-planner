@@ -1,8 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-// Get started card: four first steps for a parent of a new household, each
-// ticked from real data, gone when all are done or after Hide (with Undo).
+// Get started: one line ("Get started · 3 of 4 done") for a parent of a new
+// household that opens the four first steps in place, each ticked from real
+// data. Gone when all are done or after Hide (with Undo).
 import * as React from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -26,17 +27,51 @@ beforeEach(() => {
   window.localStorage.clear()
 })
 
+/** Opens the folded steps, as a person would. */
+async function openSteps() {
+  await userEvent.setup().click(screen.getByRole('button', { name: /^Get started/ }))
+}
+
 describe('GetStarted', () => {
-  it('keeps original setup art compact and presents the real steps as a tablet row', () => {
+  it('is one line while setup is unfinished: the title, the progress and Hide', () => {
+    renderCard({ steps: { invited: true, hasChore: true, hasEvent: true, hasCalendar: false } })
+    const card = screen.getByRole('region', { name: 'Get started' })
+    const toggle = within(card).getByRole('button', { name: 'Get started 3 of 4 done' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(toggle.className).toContain('min-h-[48px]')
+    expect(within(card).getByRole('button', { name: 'Hide get started' })).toBeTruthy()
+    // The steps are folded away: no list, no step links, no long intro.
+    expect(within(card).queryByRole('list')).toBeNull()
+    expect(within(card).queryByRole('link')).toBeNull()
+    expect(card.textContent).not.toContain('A few steps')
+  })
+
+  it('opens the steps in place and folds them again', async () => {
+    const user = userEvent.setup()
     renderCard()
+    const toggle = screen.getByRole('button', { name: /^Get started/ })
+    await user.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    const steps = screen.getByRole('list', { name: 'Setup steps' })
+    expect(within(steps).getAllByRole('link')).toHaveLength(4)
+    expect(document.getElementById(toggle.getAttribute('aria-controls')!)?.contains(steps)).toBe(true)
+    await user.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('list', { name: 'Setup steps' })).toBeNull()
+  })
+
+  it('keeps original setup art compact and presents the real steps as a tablet row', async () => {
+    renderCard()
+    await openSteps()
     const card = screen.getByTestId('get-started')
     expect(card.querySelector('video, img')?.className).toContain('w-16')
     const steps = within(card).getByRole('list', { name: 'Setup steps' })
     expect(steps.className).toContain('md:grid-cols-2')
     expect(steps.className).toContain('xl:grid-cols-4')
   })
-  it('lists the four steps with links and their status in words', () => {
+  it('lists the four steps with links and their status in words', async () => {
     renderCard()
+    await openSteps()
     const card = screen.getByRole('region', { name: 'Get started' })
     expect(within(card).getByTestId('get-started-progress').textContent).toContain('0 of 4 done')
     const items = within(within(card).getByRole('list', { name: 'Setup steps' })).getAllByRole('listitem')
