@@ -15,7 +15,7 @@ import { getD1Database, type D1Statement, type D1Store, type SqlValue } from './
 import { d1WriteCheck, isD1WriteConflict } from './write-check'
 import { d1CalendarEventDto, type D1CalendarEventRow } from './calendar-events'
 import { attachD1EventParticipants, d1EventParticipantInserts, readD1HouseholdPeople } from './event-participants'
-import { SERIES_COMPLETE, d1SeriesOccurrenceStatements, planSeriesRows, type D1EventSeriesRow } from './event-series'
+import { D1_SERIES_COLUMNS, SERIES_COMPLETE, d1SeriesOccurrenceStatements, planSeriesRows, type D1EventSeriesRow } from './event-series'
 
 type Session = Pick<D1Store, 'prepare' | 'batch'>
 type Authority = { role: string; family_id: string | null; token_version: number; family_exists: string | null }
@@ -38,8 +38,7 @@ async function target(db: Session, actor: PersonEventActor, eventId: string, sta
   if (event.source_subscription_id) return { refused: { status: 409, body: { error: EVENT_READ_ONLY_MESSAGE, code: EVENT_READ_ONLY_CODE } } }
   if (!eventRepeatReady()) return { refused: EVENT_REPEAT_UNSUPPORTED }
   const series = event.series_id === null || event.series_occurrence_start === null ? null
-    : await db.prepare(`SELECT id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,event_type,
-        participants,generated_through,updated_at FROM "EventSeries" WHERE id=?1 AND family_id=?2`).bind(event.series_id, actor.familyId).first<D1EventSeriesRow>()
+    : await db.prepare(`SELECT ${D1_SERIES_COLUMNS} FROM "EventSeries" WHERE id=?1 AND family_id=?2`).bind(event.series_id, actor.familyId).first<D1EventSeriesRow>()
   if (!series) {
     // Events that carry a stored rule or come from a connected calendar keep their own repeat handling.
     return startRepeating && event.series_id === null && event.recurrence === null && event.source_connection_id === null
@@ -87,14 +86,14 @@ export async function updateD1EventFollowing(actor: PersonEventActor, input: z.i
     }
     const plan = planFollowingEdit({
       event: { start: event.start_time, end: event.end_time, title: event.title, description: event.description, location: event.location,
-        event_type: event.event_type, occurrenceStart },
+        event_type: event.event_type, occurrenceStart, allDay: event.all_day === 1 },
       series: series ? { every: series.every as EventRepeatEvery, timeZone: series.time_zone, untilDay: series.until_day, anchorStart: series.anchor_start } : null,
     }, input)
     if (isFollowingRefusal(plan)) return plan
     const now = Date.now()
     const next = plan.rule ? { id: randomUUID(), ...planSeriesRows(plan.rule, -1, Math.max(seriesTopUpTarget(now), plan.start)) } : null
     const { title, description, location, event_type } = plan.template
-    const values: SqlValue[] = [event.id, actor.familyId, title, description, location, event_type, plan.start, plan.end, now, next?.id ?? null]
+    const values: SqlValue[] = [event.id, actor.familyId, title, description, location, event_type, plan.start, plan.end, now, next?.id ?? null, plan.allDay ? 1 : 0]
     const statements: D1Statement[] = [
       ...guards(db, actor, event, series),
       // Every later repeat is rewritten below, including ones changed on their own: keeping those would leave two events on one day.
@@ -103,18 +102,18 @@ export async function updateD1EventFollowing(actor: PersonEventActor, input: z.i
         endPrevious(db, series, plan.previous.kind === 'remove', occurrenceStart, now),
       ] : []),
     ]
-    if (next && plan.rule) statements.push(db.prepare(`INSERT INTO "EventSeries" (id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,event_type,participants,generated_through,created_at,updated_at)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15)`)
+    if (next && plan.rule) statements.push(db.prepare(`INSERT INTO "EventSeries" (id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,event_type,participants,generated_through,created_at,updated_at,all_day)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15,?16)`)
       .bind(next.id, actor.familyId, owner, plan.rule.every, plan.rule.timeZone, plan.start, plan.end - plan.start, plan.rule.untilDay,
-        title, description, location, event_type, JSON.stringify(refs), next.generatedThrough, now))
-    statements.push(db.prepare(`UPDATE "Event" SET title=?3,description=?4,location=?5,event_type=?6,start_time=?7,end_time=?8,updated_at=?9,
+        title, description, location, event_type, JSON.stringify(refs), next.generatedThrough, now, plan.allDay ? 1 : 0))
+    statements.push(db.prepare(`UPDATE "Event" SET title=?3,description=?4,location=?5,event_type=?6,start_time=?7,end_time=?8,updated_at=?9,all_day=?11,
         series_id=?10,series_occurrence_start=CASE WHEN ?10 IS NULL THEN NULL ELSE ?7 END,series_detached=0 WHERE id=?1 AND family_id=?2`).bind(...values))
     if (input.participants !== undefined) {
       statements.push(db.prepare(`DELETE FROM "EventParticipant" WHERE event_id=?1 AND family_id=?2`).bind(event.id, actor.familyId))
       statements.push(...d1EventParticipantInserts(db, event.id, actor.familyId, refs, now))
     }
-    if (next) statements.push(...d1SeriesOccurrenceStatements(db, { id: next.id, family_id: actor.familyId, created_by: owner,
-      duration_ms: plan.end - plan.start, title, description, location, event_type }, next.starts.filter((start) => start !== plan.start), refs, now))
+    if (next && plan.rule) statements.push(...d1SeriesOccurrenceStatements(db, { id: next.id, family_id: actor.familyId, created_by: owner,
+      duration_ms: plan.end - plan.start, all_day: plan.allDay, time_zone: plan.rule.timeZone, title, description, location, event_type }, next.starts.filter((start) => start !== plan.start), refs, now))
     try { await db.batch(statements) } catch (cause) { if (isD1WriteConflict(cause)) continue; throw cause }
     const after = await db.prepare(EVENT).bind(actor.familyId, event.id).first<EventRow>()
     if (!after) throw new Error('D1 event series update response missing')

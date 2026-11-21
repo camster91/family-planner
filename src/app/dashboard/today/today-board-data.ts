@@ -78,6 +78,11 @@ export interface BoardEvent {
   title: string
   start: string
   end: string
+  /**
+   * No time of day (src/lib/all-day.ts): the board says "All day" and lists it
+   * first. Only sent when true, so older clients and stored rows are unchanged.
+   */
+  allDay?: boolean
   isTask: boolean
   /** Subscribed calendar the event was imported from (#232), for the "From …" label. */
   source: { name: string; color: string | null } | null
@@ -506,6 +511,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         title: true,
         start_time: true,
         end_time: true,
+        all_day: true,
         is_task: true,
         source_subscription_id: true,
         source_connection_id: true,
@@ -730,6 +736,7 @@ export async function buildTodayBoard(db: Db, options: BuildTodayBoardOptions): 
         title: e.title,
         start: e.start_time.toISOString(),
         end: e.end_time.toISOString(),
+        ...(e.all_day ? { allDay: true } : {}),
         isTask: e.is_task,
         source: e.source_subscription_id
           ? {

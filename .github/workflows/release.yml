@@ -192,6 +192,7 @@ jobs:
           src/lib/__tests__/person-event-create.integration.test.ts
           src/lib/__tests__/event-participants.integration.test.ts
           src/lib/__tests__/event-series.integration.test.ts
+          src/lib/__tests__/event-all-day.integration.test.ts
           src/lib/__tests__/event-reminders.integration.test.ts
           src/lib/__tests__/list-tasks.integration.test.ts
           src/app/api/chores/__tests__/paging.integration.test.ts

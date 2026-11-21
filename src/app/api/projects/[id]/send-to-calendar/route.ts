@@ -145,6 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 start_time: start,
                 end_time: end,
                 event_type: 'other',
+                all_day: true,
                 is_task: true,
                 project_id: projectId,
                 source_uid: projectTaskUid(task.id),

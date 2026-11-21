@@ -174,7 +174,7 @@ describe('ImportEventsDialog', () => {
     expect(commit.headers['Idempotency-Key']).toMatch(/^[A-Za-z0-9_-]{16,128}$/)
     expect(commit.body).toEqual({
       events: [
-        { title: 'Picture day', description: null, start_time: '2026-10-02T04:00:00.000Z', end_time: '2026-10-03T03:59:00.000Z', location: null },
+        { title: 'Picture day', description: null, start_time: '2026-10-02T04:00:00.000Z', end_time: '2026-10-03T03:59:00.000Z', location: null, all_day: true },
         {
           title: 'School bake sale', description: 'Bring $2', start_time: '2026-10-09T19:30:00.000Z',
           end_time: '2026-10-09T21:00:00.000Z', location: 'Gym',

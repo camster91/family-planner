@@ -725,7 +725,7 @@ export async function readD1TodayBoard(
       : Promise.resolve({ results: [] as Row[] }),
     db
       .prepare(
-        `SELECT e.id,e.title,e.start_time,e.end_time,e.is_task,e.source_subscription_id,e.source_connection_id,e.created_by,s.name AS source_name,s.color AS source_color
+        `SELECT e.id,e.title,e.start_time,e.end_time,e.all_day,e.is_task,e.source_subscription_id,e.source_connection_id,e.created_by,s.name AS source_name,s.color AS source_color
       FROM "Event" e LEFT JOIN "CalendarSubscription" s ON s.id=e.source_subscription_id AND s.family_id=e.family_id
       WHERE e.family_id=?1 AND e.end_time>?2 AND e.start_time<?3 ORDER BY e.start_time ASC,e.id ASC LIMIT ?4`,
       )
@@ -915,6 +915,7 @@ export async function readD1TodayBoard(
     title: String(row.title),
     start: date(row.start_time).toISOString(),
     end: date(row.end_time).toISOString(),
+    ...(bool(row.all_day) ? { allDay: true } : {}),
     isTask: bool(row.is_task),
     source: row.source_subscription_id
       ? {

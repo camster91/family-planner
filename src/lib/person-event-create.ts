@@ -85,6 +85,7 @@ export async function createPersonEvent(
         family_id: actor.familyId, created_by: actor.userId, every: rule.every, time_zone: rule.timeZone, anchor_start: new Date(startMs),
         duration_ms: endMs - startMs, until_day: rule.untilDay, title: input.title, description: input.description || null,
         location: input.location || null, event_type: input.event_type, participants: JSON.stringify(refs), generated_through: plan.generatedThrough,
+        all_day: input.all_day === true,
       } });
       series = { id: row.id, starts: plan.starts };
     }
@@ -100,6 +101,7 @@ export async function createPersonEvent(
         location: input.location || null,
         event_type: input.event_type,
         recurrence: input.recurrence || null,
+        all_day: input.all_day === true,
       },
     });
     await tx.activity.create({
@@ -113,6 +115,7 @@ export async function createPersonEvent(
     });
     if (refs.length) await replaceEventParticipantsInTx(tx, event.id, actor.familyId, refs);
     if (series) await writeSeriesOccurrencesInTx(tx, { id: series.id, family_id: actor.familyId, created_by: actor.userId, duration_ms: endMs - startMs,
+      all_day: event.all_day, time_zone: input.repeat!.time_zone,
       title: event.title, description: event.description, location: event.location, event_type: event.event_type }, series.starts.filter((start) => start !== startMs), refs);
     const body = JSON.parse(
       JSON.stringify({ event: { ...event, participants } }),

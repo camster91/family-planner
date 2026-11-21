@@ -13,6 +13,7 @@
  * that pass none.
  */
 import { parseDateOnly, toDateOnlyLocal } from '@/lib/dates'
+import { allDayCovers, allDayDays } from '@/lib/all-day'
 import type {
   BoardChore,
   BoardDinner,
@@ -55,21 +56,27 @@ export function eventsLeftToday(events: BoardEvent[], now: Date): TodayEvent[] {
   const today = localDayKey(now)
   const t = now.getTime()
   return events
-    .filter((e) => new Date(e.end).getTime() > t)
-    .filter((e) => toDateOnlyLocal(new Date(e.start)) <= today)
+    // An all-day event belongs to its calendar days, not to a clock time.
+    .filter((e) => (e.allDay ? allDayCovers(e, today) : new Date(e.end).getTime() > t && toDateOnlyLocal(new Date(e.start)) <= today))
     .map((e) => ({
       ...e,
-      happeningNow: new Date(e.start).getTime() <= t,
-      startedEarlier: toDateOnlyLocal(new Date(e.start)) < today,
+      // "Now" is for something with a start time; an all-day event never shows it.
+      happeningNow: !e.allDay && new Date(e.start).getTime() <= t,
+      startedEarlier: e.allDay ? (allDayDays(e.start, e.end)?.first ?? today) < today : toDateOnlyLocal(new Date(e.start)) < today,
     }))
-    .sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))
+    .sort(allDayFirst)
 }
 
-/** Events that start on the given local day. */
+/** All-day events lead the day; then by start time. */
+function allDayFirst(a: BoardEvent, b: BoardEvent): number {
+  return Number(Boolean(b.allDay)) - Number(Boolean(a.allDay)) || a.start.localeCompare(b.start) || a.id.localeCompare(b.id)
+}
+
+/** Events that start on the given local day, and all-day events that are on it. */
 export function eventsStartingOn(events: BoardEvent[], dayKey: string): BoardEvent[] {
   return events
-    .filter((e) => toDateOnlyLocal(new Date(e.start)) === dayKey)
-    .sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))
+    .filter((e) => (e.allDay ? allDayCovers(e, dayKey) : toDateOnlyLocal(new Date(e.start)) === dayKey))
+    .sort(allDayFirst)
 }
 
 /** The dinner planned for a local day, if any (first one wins). */
@@ -189,7 +196,8 @@ export interface ComingUpSummary {
 }
 
 export function comingUpSummary(days: ComingUpDay[], mealsEnabled: boolean): ComingUpSummary | null {
-  const total = days.reduce((sum, day) => sum + day.events.length, 0)
+  // An all-day event that runs over several days is on each of them: count it once.
+  const total = new Set(days.flatMap((day) => day.events.map((event) => event.id))).size
   const eventDay = days.findIndex((day) => day.events.length > 0)
   if (eventDay >= 0) {
     return {
@@ -374,11 +382,16 @@ export function nextEvent(events: BoardEvent[], now: Date, locale: string = 'en-
     .sort((a, b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id))[0]
   if (!next) return null
   const start = new Date(next.start)
-  const day = toDateOnlyLocal(start)
-  const time = formatTime(start, locale)
+  // An all-day event is named by its day alone, never by "12:00 AM".
+  const allDay = next.allDay ? allDayDays(next.start, next.end) : null
+  const day = allDay?.first ?? toDateOnlyLocal(start)
+  const time = allDay ? '' : formatTime(start, locale)
+  const weekday = allDay
+    ? new Date(`${allDay.first}T00:00:00Z`).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })
+    : start.toLocaleDateString(locale, { weekday: 'short' })
   let when = time
-  if (day === localDayKey(now, 1)) when = `Tomorrow ${time}`
-  else if (day !== localDayKey(now)) when = `${start.toLocaleDateString(locale, { weekday: 'short' })} ${time}`
+  if (day === localDayKey(now, 1)) when = `Tomorrow ${time}`.trim()
+  else if (day !== localDayKey(now) || allDay) when = `${weekday} ${time}`.trim()
   return { title: next.title, when }
 }
 

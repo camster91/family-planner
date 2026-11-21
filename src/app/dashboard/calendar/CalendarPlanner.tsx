@@ -38,6 +38,7 @@ import {
 } from "@/lib/calendar-planning/fetch";
 import { CALENDAR_CHANGED_EVENT } from "@/lib/calendar-planning/changes";
 import styles from "./calendar-planner.module.css";
+import { allDayCovers, allDayDays } from "@/lib/all-day";
 import { EventPeopleLine } from "@/components/calendar/EventPeopleLine";
 import { MEMBER_COLOR_CSS, isMemberColorKey } from "@/lib/member-colors";
 import { PersonFilter } from "@/components/ui/person-filter";
@@ -323,20 +324,124 @@ export function CalendarPlanner({
     () => overlappingEvents(filtered, { start, end }),
     [filtered, start, end],
   );
-  const hasVisible = days.some((day) =>
-    filtered.some((e) => segmentEvent(e, day, local)),
+  // All-day events sit in their own strip at the top of a day and never on
+  // the hour grid. They belong to calendar days, not to clock times.
+  const timed = React.useMemo(
+    () => filtered.filter((e) => e.all_day !== true),
+    [filtered],
   );
+  const allDayOn = (day: Date) =>
+    filtered.filter(
+      (e) =>
+        e.all_day === true &&
+        allDayCovers(
+          { start: e.start_time, end: e.end_time },
+          dayKey(day, local),
+        ),
+    );
+  const timedOn = (day: Date) =>
+    timed.filter((e) => segmentEvent(e, day, local));
+  const hasVisible = days.some(
+    (day) => allDayOn(day).length > 0 || timedOn(day).length > 0,
+  );
+  const calendarDay = (key: string, options: Intl.DateTimeFormatOptions) =>
+    new Date(`${key}T00:00:00Z`).toLocaleDateString(locale, {
+      ...options,
+      timeZone: "UTC",
+    });
+  const allDayButton = (e: PlanningEvent) => {
+    const span = allDayDays(e.start_time, e.end_time);
+    const personColor = e.participants?.find((person) =>
+      isMemberColorKey(person.color),
+    )?.color;
+    return (
+      <button
+        type="button"
+        className={styles.event}
+        data-all-day="true"
+        data-testid="calendar-all-day-event"
+        data-person-color={personColor}
+        style={
+          personColor && isMemberColorKey(personColor)
+            ? ({
+                "--event-person-color": MEMBER_COLOR_CSS[personColor],
+              } as React.CSSProperties)
+            : undefined
+        }
+        data-calendar-kind={
+          e.source_subscription_id || e.source
+            ? "subscribed"
+            : e.source_connection_id
+              ? "connected"
+              : "local"
+        }
+        onClick={(ev) => {
+          trigger.current = ev.currentTarget;
+          setSelected(e);
+        }}
+      >
+        <span className={styles.eventContent}>
+          <span className={styles.allDayLabel}>{msg("allDay")}</span>
+          <strong>{e.title}</strong>
+          <EventPeopleLine
+            className={styles.eventPeople}
+            people={e.participants}
+            label={msg("eventFor")}
+          />
+          {e.series_id && (
+            <small data-testid="event-repeats">{msg("repeats")}</small>
+          )}
+          {!isLocalEvent(e) && <small>{sourceLabel(e)}</small>}
+          {span && span.first !== span.last && (
+            <small>
+              {msg("allDayDates", {
+                start: calendarDay(span.first, {
+                  month: "short",
+                  day: "numeric",
+                }),
+                end: calendarDay(span.last, { month: "short", day: "numeric" }),
+              })}
+            </small>
+          )}
+        </span>
+      </button>
+    );
+  };
+  const allDayStrip = (day: Date) => {
+    const rows = allDayOn(day);
+    return rows.length > 0 ? (
+      <div
+        role="group"
+        aria-label={msg("allDay")}
+        className={styles.allDayStrip}
+        data-testid="calendar-all-day"
+      >
+        {rows.map((e) => (
+          <React.Fragment key={e.id}>{allDayButton(e)}</React.Fragment>
+        ))}
+      </div>
+    ) : null;
+  };
   const eventButton = (e: PlanningEvent, day: Date) => {
+    if (e.all_day === true) return allDayButton(e);
     const segment = segmentEvent(e, day, local)!;
     // Colour by person: the first person the event is for tints the chip.
     // Names stay visible on the chip, so colour never carries meaning alone.
-    const personColor = e.participants?.find((person) => isMemberColorKey(person.color))?.color;
+    const personColor = e.participants?.find((person) =>
+      isMemberColorKey(person.color),
+    )?.color;
     return (
       <button
         type="button"
         className={styles.event}
         data-person-color={personColor}
-        style={personColor && isMemberColorKey(personColor) ? ({ "--event-person-color": MEMBER_COLOR_CSS[personColor] } as React.CSSProperties) : undefined}
+        style={
+          personColor && isMemberColorKey(personColor)
+            ? ({
+                "--event-person-color": MEMBER_COLOR_CSS[personColor],
+              } as React.CSSProperties)
+            : undefined
+        }
         data-calendar-kind={
           e.source_subscription_id || e.source
             ? "subscribed"
@@ -360,8 +465,14 @@ export function CalendarPlanner({
                   : `${time(segment.start)}${+segment.start !== +segment.end ? ` – ${time(segment.end)}` : ""}`}
           </span>
           <strong>{e.title}</strong>
-          <EventPeopleLine className={styles.eventPeople} people={e.participants} label={msg("eventFor")} />
-          {e.series_id && <small data-testid="event-repeats">{msg("repeats")}</small>}
+          <EventPeopleLine
+            className={styles.eventPeople}
+            people={e.participants}
+            label={msg("eventFor")}
+          />
+          {e.series_id && (
+            <small data-testid="event-repeats">{msg("repeats")}</small>
+          )}
           {!isLocalEvent(e) && <small>{sourceLabel(e)}</small>}
           {segment.continuesBefore && (
             <small>
@@ -639,7 +750,9 @@ export function CalendarPlanner({
                               setSelected(event);
                             }}
                           >
-                            <span className="sr-only">{msg("reviewEvent")} </span>
+                            <span className="sr-only">
+                              {msg("reviewEvent")}{" "}
+                            </span>
                             <strong>{event.title}</strong>
                             {!isLocalEvent(event) && (
                               <>
@@ -773,9 +886,8 @@ export function CalendarPlanner({
                           </div>
                         ))}
                         {days.map((day) => {
-                          const rows = filtered.filter((event) =>
-                            segmentEvent(event, day, local),
-                          );
+                          // All-day events lead the day and keep a visible label.
+                          const rows = [...allDayOn(day), ...timedOn(day)];
                           const key = dayKey(day, local);
                           const outside = key.slice(0, 7) !== date.slice(0, 7);
                           return (
@@ -833,16 +945,14 @@ export function CalendarPlanner({
                             day: "numeric",
                           })}
                         </h2>
-                        {filtered
-                          .filter((e) => segmentEvent(e, day, local))
-                          .map((e) => (
-                            <React.Fragment key={e.id}>
-                              {eventButton(e, day)}
-                            </React.Fragment>
-                          ))}
-                        {!filtered.some((e) => segmentEvent(e, day, local)) && (
-                          <p>{msg("emptyDay")}</p>
-                        )}
+                        {allDayStrip(day)}
+                        {timedOn(day).map((e) => (
+                          <React.Fragment key={e.id}>
+                            {eventButton(e, day)}
+                          </React.Fragment>
+                        ))}
+                        {allDayOn(day).length === 0 &&
+                          timedOn(day).length === 0 && <p>{msg("emptyDay")}</p>}
                       </section>
                     ))}
                   </div>
@@ -855,6 +965,30 @@ export function CalendarPlanner({
                       >
                         {msg("scrollWeek")}
                       </p>
+                    )}
+                    {days.some((day) => allDayOn(day).length > 0) && (
+                      <section
+                        className={styles.allDaySection}
+                        aria-label={msg("allDay")}
+                      >
+                        <h2>{msg("allDay")}</h2>
+                        {days.map((day) =>
+                          allDayOn(day).length > 0 ? (
+                            <div key={dayKey(day, local)}>
+                              {view === "week" && (
+                                <h3>
+                                  {format(day, {
+                                    weekday: "long",
+                                    month: "long",
+                                    day: "numeric",
+                                  })}
+                                </h3>
+                              )}
+                              {allDayStrip(day)}
+                            </div>
+                          ) : null,
+                        )}
+                      </section>
                     )}
                     <div
                       ref={gridViewport}
@@ -870,7 +1004,7 @@ export function CalendarPlanner({
                       <div
                         className={styles.grid}
                         style={{
-                          gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(110, layoutDayEvents(filtered, day, local).lanes * 52)}px,1fr)`).join(" ")}`,
+                          gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(110, layoutDayEvents(timed, day, local).lanes * 52)}px,1fr)`).join(" ")}`,
                         }}
                       >
                         <div className={styles.hours}>
@@ -887,7 +1021,7 @@ export function CalendarPlanner({
                           ))}
                         </div>
                         {days.map((day) => {
-                          const layout = layoutDayEvents(filtered, day, local);
+                          const layout = layoutDayEvents(timed, day, local);
                           return (
                             <section
                               className={styles.dayColumn}
@@ -940,8 +1074,8 @@ export function CalendarPlanner({
                     </div>
                     {days.some(
                       (day) =>
-                        layoutDayEvents(filtered, day, local).lateEvents
-                          .length > 0,
+                        layoutDayEvents(timed, day, local).lateEvents.length >
+                        0,
                     ) && (
                       <section
                         className={styles.agenda}
@@ -951,7 +1085,7 @@ export function CalendarPlanner({
                         <p>{msg("lateHelp")}</p>
                         {days.map((day) => {
                           const lateEvents = layoutDayEvents(
-                            filtered,
+                            timed,
                             day,
                             local,
                           ).lateEvents;
@@ -1001,34 +1135,51 @@ export function CalendarPlanner({
           onCancel={() => setSelected(null)}
         >
           <h2 id="event-detail-title">{selected.title}</h2>
-          <p>
-            <time dateTime={selected.start_time}>
-              {format(new Date(selected.start_time), {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                timeZoneName: "short",
-              })}
-            </time>{" "}
-            –{" "}
-            <time dateTime={selected.end_time}>
-              {format(new Date(selected.end_time), {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                timeZoneName: "short",
-              })}
-            </time>
-          </p>
+          {selected.all_day === true ? (
+            <p data-testid="event-detail-all-day">
+              {(() => {
+                const span = allDayDays(selected.start_time, selected.end_time);
+                const long: Intl.DateTimeFormatOptions = {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                };
+                if (!span) return msg("allDay");
+                return `${span.first === span.last ? calendarDay(span.first, long) : msg("allDayDates", { start: calendarDay(span.first, long), end: calendarDay(span.last, long) })} · ${msg("allDay")}`;
+              })()}
+            </p>
+          ) : (
+            <p>
+              <time dateTime={selected.start_time}>
+                {format(new Date(selected.start_time), {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZoneName: "short",
+                })}
+              </time>{" "}
+              –{" "}
+              <time dateTime={selected.end_time}>
+                {format(new Date(selected.end_time), {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZoneName: "short",
+                })}
+              </time>
+            </p>
+          )}
           {!!selected.participants?.length && (
             <p>
-              {msg("eventFor")} <EventPeopleLine people={selected.participants} label="" />
+              {msg("eventFor")}{" "}
+              <EventPeopleLine people={selected.participants} label="" />
             </p>
           )}
           {!isLocalEvent(selected) && <p>{sourceLabel(selected)}</p>}
@@ -1055,19 +1206,21 @@ export function CalendarPlanner({
                 setSelected(null);
               }}
             />
-            <ScheduleReviewButton
-              scope={{
-                targetId: selected.id,
-                range: { start, end },
-                timeZone: local
-                  ? Intl.DateTimeFormat().resolvedOptions().timeZone
-                  : "UTC",
-              }}
-              beforeOpen={() => {
-                dialog.current?.close?.();
-                setSelected(null);
-              }}
-            />
+            {selected.all_day !== true && (
+              <ScheduleReviewButton
+                scope={{
+                  targetId: selected.id,
+                  range: { start, end },
+                  timeZone: local
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : "UTC",
+                }}
+                beforeOpen={() => {
+                  dialog.current?.close?.();
+                  setSelected(null);
+                }}
+              />
+            )}
             {canEditEvents &&
               !selected.source_subscription_id &&
               !selected.source && (

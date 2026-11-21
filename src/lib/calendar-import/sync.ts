@@ -50,6 +50,7 @@ type ExistingRow = {
   location: string | null;
   start_time: Date;
   end_time: Date;
+  all_day: boolean;
 };
 
 const keyOf = (uid: string, occurrence: Date) =>
@@ -77,6 +78,8 @@ export async function reconcileOccurrencesInTx(
   const fieldsOf = (occ: ImportedOccurrence) => ({
     title: occ.title, description: occ.description, location: occ.location,
     start_time: occ.start, end_time: occ.end,
+    // DATE-valued DTSTART: no time of day (src/lib/all-day.ts).
+    all_day: occ.allDay === true,
   });
   const batchSize = 200;
   // Keep only the bounded incoming feed plus one existing-row batch in memory.
@@ -93,7 +96,7 @@ export async function reconcileOccurrencesInTx(
       select: {
         id: true, source_uid: true, source_occurrence_start: true,
         title: true, description: true, location: true,
-        start_time: true, end_time: true,
+        start_time: true, end_time: true, all_day: true,
       },
       orderBy: { id: "asc" }, take: batchSize,
     });
@@ -111,7 +114,8 @@ export async function reconcileOccurrencesInTx(
         if (row.title !== fields.title || (row.description ?? null) !== fields.description ||
           (row.location ?? null) !== fields.location ||
           new Date(row.start_time).getTime() !== fields.start_time.getTime() ||
-          new Date(row.end_time).getTime() !== fields.end_time.getTime()) {
+          new Date(row.end_time).getTime() !== fields.end_time.getTime() ||
+          Boolean(row.all_day) !== fields.all_day) {
           await tx.event.update({
             where: { id: row.id, family_id: sub.family_id, source_subscription_id: sub.id },
             data: fields,

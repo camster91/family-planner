@@ -38,6 +38,22 @@ kill switch. The Worker secret `FAMILY_AI_ANTHROPIC_API_KEY` is **not** set.
 No real provider call, migration apply or deployment was made. See
 `docs/plans/ai-claude-v1.md`.
 
+## All-day events (UI review item 9) — 2026-11-21
+
+Branch `all-day-events` adds `Event.all_day` and `EventSeries.all_day` (both
+default false): D1 migration `0025_event_all_day.sql` and the PostgreSQL
+`migration-zzzzzzzzzzzzzzzzzzzz-event-all-day.sql`. The event forms get an "All
+day" switch; the calendar shows all-day events in their own strip; Today lists
+them first. Rules and storage are in `docs/product/CALENDAR_WORKSPACE.md` and
+`src/lib/all-day.ts`.
+
+**Order matters.** `0025` must be applied to the live D1 database **before**
+this source is deployed. Event reads and writes name the new column, so new
+code on a database without it fails every calendar and Today read. The
+migration itself is safe to apply first: the code that is live today never
+names the column and keeps working with it present. No migration was applied
+and nothing was deployed from this branch.
+
 ## Historical migration execution notes
 
 # Cross-account hostname compatibility — 2026-10-29

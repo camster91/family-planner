@@ -35,6 +35,7 @@ export async function updatePersonEvent(
       return { status: 400, body: { error: "Invalid start or end time" } };
     if ((input.start_time !== undefined || input.end_time !== undefined) && end && end < start)
       return { status: 400, body: { error: "End time must be after start time" } };
+    // `updates` carries all_day when sent; the schema already tied it to both times.
     const { eventId, expected_recurrence: _expectedRecurrence, participants, series_scope: _scope, repeat: _repeat, ...updates } = input;
     void _expectedRecurrence; void _scope; void _repeat;
     if (participants !== undefined) {

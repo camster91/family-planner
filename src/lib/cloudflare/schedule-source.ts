@@ -143,7 +143,7 @@ export async function captureD1ScheduleSource(
   if (!isFeatureEnabled(normalizeFeatures(features), "calendar"))
     throw new ScheduleReviewError("FORBIDDEN");
   const events = await read<Comparison>(
-    `SELECT id,title,start_time AS start,end_time AS end,schedule_generation AS generation,schedule_epoch AS epoch,recurrence,source_subscription_id AS sourceSubscriptionId,source_connection_id AS sourceConnectionId FROM Event WHERE family_id=?1 AND (id=?2 OR recurrence IS NOT NULL OR end_time<=start_time OR (start_time<?3 AND end_time>?4)) ORDER BY (id=?2) DESC,id LIMIT 501`,
+    `SELECT id,title,start_time AS start,end_time AS end,schedule_generation AS generation,schedule_epoch AS epoch,recurrence,source_subscription_id AS sourceSubscriptionId,source_connection_id AS sourceConnectionId FROM Event WHERE family_id=?1 AND (id=?2 OR (all_day=0 AND (recurrence IS NOT NULL OR end_time<=start_time OR (start_time<?3 AND end_time>?4)))) ORDER BY (id=?2) DESC,id LIMIT 501`,
     [actor.familyId, scope.targetId, last, first],
     eventColumns,
   );

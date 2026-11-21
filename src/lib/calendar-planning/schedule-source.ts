@@ -101,8 +101,10 @@ export function scheduleComparisonPredicate(
     throw new ScheduleReviewError("INVALID_WINDOW");
   const target =
     targetId === null ? Prisma.sql`false` : Prisma.sql`"id" = ${targetId}`;
-  return Prisma.sql`"family_id" = ${familyId} AND (${target} OR "recurrence" IS NOT NULL OR "end_time" <= "start_time" OR
-    ("start_time" < (${paddedEnd.toISOString()}::timestamptz AT TIME ZONE 'UTC') AND "end_time" > (${paddedStart.toISOString()}::timestamptz AT TIME ZONE 'UTC')))`;
+  // An all-day event has no time of day, so it is never compared as busy time
+  // (src/lib/all-day.ts). The event under review itself is always read.
+  return Prisma.sql`"family_id" = ${familyId} AND (${target} OR ("all_day" = false AND ("recurrence" IS NOT NULL OR "end_time" <= "start_time" OR
+    ("start_time" < (${paddedEnd.toISOString()}::timestamptz AT TIME ZONE 'UTC') AND "end_time" > (${paddedStart.toISOString()}::timestamptz AT TIME ZONE 'UTC')))))`;
 }
 export type ScheduleComparisonRow = ScheduleEventSource & {
   title: string;

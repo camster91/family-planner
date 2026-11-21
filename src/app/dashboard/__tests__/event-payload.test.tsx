@@ -37,6 +37,7 @@ jest.mock("@/lib/calendar-import/sync", () => ({
 }));
 
 const eventStart = new Date("2026-10-12T18:00:00.000Z");
+const eventEnd = new Date("2026-10-12T19:00:00.000Z");
 
 describe("/dashboard child and teen event presentation", () => {
   beforeEach(() => {
@@ -51,6 +52,8 @@ describe("/dashboard child and teen event presentation", () => {
         id: "event-1",
         title: "School concert",
         start_time: eventStart,
+        end_time: eventEnd,
+        all_day: false,
         location: "Town hall",
         description: "EXTRA_EVENT_DESCRIPTION_SENTINEL",
         family_id: "home",
@@ -76,6 +79,10 @@ describe("/dashboard child and teen event presentation", () => {
           id: "event-1",
           title: "School concert",
           start_time: eventStart.toISOString(),
+          // When it ends and whether it is all day: needed to say "All day"
+          // and to keep an all-day event on its day. Still no private field.
+          end_time: eventEnd.toISOString(),
+          all_day: false,
           location: "Town hall",
         },
       ]);
@@ -88,12 +95,18 @@ describe("/dashboard child and teen event presentation", () => {
         expect.objectContaining({
           where: {
             family_id: "home",
-            start_time: { gte: expect.any(Date) },
+            // Still to start, or an all-day event that is on now.
+            OR: [
+              { start_time: { gte: expect.any(Date) } },
+              { all_day: true, end_time: { gt: expect.any(Date) } },
+            ],
           },
           select: {
             id: true,
             title: true,
             start_time: true,
+            end_time: true,
+            all_day: true,
             location: true,
           },
         }),

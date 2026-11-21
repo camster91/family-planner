@@ -21,6 +21,7 @@
 // calendar day, src/lib/dates.ts), compared by their `YYYY-MM-DD`. Events are
 // instants, placed on the person's local day in `timeZone`.
 
+import { allDayDays } from '@/lib/all-day'
 import { dayKeyFor } from '@/lib/local-day-key'
 import { isOpenStatus } from '@/lib/home-summary'
 import { localMinutes } from '@/lib/quiet-hours'
@@ -45,6 +46,8 @@ export interface SummaryEvent {
   title: string
   start: Date
   end: Date
+  /** No time of day (src/lib/all-day.ts): always reads "all day". */
+  allDay?: boolean
 }
 
 export interface SummaryDinner {
@@ -153,6 +156,8 @@ export function eventsOnDay(events: readonly SummaryEvent[], dayKey: string, tim
   return events
     .filter((e) => e.end.getTime() >= e.start.getTime())
     .map((e) => {
+      const days = e.allDay ? allDayDays(e.start, e.end) : null
+      if (days) return { e, startKey: days.first, lastKey: days.last }
       const startKey = key(e.start)
       const lastKey = e.end.getTime() > e.start.getTime() ? key(new Date(e.end.getTime() - 1)) : startKey
       return { e, startKey, lastKey }
@@ -163,7 +168,7 @@ export function eventsOnDay(events: readonly SummaryEvent[], dayKey: string, tim
       const coversStart = startKey < dayKey || localMinutes(e.start, timeZone) === 0
       const coversEnd = lastKey > dayKey || (e.end.getTime() > e.start.getTime() && localMinutes(e.end, timeZone) === 0)
       let when: string
-      if (coversStart && coversEnd) when = 'all day'
+      if (e.allDay || (coversStart && coversEnd)) when = 'all day'
       else if (startKey === dayKey) when = `at ${formatClock(e.start, timeZone, displayLocale)}`
       else when = `until ${formatClock(e.end, timeZone, displayLocale)}`
       return { title: cleanTitle(e.title) || 'Event', when }

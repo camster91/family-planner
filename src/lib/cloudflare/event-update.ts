@@ -41,6 +41,8 @@ export async function updateD1PersonEvent(actor: PersonEventActor, input: z.infe
     if (column === 'start_time') startExpression = expression
     else endExpression = expression
   }
+  // The schema only lets all_day turn on together with both times.
+  if (input.all_day !== undefined) assignments.push(`all_day=${bind(input.all_day ? 1 : 0)}`)
   assignments.push(`updated_at=${bind(Date.now())}`)
   // Changing one repeat on its own takes it out of later "this and later" rewrites.
   assignments.push(`series_detached=CASE WHEN e.series_id IS NULL THEN e.series_detached ELSE 1 END`)

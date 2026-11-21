@@ -41,7 +41,7 @@ export async function writeDueEventReminders(db: Pick<PrismaClient, '$transactio
     const timeZone = reminderTimeZone(browserTimeZone, user.quiet_hours_time_zone, user.morning_summary_time_zone)
     if (!timeZone) return 0
     const events = await tx.event.findMany({ where: due(familyId), orderBy: [{ start_time: 'asc' }, { id: 'asc' }], take: REMINDER_SCAN,
-      select: { id: true, title: true, start_time: true, participants: { select: { user_id: true, member_id: true } } } })
+      select: { id: true, title: true, start_time: true, all_day: true, participants: { select: { user_id: true, member_id: true } } } })
     // People who have since left or been archived no longer count, as on every read.
     const current = eventPeopleReady() ? await readHouseholdPeople(tx, familyId) : null
     let written = 0
@@ -55,7 +55,7 @@ export async function writeDueEventReminders(db: Pick<PrismaClient, '$transactio
         VALUES (${randomUUID()}, ${event.id}, ${familyId}, ${actor.userId}) ON CONFLICT ("event_id","user_id") DO NOTHING RETURNING "id"`
       if (!proof.length) continue
       const result = await deliverNotificationInTx(tx, { userId: actor.userId, familyId, type: 'event',
-        ...reminderText({ title: event.title, start: event.start_time.getTime() }, timeZone, now.getTime()),
+        ...reminderText({ title: event.title, start: event.start_time.getTime(), allDay: event.all_day }, timeZone, now.getTime()),
         actionUrl: eventNotificationDestination(event.id) }, now)
       if (result.delivered) written += 1
     }

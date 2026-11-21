@@ -6,9 +6,9 @@ import { MEMBER_ID_PATTERN } from '@/lib/member-identity-schema'
 import { getD1Database, type D1Store, type SqlValue } from './database'
 import { attachD1EventParticipants } from './event-participants'
 
-export type D1CalendarEventRow = Omit<Event, 'start_time' | 'end_time' | 'created_at' | 'updated_at' | 'source_occurrence_start' | 'is_task'> & {
+export type D1CalendarEventRow = Omit<Event, 'start_time' | 'end_time' | 'created_at' | 'updated_at' | 'source_occurrence_start' | 'is_task' | 'all_day'> & {
   start_time: number; end_time: number; created_at: number; updated_at: number;
-  source_occurrence_start: number | null; is_task: number;
+  source_occurrence_start: number | null; is_task: number; all_day: number;
   creator_id: string | null; creator_name: string | null; source_name: string | null; source_color: string | null;
 }
 const AUTH = `EXISTS (SELECT 1 FROM "User" a JOIN "Family" f ON f.id=a.family_id
@@ -19,7 +19,7 @@ export function d1CalendarEventDto(row: D1CalendarEventRow) {
   return { ...event, start_time: new Date(row.start_time), end_time: new Date(row.end_time),
     created_at: new Date(row.created_at), updated_at: new Date(row.updated_at),
     source_occurrence_start: row.source_occurrence_start === null ? null : new Date(row.source_occurrence_start),
-    is_task: row.is_task === 1,
+    is_task: row.is_task === 1, all_day: row.all_day === 1,
     creator: creator_id === null ? null : { id: creator_id, name: creator_name! },
     source: row.source_subscription_id ? { subscription_id: row.source_subscription_id, name: source_name ?? 'Subscribed calendar', color: source_color } : null }
 }

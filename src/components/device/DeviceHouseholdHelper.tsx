@@ -123,7 +123,7 @@ export default function DeviceHouseholdHelper({
       .slice(0, 5)
       .map(
         (event) =>
-          `${event.happeningNow ? text.now : formatTime(event.start, displayLocale)} · ${event.title}`,
+          event.allDay ? event.title : `${event.happeningNow ? text.now : formatTime(event.start, displayLocale)} · ${event.title}`,
       );
     more = events.length > rows.length;
   } else if (topic === "dinner") {

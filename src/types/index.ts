@@ -96,6 +96,8 @@ export interface Event {
   description?: string
   start_time: string
   end_time: string
+  /** No time of day (src/lib/all-day.ts). Absent on older responses. */
+  all_day?: boolean
   location?: string
   recurrence?: string
   created_by: string

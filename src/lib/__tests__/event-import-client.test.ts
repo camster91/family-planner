@@ -92,8 +92,12 @@ describe('draftToEventBody', () => {
         start_time: '2026-12-01T05:00:00.000Z',
         end_time: '2026-12-04T04:59:00.000Z',
         location: null,
+        // Marked all day for the calendar; a timed draft never sends the field.
+        all_day: true,
       },
     })
+    const timed = draftToEventBody(draft({ allDay: false }), ZONE)
+    expect(timed.ok && 'all_day' in timed.body).toBe(false)
   })
 
   it('returns a message for a missing title, date, time or a backwards range', () => {

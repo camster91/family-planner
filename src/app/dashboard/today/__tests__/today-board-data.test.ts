@@ -271,6 +271,23 @@ describe('buildTodayBoard (shared-surface DTO)', () => {
     })
   })
 
+  it('sends allDay only for all-day events, so a timed event is the same shape as before', async () => {
+    const db = mockDb({
+      event: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'e_trip', title: 'Field trip', start_time: new Date('2026-01-05T05:00:00Z'), end_time: new Date('2026-01-06T04:59:00Z'),
+            all_day: true, is_task: false, source_subscription_id: null },
+          { id: 'e_swim', title: 'Swim', start_time: new Date('2026-01-05T21:00:00Z'), end_time: new Date('2026-01-05T22:00:00Z'),
+            all_day: false, is_task: false, source_subscription_id: null },
+        ]),
+      },
+    })
+    const data = await buildTodayBoard(db as any, { familyId: FAMILY, role: 'parent', features: defaultFeatures(), now: NOW })
+    expect((db.event.findMany as jest.Mock).mock.calls[0][0].select).toMatchObject({ all_day: true })
+    expect(data.events.find((e) => e.id === 'e_trip')).toMatchObject({ allDay: true })
+    expect(data.events.find((e) => e.id === 'e_swim')).not.toHaveProperty('allDay')
+  })
+
   it('probes past the capped board rows before returning a protocol-1 refusal', async () => {
     const db = mockDb({
       chore: {

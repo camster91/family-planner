@@ -118,8 +118,8 @@ export async function commitD1ImportedEvents(
             const end = new Date(event.end_time ?? event.start_time);
             return session
               .prepare(
-                `INSERT INTO "Event"(id,family_id,created_by,title,description,location,start_time,end_time,event_type,recurrence,created_at,updated_at,schedule_generation)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'other',NULL,?9,?9,?10)`,
+                `INSERT INTO "Event"(id,family_id,created_by,title,description,location,start_time,end_time,event_type,recurrence,created_at,updated_at,schedule_generation,all_day)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'other',NULL,?9,?9,?10,?11)`,
               )
               .bind(
                 eventIds[index],
@@ -132,6 +132,7 @@ export async function commitD1ImportedEvents(
                 end.getTime(),
                 createdAt,
                 randomUUID(),
+                event.all_day === true ? 1 : 0,
               );
           }),
           session

@@ -9,6 +9,7 @@ import { useTranslation } from '@/i18n'
 import { calendarFormMessages, type CalendarFormMessage, type CalendarFormError } from '@/i18n/calendar-forms'
 import { EventFormDetails } from '@/components/calendar/EventFormDetails'
 import { EventDuration } from '@/components/calendar/EventDuration'
+import { EventAllDaySwitch } from '@/components/calendar/EventAllDaySwitch'
 import { EventPeoplePicker } from '@/components/calendar/EventPeoplePicker'
 import type { EventPersonRef } from '@/lib/event-participants'
 import { EventRepeatField, NO_REPEAT, repeatRequest, type EventRepeatValue } from '@/components/calendar/EventRepeatField'
@@ -26,6 +27,9 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
   const [endDate, setEndDate] = useState('')
   const [endTime, setEndTime] = useState('')
   const [duration, setDuration] = useState('')
+  // All day: no time of day. The time and duration fields are hidden and the
+  // event runs from 00:00 of its day to 23:59 of its last day (src/lib/all-day.ts).
+  const [allDay, setAllDay] = useState(false)
   const [location, setLocation] = useState('')
   const [people, setPeople] = useState<EventPersonRef[]>([])
   const [peopleAvailable, setPeopleAvailable] = useState(false)
@@ -53,7 +57,9 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
     try {
       // Form values are local wall-clock time; send real ISO instants (with offset)
       // An end time without an end date is on the start day (src/lib/dates.ts).
-      const range = eventFormRange({ startDate, startTime, endDate, endTime }, undefined, duration === '' ? undefined : Number(duration))
+      const range = allDay
+        ? eventFormRange({ startDate, startTime: '00:00', endDate: endDate || startDate, endTime: '23:59' })
+        : eventFormRange({ startDate, startTime, endDate, endTime }, undefined, duration === '' ? undefined : Number(duration))
       const startDateTime = range?.start
       const endDateTime = range?.end
 
@@ -66,7 +72,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
         if (optionalDetailsRef.current) optionalDetailsRef.current.open = true
-        setError({ key: 'endBeforeStart' })
+        setError({ key: allDay ? 'lastDayBefore' : 'endBeforeStart' })
         setLoading(false)
         return
       }
@@ -80,6 +86,8 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
           start_time: startDateTime,
           end_time: endDateTime,
           location: location || null,
+          // Sent only when on, so a timed event is the same request as before.
+          ...(allDay ? { all_day: true } : {}),
           // Sent only when the server offered the picker and someone is chosen.
           ...(peopleAvailable && people.length ? { participants: people } : {}),
           ...(repeatSupported && repeatRequest(repeat) ? { repeat: repeatRequest(repeat) } : {}),
@@ -154,10 +162,16 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
         {/* Who it is for comes straight after the title, before date and time. */}
         {peopleSupported && <EventPeoplePicker value={people} onChange={setPeople} onAvailability={setPeopleAvailable} disabled={loading} />}
 
+        <EventAllDaySwitch on={allDay} onChange={(next) => {
+          // A last day chosen for an all-day event is not an end time.
+          if (!next) setEndDate('')
+          setAllDay(next)
+        }} disabled={loading} />
+
         {/* Start */}
         <div>
-          <label className="label-apple" htmlFor="startDate">{message('start')}</label>
-          <div className="grid grid-cols-2 gap-3">
+          <label className="label-apple" htmlFor="startDate">{message(allDay ? 'startDay' : 'start')}</label>
+          <div className={allDay ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
             <input
               id="startDate"
               type="date"
@@ -167,18 +181,34 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
               className="input-apple"
               min={toDateOnlyLocal(new Date())}
             />
-            <input
+            {!allDay && <input
               id="startTime"
               aria-label={message('startTime')}
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               className="input-apple"
-            />
+            />}
           </div>
         </div>
 
-        <EventDuration value={duration} onChange={next => {
+        {allDay && (
+          <div>
+            <label className="label-apple" htmlFor="lastDay">{message('lastDay')}</label>
+            <input
+              id="lastDay"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="input-apple"
+              min={startDate || toDateOnlyLocal(new Date())}
+              aria-describedby="lastDayHint"
+            />
+            <p id="lastDayHint" className="text-footnote text-label-secondary mt-2">{message('lastDayHint')}</p>
+          </div>
+        )}
+
+        {!allDay && <EventDuration value={duration} onChange={next => {
           if (next === '' && optionalDetailsRef.current) optionalDetailsRef.current.open = true
           if (next === '' && duration !== '') {
             const range = eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))
@@ -189,7 +219,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
             }
           }
           setDuration(next)
-        }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))?.end} />
+        }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, undefined, Number(duration))?.end} />}
 
         {repeatSupported && <EventRepeatField value={repeat} onChange={setRepeat} startDate={startDate} disabled={loading} />}
 
@@ -198,14 +228,14 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
           sectionRef={optionalDetailsRef}
           description={description}
           location={location}
-          end={duration === '' ? eventFormRange({ startDate, startTime, endDate, endTime }, undefined)?.end : undefined}
+          end={!allDay && duration === '' ? eventFormRange({ startDate, startTime, endDate, endTime }, undefined)?.end : undefined}
         >
-          <div hidden={duration !== ''}>
+          <div hidden={allDay || duration !== ''}>
             <label className="label-apple" htmlFor="endDate">{message('end')}</label>
             <div className="grid grid-cols-2 gap-3">
               <input
                 id="endDate"
-                disabled={duration !== ''}
+                disabled={allDay || duration !== ''}
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
@@ -214,7 +244,7 @@ export default function CreateEventForm({ inSheet = false, onBusyChange, peopleS
               />
               <input
                 id="endTime"
-                disabled={duration !== ''}
+                disabled={allDay || duration !== ''}
                 aria-label={message('endTime')}
                 type="time"
                 value={endTime}

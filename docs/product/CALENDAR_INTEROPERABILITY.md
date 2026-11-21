@@ -6,6 +6,17 @@ Discovery, current-provider configuration/permission, household beta evidence an
 acceptance remain separate. No account/provider call, credential read/change,
 sync, calendar write, migration, scheduler or activation occurred in this pass.
 
+## All-day events — 2026-11-21
+
+`DATE`-valued `DTSTART` in a subscribed feed now sets `Event.all_day`, and the
+household feed exports all-day events as `DATE` values with an exclusive
+`DTEND`. A feed that changes an event between all day and timed updates the
+same row. Rules: `docs/product/CALENDAR_WORKSPACE.md` (All-day events). Checked
+with fabricated feeds only, in Jest, disposable PostgreSQL and local
+workerd/D1 (`node scripts/cloudflare/read-smoke.mjs --only=event-all-day`). No
+provider, live feed or production database was touched. Two-way provider sync
+is unchanged.
+
 ## Local native-D1 acceptance — 2026-11-03
 
 The current application parser and subscription writer were exercised together

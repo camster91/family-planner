@@ -54,6 +54,28 @@ describe("GET /api/calendar/feed", () => {
     expect(ics).not.toContain("event-a");
   });
 
+  it("exports an all-day event as DATE values with the day after its last day as the end", async () => {
+    const soon = db.rows("event").find((row) => row.id === "event-a")!.start_time as Date;
+    const y = soon.getUTCFullYear(), m = soon.getUTCMonth(), d = soon.getUTCDate();
+    const key = (offset: number) => new Date(Date.UTC(y, m, d + offset)).toISOString().slice(0, 10).replace(/-/g, "");
+    // Toronto midnight to 23:59 two days later; and an imported-style midnight to midnight.
+    db.rows("event").push(
+      { ...db.rows("event")[0], id: "event-allday", title: "Camping", all_day: true,
+        start_time: new Date(Date.UTC(y, m, d, 5)), end_time: new Date(Date.UTC(y, m, d + 3, 4, 59)) },
+      { ...db.rows("event")[0], id: "event-imported-day", title: "PD day", all_day: true,
+        start_time: new Date(Date.UTC(y, m, d, 5)), end_time: new Date(Date.UTC(y, m, d + 1, 5)) },
+    );
+    const ics = await (await GET(req({ query: { token: "feed-token-a" } }))).text();
+    const block = (id: string) => ics.split("BEGIN:VEVENT").find((part) => part.includes(`UID:${id}@`))!;
+    expect(block("event-allday")).toContain(`DTSTART;VALUE=DATE:${key(0)}\r\n`);
+    expect(block("event-allday")).toContain(`DTEND;VALUE=DATE:${key(3)}\r\n`);
+    expect(block("event-imported-day")).toContain(`DTSTART;VALUE=DATE:${key(0)}\r\n`);
+    expect(block("event-imported-day")).toContain(`DTEND;VALUE=DATE:${key(1)}\r\n`);
+    // A timed event keeps its instants.
+    expect(block("event-a")).toMatch(/DTSTART:\d{8}T\d{6}Z\r\n/);
+    expect(block("event-a")).not.toContain("VALUE=DATE");
+  });
+
   it("a session cookie does not substitute for the token", async () => {
     expect((await GET(req({ as: "parentA" }))).status).toBe(401);
   });

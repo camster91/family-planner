@@ -1,8 +1,15 @@
 export type PlanningView = "day" | "week" | "agenda" | "month";
 
-/** Timing overlap is advisory: this model does not describe who must attend. */
+/** Timing overlap is advisory: this model does not describe who must attend.
+ * An all-day event has no time of day, so it is never "at the same time" as
+ * anything: a birthday does not clash with soccer practice. */
 export function overlappingEvents<
-  T extends { id: string; start_time: string; end_time: string },
+  T extends {
+    id: string;
+    start_time: string;
+    end_time: string;
+    all_day?: boolean;
+  },
 >(events: readonly T[], range: { start: string; end: string }) {
   const from = Date.parse(range.start),
     until = Date.parse(range.end);
@@ -12,6 +19,7 @@ export function overlappingEvents<
   const intervals = [
     ...new Map(events.map((event) => [event.id, event])).values(),
   ]
+    .filter((event) => event.all_day !== true)
     .map((event) => ({
       event,
       start: Math.max(from, Date.parse(event.start_time)),

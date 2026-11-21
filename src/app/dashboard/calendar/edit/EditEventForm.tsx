@@ -15,6 +15,8 @@ import type { EventPersonRef } from '@/lib/event-participants'
 import { EventRepeatField, NO_REPEAT, repeatRequest, type EventRepeatValue } from '@/components/calendar/EventRepeatField'
 import { EVENT_REPEAT_EVERY, type EventRepeatEvery } from '@/lib/event-series'
 import { EventDuration } from '@/components/calendar/EventDuration'
+import { EventAllDaySwitch } from '@/components/calendar/EventAllDaySwitch'
+import { allDayDays } from '@/lib/all-day'
 import { eventFormRange, isoToLocalDateTimeInput } from '@/lib/dates'
 import { Dialog } from '@/components/ui/dialog'
 import { usePendingFormNavigation, usePendingFormNavigationController } from '@/components/layout/pending-form-navigation'
@@ -30,6 +32,10 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
   const [endDate, setEndDate] = useState('')
   const [endTime, setEndTime] = useState('')
   const [duration, setDuration] = useState('')
+  // All day: no time of day (src/lib/all-day.ts). `originalAllDay` is what was
+  // stored, so the flag is only sent when it matters.
+  const [allDay, setAllDay] = useState(false)
+  const originalAllDay = useRef(false)
   const [location, setLocation] = useState('')
   const [people, setPeople] = useState<EventPersonRef[]>([])
   const [peopleAvailable, setPeopleAvailable] = useState(false)
@@ -87,6 +93,8 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
     setEndDate('')
     setEndTime('')
     setDuration('')
+    setAllDay(false)
+    originalAllDay.current = false
     setLocation('')
     originalRecurrence.current = null
     setCanRemoveRecurrence(false)
@@ -122,6 +130,16 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
             if (!end) throw new Error('INVALID_EVENT_TIME')
             setEndDate(end.slice(0, 10))
             setEndTime(end.slice(11))
+          }
+          // An all-day event shows its calendar days and no times.
+          const days = event.all_day === true ? allDayDays(event.start_time, event.end_time ?? event.start_time) : null
+          originalAllDay.current = days !== null
+          setAllDay(days !== null)
+          if (days) {
+            setStartDate(days.first)
+            setStartTime('')
+            setEndDate(days.last === days.first ? '' : days.last)
+            setEndTime('')
           }
           setLocation(event.location || '')
           {
@@ -176,9 +194,12 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
     try {
       // Form values are local wall-clock time; send real ISO instants (with offset)
       // An end time without an end date is on the start day (src/lib/dates.ts).
-      const range = eventFormRange(
+      const range = allDay
+        ? eventFormRange({ startDate, startTime: '00:00', endDate: endDate || startDate, endTime: '23:59' })
+        : eventFormRange(
         { startDate, startTime, endDate, endTime },
-        original,
+        // An event that was all day has no stored time worth keeping.
+        originalAllDay.current ? undefined : original,
         duration === '' ? undefined : Number(duration)
       )
       const startDateTime = range?.start
@@ -193,7 +214,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
 
       if (new Date(endDateTime) < new Date(startDateTime)) {
         if (optionalDetailsRef.current) optionalDetailsRef.current.open = true
-        setError({ key: 'endBeforeStart' })
+        setError({ key: allDay ? 'lastDayBefore' : 'endBeforeStart' })
         setLoading(false)
         return
       }
@@ -208,6 +229,9 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
           start_time: startDateTime,
           end_time: endDateTime,
           location: location || null,
+          // Sent when it is on, or when it was on and is now off. An ordinary
+          // timed edit is the same request as before.
+          ...(allDay || originalAllDay.current ? { all_day: allDay } : {}),
           // Omit by default: title/time edits must preserve even unfamiliar rules.
           ...(removeRecurrence ? { recurrence: null, expected_recurrence: originalRecurrence.current } : {}),
           // Sent only when the picker was offered and the list really changed,
@@ -351,10 +375,16 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
           />
         </div>
 
+        <EventAllDaySwitch on={allDay} onChange={(next) => {
+          // Turning it off after an all-day event leaves stale day-end fields behind.
+          if (!next) { setEndDate(''); setEndTime(''); setDuration('') }
+          setAllDay(next)
+        }} disabled={busy} />
+
         {/* Start */}
         <div>
-          <label className="label-apple" htmlFor="startDate">{message('start')}</label>
-          <div className="grid grid-cols-2 gap-3">
+          <label className="label-apple" htmlFor="startDate">{message(allDay ? 'startDay' : 'start')}</label>
+          <div className={allDay ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
             <input
               id="startDate"
               type="date"
@@ -363,19 +393,35 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
               onChange={(e) => setStartDate(e.target.value)}
               className="input-apple"
             />
-            <input
+            {!allDay && <input
               id="startTime"
               aria-label={message('startTime')}
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               className="input-apple"
-            />
+            />}
           </div>
         </div>
 
+        {allDay && (
+          <div>
+            <label className="label-apple" htmlFor="lastDay">{message('lastDay')}</label>
+            <input
+              id="lastDay"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="input-apple"
+              min={startDate}
+              aria-describedby="lastDayHint"
+            />
+            <p id="lastDayHint" className="text-footnote text-label-secondary mt-2">{message('lastDayHint')}</p>
+          </div>
+        )}
+
         {/* End */}
-        <EventDuration value={duration} onChange={next => {
+        {!allDay && <EventDuration value={duration} onChange={next => {
           if (next === '' && optionalDetailsRef.current) optionalDetailsRef.current.open = true
           if (next === '' && duration !== '') {
             const range = eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))
@@ -386,7 +432,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
             }
           }
           setDuration(next)
-        }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))?.end} />
+        }} end={duration === '' ? undefined : eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined, Number(duration))?.end} />}
 
         {repeatSupported && inSeries && isParent && !source && (
           <fieldset data-testid="event-series-scope" className="min-w-0 space-y-3">
@@ -429,14 +475,14 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
           sectionRef={optionalDetailsRef}
           description={description}
           location={location}
-          end={duration === '' ? eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined)?.end : undefined}
+          end={!allDay && duration === '' ? eventFormRange({ startDate, startTime, endDate, endTime }, originalTimes.current ?? undefined)?.end : undefined}
         >
-          <div hidden={duration !== ''}>
+          <div hidden={allDay || duration !== ''}>
             <label className="label-apple" htmlFor="endDate">{message('end')}</label>
             <div className="grid grid-cols-2 gap-3">
               <input
                 id="endDate"
-                disabled={duration !== ''}
+                disabled={allDay || duration !== ''}
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
@@ -445,7 +491,7 @@ function EditEventForm({ inSheet = false, onBusyChange, peopleSupported = false,
               />
               <input
                 id="endTime"
-                disabled={duration !== ''}
+                disabled={allDay || duration !== ''}
                 aria-label={message('endTime')}
                 type="time"
                 value={endTime}
