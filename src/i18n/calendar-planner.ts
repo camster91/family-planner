@@ -91,6 +91,8 @@ export const calendarPlannerEnglish = {
   repeatsDetail: "This event repeats. Open it to change this one or this and later ones.",
   close: "Close details",
   edit: "Edit event",
+  allDay: "All day",
+  allDayDates: "{start} to {end}",
   overlaps: "At the same time",
   overlapCountOne: "1 overlap",
   overlapsCount: "{count} overlaps",
@@ -100,6 +102,8 @@ export const calendarPlannerEnglish = {
 } as const;
 export type CalendarPlannerMessage = keyof typeof calendarPlannerEnglish;
 export const calendarPlannerSpanish: Record<CalendarPlannerMessage, string> = {
+  allDay: "Todo el día",
+  allDayDates: "Del {start} al {end}",
   overlaps: "A la misma hora",
   overlapCountOne: "1 coincidencia",
   overlapsCount: "{count} coincidencias",

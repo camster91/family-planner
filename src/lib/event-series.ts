@@ -124,6 +124,19 @@ export function seriesOccurrences(rule: SeriesRule, afterMs: number, throughMs: 
   return { starts, done: true }
 }
 
+/**
+ * When one occurrence ends. A timed repeat keeps its length. An all-day
+ * repeat ends at 23:59 of its last day in the series zone, however long that
+ * day is, so a clock change never pushes it into the next day.
+ */
+export function seriesOccurrenceEnd(series: { duration_ms: number; all_day?: boolean | number | null; time_zone?: string | null }, startMs: number): number {
+  if (!series.all_day || !series.time_zone || !isValidTimeZone(series.time_zone)) return startMs + series.duration_ms
+  const wall = wallTimeIn(startMs, series.time_zone)
+  const extraDays = Math.max(0, Math.round((series.duration_ms - (86_400_000 - 60_000)) / 86_400_000))
+  const last = new Date(Date.UTC(wall.year, wall.month - 1, wall.day + extraDays))
+  return zonedWallTimeToUtc({ year: last.getUTCFullYear(), month: last.getUTCMonth() + 1, day: last.getUTCDate(), hour: 23, minute: 59, second: 0 }, series.time_zone).getTime()
+}
+
 /** Stable id of an occurrence row: the same occurrence is never written twice. */
 export const seriesEventId = (seriesId: string, startMs: number) => `${seriesId}_${Math.trunc(startMs / 1000).toString(36)}`
 
@@ -154,16 +167,18 @@ export function dayBefore(day: string): string {
 
 export type FollowingBase = {
   /** The occurrence being edited, as stored now. */
-  event: { start: number; end: number; title: string; description: string | null; location: string | null; event_type: string; occurrenceStart: number }
+  event: { start: number; end: number; title: string; description: string | null; location: string | null; event_type: string; occurrenceStart: number; allDay?: boolean }
   /** Its series, as stored now. Null for a one-off event that starts repeating here. */
   series: { every: EventRepeatEvery; timeZone: string; untilDay: string | null; anchorStart: number } | null
 }
 export type FollowingInput = {
   title?: string; description?: string | null; location?: string | null; event_type?: string
-  start_time?: string; end_time?: string; repeat?: EventRepeatInput | null
+  start_time?: string; end_time?: string; repeat?: EventRepeatInput | null; all_day?: boolean
 }
 export type FollowingPlan = {
   start: number; end: number
+  /** All day from this event on: the request's choice, else what is stored. */
+  allDay: boolean
   template: { title: string; description: string | null; location: string | null; event_type: string }
   /** The repeat from this event on, or null to stop repeating here. */
   rule: SeriesRule | null
@@ -197,7 +212,7 @@ export function planFollowingEdit(base: FollowingBase, input: FollowingInput): F
   }
   if (!series && !rule) return EVENT_NOT_REPEATING
   return {
-    start, end, rule,
+    start, end, rule, allDay: input.all_day ?? base.event.allDay ?? false,
     template: {
       title: input.title ?? base.event.title,
       description: input.description !== undefined ? input.description : base.event.description,

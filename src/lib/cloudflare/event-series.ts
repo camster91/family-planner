@@ -1,5 +1,5 @@
 import {
-  eventRepeatReady, seriesEventId, seriesOccurrences, seriesTopUpDueBefore, seriesTopUpTarget, SERIES_TOP_UP_MAX,
+  eventRepeatReady, seriesEventId, seriesOccurrenceEnd, seriesOccurrences, seriesTopUpDueBefore, seriesTopUpTarget, SERIES_TOP_UP_MAX,
   type EventRepeatEvery, type SeriesRule,
 } from '@/lib/event-series'
 import { eventPeopleReady, eventPersonKey, type EventPerson, type EventPersonRef } from '@/lib/event-participants'
@@ -13,9 +13,13 @@ export const SERIES_COMPLETE = 253_402_300_799_000
 export type D1EventSeriesRow = {
   id: string; family_id: string; created_by: string; every: string; time_zone: string; anchor_start: number
   duration_ms: number; until_day: string | null; title: string; description: string | null; location: string | null
-  event_type: string; participants: string; generated_through: number; updated_at: number
+  event_type: string; participants: string; generated_through: number; updated_at: number; all_day: number
 }
+/** Every column a series reader needs, in one place so no reader forgets one. */
+export const D1_SERIES_COLUMNS = `id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,
+  event_type,participants,generated_through,updated_at,all_day`
 export type SeriesTemplate = Pick<D1EventSeriesRow, 'id' | 'family_id' | 'created_by' | 'duration_ms' | 'title' | 'description' | 'location' | 'event_type'>
+  & { all_day: boolean | number; time_zone: string }
 
 export const d1SeriesRule = (row: Pick<D1EventSeriesRow, 'every' | 'time_zone' | 'anchor_start' | 'until_day'>): SeriesRule =>
   ({ every: row.every as EventRepeatEvery, timeZone: row.time_zone, anchorStart: row.anchor_start, untilDay: row.until_day })
@@ -49,14 +53,14 @@ export function d1SeriesOccurrenceStatements(
   const statements: D1Statement[] = []
   for (let offset = 0; offset < starts.length; offset += 7) {
     const chunk = starts.slice(offset, offset + 7)
-    const values: SqlValue[] = [series.family_id, series.created_by, series.title, series.description, series.location, series.event_type, now, series.id]
+    const values: SqlValue[] = [series.family_id, series.created_by, series.title, series.description, series.location, series.event_type, now, series.id, series.all_day ? 1 : 0]
     const rows = chunk.map((start) => {
-      values.push(seriesEventId(series.id, start), start, start + series.duration_ms)
+      values.push(seriesEventId(series.id, start), start, seriesOccurrenceEnd(series, start))
       const n = values.length
-      return `(?${n - 2},?1,?2,?3,?4,?5,?${n - 1},?${n},?6,?7,?7,?8,?${n - 1})`
+      return `(?${n - 2},?1,?2,?3,?4,?5,?${n - 1},?${n},?6,?7,?7,?8,?${n - 1},?9)`
     })
     statements.push(db.prepare(`INSERT OR IGNORE INTO "Event"
-      (id,family_id,created_by,title,description,location,start_time,end_time,event_type,created_at,updated_at,series_id,series_occurrence_start)
+      (id,family_id,created_by,title,description,location,start_time,end_time,event_type,created_at,updated_at,series_id,series_occurrence_start,all_day)
       VALUES ${rows.join(',')}`).bind(...values))
   }
   for (const ref of people) {
@@ -90,8 +94,7 @@ export function currentSeriesPeople(raw: string, people: ReadonlyMap<string, Eve
 export async function topUpD1EventSeries(db: Session, familyId: string, now: Date, wantedMs?: number): Promise<number> {
   if (!eventRepeatReady()) return 0
   const target = seriesTopUpTarget(now.getTime(), wantedMs)
-  const due = await db.prepare(`SELECT id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,
-      event_type,participants,generated_through,updated_at FROM "EventSeries"
+  const due = await db.prepare(`SELECT ${D1_SERIES_COLUMNS} FROM "EventSeries"
     WHERE family_id=?1 AND generated_through<?2 ORDER BY generated_through ASC,id ASC LIMIT 20`)
     .bind(familyId, seriesTopUpDueBefore(now.getTime(), wantedMs)).all<D1EventSeriesRow>()
   if (!due.results.length) return 0

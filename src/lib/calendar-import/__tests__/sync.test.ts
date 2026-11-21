@@ -103,6 +103,44 @@ function loggedText(): string {
   return JSON.stringify(logSpies.flatMap((s) => s.mock.calls));
 }
 
+describe("all-day events from a feed", () => {
+  const feed = (pd: string[]) =>
+    ics(
+      "BEGIN:VEVENT", "UID:pd@school.test", ...pd, "SUMMARY:PD day", "END:VEVENT",
+      "BEGIN:VEVENT", "UID:concert@school.test",
+      "DTSTART;TZID=America/Toronto:20260918T190000", "DTEND;TZID=America/Toronto:20260918T200000",
+      "SUMMARY:Concert", "END:VEVENT",
+    );
+  const sync = (body: string) =>
+    syncSubscription("sub-a", FAMILY_A, { fetchImpl: fetchOnce(body), assertUrl: allowAll, now: NOW });
+  const byUid = (uid: string) => importedA().find((e) => e.source_uid === uid)!;
+
+  it("marks a DATE-valued DTSTART as all day and leaves a timed event alone", async () => {
+    const dates = ["DTSTART;VALUE=DATE:20260925", "DTEND;VALUE=DATE:20260927"];
+    expect(await sync(feed(dates))).toMatchObject({ status: "ok", created: 2 });
+    expect(byUid("pd@school.test")).toMatchObject({
+      all_day: true,
+      // Household-zone midnights: the first day to the day after the last.
+      start_time: new Date("2026-09-25T04:00:00.000Z"),
+      end_time: new Date("2026-09-27T04:00:00.000Z"),
+    });
+    expect(byUid("concert@school.test").all_day).toBe(false);
+    // The same feed again changes nothing.
+    expect(await sync(feed(dates))).toMatchObject({ created: 0, updated: 0, deleted: 0 });
+  });
+
+  it("updates the row when the feed changes an event between all day and timed", async () => {
+    await sync(feed(["DTSTART;VALUE=DATE:20260925", "DTEND;VALUE=DATE:20260927"]));
+    const id = byUid("pd@school.test").id;
+    // Same first instant and end, now with a time of day.
+    const timed = await sync(feed(["DTSTART:20260925T040000Z", "DTEND:20260927T040000Z"]));
+    expect(timed).toMatchObject({ created: 0, updated: 1, deleted: 0 });
+    expect(byUid("pd@school.test")).toMatchObject({ id, all_day: false });
+    expect(await sync(feed(["DTSTART;VALUE=DATE:20260925", "DTEND;VALUE=DATE:20260927"]))).toMatchObject({ updated: 1 });
+    expect(byUid("pd@school.test")).toMatchObject({ id, all_day: true });
+  });
+});
+
 describe("syncSubscription", () => {
   it("imports events once; a second import of the same feed creates no duplicates", async () => {
     const first = await syncSubscription("sub-a", FAMILY_A, {

@@ -42,7 +42,7 @@ export function reminderIsFor(account: { id: string; role: string | null }, peop
 }
 
 /** Inbox text for one reminder. Stored as written, like every other inbox row. */
-export function reminderText(event: { title: string; start: number }, timeZone: string, nowMs: number): { title: string; message: string } {
+export function reminderText(event: { title: string; start: number; allDay?: boolean }, timeZone: string, nowMs: number): { title: string; message: string } {
   const name = event.title.trim().replace(/\s+/g, ' ')
   const title = `Coming up: ${name.length > TITLE_MAX ? `${name.slice(0, TITLE_MAX - 1)}…` : name}`
   const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone }).format(new Date(event.start))
@@ -50,5 +50,7 @@ export function reminderText(event: { title: string; start: number }, timeZone: 
   // Further out than tomorrow the date is spelled out: a weekday alone could mean this week or next.
   const when = day === today ? 'Today' : day === localDayIn(nowMs + REMINDER_WINDOW_MS, timeZone) ? 'Tomorrow'
     : new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone }).format(new Date(event.start))
-  return { title, message: `${when} at ${time}` }
+  // An all-day event has no time to show. It is still found by its start
+  // (the start of its first day), so the lead time counts back from there.
+  return { title, message: event.allDay ? `${when}, all day` : `${when} at ${time}` }
 }

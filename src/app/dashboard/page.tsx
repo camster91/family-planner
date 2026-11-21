@@ -36,6 +36,8 @@ type KidDashboardEvent = {
   id: string;
   title: string;
   start_time: string;
+  end_time: string;
+  all_day: boolean;
   location: string | null;
 };
 
@@ -145,13 +147,16 @@ export default async function DashboardPage() {
             take: MAX_OLDER_CHORES + 1,
           }),
           prisma!.event.findMany({
-            where: { family_id: familyId, start_time: { gte: now } },
+            // Still to start, or an all-day event that is on now.
+            where: { family_id: familyId, OR: [{ start_time: { gte: now } }, { all_day: true, end_time: { gt: now } }] },
             orderBy: { start_time: "asc" },
             take: 5,
             select: {
               id: true,
               title: true,
               start_time: true,
+              end_time: true,
+              all_day: true,
               location: true,
             },
           }),
@@ -220,6 +225,8 @@ export default async function DashboardPage() {
     id: event.id,
     title: event.title,
     start_time: event.start_time.toISOString(),
+    end_time: event.end_time.toISOString(),
+    all_day: event.all_day === true,
     location: event.location,
   }));
 

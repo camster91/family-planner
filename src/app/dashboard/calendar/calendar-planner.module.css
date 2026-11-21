@@ -745,3 +745,43 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
+
+/* All-day events: their own strip at the top of a day, never on the hour
+   grid. The label is text, so the strip does not rely on colour or place. */
+.allDayStrip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.planner .allDayStrip .event {
+  height: auto;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--calendar-line);
+  border-left: 3px solid var(--accent-text);
+  background: color-mix(in srgb, var(--accent-fill) 18%, var(--surface-elevated));
+  margin-bottom: 0;
+}
+.allDayLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-secondary);
+}
+.allDaySection {
+  margin-bottom: 12px;
+}
+.allDaySection > h2 {
+  margin-bottom: 8px;
+  font-family: inherit;
+  font-size: 15px;
+}
+.allDaySection h3 {
+  margin: 8px 0 6px;
+  font-size: 13px;
+  color: var(--label-secondary);
+}
+.monthDay .eventContent > span.allDayLabel {
+  display: block;
+  font-size: 11px;
+}

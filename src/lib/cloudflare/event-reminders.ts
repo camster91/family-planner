@@ -19,7 +19,7 @@ type UserRow = {
   quiet_hours_enabled: number; quiet_hours_start: string | null; quiet_hours_end: string | null
   quiet_hours_time_zone: string | null; morning_summary_time_zone: string | null
 }
-type DueRow = { id: string; title: string; start_time: number }
+type DueRow = { id: string; title: string; start_time: number; all_day: number }
 
 /** Write the inbox rows for this account's events that start within the next day. Returns how many were written. */
 export async function writeD1DueEventReminders(actor: ReminderActor, browserTimeZone: string | null, now: Date = new Date(), database?: D1Store): Promise<number> {
@@ -34,7 +34,7 @@ export async function writeD1DueEventReminders(actor: ReminderActor, browserTime
   // The person's own lead time; no row means the default.
   const choice = await db.prepare(`SELECT hours FROM "EventReminderPreference" WHERE user_id=?1`).bind(actor.userId).first<{ hours: number }>()
   const windowMs = reminderWindowMs(choice?.hours)
-  const due = await db.prepare(`SELECT e.id,e.title,e.start_time FROM "Event" e WHERE e.family_id=?1 AND e.start_time>?2 AND e.start_time<=?3
+  const due = await db.prepare(`SELECT e.id,e.title,e.start_time,e.all_day FROM "Event" e WHERE e.family_id=?1 AND e.start_time>?2 AND e.start_time<=?3
       AND NOT EXISTS (SELECT 1 FROM "EventReminder" r WHERE r.event_id=e.id AND r.user_id=?4) ORDER BY e.start_time ASC,e.id ASC LIMIT ?5`)
     .bind(familyId, now.getTime(), now.getTime() + windowMs, actor.userId, REMINDER_SCAN).all<DueRow>()
   if (!due.results.length) return 0
@@ -59,7 +59,7 @@ export async function writeD1DueEventReminders(actor: ReminderActor, browserTime
     if (written >= REMINDER_MAX_PER_READ) break
     if (!reminderIsFor({ id: actor.userId, role: user.role }, people.get(event.id) ?? [])) continue
     const plan = prepareD1NotificationRow(db, { userId: actor.userId, familyId, type: 'event',
-      ...reminderText({ title: event.title, start: event.start_time }, timeZone, now.getTime()),
+      ...reminderText({ title: event.title, start: event.start_time, allDay: event.all_day === 1 }, timeZone, now.getTime()),
       actionUrl: eventNotificationDestination(event.id) }, decision, now)
     try {
       await db.batch([

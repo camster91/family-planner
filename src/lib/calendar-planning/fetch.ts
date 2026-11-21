@@ -10,6 +10,8 @@ export interface PlanningEvent extends EventOrigin {
   title: string;
   start_time: string;
   end_time: string;
+  /** No time of day (src/lib/all-day.ts). Absent on older responses. */
+  all_day?: boolean;
   event_type: string;
   description?: string | null;
   location?: string | null;
@@ -28,7 +30,7 @@ const event = z.object({
   recurrence: z.string().nullable().optional(), source_subscription_id: z.string().nullable().optional(),
   source_connection_id: z.string().nullable().optional(),
   source: z.object({ subscription_id: z.string(), name: z.string(), color: z.string().nullable() }).nullable().optional(),
-  series_id: z.string().max(128).nullable().optional(),
+  series_id: z.string().max(128).nullable().optional(), all_day: z.boolean().optional(),
   participants: z.array(z.object({ kind: z.enum(["account", "profile"]), id: z.string().min(1).max(128), name: z.string(), color: z.string() })).max(12).optional(),
 }).refine(row => Date.parse(row.end_time) >= Date.parse(row.start_time));
 const page = z.object({ events: z.array(event).max(CALENDAR_RANGE_MAX_LIMIT), hasMore: z.boolean(),

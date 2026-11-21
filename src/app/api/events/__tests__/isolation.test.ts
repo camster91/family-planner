@@ -52,6 +52,47 @@ describe("events — two households", () => {
   });
 });
 
+describe("events: all day", () => {
+  beforeEach(() => db.reset());
+  const day = { title: "Field trip", start_time: "2026-10-01T04:00:00.000Z", end_time: "2026-10-02T03:59:00.000Z", event_type: "school" };
+
+  it("stores and returns all_day; a request that omits it is a timed event", async () => {
+    const allDay = await events.POST(req({ as: "parentA", body: { ...day, all_day: true } }));
+    expect(allDay.status).toBe(200);
+    expect((await allDay.json()).event).toMatchObject({ title: "Field trip", all_day: true, family_id: "family-A" });
+    const timed = await events.POST(req({ as: "parentA", body: newEvent }));
+    expect(timed.status).toBe(200);
+    expect(writesTo("event").map((write) => write.args.data.all_day)).toEqual([true, false]);
+  });
+
+  it("refuses an all-day event with no end after its start, before any write", async () => {
+    for (const body of [{ ...day, end_time: day.start_time, all_day: true }, { title: "x", start_time: day.start_time, all_day: true }]) {
+      const res = await events.POST(req({ as: "parentA", body }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).code).toBe("EVENT_ALL_DAY_INVALID");
+    }
+    expect((await events.POST(req({ as: "parentA", body: { ...day, all_day: "yes" } }))).status).toBe(400);
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("a parent turns it on and off; turning it on needs both ends of the day range", async () => {
+    const on = await events.PATCH(req({ as: "parentA", body: { eventId: "event-a", all_day: true, start_time: day.start_time, end_time: day.end_time } }));
+    expect(on.status).toBe(200);
+    expect((await on.json()).event.all_day).toBe(true);
+    const kept = await events.PATCH(req({ as: "parentA", body: { eventId: "event-a", title: "Renamed" } }));
+    expect((await kept.json()).event).toMatchObject({ title: "Renamed", all_day: true });
+    const off = await events.PATCH(req({ as: "parentA", body: { eventId: "event-a", all_day: false } }));
+    expect((await off.json()).event.all_day).toBe(false);
+    expect((await events.PATCH(req({ as: "parentA", body: { eventId: "event-a", all_day: true } }))).status).toBe(400);
+  });
+
+  it("another household and a child cannot change it", async () => {
+    await expectDenied(await events.PATCH(req({ as: "parentA", body: { eventId: "event-b", all_day: true, start_time: day.start_time, end_time: day.end_time } })));
+    expect((await events.PATCH(req({ as: "childA", body: { eventId: "event-a", all_day: true, start_time: day.start_time, end_time: day.end_time } }))).status).toBe(403);
+    expect(db.writes).toHaveLength(0);
+  });
+});
+
 // Authored UNRUN: foreign existence and malformed targets do not become list reads.
 it('uses the same not-found result for an absent or another household event', async () => {
   db.reset();

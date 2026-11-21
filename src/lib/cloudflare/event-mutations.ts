@@ -149,7 +149,7 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
         series = { id: randomUUID(), rule, ...plan }
       }
       const event: Event = { id: series ? seriesEventId(series.id, startMs) : randomUUID(), family_id: actor.familyId, created_by: actor.userId,
-        series_id: series?.id ?? null, series_occurrence_start: series ? new Date(startMs) : null, series_detached: false,
+        series_id: series?.id ?? null, series_occurrence_start: series ? new Date(startMs) : null, series_detached: false, all_day: value.all_day === true,
         title: value.title, description: value.description || null, location: value.location || null,
         start_time: new Date(value.start_time), end_time: new Date(value.end_time || value.start_time), event_type: value.event_type,
         recurrence: value.recurrence || null, created_at: new Date(now), updated_at: new Date(now),
@@ -157,21 +157,22 @@ export async function mutateD1Event(actor: Actor, mutation: Mutation, key: strin
         source_subscription_id: null, source_uid: null, source_occurrence_start: null, source_connection_id: null }
       effect = { status: 200, body: JSON.parse(JSON.stringify({ event: { ...event, participants } })) }
       if (series) {
-        statements.push(db.prepare(`INSERT INTO "EventSeries" (id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,event_type,participants,generated_through,created_at,updated_at)
-          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15)`)
+        statements.push(db.prepare(`INSERT INTO "EventSeries" (id,family_id,created_by,every,time_zone,anchor_start,duration_ms,until_day,title,description,location,event_type,participants,generated_through,created_at,updated_at,all_day)
+          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15,?16)`)
           .bind(series.id, actor.familyId, actor.userId, series.rule.every, series.rule.timeZone, startMs, endMs - startMs, series.rule.untilDay,
-            event.title, event.description, event.location, event.event_type, JSON.stringify(refs), series.generatedThrough, now))
+            event.title, event.description, event.location, event.event_type, JSON.stringify(refs), series.generatedThrough, now, event.all_day ? 1 : 0))
         // The first occurrence carries the response's schedule identity.
-        statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,created_at,updated_at,schedule_generation,series_id,series_occurrence_start)
-          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10,?11,?12,?7)`)
-          .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, startMs, endMs, event.event_type, now, event.schedule_generation, series.id))
+        statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,created_at,updated_at,schedule_generation,series_id,series_occurrence_start,all_day)
+          VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?10,?11,?12,?7,?13)`)
+          .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, startMs, endMs, event.event_type, now, event.schedule_generation, series.id, event.all_day ? 1 : 0))
         statements.push(...d1EventParticipantInserts(db, event.id, actor.familyId, refs, now))
         statements.push(...d1SeriesOccurrenceStatements(db, { id: series.id, family_id: actor.familyId, created_by: actor.userId, duration_ms: endMs - startMs,
+          all_day: event.all_day, time_zone: series.rule.timeZone,
           title: event.title, description: event.description, location: event.location, event_type: event.event_type }, series.starts.filter((start) => start !== startMs), refs, now))
       } else {
-      statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,recurrence,created_at,updated_at,schedule_generation)
-        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11,?12)`)
-        .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, event.start_time.getTime(), event.end_time.getTime(), event.event_type, event.recurrence, now, event.schedule_generation))
+      statements.push(db.prepare(`INSERT INTO "Event" (id,family_id,created_by,title,description,location,start_time,end_time,event_type,recurrence,created_at,updated_at,schedule_generation,all_day)
+        VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11,?12,?13)`)
+        .bind(event.id, actor.familyId, actor.userId, event.title, event.description, event.location, event.start_time.getTime(), event.end_time.getTime(), event.event_type, event.recurrence, now, event.schedule_generation, event.all_day ? 1 : 0))
       statements.push(...d1EventParticipantInserts(db, event.id, actor.familyId, refs, now))
       }
       statements.push(db.prepare(`INSERT INTO "Activity" (id,family_id,user_id,type,title,metadata,created_at) VALUES (?1,?2,?3,'event_created',?4,?5,?6)`)

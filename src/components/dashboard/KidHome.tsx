@@ -27,6 +27,7 @@ import {
   toDateOnlyLocal,
   toDateOnlyUTC,
 } from "@/lib/dates";
+import { allDayCovers } from "@/lib/all-day";
 import {
   groupByRoutine,
   normalizeRoutineName,
@@ -72,6 +73,9 @@ interface Event {
   id: string;
   title: string;
   start_time: string;
+  end_time?: string;
+  /** No time of day (src/lib/all-day.ts). */
+  all_day?: boolean;
   location?: string | null;
 }
 
@@ -455,7 +459,7 @@ export default function KidHome({
   // Today's events (the viewer's local day) — up to 2
   const todayEvents = todayKey
     ? (events ?? [])
-        .filter((e) => toDateOnlyLocal(new Date(e.start_time)) === todayKey)
+        .filter((e) => (e.all_day ? allDayCovers({ start: e.start_time, end: e.end_time ?? e.start_time }, todayKey) : toDateOnlyLocal(new Date(e.start_time)) === todayKey))
         .slice(0, 2)
     : [];
 
@@ -1175,13 +1179,15 @@ export default function KidHome({
                   title={event.title}
                   subtitle={
                     event.location
-                      ? `${formatTime(event.start_time, displayLocale)} · ${event.location}`
-                      : formatTime(event.start_time, displayLocale)
+                      ? `${event.all_day ? kidHomeText("allDay") : formatTime(event.start_time, displayLocale)} · ${event.location}`
+                      : event.all_day ? kidHomeText("allDay") : formatTime(event.start_time, displayLocale)
                   }
                   showChevron={false}
                   trailing={
                     <span className="text-footnote text-label-tertiary">
-                      {now &&
+                      {now && event.all_day
+                        ? kidHomeText("today")
+                        : now &&
                         formatRelativeDate(
                           event.start_time,
                           now,

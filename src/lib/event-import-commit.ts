@@ -26,7 +26,7 @@ export const EVENT_IMPORT_ACTIVITY_TYPE = 'events_imported'
 
 /** One reviewed event: the same field rules as `POST /api/events` (no type or recurrence). */
 export const commitEventSchema = createEventSchema
-  .pick({ title: true, description: true, start_time: true, end_time: true, location: true })
+  .pick({ title: true, description: true, start_time: true, end_time: true, location: true, all_day: true })
   .strict()
 
 export const commitSchema = z
@@ -47,6 +47,7 @@ export function checkCommitRanges(input: CommitInput): string | null {
     const end = e.end_time ? new Date(e.end_time) : start
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return `Event ${i + 1}: invalid start or end time`
     if (end < start) return `Event ${i + 1}: end time must be after start time`
+    if (e.all_day && !(end > start)) return `Event ${i + 1}: an all-day event needs an end after its start`
   }
   return null
 }
@@ -210,6 +211,7 @@ export async function commitImportedEvents(
           location: e.location || null,
           event_type: 'other',
           created_by: actor.id,
+          all_day: e.all_day === true,
         },
         select: { id: true },
       })

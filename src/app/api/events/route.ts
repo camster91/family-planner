@@ -39,6 +39,7 @@ import { getD1Database } from "@/lib/cloudflare/database";
 import { deleteD1EventFollowing } from "@/lib/cloudflare/event-series-edit";
 import { createPersonEvent, authorizePersonEventCreationReplay } from "@/lib/person-event-create";
 import { logRouteError } from "@/lib/api-error";
+import { ALL_DAY_INVALID, validAllDayRange } from "@/lib/all-day";
 import { getRequestId } from "@/lib/request-id";
 import {
   CalendarRangeError,
@@ -246,6 +247,9 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+    // Refused before any write or receipt, on both stores.
+    if (parsed.data.all_day && !validAllDayRange(startDate.getTime(), endDate.getTime()))
+      return NextResponse.json(ALL_DAY_INVALID.body, { status: ALL_DAY_INVALID.status });
 
     const actor = {
       familyId: auth.user.family_id, userId: auth.user.id,

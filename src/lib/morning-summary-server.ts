@@ -139,7 +139,7 @@ async function loadHousehold(db: Db, familyId: string, now: Date): Promise<House
             end_time: { gte: from },
             start_time: { lt: to },
           },
-          select: { title: true, start_time: true, end_time: true },
+          select: { title: true, start_time: true, end_time: true, all_day: true },
           orderBy: [{ start_time: 'asc' }, { id: 'asc' }],
           take: MAX_EVENTS,
         })
@@ -184,6 +184,7 @@ async function loadHousehold(db: Db, familyId: string, now: Date): Promise<House
       title: e.title,
       start: e.start_time,
       end: e.end_time,
+      ...(e.all_day ? { allDay: true } : {}),
     })),
     dinners: dinners.map((d) => ({
       day: toDateOnlyUTC(d.date),

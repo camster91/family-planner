@@ -140,6 +140,8 @@ export const createEventSchema = z.object({
   recurrence: recurrenceSchema,
   participants: eventParticipantsSchema,
   repeat: eventRepeatSchema.optional(),
+  // No time of day (src/lib/all-day.ts). Older clients omit it: a timed event.
+  all_day: z.boolean().optional(),
 })
 
 // Family
@@ -316,7 +318,12 @@ export const updateEventSchema = z.object({
   // null to stop repeating from this event on.
   series_scope: eventSeriesScopeSchema,
   repeat: eventRepeatSchema.nullable().optional(),
+  // Omitted leaves the stored value. Turning it on names both ends of the day
+  // range, so the stored times can never disagree with the flag.
+  all_day: z.boolean().optional(),
 }).superRefine((value, ctx) => {
+  if (value.all_day === true && (value.start_time === undefined || value.end_time === undefined || !(Date.parse(value.end_time) > Date.parse(value.start_time))))
+    ctx.addIssue({ code: 'custom', path: ['all_day'], message: 'An all-day event needs a start day and an end on or after it.' })
   if (value.repeat !== undefined && value.series_scope !== 'following')
     ctx.addIssue({ code: 'custom', path: ['repeat'], message: 'Changing how an event repeats applies to this and later events' })
   if (value.series_scope === 'following' && (value.recurrence !== undefined || value.expected_recurrence !== undefined))

@@ -161,10 +161,10 @@ async function loadHousehold(
   const events = enabled.calendar
     ? await db
         .prepare(
-          `SELECT title,start_time,end_time FROM "Event" WHERE family_id=?1 AND end_time>=?2 AND start_time<?3 ORDER BY start_time ASC,id ASC LIMIT ${MAX_EVENTS}`,
+          `SELECT title,start_time,end_time,all_day FROM "Event" WHERE family_id=?1 AND end_time>=?2 AND start_time<?3 ORDER BY start_time ASC,id ASC LIMIT ${MAX_EVENTS}`,
         )
         .bind(familyId, from, to)
-        .all<{ title: string; start_time: number; end_time: number }>()
+        .all<{ title: string; start_time: number; end_time: number; all_day: number }>()
     : { results: [] };
   const dinners = enabled.meals
     ? await db
@@ -204,6 +204,7 @@ async function loadHousehold(
       title: row.title,
       start: date(row.start_time),
       end: date(row.end_time),
+      ...(row.all_day === 1 ? { allDay: true } : {}),
     })),
     dinners: dinners.results.map((row) => ({
       day: toDateOnlyUTC(date(row.date)),

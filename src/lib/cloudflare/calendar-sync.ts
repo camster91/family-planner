@@ -54,7 +54,9 @@ export async function persistD1CalendarSync(db: D1Store, source: Source, actor: 
       if (keys.has(key)) throw new Error('Ambiguous calendar occurrence')
       keys.add(key)
       return { id: randomUUID(), uid: occ.uid, occurrence: occ.occurrenceStart.getTime(), title: occ.title,
-        description: occ.description, location: occ.location, start: occ.start.getTime(), end: occ.end.getTime() }
+        description: occ.description, location: occ.location, start: occ.start.getTime(), end: occ.end.getTime(),
+        // DATE-valued DTSTART: no time of day (src/lib/all-day.ts).
+        allDay: occ.allDay === true ? 1 : 0 }
     })
     const identityChunks: string[] = []
     for (let offset = 0; offset < rows.length; offset += 100) identityChunks.push(JSON.stringify(rows.slice(offset, offset + 100).map(row => ({ uid: row.uid, occurrence: row.occurrence }))))
@@ -73,17 +75,17 @@ export async function persistD1CalendarSync(db: D1Store, source: Source, actor: 
       const incoming = JSON.stringify(rows.slice(offset, offset + 100))
       updatedIndices.push(statements.length)
       statements.push(session.prepare(`UPDATE "Event" AS e SET
-        (title,description,location,start_time,end_time)=(SELECT json_extract(j.value,'$.title'),json_extract(j.value,'$.description'),
-          json_extract(j.value,'$.location'),json_extract(j.value,'$.start'),json_extract(j.value,'$.end') FROM json_each(?3) j WHERE ${matches}),
+        (title,description,location,start_time,end_time,all_day)=(SELECT json_extract(j.value,'$.title'),json_extract(j.value,'$.description'),
+          json_extract(j.value,'$.location'),json_extract(j.value,'$.start'),json_extract(j.value,'$.end'),json_extract(j.value,'$.allDay') FROM json_each(?3) j WHERE ${matches}),
         updated_at=?4 WHERE e.family_id=?1 AND e.source_subscription_id=?2 AND EXISTS (SELECT 1 FROM json_each(?3) j WHERE ${matches}
           AND (e.title IS NOT json_extract(j.value,'$.title') OR e.description IS NOT json_extract(j.value,'$.description')
           OR e.location IS NOT json_extract(j.value,'$.location') OR e.start_time IS NOT json_extract(j.value,'$.start')
-          OR e.end_time IS NOT json_extract(j.value,'$.end'))) RETURNING id`)
+          OR e.end_time IS NOT json_extract(j.value,'$.end') OR e.all_day IS NOT json_extract(j.value,'$.allDay'))) RETURNING id`)
         .bind(source.family_id, source.id, incoming, status.now))
       createdIndices.push(statements.length)
-      statements.push(session.prepare(`INSERT INTO "Event" (id,family_id,created_by,source_subscription_id,source_uid,source_occurrence_start,title,description,location,start_time,end_time,created_at,updated_at)
+      statements.push(session.prepare(`INSERT INTO "Event" (id,family_id,created_by,source_subscription_id,source_uid,source_occurrence_start,title,description,location,start_time,end_time,created_at,updated_at,all_day)
         SELECT json_extract(j.value,'$.id'),?1,?4,?2,json_extract(j.value,'$.uid'),json_extract(j.value,'$.occurrence'),json_extract(j.value,'$.title'),
-          json_extract(j.value,'$.description'),json_extract(j.value,'$.location'),json_extract(j.value,'$.start'),json_extract(j.value,'$.end'),?5,?5
+          json_extract(j.value,'$.description'),json_extract(j.value,'$.location'),json_extract(j.value,'$.start'),json_extract(j.value,'$.end'),?5,?5,json_extract(j.value,'$.allDay')
         FROM json_each(?3) j WHERE NOT EXISTS (SELECT 1 FROM "Event" e WHERE e.family_id=?1 AND e.source_subscription_id=?2 AND ${matches}) RETURNING id`)
         .bind(source.family_id, source.id, incoming, source.created_by, status.now))
     }

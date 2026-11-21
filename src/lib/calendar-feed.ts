@@ -1,6 +1,7 @@
 /** Complete token-scoped ICS assembly inside a caller-owned read snapshot. */
 import type { Prisma } from "@prisma/client";
 import { calendarFeedRule } from "./calendar-feed-rule";
+import { allDayDays, dayAfter } from "./all-day";
 export const CALENDAR_FEED_PAGE_SIZE = 200;
 export const CALENDAR_FEED_MAX_EVENTS = 10000;
 export const CALENDAR_FEED_MAX_BYTES = 16 * 1024 * 1024;
@@ -8,7 +9,7 @@ export class CalendarFeedTooLarge extends Error {
   constructor() { super("Calendar feed exceeds complete export limits"); }
 }
 type FeedEvent = { id: string; title: string; description: string | null; location: string | null;
-  start_time: Date; end_time: Date; created_at: Date; recurrence: string | null };
+  start_time: Date; end_time: Date; created_at: Date; recurrence: string | null; all_day: boolean };
 type FeedTx = Pick<Prisma.TransactionClient, "family" | "event">;
 
 function escapeIcs(value: string): string {
@@ -82,7 +83,7 @@ export async function buildCalendarFeed(tx: FeedTx, token: string, now: Date) {
         ] }] } : {}),
       },
       select: { id: true, title: true, description: true, location: true,
-        start_time: true, end_time: true, created_at: true, recurrence: true },
+        start_time: true, end_time: true, created_at: true, recurrence: true, all_day: true },
       orderBy: [{ start_time: "asc" }, { id: "asc" }], take,
     });
     for (const event of events) {
@@ -91,8 +92,16 @@ export async function buildCalendarFeed(tx: FeedTx, token: string, now: Date) {
       append("BEGIN:VEVENT");
       append(`UID:${event.id}@family.ashbi.ca`);
       append(`DTSTAMP:${stamp(event.created_at)}`);
-      append(`DTSTART:${stamp(event.start_time)}`);
-      append(`DTEND:${stamp(end)}`);
+      // An all-day event is exported as DATE values; DTEND is the day after
+      // its last day (RFC 5545 3.6.1), so other calendars show it as all day.
+      const days = event.all_day ? allDayDays(event.start_time, end) : null;
+      if (days) {
+        append(`DTSTART;VALUE=DATE:${days.first.replace(/-/g, "")}`);
+        append(`DTEND;VALUE=DATE:${dayAfter(days.last).replace(/-/g, "")}`);
+      } else {
+        append(`DTSTART:${stamp(event.start_time)}`);
+        append(`DTEND:${stamp(end)}`);
+      }
       text("SUMMARY", event.title);
       if (event.description) text("DESCRIPTION", event.description);
       if (event.location) text("LOCATION", event.location);

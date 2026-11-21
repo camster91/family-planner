@@ -47,6 +47,8 @@ export interface EventCreateBody {
   start_time: string;
   end_time?: string;
   location: string | null;
+  /** Sent only for an all-day event, so a timed body is unchanged. */
+  all_day?: true;
 }
 
 /** Low-confidence suggestions start unticked. */
@@ -190,6 +192,7 @@ export function draftToEventBody(
     location: location || null,
   };
   if (end) body.end_time = end.toISOString();
+  if (draft.allDay && end && end > start) body.all_day = true;
   return { ok: true, body };
 }
 

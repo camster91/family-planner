@@ -15,13 +15,13 @@ import {
 import { projectEventParticipants, readHouseholdPeople, replaceEventParticipantsInTx } from './event-participants-db'
 import {
   EVENT_NOT_REPEATING, EVENT_REPEAT_UNSUPPORTED, SERIES_TOP_UP_MAX, eventRepeatReady, isFollowingRefusal, planFollowingEdit,
-  seriesEventId, seriesOccurrences, seriesTopUpDueBefore, seriesTopUpTarget, type EventRepeatEvery, type SeriesRule,
+  seriesEventId, seriesOccurrenceEnd, seriesOccurrences, seriesTopUpDueBefore, seriesTopUpTarget, type EventRepeatEvery, type SeriesRule,
 } from './event-series'
 
 type Tx = Prisma.TransactionClient
 /** No occurrence is left to write: never selected for top-up again. */
 export const SERIES_COMPLETE = new Date(253_402_300_799_000)
-type Template = { id: string; family_id: string; created_by: string; duration_ms: number; title: string; description: string | null; location: string | null; event_type: string }
+type Template = { id: string; family_id: string; created_by: string; duration_ms: number; all_day: boolean; time_zone: string; title: string; description: string | null; location: string | null; event_type: string }
 
 function parsePeople(raw: string): EventPersonRef[] {
   try {
@@ -44,7 +44,8 @@ export async function writeSeriesOccurrencesInTx(tx: Pick<Tx, 'event' | 'eventPa
     data: starts.map((start) => ({
       id: seriesEventId(series.id, start), family_id: series.family_id, created_by: series.created_by, title: series.title,
       description: series.description, location: series.location, event_type: series.event_type,
-      start_time: new Date(start), end_time: new Date(start + series.duration_ms), series_id: series.id, series_occurrence_start: new Date(start),
+      start_time: new Date(start), end_time: new Date(seriesOccurrenceEnd(series, start)), all_day: series.all_day,
+      series_id: series.id, series_occurrence_start: new Date(start),
     })),
   })
   if (people.length) await tx.eventParticipant.createMany({
@@ -129,7 +130,7 @@ export async function updatePersonEventFollowing(db: Pick<PrismaClient, '$transa
     }
     const plan = planFollowingEdit({
       event: { start: event.start_time.getTime(), end: event.end_time.getTime(), title: event.title, description: event.description, location: event.location,
-        event_type: event.event_type, occurrenceStart: occurrenceStart.getTime() },
+        event_type: event.event_type, occurrenceStart: occurrenceStart.getTime(), allDay: event.all_day },
       series: series ? { every: series.every as EventRepeatEvery, timeZone: series.time_zone, untilDay: series.until_day, anchorStart: series.anchor_start.getTime() } : null,
     }, input)
     if (isFollowingRefusal(plan)) return plan
@@ -138,17 +139,18 @@ export async function updatePersonEventFollowing(db: Pick<PrismaClient, '$transa
     // Detach the edited event before the old series can be removed.
     const next = plan.rule ? await tx.eventSeries.create({ data: {
       family_id: actor.familyId, created_by: owner, every: plan.rule.every, time_zone: plan.rule.timeZone, anchor_start: new Date(plan.start),
-      duration_ms: plan.end - plan.start, until_day: plan.rule.untilDay, ...plan.template, participants: JSON.stringify(refs), generated_through: new Date(plan.start),
+      duration_ms: plan.end - plan.start, all_day: plan.allDay, until_day: plan.rule.untilDay, ...plan.template, participants: JSON.stringify(refs), generated_through: new Date(plan.start),
     } }) : null
     const updated = await tx.event.update({ where: { id: event.id, family_id: actor.familyId }, data: {
-      ...plan.template, start_time: new Date(plan.start), end_time: new Date(plan.end),
+      ...plan.template, start_time: new Date(plan.start), end_time: new Date(plan.end), all_day: plan.allDay,
       series_id: next?.id ?? null, series_occurrence_start: next ? new Date(plan.start) : null, series_detached: false,
     }, include: { creator: { select: { id: true, name: true } } } })
     await endPreviousInTx(tx, series?.id, plan.previous)
     if (input.participants !== undefined) await replaceEventParticipantsInTx(tx, event.id, actor.familyId, refs)
     if (next && plan.rule) {
       const rows = planSeriesRows(plan.rule, plan.start, Math.max(seriesTopUpTarget(Date.now()), plan.start))
-      await writeSeriesOccurrencesInTx(tx, { id: next.id, family_id: actor.familyId, created_by: owner, duration_ms: plan.end - plan.start, ...plan.template }, rows.starts, refs)
+      await writeSeriesOccurrencesInTx(tx, { id: next.id, family_id: actor.familyId, created_by: owner, duration_ms: plan.end - plan.start,
+        all_day: plan.allDay, time_zone: plan.rule.timeZone, ...plan.template }, rows.starts, refs)
       await tx.eventSeries.update({ where: { id: next.id }, data: { generated_through: rows.generatedThrough } })
     }
     const [withPeople] = await projectEventParticipants(tx, actor.familyId, [updated])

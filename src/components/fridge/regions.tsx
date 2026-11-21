@@ -234,6 +234,7 @@ export function eventTimeLabel(
   locale: string,
   text: TodayBoardTranslator = defaultTodayBoardText,
 ): string {
+  if (e.allDay) return text('allDay')
   if (e.startedEarlier) {
     const end = new Date(e.end)
     const endsToday = end.toDateString() === new Date().toDateString()
@@ -785,7 +786,8 @@ export function ComingUpRegion({
                   {shown.map((e) => (
                     <li key={e.id} className="min-w-0">
                       <p className={cn(itemTextClass, 'break-words')}>
-                        <span className="font-semibold tabular-nums">{formatTime(e.start, locale)}</span> {e.title}
+                        {/* An all-day event has no time to show. */}
+                        {!e.allDay && <><span className="font-semibold tabular-nums">{formatTime(e.start, locale)}</span>{' '}</>}{e.title}
                       </p>
                       {(!!e.forPeople?.length || e.source) && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">

@@ -1,4 +1,5 @@
 import { calendarFeedRule } from "@/lib/calendar-feed-rule";
+import { allDayDays, dayAfter } from "@/lib/all-day";
 import { getD1Database, type D1Store } from "./database";
 
 export const D1_CALENDAR_FEED_PAGE_SIZE = 200;
@@ -28,6 +29,7 @@ type FeedEvent = {
   end_time: number;
   created_at: number;
   recurrence: string | null;
+  all_day: number;
 };
 
 function escapeIcs(value: string): string {
@@ -104,7 +106,7 @@ export async function buildD1CalendarFeed(
   const rows = (
     await db
       .prepare(
-        `SELECT e.id,e.title,e.description,e.location,e.start_time,e.end_time,e.created_at,e.recurrence FROM "Event" e
+        `SELECT e.id,e.title,e.description,e.location,e.start_time,e.end_time,e.created_at,e.recurrence,e.all_day FROM "Event" e
       WHERE e.family_id=?1 AND (e.recurrence IS NOT NULL OR (e.start_time>=?2 AND e.start_time<=?3))
       ORDER BY e.start_time,e.id LIMIT ?4`,
       )
@@ -119,8 +121,16 @@ export async function buildD1CalendarFeed(
     append("BEGIN:VEVENT");
     append(`UID:${event.id}@family.ashbi.ca`);
     append(`DTSTAMP:${stamp(event.created_at)}`);
-    append(`DTSTART:${stamp(event.start_time)}`);
-    append(`DTEND:${stamp(end)}`);
+    // An all-day event is exported as DATE values; DTEND is the day after
+    // its last day (RFC 5545 3.6.1), so other calendars show it as all day.
+    const days = event.all_day === 1 ? allDayDays(event.start_time, end) : null;
+    if (days) {
+      append(`DTSTART;VALUE=DATE:${days.first.replace(/-/g, "")}`);
+      append(`DTEND;VALUE=DATE:${dayAfter(days.last).replace(/-/g, "")}`);
+    } else {
+      append(`DTSTART:${stamp(event.start_time)}`);
+      append(`DTEND:${stamp(end)}`);
+    }
     text("SUMMARY", event.title);
     if (event.description) text("DESCRIPTION", event.description);
     if (event.location) text("LOCATION", event.location);

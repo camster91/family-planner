@@ -1009,6 +1009,11 @@ model Event {
   series_occurrence_start DateTime?
   series_detached         Boolean   @default(false)
 
+  // An all-day event (no time of day). The instants stay real: 00:00 of the
+  // first day to 23:59 of the last day in the zone it was made in; imported
+  // feeds use midnight to the next midnight. See src/lib/all-day.ts.
+  all_day Boolean @default(false)
+
   // Relations
   family              Family                @relation(fields: [family_id], references: [id], onDelete: Cascade)
   creator             User                  @relation("CreatedEvents", fields: [created_by], references: [id], onDelete: Cascade)
@@ -1047,6 +1052,7 @@ model EventSeries {
   time_zone         String
   anchor_start      DateTime
   duration_ms       Int      @default(0)
+  all_day           Boolean  @default(false)
   until_day         String?
   title             String
   description       String?
