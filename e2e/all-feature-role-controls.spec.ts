@@ -214,9 +214,10 @@ for (const role of ["parent", "teen", "child"] as const) {
             locale === "es" ? "Acciones rápidas de hoy" : "Today quick actions",
           exact: true,
         });
+        // Calm Today: Customize lives in the quiet "More options" overflow.
         const todayMenu = controls.locator("details").filter({
           has: page.locator("summary").filter({
-            hasText: locale === "es" ? /^Personalizar$/ : /^Customize$/,
+            hasText: locale === "es" ? /^Más opciones$/ : /^More options$/,
           }),
         });
         await todayMenu.locator("summary").click();

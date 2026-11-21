@@ -460,6 +460,22 @@ async function axeScan(page: Page, testInfo: TestInfo, label: string) {
 async function expectBoardTypography(page: Page, fridgeMode: boolean) {
   await page.evaluate(() => document.fonts.ready);
   const width = page.viewportSize()!.width;
+  if (!fridgeMode) {
+    // Calm Today: the personal page folds Dinner and Groceries into single
+    // lines, so there is no across-the-room display type to keep here.
+    const line = region(page, "dinner").getByTestId("dinner-tonight");
+    await expect(line).toHaveCSS("font-size", width >= 768 ? "17px" : "16px");
+    await expect(
+      region(page, "dinner").getByRole("heading", { name: "Dinner tonight" }),
+    ).toHaveCSS("font-size", width >= 768 ? "18px" : "17px");
+    await expect(
+      region(page, "groceries").getByText(
+        "To-dos, wishlists and custom lists",
+        { exact: true },
+      ),
+    ).toHaveCount(0);
+    return;
+  }
   const landscape = await page.evaluate(
     () => matchMedia("(orientation: landscape)").matches,
   );
@@ -656,7 +672,91 @@ test.describe("Today board: Family A parent", () => {
       "href",
       "/dashboard/chores",
     );
+    // Calm Today: events then chores are one "what's next" card, and event
+    // rows no longer say who added them.
+    const flow = page.getByTestId("today-next");
+    await expect(flow.getByTestId("region-today")).toHaveCount(1);
+    await expect(flow.getByTestId("region-chores")).toHaveCount(1);
+    const eventsBox = await next.boundingBox();
+    const choresBox = await chores.boundingBox();
+    expect(choresBox!.y).toBeGreaterThanOrEqual(
+      eventsBox!.y + eventsBox!.height - 1,
+    );
+    await expect(board(page).getByText(/Added by/)).toHaveCount(0);
+    await expect(board(page).getByTestId("event-member")).toHaveCount(0);
     await expectNoCanaries(page);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("folds Dinner, Groceries and Coming up into single tappable lines", async ({
+    page,
+  }) => {
+    await openBoard(page);
+    const dinner = region(page, "dinner").getByRole("link");
+    await expect(dinner).toHaveCount(1);
+    await expect(dinner).toContainText("Dinner tonight");
+    await expect(dinner).toContainText(DINNER_TODAY);
+    await expect(dinner).toHaveAttribute(
+      "href",
+      "/dashboard/meals?start=2026-01-05",
+    );
+    // Cook, recipe and prep details stay on the Meals page.
+    await expect(region(page, "dinner")).not.toContainText("Cooking:");
+
+    const groceries = region(page, "groceries").getByRole("link");
+    await expect(groceries).toHaveCount(1);
+    await expect(groceries).toContainText("Groceries");
+    await expect(groceries).toContainText("6 to buy");
+    await expect(groceries).toHaveAttribute(
+      "href",
+      "/dashboard/lists/groceries",
+    );
+    // Quick ticks live on the list, not on the home line.
+    await expect(region(page, "groceries").getByRole("button")).toHaveCount(0);
+    await expect(board(page).getByTestId("grocery-item")).toHaveCount(0);
+    await expect(board(page)).not.toContainText("Milk");
+
+    const coming = region(page, "coming").getByRole("link");
+    await expect(coming).toHaveCount(1);
+    await expect(coming).toContainText("Coming up");
+    await expect(coming).toContainText("Library returns · Tomorrow");
+    await expect(coming).toContainText(/\+\d+ more/);
+    await expect(coming).toHaveAttribute(
+      "href",
+      "/dashboard/calendar?view=agenda",
+    );
+    await expect(board(page).getByTestId("coming-up-day")).toHaveCount(0);
+
+    for (const line of [dinner, groceries, coming]) {
+      const box = await line.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeLessThan(120);
+    }
+    await expectNoCanaries(page);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("keeps one primary button and tucks Customize and Fridge mode away", async ({
+    page,
+  }) => {
+    await openBoard(page);
+    const nav = page.getByRole("navigation", { name: "Today quick actions" });
+    await expect(nav.locator(":scope > button")).toHaveText(["Add or ask"]);
+    await expect(
+      board(page).getByRole("link", { name: "Fridge mode", exact: true }),
+    ).toBeHidden();
+    const more = nav.getByTestId("today-overflow").locator("summary");
+    const moreBox = await more.boundingBox();
+    expect(moreBox!.width).toBeGreaterThanOrEqual(44);
+    expect(moreBox!.height).toBeGreaterThanOrEqual(44);
+    await more.click();
+    await expect(
+      nav.getByRole("button", { name: "Customize Today", exact: true }),
+    ).toBeVisible();
+    await expect(
+      nav.getByRole("button", { name: "Refresh now", exact: true }),
+    ).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 

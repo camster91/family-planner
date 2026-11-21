@@ -157,6 +157,15 @@ test.describe("signed out", () => {
     await expect(
       main.getByRole("link", { name: "1 chore to check" }),
     ).toHaveAttribute("href", "/dashboard/chores");
+    // Calm Today: that is the summary's only link, and one primary button.
+    await expect(
+      main.getByTestId("home-summary").getByRole("link"),
+    ).toHaveCount(1);
+    await expect(
+      main
+        .getByRole("navigation", { name: "Today quick actions" })
+        .locator(":scope > button"),
+    ).toHaveText(["Add or ask"]);
     // Seeded events still to come today, on the board.
     await expect(main.getByText("Dentist (Casey)").first()).toBeVisible();
     await expect(main.getByText("Soccer practice").first()).toBeVisible();

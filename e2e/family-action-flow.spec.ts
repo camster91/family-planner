@@ -134,7 +134,7 @@ test("Today keeps secondary actions tucked away and restores their dialog focus"
 }, info) => {
   await page.goto("/dashboard/today");
   const nav = page.getByRole("navigation", { name: "Today quick actions" });
-  const controls = nav.locator("summary", { hasText: "Customize" });
+  const controls = nav.locator("summary", { hasText: "More options" });
   const explore = nav.getByRole("button", { name: "Explore", exact: true });
   await expect(explore).not.toBeVisible();
   await page.screenshot({
@@ -166,7 +166,7 @@ test("Today keeps secondary actions tucked away and restores their dialog focus"
   ).toBe(true);
 });
 
-test("wide Today puts dinner beside the schedule without changing saved section order", async ({
+test("wide Today puts the dinner line beside what's next without changing saved section order", async ({
   page,
 }, info) => {
   await page.goto("/dashboard/today");
@@ -178,11 +178,22 @@ test("wide Today puts dinner beside the schedule without changing saved section 
   const dinnerBox = await dinner.boundingBox();
   expect(nextBox).not.toBeNull();
   expect(dinnerBox).not.toBeNull();
-  if (page.viewportSize()!.width >= 1280) {
+  // Calm Today: one main column; from 1024px the compact lines sit beside it.
+  if (page.viewportSize()!.width >= 1024) {
     expect(Math.abs(nextBox!.y - dinnerBox!.y)).toBeLessThan(2);
     expect(dinnerBox!.x).toBeGreaterThan(nextBox!.x + nextBox!.width);
+    expect(nextBox!.width).toBeGreaterThan(dinnerBox!.width);
   } else {
     expect(dinnerBox!.y).toBeGreaterThanOrEqual(nextBox!.y + nextBox!.height);
+  }
+  // The folded lines stay short: one row each, never a full card.
+  for (const section of ["dinner", "groceries", "coming"]) {
+    const box = await grid
+      .locator(`:scope > [data-today-section="${section}"]`)
+      .boundingBox();
+    expect(box, section).not.toBeNull();
+    expect(box!.height, section).toBeGreaterThanOrEqual(44);
+    expect(box!.height, section).toBeLessThan(120);
   }
   expect(
     await grid
@@ -197,7 +208,7 @@ test("wide Today puts dinner beside the schedule without changing saved section 
   });
   // Preview a real customization without saving fixture preferences.
   const nav = page.getByRole("navigation", { name: "Today quick actions" });
-  await nav.locator("summary", { hasText: "Customize" }).click();
+  await nav.locator("summary", { hasText: "More options" }).click();
   await nav
     .getByRole("button", { name: "Customize Today", exact: true })
     .click();

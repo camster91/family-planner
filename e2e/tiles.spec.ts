@@ -179,8 +179,23 @@ test.describe("person board", () => {
     await expect.poll(async () => (await choreRow())?.status).toBe("pending");
     await expect(chores).toContainText(CHORE);
 
+    // The heading opens the section; no "Open …" buttons remain.
+    await expect(
+      chores.getByRole("link", { name: /Chores today\s*, open chores/ }),
+    ).toHaveAttribute("href", "/dashboard/chores");
+
+    // Calm Today: on the personal page Groceries is one line that opens the
+    // list; quick ticks live on the list and on the person's fridge board.
+    await expect(region(page, "groceries").getByRole("button")).toHaveCount(0);
+    await expect(region(page, "groceries").getByRole("link")).toHaveAttribute(
+      "href",
+      "/dashboard/lists/groceries",
+    );
+    await page.goto("/dashboard/today?mode=fridge");
+
     // Grocery: the #162 queue sends the explicit state with an Idempotency-Key.
     const groceries = region(page, "groceries");
+    await expect(groceries).toContainText(ITEM);
     const ticked = page.waitForRequest(
       (r) =>
         r.url().endsWith("/api/lists/items/update") && r.method() === "PATCH",
@@ -203,10 +218,6 @@ test.describe("person board", () => {
     await expect(groceries).toContainText(ITEM);
     await expect.poll(async () => (await itemRow())?.checked).toBe(false);
 
-    // The heading opens the section; no "Open …" buttons remain.
-    await expect(
-      chores.getByRole("link", { name: /Chores today\s*, open chores/ }),
-    ).toHaveAttribute("href", "/dashboard/chores");
     await expect(page.getByRole("link", { name: /^Open / })).toHaveCount(0);
   });
 });

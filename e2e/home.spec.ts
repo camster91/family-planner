@@ -161,13 +161,18 @@ test.describe("Family A parent", () => {
     // No contradicting empty state and no progress ring.
     await expect(page.getByText("All done for today!")).toHaveCount(0);
     await expect(page.getByText(/^\d+ of \d+ done today$/)).toHaveCount(0);
-    // Chores stay reachable from Today.
-    await expect(
-      page.getByRole("link", { name: "All chores" }),
-    ).toHaveAttribute("href", "/dashboard/chores");
+    // Chores stay reachable from Today: one link beside the sentence, and
+    // the "Chores today" heading (Calm Today drops the extra "All chores").
+    await expect(page.getByTestId("home-summary").getByRole("link")).toHaveText(
+      ["1 chore to check"],
+    );
     await expect(
       page.getByRole("link", { name: "1 chore to check" }),
-    ).toBeVisible();
+    ).toHaveAttribute("href", "/dashboard/chores");
+    await expect(page.getByRole("link", { name: "All chores" })).toHaveCount(0);
+    await expect(
+      visibleBoard.getByTestId("region-link-chores"),
+    ).toHaveAttribute("href", "/dashboard/chores");
     await expect(page.getByText(CHORE_TITLE, { exact: true })).toHaveCount(1);
     const ownChore = page.getByRole("checkbox", {
       name: new RegExp(CHORE_TITLE),
@@ -388,77 +393,43 @@ test.describe("Personal-only household work", () => {
         const right = (box: NonNullable<typeof nextBox>) => box.x + box.width;
         const edgeTolerance = 2;
 
-        // The personal layout keeps the saved DOM order. Its responsive
-        // spans change by viewport instead of using dense packing or CSS
-        // reordering.
+        // Calm Today keeps the saved DOM order with no dense packing or CSS
+        // reordering: one column below 1024px; from there the compact lines
+        // stack beside the main "what's next" card.
+        const dinnerBox = await section("dinner").boundingBox();
+        const groceriesBox = await section("groceries").boundingBox();
+        expect(dinnerBox).not.toBeNull();
+        expect(groceriesBox).not.toBeNull();
+        const lines = [dinnerBox!, groceriesBox!, comingBox!];
         expect(Math.abs(nextBox!.x - gridBox!.x)).toBeLessThan(edgeTolerance);
-        if (width < 1280) {
+        for (const line of lines) {
+          expect(Math.abs(right(line) - gridRight)).toBeLessThan(edgeTolerance);
+          expect(Math.abs(line.x - dinnerBox!.x)).toBeLessThan(edgeTolerance);
+        }
+        // The lines follow each other top to bottom in the saved order.
+        expect(groceriesBox!.y).toBeGreaterThanOrEqual(
+          dinnerBox!.y + dinnerBox!.height - edgeTolerance,
+        );
+        expect(comingBox!.y).toBeGreaterThanOrEqual(
+          groceriesBox!.y + groceriesBox!.height - edgeTolerance,
+        );
+        if (width < 1024) {
           expect(Math.abs(right(nextBox!) - gridRight)).toBeLessThan(
             edgeTolerance,
           );
-        }
-        if (width < 1280)
-          expect(Math.abs(comingBox!.x - gridBox!.x)).toBeLessThan(
+          expect(Math.abs(dinnerBox!.x - gridBox!.x)).toBeLessThan(
             edgeTolerance,
-          );
-        expect(Math.abs(right(comingBox!) - gridRight)).toBeLessThan(
-          edgeTolerance,
-        );
-
-        if (width < 1280) {
-          const dinnerBox = await section("dinner").boundingBox();
-          const groceriesBox = await section("groceries").boundingBox();
-          expect(dinnerBox).not.toBeNull();
-          expect(groceriesBox).not.toBeNull();
-          expect(Math.abs(dinnerBox!.y - groceriesBox!.y)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(dinnerBox!.x).toBeLessThan(groceriesBox!.x);
-          expect(Math.abs(dinnerBox!.width - groceriesBox!.width)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(right(dinnerBox!)).toBeLessThanOrEqual(
-            groceriesBox!.x + edgeTolerance,
-          );
-          expect(right(groceriesBox!)).toBeLessThanOrEqual(
-            gridRight + edgeTolerance,
           );
           expect(dinnerBox!.y).toBeGreaterThanOrEqual(
             nextBox!.y + nextBox!.height - edgeTolerance,
           );
-          expect(comingBox!.y).toBeGreaterThanOrEqual(
-            Math.max(
-              dinnerBox!.y + dinnerBox!.height,
-              groceriesBox!.y + groceriesBox!.height,
-            ) - edgeTolerance,
-          );
         } else {
-          const dinnerBox = await section("dinner").boundingBox();
-          const groceriesBox = await section("groceries").boundingBox();
-          expect(dinnerBox).not.toBeNull();
-          expect(groceriesBox).not.toBeNull();
           expect(Math.abs(nextBox!.y - dinnerBox!.y)).toBeLessThan(
             edgeTolerance,
           );
           expect(nextBox!.width).toBeGreaterThan(dinnerBox!.width);
           expect(right(nextBox!)).toBeLessThanOrEqual(
             dinnerBox!.x + edgeTolerance,
-          );
-          expect(Math.abs(right(dinnerBox!) - gridRight)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(Math.abs(groceriesBox!.y - comingBox!.y)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(right(groceriesBox!)).toBeLessThanOrEqual(
-            comingBox!.x + edgeTolerance,
-          );
-          expect(comingBox!.width).toBeGreaterThan(groceriesBox!.width);
-          expect(comingBox!.y).toBeGreaterThanOrEqual(
-            Math.max(
-              nextBox!.y + nextBox!.height,
-              dinnerBox!.y + dinnerBox!.height,
-            ) - edgeTolerance,
           );
         }
       }

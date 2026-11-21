@@ -18,7 +18,7 @@
  *    No app code or test-only switch is involved.
  * 3. The parent signs in, lands on onboarding (naming the family is the first
  *    screen), creates the household, presses Done and is sent to the Today
- *    board: a "Get started" card with four steps, none done, comes first,
+ *    board: a one-line "Get started" (it opens four steps, none done) comes first,
  *    above one-line empty cards that say what to do first ("No chores yet").
  *    The household is stored with only the six sections a new household
  *    starts with (O-38) and its "Groceries" list, and no "Turn on more" card
@@ -408,6 +408,17 @@ test.describe("new household sign-up journey", () => {
       await expect(
         getStarted.getByTestId("get-started-progress"),
       ).toContainText("0 of 4 done");
+      // Calm Today: one line until asked; it opens the steps in place.
+      await expect(getStarted.getByRole("link")).toHaveCount(0);
+      const lineBox = await getStarted.boundingBox();
+      expect(lineBox!.height).toBeLessThan(72);
+      const steps = getStarted.getByRole("button", { name: /^Get started/ });
+      await expect(steps).toHaveAttribute("aria-expanded", "false");
+      await steps.click();
+      await expect(steps).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        getStarted.getByRole("button", { name: "Hide get started" }),
+      ).toBeVisible();
       await expect(
         getStarted.getByRole("link", { name: /Invite your family/ }),
       ).toHaveAttribute("href", "/dashboard/family/invite");
