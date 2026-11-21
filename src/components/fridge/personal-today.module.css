@@ -35,23 +35,71 @@
 .compact > div > section {
   padding: 12px;
 }
-@media (min-width: 768px) {
-  .layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* A filled card folded into one tappable line: the row owns the padding. */
+.layout > div > section[data-region-line] {
+  padding: 0;
+}
 
-  /*
-   * Keep the viewer's saved DOM order while giving the board its intended
-   * tablet rhythm: Next Up and Coming Up are full rows around the paired
-   * Dinner/Groceries row. Direct-child selectors avoid CSS reordering or
-   * dense packing when a person customizes that order.
-   */
-  .layout > [data-today-section="next"],
-  .layout > [data-today-section="coming"],
-  .layout > [data-today-section="usesoon"] {
-    grid-column: 1 / -1;
+/*
+ * Calm Today: one main column for what's next. On a wide screen the compact
+ * lines sit beside it, but only when "what's next" is first in the viewer's
+ * saved order, so nothing is reordered for the keyboard or a screen reader.
+ * The last row is flexible so the main card's height never spreads the lines.
+ */
+@media (min-width: 1024px) {
+  .layout {
+    max-width: 760px;
+  }
+  .layout:has(> [data-today-section="next"]:first-child:not(:only-child)) {
+    max-width: none;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+    grid-template-rows: repeat(4, auto) 1fr;
+  }
+  .layout:has(> [data-today-section="next"]:first-child:not(:only-child))
+    > [data-today-section="next"] {
+    grid-column: 1;
+    grid-row: 1 / span 5;
+  }
+  .layout:has(> [data-today-section="next"]:first-child:not(:only-child))
+    > :not([data-today-section="next"]) {
+    grid-column: 2;
   }
 }
+
+/*
+ * Calm Today: today's events, then chores, as one card. The two labelled
+ * sections keep their headings and links; only the card edge is shared.
+ */
+.flow {
+  min-width: 0;
+  border: 1px solid var(--surface-separator);
+  border-radius: var(--radius-xl);
+  background: var(--surface-elevated);
+}
+.flow > section {
+  min-width: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: transparent;
+}
+.flow > section + section {
+  border-top: 1px solid var(--surface-separator);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.flow > section[data-empty-line] {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.compact .flow > section {
+  padding: 12px;
+}
+.compact .flow > section[data-empty-line] {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 /* Personal schedule and chore cards are siblings, independent of fridge areas. */
 .nextSections {
   display: grid;
@@ -86,30 +134,6 @@
   }
 }
 
-/* On wide personal boards, keep dinner beside the first schedule/task row.
-   Only use this composition when those sections are already first in the
-   viewer's chosen order. No dense packing or visual/keyboard reordering. */
-@media (min-width: 1280px) {
-  .layout:has(
-    > [data-today-section="next"]:first-child + [data-today-section="dinner"]
-  ) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .layout:has(
-      > [data-today-section="next"]:first-child + [data-today-section="dinner"]
-    )
-    > [data-today-section="next"] {
-    grid-column: span 2;
-  }
-  .layout:has(
-      > [data-today-section="next"]:first-child + [data-today-section="dinner"]
-    )
-    > [data-today-section="groceries"]
-    + [data-today-section="coming"] {
-    grid-column: span 2;
-  }
-}
-
 /* Browsers cannot measure physical inches reliably. Offer the wall-board
    entry on large touch layouts or roomy mouse/trackpad layouts only. This
    hides it from small tablets and phones in both orientations; existing
@@ -120,6 +144,6 @@
 @media (min-width: 800px) and (min-height: 800px),
   (min-width: 1024px) and (min-height: 600px) and (pointer: fine) {
   .fridgeEntry {
-    display: inline-flex;
+    display: block;
   }
 }

@@ -49,7 +49,8 @@ export const dynamic = "force-dynamic";
  * sentence and their own tickable chores above the board (#268,
  * ./home-summary-data.ts). Fridge mode is the shared surface, so it shows the
  * board alone. A parent of a household that is not set up yet also gets a
- * compact "Get started" steps first, above the (still empty) plans
+ * one-line "Get started" first (it opens the steps in place), above the
+ * (still empty) plans
  * (./get-started-data.ts); once that is done or hidden, a "Turn on more" card
  * at the end suggests a few sections that are still off (O-38,
  * components/dashboard/FeatureSuggestions.tsx). Empty cards say what to do

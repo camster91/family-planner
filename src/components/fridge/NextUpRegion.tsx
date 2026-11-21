@@ -32,12 +32,18 @@ export function NextUpRegion({
   preparationEnabled = false,
   preparationBacklinks = {},
   compactEmpty = false,
+  calm = false,
   addEventHref = null,
   addChoreHref = null,
   noChoresYet = false,
 }: {
   /** Shrink an empty card to one line with its first action (personal Today). */
   compactEmpty?: boolean;
+  /**
+   * Personal Today (Calm Today): events and chores read as one "what's next"
+   * card, events first, and event rows drop the "Added by" line.
+   */
+  calm?: boolean;
   /** "Add event" on an empty schedule; null hides it. */
   addEventHref?: string | null;
   /** "Add a chore" when the household never added one; null hides it. */
@@ -73,7 +79,10 @@ export function NextUpRegion({
     ? chores.reduce((sum, person) => sum + (person.awaitingCheckCount ?? 0), 0)
     : 0;
   return (
-    <div className={`${areaClass.today} ${personalStyles.nextSections} ${!showChores ? personalStyles.singleSection : ""}`}>
+    <div
+      data-testid={calm ? "today-next" : undefined}
+      className={`${areaClass.today} ${calm ? personalStyles.flow : personalStyles.nextSections} ${!showChores ? personalStyles.singleSection : ""}`}
+    >
     {compactEmpty && shownEvents.length === 0 ? (
       <EmptyRegionLine
         id="board-next-up"
@@ -105,6 +114,7 @@ export function NextUpRegion({
         <ScheduleEventRows
           events={shownEvents}
           people={people}
+          showAddedBy={!calm}
           eventAction={
             preparationEnabled
               ? (event) => <PreparationEntry eventId={event.id} />

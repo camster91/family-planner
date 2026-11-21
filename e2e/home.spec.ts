@@ -161,13 +161,18 @@ test.describe("Family A parent", () => {
     // No contradicting empty state and no progress ring.
     await expect(page.getByText("All done for today!")).toHaveCount(0);
     await expect(page.getByText(/^\d+ of \d+ done today$/)).toHaveCount(0);
-    // Chores stay reachable from Today.
-    await expect(
-      page.getByRole("link", { name: "All chores" }),
-    ).toHaveAttribute("href", "/dashboard/chores");
+    // Chores stay reachable from Today: one link beside the sentence, and
+    // the "Chores today" heading (Calm Today drops the extra "All chores").
+    await expect(page.getByTestId("home-summary").getByRole("link")).toHaveText(
+      ["1 chore to check"],
+    );
     await expect(
       page.getByRole("link", { name: "1 chore to check" }),
-    ).toBeVisible();
+    ).toHaveAttribute("href", "/dashboard/chores");
+    await expect(page.getByRole("link", { name: "All chores" })).toHaveCount(0);
+    await expect(
+      visibleBoard.getByTestId("region-link-chores"),
+    ).toHaveAttribute("href", "/dashboard/chores");
     await expect(page.getByText(CHORE_TITLE, { exact: true })).toHaveCount(1);
     const ownChore = page.getByRole("checkbox", {
       name: new RegExp(CHORE_TITLE),

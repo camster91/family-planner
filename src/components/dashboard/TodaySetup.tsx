@@ -191,7 +191,7 @@ export default function TodaySetup({ viewer, familyId, steps, part, art }: Today
   if (!showGetStarted && !showFeatureSuggestions) return null
 
   return (
-    <div className={part === 'getStarted' ? 'mb-6 space-y-4' : 'mt-6 space-y-4'}>
+    <div className={part === 'getStarted' ? 'mb-3 space-y-4' : 'mt-6 space-y-4'}>
       {showGetStarted && <LazyGetStarted viewer={viewer} familyId={familyId} steps={steps} art={art} />}
       {showFeatureSuggestions && (
         <LazyFeatureSuggestions
