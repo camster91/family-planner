@@ -393,77 +393,43 @@ test.describe("Personal-only household work", () => {
         const right = (box: NonNullable<typeof nextBox>) => box.x + box.width;
         const edgeTolerance = 2;
 
-        // The personal layout keeps the saved DOM order. Its responsive
-        // spans change by viewport instead of using dense packing or CSS
-        // reordering.
+        // Calm Today keeps the saved DOM order with no dense packing or CSS
+        // reordering: one column below 1024px; from there the compact lines
+        // stack beside the main "what's next" card.
+        const dinnerBox = await section("dinner").boundingBox();
+        const groceriesBox = await section("groceries").boundingBox();
+        expect(dinnerBox).not.toBeNull();
+        expect(groceriesBox).not.toBeNull();
+        const lines = [dinnerBox!, groceriesBox!, comingBox!];
         expect(Math.abs(nextBox!.x - gridBox!.x)).toBeLessThan(edgeTolerance);
-        if (width < 1280) {
+        for (const line of lines) {
+          expect(Math.abs(right(line) - gridRight)).toBeLessThan(edgeTolerance);
+          expect(Math.abs(line.x - dinnerBox!.x)).toBeLessThan(edgeTolerance);
+        }
+        // The lines follow each other top to bottom in the saved order.
+        expect(groceriesBox!.y).toBeGreaterThanOrEqual(
+          dinnerBox!.y + dinnerBox!.height - edgeTolerance,
+        );
+        expect(comingBox!.y).toBeGreaterThanOrEqual(
+          groceriesBox!.y + groceriesBox!.height - edgeTolerance,
+        );
+        if (width < 1024) {
           expect(Math.abs(right(nextBox!) - gridRight)).toBeLessThan(
             edgeTolerance,
           );
-        }
-        if (width < 1280)
-          expect(Math.abs(comingBox!.x - gridBox!.x)).toBeLessThan(
+          expect(Math.abs(dinnerBox!.x - gridBox!.x)).toBeLessThan(
             edgeTolerance,
-          );
-        expect(Math.abs(right(comingBox!) - gridRight)).toBeLessThan(
-          edgeTolerance,
-        );
-
-        if (width < 1280) {
-          const dinnerBox = await section("dinner").boundingBox();
-          const groceriesBox = await section("groceries").boundingBox();
-          expect(dinnerBox).not.toBeNull();
-          expect(groceriesBox).not.toBeNull();
-          expect(Math.abs(dinnerBox!.y - groceriesBox!.y)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(dinnerBox!.x).toBeLessThan(groceriesBox!.x);
-          expect(Math.abs(dinnerBox!.width - groceriesBox!.width)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(right(dinnerBox!)).toBeLessThanOrEqual(
-            groceriesBox!.x + edgeTolerance,
-          );
-          expect(right(groceriesBox!)).toBeLessThanOrEqual(
-            gridRight + edgeTolerance,
           );
           expect(dinnerBox!.y).toBeGreaterThanOrEqual(
             nextBox!.y + nextBox!.height - edgeTolerance,
           );
-          expect(comingBox!.y).toBeGreaterThanOrEqual(
-            Math.max(
-              dinnerBox!.y + dinnerBox!.height,
-              groceriesBox!.y + groceriesBox!.height,
-            ) - edgeTolerance,
-          );
         } else {
-          const dinnerBox = await section("dinner").boundingBox();
-          const groceriesBox = await section("groceries").boundingBox();
-          expect(dinnerBox).not.toBeNull();
-          expect(groceriesBox).not.toBeNull();
           expect(Math.abs(nextBox!.y - dinnerBox!.y)).toBeLessThan(
             edgeTolerance,
           );
           expect(nextBox!.width).toBeGreaterThan(dinnerBox!.width);
           expect(right(nextBox!)).toBeLessThanOrEqual(
             dinnerBox!.x + edgeTolerance,
-          );
-          expect(Math.abs(right(dinnerBox!) - gridRight)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(Math.abs(groceriesBox!.y - comingBox!.y)).toBeLessThan(
-            edgeTolerance,
-          );
-          expect(right(groceriesBox!)).toBeLessThanOrEqual(
-            comingBox!.x + edgeTolerance,
-          );
-          expect(comingBox!.width).toBeGreaterThan(groceriesBox!.width);
-          expect(comingBox!.y).toBeGreaterThanOrEqual(
-            Math.max(
-              nextBox!.y + nextBox!.height,
-              dinnerBox!.y + dinnerBox!.height,
-            ) - edgeTolerance,
           );
         }
       }
