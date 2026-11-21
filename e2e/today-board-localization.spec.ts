@@ -107,7 +107,8 @@ for (const locale of ["en", "es"] as const) {
               // Nothing planned: the one-line empty card (heading + "Plan dinner").
               "Cena de esta noche",
               "Tareas de hoy , abrir tareas",
-              "Compras , abrir listas de compras",
+              // Calm Today: a single line; the whole row is the link.
+              "Compras",
               "Próximamente",
             ]
           : [
@@ -115,7 +116,8 @@ for (const locale of ["en", "es"] as const) {
               // Nothing planned: the one-line empty card (heading + "Plan dinner").
               "Dinner tonight",
               "Chores today , open chores",
-              "Groceries , open grocery lists",
+              // Calm Today: a single line; the whole row is the link.
+              "Groceries",
               "Coming up",
             ];
       for (const heading of headings)
@@ -132,13 +134,29 @@ for (const locale of ["en", "es"] as const) {
       await expect(
         board.getByText("Dentist (Casey)", { exact: true }),
       ).toBeVisible();
+      // Calm Today: event rows no longer say who added them.
       await expect(
-        board
-          .getByText(locale === "es" ? "Añadido por Avery" : "Added by Avery", {
-            exact: true,
-          })
-          .first(),
-      ).toBeVisible();
+        board.getByText(locale === "es" ? /Añadido por/ : /Added by/),
+      ).toHaveCount(0);
+      const groceriesLine = board
+        .getByTestId("region-groceries")
+        .getByRole("link");
+      await expect(groceriesLine).toContainText(
+        locale === "es" ? "6 por comprar" : "6 to buy",
+      );
+      await expect(groceriesLine).toHaveAttribute(
+        "href",
+        "/dashboard/lists/groceries",
+      );
+      const comingLine = board.getByTestId("region-coming").getByRole("link");
+      await expect(comingLine).toContainText(
+        locale === "es"
+          ? "Library returns · Mañana"
+          : "Library returns · Tomorrow",
+      );
+      await expect(comingLine).toContainText(
+        locale === "es" ? /\+\d+ más/ : /\+\d+ more/,
+      );
       await expect(
         board.getByText(
           locale === "es"

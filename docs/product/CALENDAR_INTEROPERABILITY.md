@@ -290,7 +290,8 @@ represented by that account, as on the Today board.
   in household order (accounts, then profiles, by creation), limited to people
   who are in the household now. Colour is the person's Today-board colour.
 - **Surfaces:** the new and edit event forms ("Who is it for?"), planner chips
-  and detail, and Today rows ("For Casey" replaces "Added by" when set).
+  and detail, and Today rows ("For Casey" chips; the personal Today page shows no
+  "Added by" line, the fridge and tablet boards show it when no person is set).
 - **Person chips and filter (UI review item 9):** an event shows a person chip
   per person: the initial on their colour plus their first name. In the agenda
   the chip carries the name; in the narrow week and day grid only the initials
@@ -302,8 +303,10 @@ represented by that account, as on the Today board.
   (`localStorage` `fp:person-filter:v1:calendar`, a person key; a key not in
   the household reads as "Everyone"). The household list comes from the same
   reader as `GET /api/events/people`, on the server, only with the switch on.
-  On Today, "Coming up" rows show the same chips, and "Added by" (no people
-  chosen) is plain small text with no colour.
+  On the fridge and tablet boards, "Coming up" rows show the same chips, and
+  "Added by" (no people chosen) is plain small text with no colour. The
+  personal Today page (Calm Today, 2026-11-21) folds "Coming up" into one line
+  and drops "Added by".
 - **All-day events:** not part of this; events still have no all-day field.
 - **Lifecycle:** deleting the event, the account or the profile cascades the
   row. Leaving the household or archiving a profile hides it on read. Household

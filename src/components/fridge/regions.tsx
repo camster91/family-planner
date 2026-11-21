@@ -187,18 +187,105 @@ export function EmptyRegionLine({
       data-empty-line=""
       className={cn(regionClass, areaClass[area], 'py-2 md:py-2 lg:py-2 2xl:py-3')}
     >
-      <div className="flex min-h-[48px] flex-wrap items-center gap-x-3 gap-y-1">
+      {/* One row: the words wrap inside their own block, so the action stays
+          beside them instead of dropping to a second row. */}
+      <div className="flex min-h-[48px] items-center gap-3">
         <Glyph color={glyph} size="sm">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </Glyph>
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+          <h2 id={`${id}-title`} className="text-[17px] font-semibold leading-tight text-label-primary md:text-[18px]">
+            {title}
+          </h2>
+          <p data-testid={`region-empty-${area}`} className={cn(metaTextClass, 'min-w-0 break-words')}>
+            {message}
+          </p>
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * A filled card on the personal Today page, folded into one tappable line
+ * (Calm Today): "Dinner tonight · Lemon herb chicken ›". The whole row opens
+ * the section and is at least 44px tall. Person app only; the fridge and the
+ * paired tablet keep full regions. Keeps the region's test id and labelled
+ * section so the layout editor and screen readers still find it.
+ */
+export function RegionLine({
+  id,
+  area,
+  title,
+  icon: Icon,
+  glyph,
+  href,
+  hrefLabel,
+  value,
+  more,
+  valueTestId,
+}: {
+  id: string
+  area: BoardArea
+  title: string
+  icon: LucideIcon
+  glyph: GlyphColor
+  /** Where the line goes. Null: the same words, not tappable. */
+  href: string | null
+  /** Screen-reader words after the line, e.g. "open meals". */
+  hrefLabel?: string
+  /** The one fact worth a glance: tonight's dinner, "6 to buy", the next event. */
+  value: string
+  /** A quiet count of the rest, e.g. "+4 more". */
+  more?: string | null
+  valueTestId?: string
+}) {
+  const rowClass =
+    'flex min-h-[52px] w-full items-center gap-3 rounded-[var(--radius-xl)] px-4 py-2'
+  const content = (
+    <>
+      <Glyph color={glyph} size="sm">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </Glyph>
+      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         <h2 id={`${id}-title`} className="text-[17px] font-semibold leading-tight text-label-primary md:text-[18px]">
           {title}
         </h2>
-        <p data-testid={`region-empty-${area}`} className={cn(metaTextClass, 'min-w-0 flex-1 basis-40 break-words')}>
-          {message}
-        </p>
-        {action}
-      </div>
+        <span data-testid={valueTestId ?? `region-line-${area}`} className="min-w-0 break-words text-[16px] leading-snug text-label-primary line-clamp-2 md:text-[17px]">
+          {value}
+        </span>
+        {more && (
+          <span data-testid={`region-line-more-${area}`} className="shrink-0 text-[14px] leading-snug text-label-secondary md:text-[15px]">
+            {more}
+          </span>
+        )}
+      </span>
+    </>
+  )
+  return (
+    <section
+      aria-labelledby={`${id}-title`}
+      data-testid={`region-${area}`}
+      data-region-line=""
+      className={cn(regionClass, areaClass[area], 'p-0 md:p-0 lg:p-0 2xl:p-0')}
+    >
+      {href ? (
+        <Link
+          href={href}
+          data-testid={`region-link-${area}`}
+          className={cn(
+            rowClass,
+            'active:bg-[var(--surface-fill)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)]',
+          )}
+        >
+          {content}
+          {hrefLabel && <span className="sr-only">, {hrefLabel}</span>}
+          <ChevronRight className="h-5 w-5 shrink-0 text-label-secondary" aria-hidden="true" />
+        </Link>
+      ) : (
+        <div className={rowClass}>{content}</div>
+      )}
     </section>
   )
 }
@@ -275,8 +362,14 @@ export function ScheduleEventRows({
   events,
   people,
   eventAction,
+  showAddedBy = true,
 }: {
   eventAction?: (event: TodayEvent) => React.ReactNode
+  /**
+   * "Added by Avery" under an event with no people chosen. The personal Today
+   * page leaves it out (Calm Today); the fridge and tablet boards keep it.
+   */
+  showAddedBy?: boolean
   events: TodayEvent[]
   people?: Map<string, BoardPerson>
 }) {
@@ -285,7 +378,7 @@ export function ScheduleEventRows({
   return (
     <ul className="divide-y divide-[var(--surface-separator)]">
       {events.map((e) => {
-        const person = e.addedById ? people?.get(e.addedById) : undefined
+        const person = showAddedBy && e.addedById ? people?.get(e.addedById) : undefined
         return (
           <li
             key={e.id}
@@ -604,6 +697,7 @@ export function ChoreRow({
   onTick,
   canTick,
   showOwner = false,
+  inlineMeta = false,
   preparation,
   action,
 }: {
@@ -614,9 +708,21 @@ export function ChoreRow({
   onTick?: ((chore: BoardChore) => void) | null
   canTick?: (chore: BoardChore) => boolean
   showOwner?: boolean
+  /**
+   * Personal Today (Calm Today): the person and status follow the title on
+   * the same line ("Tidy bedroom · Casey · In progress") and wrap only when
+   * they must. The fridge and tablet boards keep one fact per line.
+   */
+  inlineMeta?: boolean
 }) {
   const text = useTodayBoardText()
   const tickable = Boolean(onTick && (canTick?.(c) ?? true))
+  const metaClass = cn(
+    metaTextClass,
+    inlineMeta
+      ? "inline-block before:mx-2 before:content-['·']"
+      : 'block',
+  )
   const label = (
     <span className="min-w-0 flex-1">
       {/* Picture routines (#272): the chore's picture, when it has one. */}
@@ -626,18 +732,18 @@ export function ChoreRow({
       {c.title}{' '}
       {preparation && <OwnPreparationNote title={preparation.eventTitle} />}
       {showOwner ? (
-        <span className={cn(metaTextClass, 'block')}>{name}</span>
+        <span className={metaClass}>{name}</span>
       ) : (
         tickable && <span className="sr-only">{name}</span>
       )}
       {c.overdue && (
-        <span className={cn(metaTextClass, 'block')} data-testid="board-chore-overdue">{text('overdue')}</span>
+        <span className={metaClass} data-testid="board-chore-overdue">{text('overdue')}</span>
       )}
       {c.status === 'in_progress' && (
-        <span className={cn(metaTextClass, 'block')}>{text('inProgress')}</span>
+        <span className={metaClass}>{text('inProgress')}</span>
       )}
       {c.actionAvailability?.state === 'paused' && (
-        <span className={cn(metaTextClass, 'block')} role="status">
+        <span className={metaClass} role="status">
           {text(c.actionAvailability.reason === 'PROFILE_ARCHIVED' ? 'profileChoreArchived' : 'profileChorePaused')}
         </span>
       )}

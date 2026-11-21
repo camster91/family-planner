@@ -228,6 +228,9 @@ test("a key press returns to the board and does nothing else", async ({
   await page.getByRole("link", { name: "Exit fridge mode" }).focus();
   await page.clock.runFor(5 * MIN + 20 * 1000);
   await expect(cover(page)).toBeVisible();
+  // The cover's code loads on demand: a short loading cover (aria-busy) holds
+  // focus first. Measure the real cover, not the moment the two swap.
+  await expect(cover(page)).not.toHaveAttribute("aria-busy", "true");
   const wake = cover(page).getByRole("button", {
     name: "Show the board",
     exact: true,

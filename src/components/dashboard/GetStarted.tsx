@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { Check, ChevronRight } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight } from 'lucide-react'
 import { useUndoToast } from '@/components/ui/toast'
 import { useGetStartedText } from '@/i18n/get-started'
 import { cn } from '@/lib/utils'
@@ -16,8 +16,8 @@ export interface GetStartedProps {
   familyId: string
   steps: GetStartedSteps
   /**
-   * The card's decorative art, rendered on the server (GetStartedArt) so the
-   * illustration registry stays out of this lazy chunk.
+   * Decorative art beside the opened steps, rendered on the server
+   * (GetStartedArt) so the illustration registry stays out of this lazy chunk.
    */
   art?: React.ReactNode
 }
@@ -40,6 +40,9 @@ export default function GetStarted({ viewer, familyId, steps, art }: GetStartedP
   // Hidden for this visit even if storage refused the write.
   const [hiddenNow, setHiddenNow] = React.useState(false)
   const headingId = React.useId()
+  const stepsId = React.useId()
+  // The steps stay folded until asked for; the line alone says how far along.
+  const [open, setOpen] = React.useState(false)
 
   if (viewer.role !== 'parent' || allStepsDone(steps) || stored || hiddenNow) return null
 
@@ -89,28 +92,44 @@ export default function GetStarted({ viewer, familyId, steps, art }: GetStartedP
   }
 
   return (
-    <section aria-labelledby={headingId} data-testid="get-started" className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-4 md:p-5">
-      <div className="flex items-center gap-3">
-        {art}
-        <div className="min-w-0 flex-1">
-          <h2 id={headingId} className="text-title-3 text-label-primary">
-            {text('getStarted')}
-          </h2>
-          <p className="mt-1 text-subhead text-label-secondary" data-testid="get-started-progress">
-            {text('setupProgress', { done: doneCount, total: rows.length })}
-          </p>
-        </div>
+    <section aria-labelledby={headingId} data-testid="get-started" className="rounded-[var(--radius-lg)] border border-[var(--surface-separator)] bg-[var(--surface-elevated)]">
+      <div className="flex items-center gap-1 pl-4 pr-2">
+        <h2 className="min-w-0 flex-1">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={stepsId}
+            data-testid="get-started-toggle"
+            onClick={() => setOpen((value) => !value)}
+            className="flex min-h-[48px] w-full items-center gap-2 rounded-[var(--radius-md)] text-left active:bg-[var(--surface-fill)] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[var(--accent-fill)]"
+          >
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <span id={headingId} className="text-[17px] font-semibold leading-tight text-label-primary">
+                {text('getStarted')}
+              </span>
+              <span className="text-subhead text-label-secondary" data-testid="get-started-progress">
+                {text('setupProgress', { done: doneCount, total: rows.length })}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn('h-5 w-5 shrink-0 text-label-secondary motion-safe:transition-transform', open && 'rotate-180')}
+              aria-hidden="true"
+            />
+          </button>
+        </h2>
         <button
           type="button"
           onClick={hide}
           aria-label={text('setupHideLabel')}
-          className="btn-plain -mr-2 -mt-1 min-h-[44px] min-w-[44px] shrink-0"
+          className="btn-plain min-h-[44px] min-w-[44px] shrink-0"
         >
           {text('setupHide')}
         </button>
       </div>
 
-      <ol className="mt-3 grid gap-1 md:grid-cols-2 md:gap-3 xl:grid-cols-4" aria-label={text('setupSteps')}>
+      <div id={stepsId} hidden={!open} className={cn('items-center gap-3 px-2 pb-2 md:px-3 md:pb-3', open && 'flex')}>
+      {art}
+      <ol className="grid min-w-0 flex-1 gap-1 md:grid-cols-2 md:gap-3 xl:grid-cols-4" aria-label={text('setupSteps')}>
         {rows.map((row) => (
           <li key={row.key} data-testid={`get-started-${row.key}`}>
             <Link
@@ -142,6 +161,7 @@ export default function GetStarted({ viewer, familyId, steps, art }: GetStartedP
           </li>
         ))}
       </ol>
+      </div>
     </section>
   )
 }

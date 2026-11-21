@@ -1,22 +1,25 @@
 "use client";
 
 import * as React from "react";
-import {
-  Plus,
-  SlidersHorizontal,
-  RefreshCw,
-} from "lucide-react";
+import { MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import type { BoardLinks } from "@/app/dashboard/today/today-board-data";
 import { canRoleAccessPath } from "@/lib/kid-access";
 import { canCreateList } from "@/lib/role-capabilities";
 import { useTodayBoardText } from "@/i18n/today-board";
 
+// A quiet icon-only overflow (Calm Today): one primary button on the page.
 const targetClass =
-  "inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-label-primary bg-[var(--surface-elevated)] border border-[var(--surface-separator)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] active:bg-accent-tint";
-const menuClass =
+  "inline-flex h-11 w-11 items-center justify-center rounded-full text-label-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-text)] active:bg-accent-tint";
+/** One row of the Today overflow menu, at least 44px tall. */
+export const todayMenuItemClass =
   "flex min-h-[44px] w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-label-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-text)] active:bg-accent-tint";
 
-/** Navigation only: forms and household writes retain their canonical authorization. */
+/**
+ * The personal Today page's one primary button ("Add or ask") and a quiet
+ * overflow menu for everything else: Customize, Fridge mode (large screens),
+ * Refresh now. Navigation only: forms and household writes retain their
+ * canonical authorization.
+ */
 export default function TodayControls({
   links,
   role,
@@ -71,7 +74,7 @@ export default function TodayControls({
   return (
     <nav
       aria-label={text("todayQuickActions")}
-      className="relative mb-4 flex flex-wrap items-center gap-2 md:mb-5"
+      className="relative mb-4 flex items-center gap-2 md:mb-5"
     >
       {(canCreateEvent || canCreateChore || canAddList || canAddMeal) && (
         <button
@@ -88,19 +91,24 @@ export default function TodayControls({
           {text("addOrAsk")}
         </button>
       )}
-      <details ref={details} className="sm:relative" onKeyDown={closeOnEscape}>
+      <details
+        ref={details}
+        className="ml-auto"
+        data-testid="today-overflow"
+        onKeyDown={closeOnEscape}
+      >
         <summary
           className={`${targetClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
         >
-          <SlidersHorizontal size={18} aria-hidden="true" />
-          {text("todayControls")}
+          <MoreHorizontal size={22} aria-hidden="true" />
+          <span className="sr-only">{text("todayControls")}</span>
         </summary>
-        <div className="absolute left-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
+        <div className="absolute right-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-2xl border border-[var(--surface-separator)] bg-[var(--surface-elevated)] p-2 shadow-xl">
           {children && <div className="mb-2 border-b border-[var(--surface-separator)] pb-2">{children}</div>}
           <button
             type="button"
             disabled={!online}
-            className={`${menuClass} disabled:opacity-50`}
+            className={`${todayMenuItemClass} disabled:opacity-50`}
             onClick={() => {
               if (details.current) details.current.open = false;
               details.current?.querySelector("summary")?.focus();

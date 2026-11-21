@@ -136,14 +136,33 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
   // Open first, then done, each in the server's order.
   const rows = [...mine.filter((c) => isOpenStatus(c.status)), ...mine.filter((c) => isDoneStatus(c.status))]
 
+  // One link beside the sentence (Calm Today). "N chores to check" already
+  // opens the chores page, and so does the board's "Chores today" heading
+  // whenever someone else has a chore due today. "All chores" stays only when
+  // neither is on the page (for example a teen who sees just their own list).
+  const toCheckLink = isParent && toCheckCount > 0 && Boolean(choresHref)
+  const othersDueToday = choresDueOn(effective, todayKey).some((c) => c.assigneeId !== viewer.id)
+  const allChoresLink = Boolean(choresHref) && !toCheckLink && !othersDueToday
+
   return (
-    <section aria-label={copy.sectionLabel} data-testid="home-summary" className="mb-4 border-b border-[var(--surface-separator)] pb-3 md:flex md:flex-wrap md:items-center md:gap-x-5">
-      <p role="status" data-testid="home-summary-sentence" className="text-[16px] font-medium leading-relaxed text-label-primary md:flex-1">
+    <section aria-label={copy.sectionLabel} data-testid="home-summary" className="mb-3 flex flex-wrap items-center gap-x-5 border-b border-[var(--surface-separator)] pb-2">
+      <p role="status" data-testid="home-summary-sentence" className="min-w-0 flex-1 basis-56 py-2 text-[16px] font-medium leading-relaxed text-label-primary">
         {sentence}
       </p>
 
+      {choresHref && (toCheckLink || allChoresLink) && (
+        <Link
+          href={choresHref}
+          data-testid={toCheckLink ? 'home-summary-to-check' : 'home-summary-all-chores'}
+          className="inline-flex min-h-[44px] shrink-0 items-center gap-1 text-subhead font-medium text-[var(--accent-text)]"
+        >
+          {toCheckLink ? copy.toCheck(toCheckCount) : copy.allChores}
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      )}
+
       {rows.length > 0 && (
-        <div className="mt-3 w-full list-inset" data-testid="my-chores">
+        <div className="mt-1 w-full list-inset" data-testid="my-chores">
           {rows.map((chore, i) => {
             const done = isDoneStatus(chore.status)
             const checked = chore.status === 'verified'
@@ -163,29 +182,6 @@ export default function HomeSummary({ viewer, chores, members, toCheckCount, cho
               </div>
             )
           })}
-        </div>
-      )}
-
-      {(choresHref || (isParent && toCheckCount > 0)) && (
-        <div className="mt-1 flex flex-wrap gap-x-4 md:mt-0">
-          {isParent && toCheckCount > 0 && choresHref && (
-            <Link
-              href={choresHref}
-              className="inline-flex min-h-[44px] items-center gap-1 text-subhead font-medium text-[var(--accent-text)]"
-            >
-              {copy.toCheck(toCheckCount)}
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          )}
-          {choresHref && (
-            <Link
-              href={choresHref}
-              className="inline-flex min-h-[44px] items-center gap-1 text-subhead font-medium text-[var(--accent-text)]"
-            >
-              {copy.allChores}
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          )}
         </div>
       )}
     </section>

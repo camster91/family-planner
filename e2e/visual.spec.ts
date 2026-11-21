@@ -46,7 +46,7 @@ test.describe("@visual Family A parent", () => {
       const main = page.locator("#main-content");
       await expect(main.getByText("Dentist (Casey)").first()).toBeVisible();
       await expect(main.getByTestId("home-summary-sentence")).toBeVisible();
-      // The Get started card (first on the page for an unfinished setup)
+      // The Get started line (first on the page for an unfinished setup)
       // loads after first paint; capture it loaded, not its loading line.
       await expect(main.getByTestId("get-started")).toBeVisible();
       await expect(main.locator('[aria-busy="true"]')).toHaveCount(0);

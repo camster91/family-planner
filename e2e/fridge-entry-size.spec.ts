@@ -15,6 +15,13 @@ test("Fridge mode entry follows available device space and keeps exit reachable"
   );
   await page.goto("/dashboard/today");
   const entry = page.getByRole("link", { name: "Fridge mode", exact: true });
+  // Calm Today: the entry is not a header pill any more. It waits in the
+  // "More options" overflow, and only on screens large enough for a wall board.
+  await expect(entry).not.toBeVisible();
+  await page.getByTestId("today-overflow").locator("summary").click();
+  await expect(
+    page.getByRole("button", { name: "Refresh now", exact: true }),
+  ).toBeVisible();
   if (info.project.name === "phone-390x844") {
     await expect(entry).not.toBeVisible();
     await page.setViewportSize({ width: 844, height: 390 });
@@ -29,6 +36,9 @@ test("Fridge mode entry follows available device space and keeps exit reachable"
     ).toBeVisible();
   } else {
     await expect(entry).toBeVisible();
+    const box = await entry.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
     await entry.click();
     await expect(page).toHaveURL(/mode=fridge/);
   }

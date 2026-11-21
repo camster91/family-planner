@@ -288,7 +288,7 @@ describe("person board (#274)", () => {
     personQueue.enqueue.mockRejectedValue(
       new QueueError("COMPATIBLE_CLIENT_REQUIRED"),
     );
-    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    await renderBoard({ viewer: { id: "p", role: "parent" }, fridgeMode: true });
     fireEvent.click(
       within(groceries()).getByRole("button", { name: /Tick off Milk/ }),
     );
@@ -303,7 +303,7 @@ describe("person board (#274)", () => {
     personQueue.enqueue.mockRejectedValue(
       new QueueError("STORAGE_UNAVAILABLE"),
     );
-    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    await renderBoard({ viewer: { id: "p", role: "parent" }, fridgeMode: true });
     fireEvent.click(
       within(groceries()).getByRole("button", { name: /Tick off Milk/ }),
     );
@@ -485,8 +485,10 @@ describe("person board (#274)", () => {
     expect(screen.queryByTestId("undo-toast")).toBeNull();
   });
 
+  // Calm Today: the personal page shows groceries as one line, so quick ticks
+  // live on the list and on the person's fridge board (same person actions).
   it("tapping a grocery item queues the tick (#162 queue), hides it, and Undo queues the untick", async () => {
-    await renderBoard({ viewer: { id: "c", role: "child" } });
+    await renderBoard({ viewer: { id: "c", role: "child" }, fridgeMode: true });
     expect(within(groceries()).getByText("3 to buy")).toBeTruthy();
     fireEvent.click(
       within(groceries()).getByRole("button", { name: "Tick off Milk × 2" }),
@@ -511,7 +513,7 @@ describe("person board (#274)", () => {
   });
 
   it("a queued tick the server refuses puts the item back with an error", async () => {
-    await renderBoard({ viewer: { id: "c", role: "child" } });
+    await renderBoard({ viewer: { id: "c", role: "child" }, fridgeMode: true });
     fireEvent.click(
       within(groceries()).getByRole("button", { name: "Tick off Bread" }),
     );
@@ -522,6 +524,18 @@ describe("person board (#274)", () => {
     expect(within(groceries()).getByText("Bread")).toBeTruthy();
     expect(personQueue.discard).toHaveBeenCalledWith("op-1");
     expect(screen.getByRole("alert").textContent).toContain("“Bread”");
+  });
+
+  it("the personal page keeps grocery ticks off the home line; the count opens the list", async () => {
+    await renderBoard({ viewer: { id: "p", role: "parent" } });
+    const line = within(groceries()).getByRole("link", {
+      name: "Groceries 3 to buy , open grocery lists",
+    });
+    expect(line).toHaveAttribute("href", "/dashboard/lists/groceries");
+    expect(line.className).toMatch(/min-h-\[52px\]/);
+    expect(within(groceries()).queryByRole("button")).toBeNull();
+    expect(within(groceries()).queryByText("Milk")).toBeNull();
+    expect(screen.queryByTestId("grocery-item")).toBeNull();
   });
 
   it("tile targets are at least 48px tall (44px minimum) and keep their names", async () => {
