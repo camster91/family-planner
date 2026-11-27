@@ -174,12 +174,31 @@ export function useDeviceBoardActions({
     resolve?.(ok);
   }, []);
 
+  // Who each chore was credited to must survive board refreshes: every tap
+  // reloads the board, which brings a new `members` array and rebuilds the
+  // actions below. Keep these maps outside that memo so the "Done for Maya"
+  // toast and Undo still know who the chore was sent for.
+  // "Not Maya?" picks a different account for one chore's next completion.
+  const overridesRef = React.useRef(new Map<string, DeviceSubjectChoice>());
+  // Who each completion on this board was sent for, so Undo matches it.
+  const completedAsRef = React.useRef(new Map<string, DeviceSubjectChoice>());
+  // Grocery operations this tablet queued, so failures can be reported.
+  const mineRef = React.useRef(new Set<string>());
+  // A different device credential is a different board: start clean.
+  const clientRef = React.useRef(client);
+  if (clientRef.current !== client) {
+    clientRef.current = client;
+    overridesRef.current = new Map();
+    completedAsRef.current = new Map();
+    mineRef.current = new Set();
+  }
+
   const choresOn = Boolean(enabled && features?.chores);
   const listsOn = Boolean(enabled && features?.lists);
 
   const actions = React.useMemo<BoardActions | undefined>(() => {
     if (!client || (!choresOn && !listsOn)) return undefined;
-    const mine = new Set<string>();
+    const mine = mineRef.current;
     const membersByProfileId = new Map(
       members
         .map((member) => {
@@ -194,10 +213,8 @@ export function useDeviceBoardActions({
       (member) => !profileIdForMember(member),
     );
     const accountsById = new Map(accountMembers.map((m) => [m.id, m]));
-    // "Not Maya?" picks a different account for one chore's next completion.
-    const overrides = new Map<string, DeviceSubjectChoice>();
-    // Who each completion on this board was sent for, so Undo matches it.
-    const completedAs = new Map<string, DeviceSubjectChoice>();
+    const overrides = overridesRef.current;
+    const completedAs = completedAsRef.current;
 
     const accountId = () =>
       subjectRef.current?.kind === "account" ? subjectRef.current.id : "";

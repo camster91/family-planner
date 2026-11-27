@@ -196,59 +196,68 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // The household or person may have changed during the call: re-check before replying.
-  const [current, refusal] = await authenticateWithFamily(request);
-  const latest = refusal
-    ? null
-    : await readHouseholdAiSetting(store, actor.familyId);
-  if (
-    refusal ||
-    current.user.id !== actor.userId ||
-    current.user.family_id !== actor.familyId ||
-    current.user.role !== actor.role ||
-    (current.payload?.tv ?? 0) !== actor.generation ||
-    !canUseManagedAi(current.user.role) ||
-    !latest?.enabled
-  ) {
-    await run.settle(409);
-    return json(
-      {
-        error: "Your account or household settings changed. Please try again.",
-        code: "AI_SOURCE_CHANGED",
-      },
-      409,
-    );
-  }
-
-  if (run.result.kind === "refused") {
-    await run.settle(200);
-    return json({
-      status: "refused",
-      drafts: [],
-      dropped: 0,
-      ...context(household),
-    });
-  }
-  let reply;
+  // Every path below settles the run. If something throws first (a lost
+  // database read during the re-check, say), still settle it so the full
+  // reservation does not keep counting against the monthly cap. Settling a
+  // second time is a no-op.
   try {
-    reply = normalizeSmartAdd(run.result.value, {
-      request: input,
-      household,
-      aliasedText,
-    });
-  } catch {
-    await run.settle(502);
-    return json(
-      {
-        error:
-          "Smart Add could not read that. Try different words, or use the buttons below.",
-        code: "AI_PROVIDER_BAD_OUTPUT",
-      },
-      502,
-    );
+    // The household or person may have changed during the call: re-check before replying.
+    const [current, refusal] = await authenticateWithFamily(request);
+    const latest = refusal
+      ? null
+      : await readHouseholdAiSetting(store, actor.familyId);
+    if (
+      refusal ||
+      current.user.id !== actor.userId ||
+      current.user.family_id !== actor.familyId ||
+      current.user.role !== actor.role ||
+      (current.payload?.tv ?? 0) !== actor.generation ||
+      !canUseManagedAi(current.user.role) ||
+      !latest?.enabled
+    ) {
+      await run.settle(409);
+      return json(
+        {
+          error:
+            "Your account or household settings changed. Please try again.",
+          code: "AI_SOURCE_CHANGED",
+        },
+        409,
+      );
+    }
+
+    if (run.result.kind === "refused") {
+      await run.settle(200);
+      return json({
+        status: "refused",
+        drafts: [],
+        dropped: 0,
+        ...context(household),
+      });
+    }
+    let reply;
+    try {
+      reply = normalizeSmartAdd(run.result.value, {
+        request: input,
+        household,
+        aliasedText,
+      });
+    } catch {
+      await run.settle(502);
+      return json(
+        {
+          error:
+            "Smart Add could not read that. Try different words, or use the buttons below.",
+          code: "AI_PROVIDER_BAD_OUTPUT",
+        },
+        502,
+      );
+    }
+    await run.settle(200);
+    return json({ ...reply, ...context(household) });
+  } finally {
+    await run.settle(500);
   }
-  await run.settle(200);
-  return json({ ...reply, ...context(household) });
 
   function context(h: typeof household) {
     return {

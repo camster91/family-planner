@@ -1166,3 +1166,47 @@ it("keeps tablet action ownership and the picker across a locale change", async 
     expect(fc.request).not.toHaveBeenCalled();
   } finally { stop(); }
 });
+
+// Every tablet tap reloads the board, which brings a new `members` array.
+// Who a chore was credited to must survive that, so the "Done for" toast and
+// Undo still match the person the completion was sent for.
+it("remembers who a chore was credited to across a board refresh", async () => {
+  const fc = fakeClient();
+  const board = data();
+  let current: BoardActions | undefined;
+  let rerenderWith: (members: TodayBoardData["members"]) => void = () => undefined;
+  function RefreshHarness() {
+    const [members, setMembers] = React.useState(board.members);
+    rerenderWith = setMembers;
+    const result = useDeviceBoardActions({
+      client: fc.client, enabled: true,
+      features: { chores: true, lists: true }, members,
+      afterChange: () => undefined,
+    });
+    current = result.actions;
+    return <>{result.picker}</>;
+  }
+  render(<I18nProvider locale="en"><RefreshHarness /></I18nProvider>);
+  const chore = board.chores[0]; // assigned to Casey
+  const before = current!;
+  await act(async () => {
+    expect(await before.completeChore(chore)).toEqual({ ok: true });
+  });
+  expect(before.choreAttribution!(chore)?.title).toContain("Casey");
+
+  // The board refresh: same people, new array.
+  act(() => rerenderWith(board.members.map((m) => ({ ...m }))));
+  const after = current!;
+  expect(after).not.toBe(before);
+  expect(after.choreAttribution!(chore)?.title).toContain("Casey");
+
+  await act(async () => {
+    expect(await after.undoChore(chore)).toEqual({ ok: true });
+  });
+  expect(fc.request).toHaveBeenLastCalledWith(
+    "/api/device/chores/c1/uncomplete",
+    expect.objectContaining({ body: { actingMemberId: "c" } }),
+  );
+  // Undo clears the credit, so the toast does not come back.
+  expect(after.choreAttribution!(chore)).toBeNull();
+});
