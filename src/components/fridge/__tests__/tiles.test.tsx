@@ -1201,7 +1201,7 @@ it("remembers who a chore was credited to across a board refresh", async () => {
   expect(after.choreAttribution!(chore)?.title).toContain("Casey");
 
   await act(async () => {
-    expect(await after.undoChore(chore)).toEqual({ ok: true });
+    expect(await after.undoChore!(chore)).toEqual({ ok: true });
   });
   expect(fc.request).toHaveBeenLastCalledWith(
     "/api/device/chores/c1/uncomplete",
