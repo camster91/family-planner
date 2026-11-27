@@ -55,13 +55,17 @@ jest.mock("@/lib/api-auth", () => ({
 }));
 
 const mockSettings = new Map<string, boolean>();
+const mockSettingRead = { fails: false };
 jest.mock("@/lib/ai/household-setting", () => ({
   ...jest.requireActual("@/lib/ai/household-setting"),
-  readHouseholdAiSetting: async (_db: unknown, familyId: string) => ({
-    enabled: mockSettings.get(familyId) ?? false,
-    monthlyCapMicrousd: "2000000",
-    revision: 1,
-  }),
+  readHouseholdAiSetting: async (_db: unknown, familyId: string) => {
+    if (mockSettingRead.fails) throw new Error("D1 unavailable");
+    return {
+      enabled: mockSettings.get(familyId) ?? false,
+      monthlyCapMicrousd: "2000000",
+      revision: 1,
+    };
+  },
 }));
 
 jest.mock("@/lib/ai/household-data", () => {
@@ -174,15 +178,13 @@ beforeEach(() => {
   delete process.env.FAMILY_AI_PROVIDER_DISABLED;
   mockSettings.clear();
   mockSettings.set("family-A", true);
-  mockReserve
-    .mockReset()
-    .mockResolvedValue({
-      id: "res-1",
-      inputRate: "100000",
-      outputRate: "500000",
-      reservedMicrousd: "2500",
-      startedAt: Date.now(),
-    });
+  mockReserve.mockReset().mockResolvedValue({
+    id: "res-1",
+    inputRate: "100000",
+    outputRate: "500000",
+    reservedMicrousd: "2500",
+    startedAt: Date.now(),
+  });
   mockSettle.mockReset().mockResolvedValue(undefined);
   mockGenerate.mockReset();
   jest.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -396,5 +398,23 @@ describe("POST", () => {
     const res = await POST(req("parentA", note()));
     expect(res.status).toBe(409);
     expect(mockSettle.mock.calls[0][4]).toMatchObject({ status: 409 });
+  });
+
+  it("still settles the reservation when the re-check after the call throws", async () => {
+    mockGenerate.mockImplementation(async () => {
+      // The database read in the post-call re-check fails.
+      mockSettingRead.fails = true;
+      return providerItems([{ ...blank, kind: "grocery", title: "milk" }]);
+    });
+    try {
+      await expect(POST(req("parentA", note()))).rejects.toThrow(
+        "D1 unavailable",
+      );
+    } finally {
+      mockSettingRead.fails = false;
+    }
+    // Without a settle the full reservation keeps counting against the cap.
+    expect(mockSettle).toHaveBeenCalledTimes(1);
+    expect(mockSettle.mock.calls[0][4]).toMatchObject({ status: 500 });
   });
 });

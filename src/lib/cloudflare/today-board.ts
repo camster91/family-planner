@@ -175,6 +175,28 @@ function day(value: unknown): string {
   return date(value).toISOString().slice(0, 10);
 }
 
+/** A profile-only chore row whose profile is active in this household. */
+export function isActiveProfileChoreRow(row: ChoreRow, familyId: string) {
+  return (
+    row.assigned_to === null &&
+    row.assigned_member_id !== null &&
+    row.member_subject_erased === 0 &&
+    activeProfile(
+      {
+        id: row.profile_id ?? "",
+        family_id: row.profile_family_id ?? "",
+        role: row.profile_role ?? "",
+        age: row.profile_age,
+        archived_at: row.profile_archived_at,
+        erasure_user_id: row.profile_erasure_user_id,
+        legacy_user: row.profile_legacy_user,
+        linked_user: row.profile_linked_user,
+      },
+      familyId,
+    )
+  );
+}
+
 function activeProfile(
   row: {
     id: string;
@@ -277,7 +299,12 @@ type ChoreRow = {
   profile_linked_user: string | null;
 };
 
-async function readChores(
+/**
+ * The Today chore reader, shared by the board and the personal summary
+ * (src/lib/cloudflare/today-home.ts) so both apply the one Today rule in
+ * src/lib/chore-today.ts the same way.
+ */
+export async function readChores(
   store: D1Store,
   familyId: string,
   from: Date,
